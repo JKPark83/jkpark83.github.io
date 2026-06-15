@@ -1,0 +1,82 @@
+baseURL = "https://jkpark83.github.io/"
+locale = "ko-kr"
+defaultContentLanguage = "ko"
+title = "JKPark의 개발 블로그"
+theme = "PaperMod"
+
+enableRobotsTXT = true
+buildDrafts = false
+buildFuture = false
+buildExpired = false
+enableInlineShortcodes = true
+enableEmoji = true
+
+[pagination]
+  pagerSize = 10
+
+[minify]
+  disableXML = true
+  minifyOutput = true
+
+# 검색 기능을 위해 home 출력에 JSON 인덱스를 추가
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+
+[params]
+  env = "production"
+  description = "개발하면서 배우고 정리한 것들을 기록합니다."
+  author = "JKPark"
+  defaultTheme = "auto"        # auto | light | dark — 방문자 시스템 설정 따라감
+  ShowReadingTime = true
+  ShowShareButtons = true
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true
+  ShowWordCount = true
+  ShowRssButtonInSectionTermList = true
+  ShowToc = true
+  TocOpen = false
+
+  # 홈 화면 인사말
+  [params.homeInfoParams]
+    Title = "안녕하세요 👋"
+    Content = "개발하면서 배우고 정리한 것들을 기록하는 공간입니다. 편하게 둘러보세요!"
+
+  # 우측 상단/홈의 소셜 아이콘
+  [[params.socialIcons]]
+    name = "github"
+    title = "GitHub"
+    url = "https://github.com/JKPark83"
+
+  # 검색(fuse.js) 옵션
+  [params.fuseOpts]
+    isCaseSensitive = false
+    shouldSort = true
+    location = 0
+    distance = 1000
+    threshold = 0.4
+    minMatchCharLength = 0
+    keys = ["title", "permalink", "summary", "content"]
+
+# 상단 메뉴
+[menu]
+  [[menu.main]]
+    identifier = "archives"
+    name = "글 목록"
+    url = "/archives/"
+    weight = 10
+  [[menu.main]]
+    identifier = "search"
+    name = "검색"
+    url = "/search/"
+    weight = 20
+  [[menu.main]]
+    identifier = "tags"
+    name = "태그"
+    url = "/tags/"
+    weight = 30
+
+# 코드 하이라이팅 — PaperMod가 라이트/다크에 맞춰 색을 입히도록 클래스 방식 사용
+[markup]
+  [markup.highlight]
+    noClasses = false

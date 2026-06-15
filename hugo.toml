@@ -80,3 +80,8 @@ enableEmoji = true
 [markup]
   [markup.highlight]
     noClasses = false
+
+# .html 콘텐츠 파일 허용 — Hugo 기본값은 text/html을 차단하므로 텍스트 콘텐츠를 허용
+# (마크다운 text/markdown 등 모든 Hugo 콘텐츠 타입은 text/* 이므로 함께 허용됨)
+[security]
+  allowContent = ['^text/']

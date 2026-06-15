@@ -1,0 +1,22 @@
+{{- /* Giscus 댓글 — GitHub Discussions 기반, 댓글·대댓글(스레드) 지원 */ -}}
+{{- with site.Params.giscus }}
+{{- if and .repo .repoId .category .categoryId }}
+<script src="https://giscus.app/client.js"
+        data-repo="{{ .repo }}"
+        data-repo-id="{{ .repoId }}"
+        data-category="{{ .category }}"
+        data-category-id="{{ .categoryId }}"
+        data-mapping="{{ .mapping | default "pathname" }}"
+        data-strict="{{ .strict | default "0" }}"
+        data-reactions-enabled="{{ .reactionsEnabled | default "1" }}"
+        data-emit-metadata="0"
+        data-input-position="{{ .inputPosition | default "bottom" }}"
+        data-theme="{{ .theme | default "preferred_color_scheme" }}"
+        data-lang="{{ .lang | default "ko" }}"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+<noscript>댓글을 보려면 JavaScript를 활성화해 주세요.</noscript>
+{{- end }}
+{{- end }}

@@ -1,0 +1,61 @@
+{{- define "main" }}
+
+<header class="page-header">
+  <h1>
+    {{ .Title }}
+    {{- if (.Param "ShowRssButtonInSectionTermList") }}
+    {{- with (.OutputFormats.Get "rss") }}
+    <a href="{{ .RelPermalink }}" title="RSS" aria-label="RSS">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" height="23">
+        <path d="M4 11a9 9 0 0 1 9 9" />
+        <path d="M4 4a16 16 0 0 1 16 16" />
+        <circle cx="5" cy="19" r="1" />
+      </svg>
+    </a>
+    {{- end }}
+    {{- end }}
+  </h1>
+  {{- if .Description }}
+  <div class="post-description">
+    {{ .Description }}
+  </div>
+  {{- end }}
+</header>
+
+{{- /* 글 목록을 분류(카테고리)별로 묶어서 출력 — 글이 많은 분류부터 */ -}}
+{{- $terms := index site.Taxonomies "categories" }}
+{{- range $terms.ByCount }}
+<div class="archive-year">
+  <h2 class="archive-year-header" id="{{ .Name | urlize }}">
+    <a class="archive-header-link" href="{{ .Page.Permalink }}">{{ .Page.Title }}</a>
+    <sup class="archive-count">&nbsp;{{ .Count }}</sup>
+  </h2>
+  <div class="archive-posts">
+    {{- range .Pages }}
+    {{- if eq .Kind "page" }}
+    {{- partial "archive_entry.html" . }}
+    {{- end }}
+    {{- end }}
+  </div>
+</div>
+{{- end }}
+
+{{- /* 분류가 지정되지 않은 글은 '미분류'로 모아서 출력 */ -}}
+{{- $mainPages := where site.RegularPages "Type" "in" site.Params.mainSections }}
+{{- $uncategorized := where $mainPages "Params.categories" nil }}
+{{- with $uncategorized }}
+<div class="archive-year">
+  <h2 class="archive-year-header" id="uncategorized">
+    미분류
+    <sup class="archive-count">&nbsp;{{ len . }}</sup>
+  </h2>
+  <div class="archive-posts">
+    {{- range . }}
+    {{- partial "archive_entry.html" . }}
+    {{- end }}
+  </div>
+</div>
+{{- end }}
+
+{{- end }}{{/* end main */}}

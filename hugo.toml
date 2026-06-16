@@ -75,6 +75,11 @@ enableEmoji = true
 # 상단 메뉴
 [menu]
   [[menu.main]]
+    identifier = "ai-news"
+    name = "AI 뉴스"
+    url = "/categories/ai-뉴스/"
+    weight = 5
+  [[menu.main]]
     identifier = "archives"
     name = "글 목록"
     url = "/archives/"

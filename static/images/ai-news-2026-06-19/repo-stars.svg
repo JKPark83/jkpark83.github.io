@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 280" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="720" height="280" fill="#0f172a"/>
+  <text x="30" y="34" fill="#f8fafc" font-size="18" font-weight="700">오픈소스 스포트라이트 — GitHub ⭐ (API 실측)</text>
+  <text x="30" y="56" fill="#94a3b8" font-size="12">2026-06-19 기준 · 가로 막대 = 스타 수 비례</text>
+
+  <!-- agentmemory -->
+  <text x="30" y="98" fill="#e2e8f0" font-size="14" font-weight="700">agentmemory</text>
+  <text x="30" y="116" fill="#64748b" font-size="11">TypeScript · 메모리</text>
+  <rect x="190" y="84" width="470" height="26" rx="5" fill="#34d399"/>
+  <text x="668" y="102" text-anchor="end" fill="#052e16" font-size="14" font-weight="700">23,353</text>
+
+  <!-- openagent -->
+  <text x="30" y="160" fill="#e2e8f0" font-size="14" font-weight="700">openagent</text>
+  <text x="30" y="178" fill="#64748b" font-size="11">Go · 개인비서</text>
+  <rect x="190" y="146" width="106" height="26" rx="5" fill="#38bdf8"/>
+  <text x="306" y="164" fill="#38bdf8" font-size="14" font-weight="700">5,271</text>
+
+  <!-- LightAgent -->
+  <text x="30" y="222" fill="#e2e8f0" font-size="14" font-weight="700">LightAgent</text>
+  <text x="30" y="240" fill="#64748b" font-size="11">Python · 경량 FW</text>
+  <rect x="190" y="208" width="24" height="26" rx="5" fill="#a78bfa"/>
+  <text x="224" y="226" fill="#a78bfa" font-size="14" font-weight="700">1,148</text>
+
+  <text x="30" y="270" fill="#64748b" font-size="11">셋 다 메모리·MCP·경량화로 "컨텍스트 비용"을 줄이는 계열</text>
+</svg>

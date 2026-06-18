@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 430" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="720" height="430" fill="#0f172a"/>
+  <text x="360" y="34" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">오늘의 AI 변화 지도 · 2026-06-19</text>
+  <text x="360" y="58" text-anchor="middle" fill="#94a3b8" font-size="13">주제: 적은 컨텍스트, 더 나은 에이전트</text>
+
+  <!-- center -->
+  <rect x="280" y="186" width="160" height="58" rx="12" fill="#6366f1"/>
+  <text x="360" y="210" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Context</text>
+  <text x="360" y="230" text-anchor="middle" fill="#e0e7ff" font-size="13" font-weight="700">Engineering</text>
+
+  <!-- connectors -->
+  <g stroke="#475569" stroke-width="2" fill="none">
+    <path d="M280 200 C200 150 150 130 120 120"/>
+    <path d="M280 230 C200 280 150 300 120 320"/>
+    <path d="M440 200 C540 150 580 130 600 120"/>
+    <path d="M440 230 C540 280 580 300 600 320"/>
+  </g>
+
+  <!-- 모델 -->
+  <rect x="20" y="86" width="220" height="78" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="34" y="108" fill="#38bdf8" font-size="13" font-weight="700">🤖 모델 / 릴리즈</text>
+  <text x="34" y="128" fill="#e2e8f0" font-size="12">GPT-5.2 은퇴 → GPT-5.5 강제 이관</text>
+  <text x="34" y="146" fill="#e2e8f0" font-size="12">Codex /import · Claude Code v2.1.181</text>
+
+  <!-- 논문 -->
+  <rect x="20" y="288" width="220" height="92" rx="10" fill="#1e293b" stroke="#a78bfa"/>
+  <text x="34" y="310" fill="#a78bfa" font-size="13" font-weight="700">📚 논문</text>
+  <text x="34" y="330" fill="#e2e8f0" font-size="12">2606.10209 recency+summary</text>
+  <text x="34" y="348" fill="#e2e8f0" font-size="12">2606.09900 Engram (bi-temporal)</text>
+  <text x="34" y="366" fill="#94a3b8" font-size="11">→ lean 컨텍스트가 정확도까지 이김</text>
+
+  <!-- 오픈소스 -->
+  <rect x="480" y="86" width="220" height="78" rx="10" fill="#1e293b" stroke="#34d399"/>
+  <text x="494" y="108" fill="#34d399" font-size="13" font-weight="700">🛠 오픈소스</text>
+  <text x="494" y="128" fill="#e2e8f0" font-size="12">agentmemory ⭐23.4k (메모리)</text>
+  <text x="494" y="146" fill="#e2e8f0" font-size="12">LightAgent ⭐1.1k (경량 FW)</text>
+
+  <!-- 실전팁 -->
+  <rect x="480" y="288" width="220" height="92" rx="10" fill="#1e293b" stroke="#fbbf24"/>
+  <text x="494" y="310" fill="#fbbf24" font-size="13" font-weight="700">🧑‍💻 실전 팁</text>
+  <text x="494" y="330" fill="#e2e8f0" font-size="12">Codex: /import (CC 설정 이주)</text>
+  <text x="494" y="348" fill="#e2e8f0" font-size="12">CC: Agent(model:opus) 권한 룰</text>
+  <text x="494" y="366" fill="#94a3b8" font-size="11">공통: RAG 전에 요약 베이스라인</text>
+</svg>

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="720" height="380" fill="#0b1220"/>
+  <text x="360" y="32" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="700">전체 히스토리 재생  vs  Lean 컨텍스트 패턴</text>
+
+  <!-- LEFT: full history -->
+  <rect x="24" y="56" width="312" height="290" rx="12" fill="#1f2937" stroke="#f87171"/>
+  <text x="180" y="84" text-anchor="middle" fill="#f87171" font-size="15" font-weight="700">❌ 전체 히스토리 주입</text>
+
+  <g>
+    <rect x="56" y="104" width="248" height="22" rx="4" fill="#374151"/>
+    <rect x="56" y="132" width="248" height="22" rx="4" fill="#374151"/>
+    <rect x="56" y="160" width="248" height="22" rx="4" fill="#374151"/>
+    <rect x="56" y="188" width="248" height="22" rx="4" fill="#374151"/>
+    <rect x="56" y="216" width="248" height="22" rx="4" fill="#374151"/>
+  </g>
+  <text x="180" y="262" text-anchor="middle" fill="#fca5a5" font-size="12">툴 응답이 장황 → 컨텍스트 오버플로</text>
+  <text x="180" y="284" text-anchor="middle" fill="#fca5a5" font-size="12">비용·지연 ↑, distractor 누적</text>
+  <text x="180" y="312" text-anchor="middle" fill="#fecaca" font-size="13" font-weight="700">정확도까지 떨어짐</text>
+
+  <!-- arrow -->
+  <text x="360" y="205" text-anchor="middle" fill="#9ca3af" font-size="24">➜</text>
+
+  <!-- RIGHT: lean -->
+  <rect x="384" y="56" width="312" height="290" rx="12" fill="#1f2937" stroke="#34d399"/>
+  <text x="540" y="84" text-anchor="middle" fill="#34d399" font-size="15" font-weight="700">✅ Lean 컨텍스트</text>
+
+  <rect x="412" y="100" width="256" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+  <text x="540" y="125" text-anchor="middle" fill="#d1fae5" font-size="12.5">① 최근 N턴 (recency window)</text>
+
+  <rect x="412" y="150" width="256" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+  <text x="540" y="175" text-anchor="middle" fill="#d1fae5" font-size="12.5">② 러닝 요약 (running summary)</text>
+
+  <rect x="412" y="200" width="256" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+  <text x="540" y="219" text-anchor="middle" fill="#d1fae5" font-size="12.5">③ bi-temporal 메모리에서</text>
+  <text x="540" y="234" text-anchor="middle" fill="#d1fae5" font-size="12.5">필요한 atomic fact만 검색</text>
+
+  <text x="540" y="282" text-anchor="middle" fill="#6ee7b7" font-size="12">토큰 ↓, 지연 ↓</text>
+  <text x="540" y="312" text-anchor="middle" fill="#a7f3d0" font-size="13" font-weight="700">정확도는 full-context 이상</text>
+
+  <text x="360" y="368" text-anchor="middle" fill="#64748b" font-size="11">출처: arXiv 2606.10209 · 2606.09900 (Engram)</text>
+</svg>

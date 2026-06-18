@@ -1,0 +1,401 @@
+---
+title: "HTML의 비합리적인 효과: 왜 Claude의 결과물을 마크다운이 아니라 HTML로 받아야 할까"
+date: 2026-06-18T21:00:00+09:00
+draft: false
+tags: ["AI", "Claude Code", "HTML", "마크다운", "생산성", "에이전트"]
+categories: ["AI 엔지니어링"]
+summary: "Anthropic의 Thariq Shihipar가 쓴 'The Unreasonable Effectiveness of HTML'을 정리합니다. AI가 만드는 결과물이 길고 풍부해진 지금, 마크다운은 오히려 정보의 병목이 됩니다. HTML이 왜 더 나은 출력 포맷인지, 기존과 무엇이 다른지, 그리고 내 프로젝트에 바로 써볼 수 있는 예시까지 — 이 글 자체를 HTML로 써서 보여드립니다."
+ShowToc: false
+cover:
+  image: "html-effectiveness-cover.svg"
+  alt: "왼쪽의 단조로운 마크다운 텍스트가 오른쪽의 풍부한 HTML UI(차트·토글·표)로 변환되는 모습"
+  caption: "같은 정보라도 통로가 넓어지면 더 많이 전달된다 — 마크다운에서 HTML로."
+  relative: false
+---
+
+<style>
+/* ── HTML Effectiveness 포스트 전용 스타일 (hx- 접두사) ── */
+.hx-fig{
+  --hx-indigo:#6366f1; --hx-violet:#8b5cf6; --hx-cyan:#06b6d4;
+  --hx-amber:#f59e0b; --hx-rose:#f43f5e; --hx-emerald:#10b981; --hx-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .hx-fig{
+  --hx-indigo:#818cf8; --hx-violet:#a78bfa; --hx-cyan:#22d3ee;
+  --hx-amber:#fbbf24; --hx-rose:#fb7185; --hx-emerald:#34d399; --hx-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .hx-fig{
+    --hx-indigo:#818cf8; --hx-violet:#a78bfa; --hx-cyan:#22d3ee;
+    --hx-amber:#fbbf24; --hx-rose:#fb7185; --hx-emerald:#34d399; --hx-slate:#94a3b8;
+  }
+}
+.hx-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.hx-fig text{font-family:inherit}
+.hx-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.hx-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.hx-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.hx-toc ol{margin:0;padding-left:1.25rem}
+.hx-toc li{margin:.2rem 0;font-size:.95rem}
+.hx-toc a{text-decoration:none}
+.hx-toc a:hover{text-decoration:underline}
+.hx-pull{font-size:1.12rem;line-height:1.72}
+.hx-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.hx-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.8rem;margin:1.6rem 0}
+.hx-card{border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem;background:var(--entry)}
+.hx-card .hx-card-emoji{font-size:1.5rem;line-height:1}
+.hx-card .hx-card-title{font-weight:700;margin:.4rem 0 .3rem;font-size:.98rem}
+.hx-card .hx-card-body{font-size:.88rem;opacity:.78;line-height:1.5}
+</style>
+
+<blockquote class="hx-pull">
+  <p>"내가 마크다운 대신 HTML을 쓰는 진짜 이유는, 그게 Claude와 함께 <strong>루프 안에 있다(in the loop)</strong>고 훨씬 더 강하게 느끼게 해주기 때문이다."</p>
+  <footer>— Thariq Shihipar, Anthropic 기술 스태프(MTS)</footer>
+</blockquote>
+
+<p>Anthropic의 Thariq Shihipar가 쓴 <a href="https://claude.com/blog/using-claude-code-the-unreasonable-effectiveness-of-html" target="_blank" rel="noopener">The Unreasonable Effectiveness of HTML</a>(HTML의 비합리적인 효과)이라는 글이 있습니다. 한 줄로 요약하면 이렇습니다.</p>
+
+<blockquote>
+  <p><strong>"Claude Code에게 결과물을 만들게 할 때, 마크다운(.md)이 아니라 HTML(.html)로 받아라. 그게 훨씬 낫다."</strong></p>
+</blockquote>
+
+<p>처음 들으면 "출력 포맷 취향 얘기 아냐?" 싶습니다. 그런데 읽다 보면 이건 단순한 미관 문제가 아니라, <strong>AI와 일하는 방식 자체가 달라졌기 때문에 생긴 변화</strong>라는 걸 알게 됩니다. 그리고 마침 이 주장과 잘 맞는 형식이 있죠 — 그래서 <strong>이 블로그 글 자체를 HTML과 SVG 그림으로 썼습니다.</strong> 지금 보고 계신 도표들이 곧 글의 논거입니다.</p>
+
+<nav class="hx-toc">
+  <div class="hx-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">원문이 말하는 것 — 한 문장과 그 배경</a></li>
+    <li><a href="#sec-2">기존(마크다운)과 무엇이 다르게 다가오나</a></li>
+    <li><a href="#sec-3">그래서 뭐가 좋아지나 — 5가지 이점</a></li>
+    <li><a href="#sec-4">내 프로젝트에 적용해보기 — 6가지 예시</a></li>
+    <li><a href="#sec-5">현실적인 균형 — 토큰과 마크다운의 자리</a></li>
+    <li><a href="#sec-6">마무리 — '받아보는 사람'에서 '함께 만드는 사람'으로</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. 원문이 말하는 것 — 한 문장과 그 배경</h2>
+
+<p>Shihipar의 주장은 간단합니다. Claude Code에 "리포트 만들어줘", "이 코드 설명해줘", "스펙 정리해줘"라고 시킬 때, 결과를 <strong>마크다운 대신 HTML 파일로 받으라</strong>는 겁니다. 그가 든 이유의 출발점은 아주 개인적이고 솔직합니다.</p>
+
+<blockquote>
+  <p>"나는 100줄이 넘는 마크다운 파일은 읽기가 어렵다고 느낀다. (I find it difficult to read a Markdown file of more than a hundred lines.)"</p>
+</blockquote>
+
+<p>여기서 핵심을 짚어야 합니다. 마크다운이 갑자기 나빠진 게 아닙니다. <strong>AI가 만들어내는 결과물이 예전과 비교할 수 없이 길고 풍부해진 것</strong>이 변화의 원인입니다. 예전엔 AI에게 짧은 답을 받았으니 마크다운으로 충분했습니다. 그런데 지금은 Claude가 표, 다이어그램, 색으로 강조한 코드, 단계별 설명을 한꺼번에 쏟아냅니다.</p>
+
+<p>문제는 마크다운에는 그걸 다 담을 그릇이 없다는 거죠. 표는 그럭저럭 되지만, 다이어그램은 못 그리고 색도 못 입힙니다. 그래서 Claude는 <strong>"마크다운 안에서 할 수 있는 비효율적인 방법"</strong>에 의존하게 됩니다 — ASCII 아트로 다이어그램 흉내, 유니코드 문자로 색 흉내 같은 것들요. Shihipar의 표현으로는, <em>"마크다운은 점점 더 제약이 많은(restrictive) 포맷이 되어가고 있다."</em></p>
+
+<figure class="hx-fig"><svg viewBox="0 0 960 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="같은 풍부한 정보가 좁은 마크다운 통로와 넓은 HTML 통로를 지날 때의 차이">
+  <defs>
+    <marker id="hx-a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+
+  <!-- 공통 소스 -->
+  <rect x="14" y="150" width="170" height="130" rx="14" fill="var(--hx-indigo)" fill-opacity="0.12" stroke="var(--hx-indigo)" stroke-width="2"/>
+  <text x="99" y="180" text-anchor="middle" font-size="15" font-weight="700" fill="var(--hx-indigo)">Claude가</text>
+  <text x="99" y="202" text-anchor="middle" font-size="15" font-weight="700" fill="var(--hx-indigo)">생성한 정보</text>
+  <text x="99" y="232" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.72">표 · 다이어그램</text>
+  <text x="99" y="250" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.72">색 강조 · 인터랙션</text>
+  <text x="99" y="268" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.72">이미지 · 링크</text>
+
+  <!-- 위 레인: 마크다운 (좁은 통로) -->
+  <line x1="184" y1="200" x2="360" y2="100" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5"/>
+  <rect x="360" y="86" width="240" height="20" rx="8" fill="var(--hx-rose)" fill-opacity="0.18" stroke="var(--hx-rose)" stroke-width="2"/>
+  <text x="480" y="71" text-anchor="middle" font-size="14" font-weight="700" fill="var(--hx-rose)">마크다운 통로 — 좁다</text>
+  <line x1="600" y1="96" x2="636" y2="96" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#hx-a1)"/>
+  <rect x="640" y="58" width="306" height="92" rx="12" fill="var(--hx-rose)" fill-opacity="0.08" stroke="var(--hx-rose)" stroke-width="1.6"/>
+  <text x="660" y="86" font-size="13.5" fill="currentColor" opacity="0.85">사람이 받는 것:</text>
+  <text x="660" y="110" font-size="13" fill="currentColor" opacity="0.7">· 텍스트 + ASCII 다이어그램</text>
+  <text x="660" y="130" font-size="13" fill="currentColor" opacity="0.7">· 유니코드로 색 흉내 → 🙈 안 읽음</text>
+
+  <!-- 아래 레인: HTML (넓은 통로) -->
+  <line x1="184" y1="230" x2="360" y2="300" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5"/>
+  <rect x="360" y="262" width="240" height="76" rx="12" fill="var(--hx-emerald)" fill-opacity="0.16" stroke="var(--hx-emerald)" stroke-width="2"/>
+  <text x="480" y="246" text-anchor="middle" font-size="14" font-weight="700" fill="var(--hx-emerald)">HTML 통로 — 넓다</text>
+  <line x1="600" y1="300" x2="636" y2="300" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#hx-a1)"/>
+  <rect x="640" y="262" width="306" height="92" rx="12" fill="var(--hx-emerald)" fill-opacity="0.08" stroke="var(--hx-emerald)" stroke-width="1.6"/>
+  <text x="660" y="290" font-size="13.5" fill="currentColor" opacity="0.85">사람이 받는 것:</text>
+  <text x="660" y="314" font-size="13" fill="currentColor" opacity="0.7">· 표 · 차트 · 토글 · 이미지 그대로</text>
+  <text x="660" y="334" font-size="13" fill="currentColor" opacity="0.7">· 시각적 위계 → 👀 끝까지 읽음</text>
+</svg><figcaption>같은 정보라도, 통로(출력 포맷)가 좁으면 납작해진 채로만 전달된다 — 이것이 마크다운의 병목이다.</figcaption></figure>
+
+<p>비유하자면, <strong>마크다운은 좁은 빨대고 HTML은 넓은 파이프</strong>입니다. AI가 만든 풍부한 정보를 사람에게 전달하는 "대역폭(bandwidth)"이 다른 거죠. 예전엔 흘려보낼 정보가 적어서 빨대로도 충분했지만, 이제는 양이 많아져서 빨대가 병목이 됐습니다.</p>
+
+<hr>
+
+<h2 id="sec-2">2. 기존(마크다운)과 무엇이 다르게 다가오나</h2>
+
+<p>"HTML이 더 예쁘다"는 건 누구나 압니다. 이 글이 신선한 지점은 따로 있습니다. <strong>병목의 위치가 바뀌었다</strong>는 통찰입니다.</p>
+
+<figure class="hx-fig"><svg viewBox="0 0 920 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="병목이 모델에서 사람으로 이동한 모습">
+  <defs><marker id="hx-a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.5"/></marker></defs>
+  <line x1="460" y1="20" x2="460" y2="230" stroke="currentColor" stroke-opacity="0.12" stroke-width="1.5"/>
+
+  <!-- 예전 -->
+  <text x="40" y="44" font-size="15" font-weight="700" fill="var(--hx-slate)">예전 (출력이 짧던 시절)</text>
+  <rect x="40" y="70" width="120" height="56" rx="10" fill="var(--hx-amber)" fill-opacity="0.12" stroke="var(--hx-amber)" stroke-width="1.8"/>
+  <text x="100" y="103" text-anchor="middle" font-size="13.5" fill="currentColor" opacity="0.85">AI 모델</text>
+  <line x1="160" y1="98" x2="196" y2="98" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#hx-a2)"/>
+  <rect x="198" y="70" width="100" height="56" rx="10" fill="var(--hx-rose)" fill-opacity="0.14" stroke="var(--hx-rose)" stroke-width="2"/>
+  <text x="248" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hx-rose)">병목</text>
+  <text x="248" y="113" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">모델 능력</text>
+  <line x1="298" y1="98" x2="334" y2="98" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#hx-a2)"/>
+  <rect x="336" y="70" width="90" height="56" rx="10" fill="var(--hx-indigo)" fill-opacity="0.1" stroke="var(--hx-indigo)" stroke-width="1.8"/>
+  <text x="381" y="103" text-anchor="middle" font-size="13.5" fill="currentColor" opacity="0.85">사람</text>
+  <text x="40" y="168" font-size="12.5" fill="currentColor" opacity="0.62">마크다운으로 충분 — 어차피 정보량이 적으니까</text>
+
+  <!-- 지금 -->
+  <text x="500" y="44" font-size="15" font-weight="700" fill="var(--hx-emerald)">지금 (출력이 길고 풍부)</text>
+  <rect x="500" y="70" width="90" height="56" rx="10" fill="var(--hx-amber)" fill-opacity="0.12" stroke="var(--hx-amber)" stroke-width="1.8"/>
+  <text x="545" y="103" text-anchor="middle" font-size="13.5" fill="currentColor" opacity="0.85">AI 모델</text>
+  <line x1="590" y1="98" x2="626" y2="98" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#hx-a2)"/>
+  <rect x="628" y="70" width="100" height="56" rx="10" fill="var(--hx-indigo)" fill-opacity="0.1" stroke="var(--hx-indigo)" stroke-width="1.8"/>
+  <text x="678" y="103" text-anchor="middle" font-size="13.5" fill="currentColor" opacity="0.85">출력 포맷</text>
+  <line x1="728" y1="98" x2="764" y2="98" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#hx-a2)"/>
+  <rect x="766" y="70" width="116" height="56" rx="10" fill="var(--hx-rose)" fill-opacity="0.14" stroke="var(--hx-rose)" stroke-width="2"/>
+  <text x="824" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hx-rose)">병목 = 사람</text>
+  <text x="824" y="113" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">읽고 이해하기</text>
+  <text x="500" y="168" font-size="12.5" fill="currentColor" opacity="0.62">이젠 '사람이 얼마나 읽고 이해하느냐'가 한계 → 포맷이 중요해짐</text>
+</svg><figcaption>병목이 '모델의 능력'에서 '사람의 이해 대역폭'으로 이동했다. HTML은 바로 그 새 병목을 넓힌다.</figcaption></figure>
+
+<p>예전에는 결과물의 품질을 막는 한계가 <strong>모델 쪽</strong>에 있었습니다. "AI가 이걸 제대로 만들어낼 수 있느냐"가 관건이었죠. 그런데 모델이 똑똑해지고 출력이 풍부해지면서, 이제 한계는 <strong>사람 쪽</strong>으로 넘어왔습니다. "내가 이 긴 결과물을 끝까지 읽고 이해하느냐"가 새로운 병목입니다.</p>
+
+<p>그러니 다르게 다가오는 장점은 이렇게 정리됩니다.</p>
+
+<ul>
+  <li><strong>마크다운의 장점은 "쓰기 편함"이었습니다</strong> — 사람이 손으로 타이핑하기 좋은 포맷이죠. 그런데 이제 글을 쓰는 주체가 사람이 아니라 AI입니다. <strong>"쓰기 편함"이라는 장점이 무의미해진 것</strong>입니다.</li>
+  <li><strong>중요한 건 "읽기 좋음"으로 바뀌었습니다</strong> — AI가 쓰고 사람이 읽는 구조이므로, 사람이 끝까지 읽게 만드는 포맷이 이깁니다. 시각적 위계, 표, 그림, 탭이 있는 HTML이 여기서 강합니다.</li>
+  <li><strong>그리고 "되돌려 줄 수 있음"이 새로 생겼습니다</strong> — 마크다운은 일방통행(AI → 사람)이지만, HTML은 슬라이더·토글·복사 버튼으로 사람이 조정한 값을 다시 AI에게 돌려줄 수 있습니다. 즉 <strong>양방향</strong>이 됩니다.</li>
+</ul>
+
+<p>이 세 번째가 바로 Shihipar가 말한 <em>"in the loop(루프 안에 있다)"</em>의 정체입니다. 결과물을 그냥 받아보는 게 아니라, 결과물 위에서 직접 만지고 그 변화를 다시 AI에게 먹이는 <strong>닫힌 고리</strong>가 만들어집니다.</p>
+
+<figure class="hx-fig"><svg viewBox="0 0 920 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="마크다운의 단방향 전달과 HTML의 양방향 루프 비교">
+  <defs>
+    <marker id="hx-a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.5"/></marker>
+    <marker id="hx-a3g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--hx-emerald)"/></marker>
+  </defs>
+  <line x1="460" y1="20" x2="460" y2="240" stroke="currentColor" stroke-opacity="0.12" stroke-width="1.5"/>
+
+  <!-- 단방향 (마크다운) -->
+  <text x="40" y="44" font-size="15" font-weight="700" fill="var(--hx-rose)">마크다운 — 단방향 (읽기만)</text>
+  <rect x="56" y="96" width="120" height="64" rx="12" fill="var(--hx-rose)" fill-opacity="0.1" stroke="var(--hx-rose)" stroke-width="1.8"/>
+  <text x="116" y="134" text-anchor="middle" font-size="14" fill="currentColor" opacity="0.85">Claude</text>
+  <line x1="176" y1="128" x2="296" y2="128" stroke="currentColor" stroke-opacity="0.55" stroke-width="2.2" marker-end="url(#hx-a3)"/>
+  <text x="236" y="116" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.6">결과물 전달</text>
+  <rect x="296" y="96" width="120" height="64" rx="12" fill="var(--hx-indigo)" fill-opacity="0.1" stroke="var(--hx-indigo)" stroke-width="1.8"/>
+  <text x="356" y="134" text-anchor="middle" font-size="14" fill="currentColor" opacity="0.85">사람</text>
+  <text x="56" y="200" font-size="12.5" fill="currentColor" opacity="0.62">사람의 피드백을 다시 넣으려면 → 손으로 다시 타이핑</text>
+
+  <!-- 양방향 (HTML) -->
+  <text x="500" y="44" font-size="15" font-weight="700" fill="var(--hx-emerald)">HTML — 양방향 (조정 → 되먹임)</text>
+  <rect x="516" y="96" width="120" height="64" rx="12" fill="var(--hx-emerald)" fill-opacity="0.1" stroke="var(--hx-emerald)" stroke-width="1.8"/>
+  <text x="576" y="134" text-anchor="middle" font-size="14" fill="currentColor" opacity="0.85">Claude</text>
+  <rect x="756" y="96" width="120" height="64" rx="12" fill="var(--hx-indigo)" fill-opacity="0.1" stroke="var(--hx-indigo)" stroke-width="1.8"/>
+  <text x="816" y="128" text-anchor="middle" font-size="14" fill="currentColor" opacity="0.85">사람</text>
+  <text x="816" y="146" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6">슬라이더·토글</text>
+  <path d="M636,118 H736" fill="none" stroke="var(--hx-emerald)" stroke-opacity="0.85" stroke-width="2.2" marker-end="url(#hx-a3g)"/>
+  <text x="686" y="108" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.6">인터랙티브 결과물</text>
+  <path d="M736,140 H636" fill="none" stroke="var(--hx-emerald)" stroke-opacity="0.85" stroke-width="2.2" marker-end="url(#hx-a3g)"/>
+  <text x="686" y="158" text-anchor="middle" font-size="11.5" fill="var(--hx-emerald)">복사 버튼으로 되먹임</text>
+  <text x="516" y="200" font-size="12.5" fill="currentColor" opacity="0.62">조정한 값을 복사 → 그대로 Claude에게 → 닫힌 루프</text>
+</svg><figcaption>마크다운은 일방통행, HTML은 사람이 만지고 되돌려 줄 수 있는 양방향 루프. 이것이 'in the loop'의 실체다.</figcaption></figure>
+
+<blockquote>
+  <p>이 "루프 안에 있다"는 감각은, 지난 글 <a href="/posts/loop-engineering/">Loop 엔지니어링</a>에서 다룬 <strong>닫힌 루프(closed loop)</strong> 개념과 정확히 같은 결입니다. 거기선 테스트 결과를 에이전트에게 되먹였다면, 여기선 사람이 HTML 위에서 만진 값을 되먹입니다. 검증과 조정이 루프 <em>안</em>으로 들어온다는 점에서 같은 이야기죠.</p>
+</blockquote>
+
+<hr>
+
+<h2 id="sec-3">3. 그래서 뭐가 좋아지나 — 5가지 이점</h2>
+
+<p>원문이 정리한 HTML의 이점을 다섯 가지로 추렸습니다. 주니어 입장에서 "그래서 내가 뭘 얻나"를 한 줄로 달아뒀습니다.</p>
+
+<div class="hx-cards">
+  <div class="hx-card">
+    <div class="hx-card-emoji">📊</div>
+    <div class="hx-card-title">1. 정보 밀도</div>
+    <div class="hx-card-body">표·SVG 다이어그램·차트·코드 하이라이팅을 한 화면에. ASCII 흉내가 필요 없다.</div>
+  </div>
+  <div class="hx-card">
+    <div class="hx-card-emoji">👀</div>
+    <div class="hx-card-title">2. 가독성</div>
+    <div class="hx-card-body">제목·탭·시각적 위계 덕에 길어도 끝까지 읽게 된다. "100줄의 벽"을 넘는다.</div>
+  </div>
+  <div class="hx-card">
+    <div class="hx-card-emoji">🔗</div>
+    <div class="hx-card-title">3. 공유</div>
+    <div class="hx-card-body">파일 하나를 링크로 던지면 끝. 동료가 어떤 브라우저에서든 그대로 본다.</div>
+  </div>
+  <div class="hx-card">
+    <div class="hx-card-emoji">🎛️</div>
+    <div class="hx-card-title">4. 양방향 상호작용</div>
+    <div class="hx-card-body">슬라이더·토글로 직접 조정하고, 복사 버튼으로 그 값을 Claude에게 되돌린다.</div>
+  </div>
+  <div class="hx-card">
+    <div class="hx-card-emoji">🧩</div>
+    <div class="hx-card-title">5. 맥락 통합</div>
+    <div class="hx-card-body">Claude Code는 파일·git·Slack·Linear(MCP)를 읽어 HTML에 녹인다. 일반 챗봇은 못 하는 것.</div>
+  </div>
+</div>
+
+<p>특히 다섯 번째 <strong>맥락 통합</strong>이 Claude Code만의 차별점입니다. 그냥 claude.ai 챗 창에서 HTML을 만드는 것과 달리, Claude Code는 <strong>당신의 파일시스템, git 히스토리, 연결된 MCP(Slack·Linear 등)</strong>를 직접 읽을 수 있습니다. 그래서 "우리 레포의 최근 변경과 Slack 논의를 합쳐서 설명서 HTML로 만들어줘" 같은 요청이 가능합니다.</p>
+
+<p>토큰 이야기도 정직하게 짚습니다. HTML이 마크다운보다 토큰을 더 먹는 건 사실입니다. 하지만 Shihipar는 이렇게 말합니다.</p>
+
+<blockquote>
+  <p>"마크다운이 토큰을 덜 쓰는 경우가 많지만, HTML의 표현력이 더 크고 <strong>내가 그걸 실제로 읽을 확률이 훨씬 높기 때문에</strong>, 결과적으로 더 나은 출력을 얻는다."</p>
+</blockquote>
+
+<p>게다가 요즘 모델의 컨텍스트 윈도우가 100만(1M) 토큰급으로 커지면서, 이 정도 토큰 추가 비용은 사실상 무시할 만한 수준이 됐습니다. <strong>"토큰 몇 개 아끼려다 안 읽으면 0점"</strong>이라는 거죠.</p>
+
+<hr>
+
+<h2 id="sec-4">4. 내 프로젝트에 적용해보기 — 6가지 예시</h2>
+
+<p>이론은 됐고, 그래서 뭘 해볼 수 있을까요? 원문이 든 실제 사례 6가지를 지도처럼 펼쳤습니다. 전부 <strong>"~을 HTML 파일로 만들어줘"</strong> 한 마디로 시작합니다.</p>
+
+<figure class="hx-fig"><svg viewBox="0 0 920 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HTML 결과물 활용 6가지 사례 지도">
+  <!-- 1 스펙/탐색 -->
+  <rect x="10" y="14" width="290" height="104" rx="14" fill="var(--hx-indigo)" fill-opacity="0.09" stroke="var(--hx-indigo)" stroke-width="1.8"/>
+  <text x="28" y="42" font-size="14.5" font-weight="700" fill="var(--hx-indigo)">① 디자인 탐색 그리드</text>
+  <rect x="28" y="56" width="36" height="26" rx="4" fill="var(--hx-indigo)" fill-opacity="0.3"/>
+  <rect x="70" y="56" width="36" height="26" rx="4" fill="var(--hx-indigo)" fill-opacity="0.3"/>
+  <rect x="112" y="56" width="36" height="26" rx="4" fill="var(--hx-indigo)" fill-opacity="0.3"/>
+  <rect x="28" y="86" width="36" height="22" rx="4" fill="var(--hx-indigo)" fill-opacity="0.18"/>
+  <rect x="70" y="86" width="36" height="22" rx="4" fill="var(--hx-indigo)" fill-opacity="0.18"/>
+  <rect x="112" y="86" width="36" height="22" rx="4" fill="var(--hx-indigo)" fill-opacity="0.18"/>
+  <text x="166" y="78" font-size="12" fill="currentColor" opacity="0.72">UI 6안을 나란히</text>
+  <text x="166" y="96" font-size="12" fill="currentColor" opacity="0.72">한눈에 비교</text>
+
+  <!-- 2 코드리뷰 -->
+  <rect x="315" y="14" width="290" height="104" rx="14" fill="var(--hx-cyan)" fill-opacity="0.09" stroke="var(--hx-cyan)" stroke-width="1.8"/>
+  <text x="333" y="42" font-size="14.5" font-weight="700" fill="var(--hx-cyan)">② 코드리뷰 · diff 설명</text>
+  <rect x="333" y="56" width="150" height="14" rx="3" fill="var(--hx-emerald)" fill-opacity="0.3"/>
+  <rect x="333" y="74" width="120" height="14" rx="3" fill="var(--hx-rose)" fill-opacity="0.3"/>
+  <rect x="333" y="92" width="160" height="14" rx="3" fill="var(--hx-emerald)" fill-opacity="0.3"/>
+  <text x="505" y="76" font-size="12" fill="currentColor" opacity="0.72">여백 주석 ·</text>
+  <text x="505" y="94" font-size="12" fill="currentColor" opacity="0.72">심각도 색깔</text>
+
+  <!-- 3 리포트/explainer -->
+  <rect x="620" y="14" width="290" height="104" rx="14" fill="var(--hx-violet)" fill-opacity="0.09" stroke="var(--hx-violet)" stroke-width="1.8"/>
+  <text x="638" y="42" font-size="14.5" font-weight="700" fill="var(--hx-violet)">③ 학습 explainer</text>
+  <circle cx="660" cy="78" r="16" fill="var(--hx-violet)" fill-opacity="0.25" stroke="var(--hx-violet)" stroke-width="1.5"/>
+  <line x1="676" y1="78" x2="716" y2="78" stroke="var(--hx-violet)" stroke-opacity="0.6" stroke-width="2"/>
+  <circle cx="732" cy="78" r="16" fill="var(--hx-violet)" fill-opacity="0.25" stroke="var(--hx-violet)" stroke-width="1.5"/>
+  <text x="762" y="74" font-size="12" fill="currentColor" opacity="0.72">토큰버킷 흐름도</text>
+  <text x="762" y="92" font-size="12" fill="currentColor" opacity="0.72">+ 주석 코드 + 함정</text>
+
+  <!-- 4 드래그 티켓보드 -->
+  <rect x="10" y="132" width="290" height="104" rx="14" fill="var(--hx-amber)" fill-opacity="0.09" stroke="var(--hx-amber)" stroke-width="1.8"/>
+  <text x="28" y="160" font-size="14.5" font-weight="700" fill="var(--hx-amber)">④ 드래그 우선순위 보드</text>
+  <rect x="28" y="174" width="58" height="48" rx="5" fill="var(--hx-amber)" fill-opacity="0.16" stroke="var(--hx-amber)" stroke-width="1.2"/>
+  <text x="57" y="192" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">Now</text>
+  <rect x="92" y="174" width="58" height="48" rx="5" fill="var(--hx-amber)" fill-opacity="0.16" stroke="var(--hx-amber)" stroke-width="1.2"/>
+  <text x="121" y="192" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">Next</text>
+  <rect x="156" y="174" width="58" height="48" rx="5" fill="var(--hx-amber)" fill-opacity="0.16" stroke="var(--hx-amber)" stroke-width="1.2"/>
+  <text x="185" y="192" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">Later</text>
+  <rect x="40" y="184" width="40" height="14" rx="3" fill="var(--hx-amber)" fill-opacity="0.5"/>
+  <text x="230" y="200" font-size="12" fill="currentColor" opacity="0.72">→ md export</text>
+
+  <!-- 5 피처플래그 폼 -->
+  <rect x="315" y="132" width="290" height="104" rx="14" fill="var(--hx-emerald)" fill-opacity="0.09" stroke="var(--hx-emerald)" stroke-width="1.8"/>
+  <text x="333" y="160" font-size="14.5" font-weight="700" fill="var(--hx-emerald)">⑤ 피처플래그 편집기</text>
+  <rect x="333" y="176" width="96" height="40" rx="20" fill="var(--hx-emerald)" fill-opacity="0.25"/>
+  <circle cx="409" cy="196" r="15" fill="var(--hx-emerald)"/>
+  <rect x="445" y="176" width="96" height="40" rx="20" fill="currentColor" fill-opacity="0.1"/>
+  <circle cx="461" cy="196" r="15" fill="currentColor" fill-opacity="0.4"/>
+  <text x="556" y="192" font-size="12" fill="currentColor" opacity="0.72">의존성 경고 ·</text>
+  <text x="556" y="210" font-size="12" fill="currentColor" opacity="0.72">diff export</text>
+
+  <!-- 6 프롬프트 튜닝 -->
+  <rect x="620" y="132" width="290" height="104" rx="14" fill="var(--hx-rose)" fill-opacity="0.09" stroke="var(--hx-rose)" stroke-width="1.8"/>
+  <text x="638" y="160" font-size="14.5" font-weight="700" fill="var(--hx-rose)">⑥ 프롬프트 튜닝 화면</text>
+  <rect x="638" y="174" width="110" height="48" rx="6" fill="var(--hx-rose)" fill-opacity="0.14" stroke="var(--hx-rose)" stroke-width="1.2"/>
+  <rect x="756" y="174" width="110" height="48" rx="6" fill="var(--hx-rose)" fill-opacity="0.08" stroke="var(--hx-rose)" stroke-width="1.2"/>
+  <text x="638" y="248" font-size="12" fill="currentColor" opacity="0.72">좌우 비교 · 라이브 렌더 · 토큰 카운터</text>
+
+  <!-- 하단 공통 메시지 -->
+  <rect x="10" y="262" width="900" height="78" rx="14" fill="currentColor" fill-opacity="0.04" stroke="currentColor" stroke-opacity="0.18" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <text x="460" y="296" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor" opacity="0.85">공통점: 모두 "일회용(single-use)" — 이 문제 하나만 풀고 버리는 맞춤 도구</text>
+  <text x="460" y="322" text-anchor="middle" font-size="13" fill="currentColor" opacity="0.65">예전엔 "이런 작은 도구 만들 시간이 어딨어"였지만, 이제 Claude가 30초면 만든다</text>
+</svg><figcaption>HTML 결과물의 6가지 활용 — 읽는 문서(①②③)부터 직접 만지는 도구(④⑤⑥)까지.</figcaption></figure>
+
+<ol>
+  <li><strong>디자인 탐색 그리드</strong> — "이 화면 UI 6가지 방향으로 각각 다르게 그려서 한 페이지에 나란히 보여줘." 마음에 드는 걸 골라 다음 단계로 확장합니다.</li>
+  <li><strong>코드리뷰 · diff 설명</strong> — PR diff를 여백 주석과 심각도별 색상, 흐름도와 함께 렌더링. 리뷰어에게 복잡한 로직을 설명할 때 좋습니다.</li>
+  <li><strong>학습 explainer</strong> — 원문의 대표 예시는 <em>rate limiter(요청 제한기)</em> 설명서입니다. 토큰버킷 흐름도 + 주석 달린 코드 + "이런 함정 주의(gotchas)" 섹션을 한 HTML에. 복잡한 시스템을 처음 배우는 사람에게 딱입니다.</li>
+  <li><strong>드래그 우선순위 보드</strong> — 티켓 카드를 <code>Now / Next / Later / Cut</code> 칸으로 끌어다 놓고, 정리되면 <strong>마크다운으로 export</strong>. 백로그 정리용 일회용 도구죠.</li>
+  <li><strong>피처플래그 편집기</strong> — 폼으로 플래그를 켜고 끄면 <strong>의존성 경고</strong>가 뜨고, 결과를 diff로 내보냅니다.</li>
+  <li><strong>프롬프트 튜닝 화면</strong> — 프롬프트를 좌우로 놓고 편집하면 템플릿이 <strong>실시간 렌더링</strong>되고 <strong>토큰 수</strong>가 같이 표시됩니다.</li>
+</ol>
+
+<p>핵심은 ④⑤⑥처럼 <strong>"이 문제 하나만 풀고 버리는 일회용 도구(single-use tool)"</strong>를 부담 없이 만들 수 있게 됐다는 점입니다. 예전엔 이런 작은 내부 도구는 "만들 시간이 아깝다"고 그냥 손으로 했지만, 이제 Claude가 30초 만에 HTML로 뱉어줍니다.</p>
+
+<p>시작은 정말 단순합니다. 거창한 프롬프트가 필요 없습니다.</p>
+
+{{< highlight text >}}
+이 백테스트 결과를 표·차트·요약과 함께 보기 좋은 HTML 파일로 만들어줘.
+다크모드에서도 잘 보이게 하고, 핵심 지표는 위에 카드로 요약해줘.
+{{< /highlight >}}
+
+<p>(예를 들어 트레이딩/백테스트 프로젝트라면, 에이전트 실행 로그나 수익률 리포트를 이렇게 HTML로 받으면 매번 터미널 텍스트를 눈으로 훑는 것보다 훨씬 빨리 파악됩니다.) 의도와 "어떻게 상호작용하고 싶은지"를 한 줄 덧붙이면 결과가 더 좋아집니다.</p>
+
+<hr>
+
+<h2 id="sec-5">5. 현실적인 균형 — 토큰과 마크다운의 자리</h2>
+
+<p>원문 저자는 "대부분의 작업에서 마크다운을 거의 버렸다"고까지 말하는데, 이건 솔직히 <strong>극단적인 입장</strong>입니다. 주니어 입장에서 균형 잡힌 가이드는 이렇습니다.</p>
+
+<table>
+  <thead><tr><th>이럴 땐 HTML</th><th>이럴 땐 마크다운 유지</th></tr></thead>
+  <tbody>
+    <tr><td>길고 복잡한 리포트·설명서</td><td>짧은 메모, README 한두 단락</td></tr>
+    <tr><td>표·차트·다이어그램이 필요할 때</td><td>git에서 diff로 관리할 문서</td></tr>
+    <tr><td>직접 만지고 조정할 도구</td><td>다른 도구가 .md를 입력으로 먹을 때</td></tr>
+    <tr><td>동료에게 링크로 공유할 결과물</td><td>코드 주석·커밋 메시지</td></tr>
+  </tbody>
+</table>
+
+<p>또 하나 주의할 점. HTML 결과물은 보기 좋은 만큼 <strong>"그럴듯해 보여서 검증을 건너뛰기 쉽다"</strong>는 함정이 있습니다. 예쁜 차트가 틀린 숫자를 담고 있어도 깜빡 속을 수 있죠. <strong>포맷이 화려해진 것과 내용이 정확한 것은 별개</strong>라는 걸 잊지 마세요 — 숫자와 핵심 주장은 여전히 직접 확인해야 합니다.</p>
+
+<hr>
+
+<h2 id="sec-6">6. 마무리 — '받아보는 사람'에서 '함께 만드는 사람'으로</h2>
+
+<p>이 글의 진짜 메시지는 "HTML이 예쁘다"가 아닙니다. <strong>AI 결과물을 대하는 태도</strong>에 관한 것입니다.</p>
+
+<figure class="hx-fig"><svg viewBox="0 0 760 150" style="max-width:620px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="수동적 수용에서 능동적 협업으로의 전환">
+  <defs><marker id="hx-a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--hx-emerald)"/></marker></defs>
+  <rect x="20" y="46" width="280" height="62" rx="14" fill="var(--hx-rose)" fill-opacity="0.1" stroke="var(--hx-rose)" stroke-width="1.8"/>
+  <text x="160" y="74" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--hx-rose)">수동적으로 받아보기</text>
+  <text x="160" y="95" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.65">긴 마크다운 → 대충 훑고 수용</text>
+  <line x1="312" y1="77" x2="446" y2="77" stroke="var(--hx-emerald)" stroke-opacity="0.85" stroke-width="2.5" marker-end="url(#hx-a4)"/>
+  <rect x="458" y="46" width="282" height="62" rx="14" fill="var(--hx-emerald)" fill-opacity="0.1" stroke="var(--hx-emerald)" stroke-width="1.8"/>
+  <text x="599" y="74" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--hx-emerald)">능동적으로 함께 만들기</text>
+  <text x="599" y="95" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.65">HTML 위에서 보고·만지고·되먹임</text>
+</svg><figcaption>HTML은 AI를 '자동화 도구'에서 '함께 생각하는 파트너'로 바꾼다.</figcaption></figure>
+
+<p>마크다운 결과물은 너무 길면 그냥 "오케이"하고 넘기게 됩니다. 비판적으로 검토하지 않고, 후속 질문도 안 하게 되죠. 반면 잘 만든 HTML은 시각적으로 명료하고 직접 만질 수 있어서, <strong>사용자가 선택지를 비판적으로 뜯어보고, 질문하고, 방향을 직접 잡게</strong> 만듭니다.</p>
+
+<p>그래서 Shihipar는 이렇게 결론짓습니다 — HTML은 Claude Code를 <strong>단순 작업 자동화 도구에서 '함께 생각하는 파트너(collaborative thinking partner)'로</strong> 바꿔준다고. 결과물을 멍하니 받는 게 아니라, 그 위에서 계속 관여하게 만들기 때문입니다. 처음에 인용한 <em>"in the loop"</em>가 바로 이 뜻입니다.</p>
+
+<p>가장 짧은 시작은 다음 한 줄입니다. 다음에 Claude에게 뭔가 정리시킬 때, 끝에 이 말만 붙여보세요.</p>
+
+{{< highlight text >}}
+...마크다운 말고 HTML 파일로 만들어줘.
+{{< /highlight >}}
+
+<p>그리고 브라우저에서 열어보면, 왜 이 글의 제목이 <strong>"비합리적인 효과"</strong>인지 알게 될 겁니다.</p>
+
+<hr>
+
+<h3 id="refs">참고 자료</h3>
+
+<ul>
+  <li><a href="https://claude.com/blog/using-claude-code-the-unreasonable-effectiveness-of-html" target="_blank" rel="noopener">Thariq Shihipar — The Unreasonable Effectiveness of HTML</a> (원문, Claude.com 블로그)</li>
+  <li><a href="/posts/loop-engineering/">JKPark — Loop 엔지니어링</a> (이 글의 'in the loop'와 이어지는 닫힌 루프 이야기)</li>
+  <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic — Effective Context Engineering for AI Agents</a> (맥락 통합의 배경)</li>
+</ul>

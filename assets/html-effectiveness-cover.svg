@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="마크다운 텍스트가 풍부한 HTML UI로 변환되는 모습">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="0.55" stop-color="#312e81"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="bar1" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#0e7490"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+    <linearGradient id="bar2" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#6d28d9"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+    <linearGradient id="bar3" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#047857"/><stop offset="1" stop-color="#34d399"/></linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="980" cy="120" r="220" fill="#818cf8" opacity="0.10"/>
+  <circle cx="160" cy="540" r="180" fill="#22d3ee" opacity="0.07"/>
+
+  <!-- LEFT: markdown plain text -->
+  <text x="110" y="150" font-family="ui-monospace, monospace" font-size="26" fill="#94a3b8" letter-spacing="3">MARKDOWN.md</text>
+  <g fill="#475569">
+    <rect x="110" y="190" width="300" height="20" rx="6"/>
+    <rect x="110" y="232" width="240" height="20" rx="6"/>
+    <rect x="110" y="274" width="320" height="20" rx="6"/>
+    <rect x="110" y="316" width="200" height="20" rx="6"/>
+    <rect x="110" y="358" width="280" height="20" rx="6"/>
+    <rect x="110" y="400" width="170" height="20" rx="6"/>
+  </g>
+  <text x="110" y="470" font-family="ui-monospace, monospace" font-size="22" fill="#64748b">+-----+ ascii 다이어그램</text>
+  <text x="110" y="500" font-family="ui-monospace, monospace" font-size="22" fill="#64748b">| ... | 텍스트만 통과</text>
+
+  <!-- ARROW -->
+  <g transform="translate(500,300)">
+    <path d="M0,-26 H120 V-52 L196,0 L120,52 V26 H0 Z" fill="url(#arrow)"/>
+  </g>
+
+  <!-- RIGHT: rich HTML card -->
+  <g transform="translate(720,150)">
+    <rect x="0" y="0" width="380" height="330" rx="20" fill="#ffffff" opacity="0.07"/>
+    <rect x="0" y="0" width="380" height="330" rx="20" fill="none" stroke="#a5b4fc" stroke-opacity="0.45" stroke-width="2"/>
+    <text x="28" y="46" font-family="ui-monospace, monospace" font-size="22" fill="#c7d2fe" letter-spacing="3">REPORT.html</text>
+
+    <!-- mini bar chart -->
+    <rect x="34" y="200" width="44" height="70" rx="6" fill="url(#bar1)"/>
+    <rect x="92" y="150" width="44" height="120" rx="6" fill="url(#bar2)"/>
+    <rect x="150" y="110" width="44" height="160" rx="6" fill="url(#bar3)"/>
+    <line x1="28" y1="276" x2="204" y2="276" stroke="#cbd5e1" stroke-opacity="0.5" stroke-width="2"/>
+
+    <!-- toggle + chips -->
+    <rect x="244" y="96" width="96" height="44" rx="22" fill="#10b981" opacity="0.9"/>
+    <circle cx="318" cy="118" r="16" fill="#ffffff"/>
+    <rect x="244" y="168" width="108" height="34" rx="17" fill="#22d3ee" opacity="0.22" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="298" y="191" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5f3fc">표</text>
+    <rect x="244" y="216" width="108" height="34" rx="17" fill="#f59e0b" opacity="0.22" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="298" y="239" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fcd34d">슬라이더</text>
+  </g>
+
+  <text x="600" y="585" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#e2e8f0">같은 정보, 더 넓은 통로</text>
+</svg>

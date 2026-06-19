@@ -1,0 +1,471 @@
+---
+title: "맥락은 적을수록 똑똑하다: 도구 쓰는 AI 에이전트의 컨텍스트 엔지니어링"
+date: 2026-06-19T21:00:00+09:00
+draft: false
+tags: ["AI", "에이전트", "컨텍스트 엔지니어링", "LLM", "MCP", "Context Engineering"]
+categories: ["AI 엔지니어링"]
+summary: "대화 기록을 다 들고 있던 에이전트(완료율 71%·148만 토큰·14.5시간)보다, 최근 5개만 남기고 잘라낸 에이전트(79%·토큰 64%↓)가 더 잘했습니다. 요약까지 더하니 91.6%. Microsoft의 'Less Context, Better Agents' 논문이 보여준 직관을 뒤집는 결과와, 그걸 내 에이전트에 적용하는 법을 정리합니다."
+ShowToc: false
+cover:
+  image: "less-context-better-agents-cover.svg"
+  alt: "맥락(토큰)은 줄고 성능은 오르는 두 화살표가 교차하는 표지"
+  caption: "맥락을 덜 줄수록 더 똑똑해진다 — 도구 쓰는 에이전트의 컨텍스트 엔지니어링"
+  relative: false
+---
+
+<style>
+/* ── Less Context, Better Agents 포스트 전용 스타일 (lcba- 접두사) ── */
+.lcba-fig{
+  --lcba-indigo:#6366f1; --lcba-violet:#8b5cf6; --lcba-cyan:#06b6d4;
+  --lcba-amber:#f59e0b; --lcba-rose:#f43f5e; --lcba-emerald:#10b981; --lcba-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .lcba-fig{
+  --lcba-indigo:#818cf8; --lcba-violet:#a78bfa; --lcba-cyan:#22d3ee;
+  --lcba-amber:#fbbf24; --lcba-rose:#fb7185; --lcba-emerald:#34d399; --lcba-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .lcba-fig{
+    --lcba-indigo:#818cf8; --lcba-violet:#a78bfa; --lcba-cyan:#22d3ee;
+    --lcba-amber:#fbbf24; --lcba-rose:#fb7185; --lcba-emerald:#34d399; --lcba-slate:#94a3b8;
+  }
+}
+.lcba-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.lcba-fig text{font-family:inherit}
+.lcba-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.lcba-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.lcba-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.lcba-toc ol{margin:0;padding-left:1.25rem}
+.lcba-toc li{margin:.2rem 0;font-size:.95rem}
+.lcba-toc a{text-decoration:none}
+.lcba-toc a:hover{text-decoration:underline}
+.lcba-pull{font-size:1.12rem;line-height:1.72}
+.lcba-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.lcba-note{border-left:4px solid var(--lcba-indigo,#6366f1);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.lcba-note strong{color:var(--lcba-indigo,#6366f1)}
+.lcba-fig{--lcba-indigo:#6366f1}
+</style>
+
+<blockquote class="lcba-pull">
+  <p>대화 기록을 <strong>전부</strong> 들고 있던 에이전트는 작업의 71%를 끝냈습니다. 토큰 148만 개, 14.5시간을 쓰고도요.<br>
+  최근 5개만 남기고 <strong>나머지를 버린</strong> 에이전트는 79%를 끝냈습니다. 토큰은 64% 적게 쓰고요.</p>
+  <footer>— Microsoft, <em>Less Context, Better Agents</em> (arXiv:2606.10209, 2026)</footer>
+</blockquote>
+
+<p>"맥락(context)은 많을수록 좋다." 우리가 LLM을 다룰 때 거의 본능적으로 믿는 명제입니다. 모델에게 정보를 더 줄수록 더 똑똑하게 답할 것 같으니까요. 그래서 모델 회사들은 컨텍스트 창을 20만 토큰, 100만 토큰으로 경쟁하듯 키워 왔습니다.</p>
+
+<p>그런데 Microsoft 연구진이 2026년 6월에 공개한 논문 <a href="https://arxiv.org/abs/2606.10209" target="_blank" rel="noopener"><em>"Less Context, Better Agents"</em></a>는 정반대를 실험으로 보여줍니다. <strong>긴 작업을 수행하는 도구 사용 에이전트에서는, 오래된 맥락을 과감히 잘라낸 쪽이 성능도 좋고 비용도 싸다</strong>는 것입니다. 그것도 "조금" 좋은 게 아니라 완료율 71% → 91.6%, 토큰 63% 절감이라는 큰 차이로요.</p>
+
+<p>이 글에서는 다음을 다룹니다. 에이전트가 아직 낯선 주니어 개발자도 따라올 수 있게 기초부터 풀었습니다.</p>
+
+<nav class="lcba-toc">
+  <div class="lcba-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도구 쓰는 에이전트는 왜 컨텍스트가 터지는가</a></li>
+    <li><a href="#sec-2">"그냥 컨텍스트 창을 키우면 되잖아?" — 안 되는 이유</a></li>
+    <li><a href="#sec-3">실험 설계: 호텔 영수증을 0원까지 쪼개라</a></li>
+    <li><a href="#sec-4">결과 ① — 잘라냈더니 더 잘했다</a></li>
+    <li><a href="#sec-5">결과 ② — 그런데 너무 잘라내면 길을 잃는다</a></li>
+    <li><a href="#sec-6">메커니즘: 컨텍스트를 어떻게 구성하나</a></li>
+    <li><a href="#sec-7">실패의 해부: 두 가지 실수의 줄다리기</a></li>
+    <li><a href="#sec-8">그래서 내 에이전트엔 어떻게 적용하나</a></li>
+    <li><a href="#sec-9">한계 — 이건 만병통치약이 아니다</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. 도구 쓰는 에이전트는 왜 컨텍스트가 터지는가</h2>
+
+<p>먼저 용어부터 맞추겠습니다. <strong>도구 사용 에이전트(tool-using agent)</strong>란, LLM이 혼자 글만 쓰는 게 아니라 <em>실제 행동</em>을 하는 시스템입니다. 검색을 하고, DB를 조회하고, 폼에 값을 입력하고, 버튼을 누릅니다. 이때 "어떤 도구를 어떻게 부를지"를 표준화한 규약이 <strong>MCP(Model Context Protocol)</strong>입니다.</p>
+
+<div class="lcba-note">
+  <strong>MCP란?</strong> Anthropic이 2024년 11월에 공개한 개방형 규약으로, "AI를 위한 USB"에 비유됩니다. AI 앱 M개와 데이터 소스 N개를 잇는 데 M×N개의 일회용 커넥터를 짜는 대신, 양쪽이 MCP만 지키면 어떤 AI든 어떤 도구든 붙습니다. 2026년 기준 공개 MCP 서버만 9,000개가 넘고, Claude·ChatGPT·Cursor·VS Code 등이 기본 지원합니다.
+</div>
+
+<p>에이전트가 도구를 쓰는 방식은 <strong>"생각 → 행동 → 관찰"</strong>이 끝없이 도는 루프입니다(ReAct 패턴이라 부릅니다). 한 바퀴마다 이런 일이 벌어집니다.</p>
+
+<ol>
+  <li>모델이 "다음에 뭘 할지" 생각한다</li>
+  <li>도구 호출을 내보낸다 (예: <code>get_form_state()</code>)</li>
+  <li>도구가 실행되고 결과(관찰)를 돌려준다</li>
+  <li>그 결과가 <strong>대화 기록(history)에 그대로 덧붙는다</strong></li>
+  <li>이제 늘어난 기록 <em>전체</em>를 다시 모델에 넣어 다음 한 바퀴를 돈다</li>
+</ol>
+
+<p>문제는 4번과 5번에 있습니다. 매 턴마다 지금까지의 기록 <strong>전부</strong>를 다시 모델에 밀어 넣기 때문에, 토큰 비용이 단계 수에 거의 제곱으로 불어납니다. 10단계째는 1단계의 10배가 아니라, 1~9단계를 통째로 다시 읽는 비용까지 포함합니다.</p>
+
+<figure class="lcba-fig"><svg viewBox="0 0 940 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="에이전트 루프가 돌수록 대화 기록에 도구 응답이 쌓이고, 오래된 응답은 낡은 상태가 된다">
+  <defs>
+    <marker id="lcba-a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+  <!-- 루프 사이클 -->
+  <text x="20" y="30" font-size="14" font-weight="700" fill="currentColor" opacity="0.8">한 바퀴(turn)마다 반복되는 루프</text>
+  <rect x="20" y="46" width="150" height="54" rx="11" fill="var(--lcba-indigo)" fill-opacity="0.14" stroke="var(--lcba-indigo)" stroke-width="2"/>
+  <text x="95" y="70" text-anchor="middle" font-size="14" font-weight="700" fill="var(--lcba-indigo)">생각</text>
+  <text x="95" y="89" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">무엇을 할까</text>
+  <line x1="170" y1="73" x2="196" y2="73" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#lcba-a1)"/>
+  <rect x="196" y="46" width="150" height="54" rx="11" fill="var(--lcba-cyan)" fill-opacity="0.14" stroke="var(--lcba-cyan)" stroke-width="2"/>
+  <text x="271" y="70" text-anchor="middle" font-size="14" font-weight="700" fill="var(--lcba-cyan)">행동 (도구 호출)</text>
+  <text x="271" y="89" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">add_line(...)</text>
+  <line x1="346" y1="73" x2="372" y2="73" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#lcba-a1)"/>
+  <rect x="372" y="46" width="160" height="54" rx="11" fill="var(--lcba-amber)" fill-opacity="0.14" stroke="var(--lcba-amber)" stroke-width="2"/>
+  <text x="452" y="70" text-anchor="middle" font-size="14" font-weight="700" fill="var(--lcba-amber)">관찰 (장황한 응답)</text>
+  <text x="452" y="89" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">폼 상태 500~3000토큰</text>
+  <path d="M532,73 C 600,73 600,150 95,150 C 30,150 20,120 20,103" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#lcba-a1)"/>
+  <text x="300" y="143" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.6">관찰 결과를 기록에 덧붙이고 → 전체를 다시 입력</text>
+
+  <!-- 누적되는 기록 바 -->
+  <text x="20" y="195" font-size="14" font-weight="700" fill="currentColor" opacity="0.8">단계가 쌓일수록 부풀어 오르는 대화 기록</text>
+  <g font-size="10.5" fill="#fff">
+    <rect x="20" y="210" width="44" height="34" rx="4" fill="var(--lcba-slate)" fill-opacity="0.75"/><text x="42" y="231" text-anchor="middle" fill="currentColor">T1</text>
+    <rect x="68" y="210" width="44" height="34" rx="4" fill="var(--lcba-slate)" fill-opacity="0.75"/><text x="90" y="231" text-anchor="middle" fill="currentColor">T2</text>
+    <rect x="116" y="210" width="44" height="34" rx="4" fill="var(--lcba-slate)" fill-opacity="0.75"/><text x="138" y="231" text-anchor="middle" fill="currentColor">T3</text>
+    <rect x="164" y="210" width="44" height="34" rx="4" fill="var(--lcba-rose)" fill-opacity="0.5" stroke="var(--lcba-rose)" stroke-width="1.5"/><text x="186" y="231" text-anchor="middle" fill="currentColor">T4</text>
+    <rect x="212" y="210" width="44" height="34" rx="4" fill="var(--lcba-rose)" fill-opacity="0.5" stroke="var(--lcba-rose)" stroke-width="1.5"/><text x="234" y="231" text-anchor="middle" fill="currentColor">T5</text>
+    <rect x="260" y="210" width="44" height="34" rx="4" fill="var(--lcba-rose)" fill-opacity="0.5" stroke="var(--lcba-rose)" stroke-width="1.5"/><text x="282" y="231" text-anchor="middle" fill="currentColor">…</text>
+    <rect x="308" y="210" width="44" height="34" rx="4" fill="var(--lcba-emerald)" fill-opacity="0.6" stroke="var(--lcba-emerald)" stroke-width="1.5"/><text x="330" y="231" text-anchor="middle" fill="currentColor">T28</text>
+    <rect x="356" y="210" width="44" height="34" rx="4" fill="var(--lcba-emerald)" fill-opacity="0.6" stroke="var(--lcba-emerald)" stroke-width="1.5"/><text x="378" y="231" text-anchor="middle" fill="currentColor">T29</text>
+    <rect x="404" y="210" width="44" height="34" rx="4" fill="var(--lcba-emerald)" fill-opacity="0.6" stroke="var(--lcba-emerald)" stroke-width="1.5"/><text x="426" y="231" text-anchor="middle" fill="currentColor">T30</text>
+  </g>
+  <text x="186" y="266" text-anchor="middle" font-size="11.5" fill="var(--lcba-rose)" font-weight="600">↑ 낡은 응답 (이미 덮어쓰여진 옛 폼 상태)</text>
+  <text x="378" y="266" text-anchor="middle" font-size="11.5" fill="var(--lcba-emerald)" font-weight="600">↑ 지금 의사결정에 필요한 최신 상태</text>
+  <text x="470" y="290" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.6">복잡한 작업이면 15~30단계 = 5만~15만+ 토큰. 그런데 정말 필요한 건 끝부분 몇 개뿐.</text>
+</svg><figcaption>도구 응답은 한 번 쓰고 나면 대부분 "이미 지나간 상태"가 된다 — 그런데 전체 기록 방식은 이 낡은 정보를 매 턴 끌고 다닌다.</figcaption></figure>
+
+<p>게다가 MCP 도구의 응답은 <strong>설계상 장황합니다</strong>. 폼의 모든 필드 값, 메타데이터, 내비게이션 경로, 시스템 상태를 통째로 담아 돌려주거든요. 정확성과 디버깅엔 좋지만 토큰엔 독입니다. 어떤 팀은 <em>도구 정의(스키마)만으로</em> 20만 토큰 창의 72%를 써버렸다고 보고했습니다. 실제 추론에 쓸 공간은 5만 토큰밖에 안 남은 거죠.</p>
+
+<hr>
+
+<h2 id="sec-2">2. "그냥 컨텍스트 창을 키우면 되잖아?" — 안 되는 이유</h2>
+
+<p>여기서 자연스러운 반문이 나옵니다. <em>"2026년이면 컨텍스트 창이 100만 토큰인데, 그냥 다 집어넣으면 안 되나?"</em> (현재 Gemini 계열 ~100만, GPT·Claude 계열 20만~100만 토큰 수준입니다.) 답은 <strong>"창 크기와, 모델이 실제로 잘 쓰는 양은 다르다"</strong>입니다.</p>
+
+<p>이 격차를 가리키는 말이 <strong>"컨텍스트 부패(context rot)"</strong>입니다. 하드 한계에 닿기 한참 전부터, 입력이 길어질수록 모델의 실효 성능이 떨어지는 현상이죠. 2025년 6월 한 개발자가 붙인 이 표현은, 곧 벤치마크로 뒷받침됐습니다.</p>
+
+<ul>
+  <li><strong>Chroma의 Context Rot 연구(2025)</strong> — GPT-4.1, Claude Opus 4, Gemini 2.5 Pro 등 프론티어 모델 <strong>18개 전부</strong>가 입력이 길어질수록 정확도(F1)가 단조 감소했습니다. 어려운 과제에서는 13개 중 11개 모델이 <strong>고작 32K 토큰에서 이미 기준 성능의 절반 아래</strong>로 떨어졌습니다.</li>
+  <li><strong>"Lost in the Middle"(Liu et al., TACL 2024)</strong> — 정답이 컨텍스트의 앞·뒤가 아니라 <em>중간</em>에 묻히면 정확도가 <strong>30~50%p</strong> 떨어집니다. 모델 6종 전부 동일한 U자형 곡선을 보였고, 2026년 100만 토큰 모델에서도 여전히 재현됩니다.</li>
+  <li><strong>비용·지연</strong> — 입력 토큰 비용은 길이에 정비례하고(일부 모델은 20만 토큰을 넘으면 단가가 2배), 어텐션 연산은 O(n²)라 입력이 길수록 첫 응답까지의 지연도 급격히 늘어납니다.</li>
+</ul>
+
+<div class="lcba-note">
+  <strong>핵심 비유.</strong> 컨텍스트 창은 책상입니다. 책상이 넓다고 서류를 무한정 쌓아두면, 정작 지금 필요한 한 장을 못 찾습니다. "창을 키우는 것"은 책상을 넓히는 일이고, "컨텍스트 엔지니어링"은 <em>지금 작업에 필요한 서류만 책상에 올려두는</em> 일입니다. 후자가 없으면 책상을 아무리 넓혀도 일이 느려집니다.
+</div>
+
+<p>그래서 등장한 분야가 <strong>컨텍스트 엔지니어링(context engineering)</strong>입니다. Anthropic은 이를 <em>"LLM 추론 동안 최적의 토큰 집합을 선별·유지하는 전략"</em>으로 정의하며, 목표는 <strong>"원하는 결과를 낼 확률을 최대화하는, 가능한 한 작은 고신호 토큰 집합"</strong>을 찾는 것이라고 말합니다. 이 논문은 바로 그 주장을, 실제 기업 워크플로에서 숫자로 증명한 사례입니다.</p>
+
+<hr>
+
+<h2 id="sec-3">3. 실험 설계: 호텔 영수증을 0원까지 쪼개라</h2>
+
+<p>연구진이 고른 작업은 <strong>Microsoft Dynamics 365 Finance &amp; Operations(D365 F&amp;O)에서 호텔 경비를 정산</strong>하는 일입니다. 에이전트가 MCP로 ERP에 접속해, 호텔 영수증 한 장을 개별 항목(객실료, 세금, 식대 등)으로 쪼개 입력하는 거죠.</p>
+
+<p>왜 이 작업이 까다로운 시험대일까요? <strong>"잔액이 정확히 $0.00이 되어야만 성공"</strong>이라는 엄격한 조건 때문입니다. 영수증 총액을 한 푼도 남김없이 항목들로 배분해야 합니다. 실제 ERP에서 1원이라도 남으면 경비 보고서가 마감되지 않고 컴플라이언스 검토로 넘어가니, 비즈니스 기준으로도 "완료=완벽"이어야 합니다. 항목 수는 4~23개(중앙값 8개)고, 같은 "Hotel Tax"가 금액만 다르게 두 번 나오거나, "Entertainment External"을 올바른 하위 카테고리로 매핑해야 하는 함정이 깔려 있습니다.</p>
+
+<p>연구진은 GPT-5 에이전트로 <strong>50개 작업을 5번씩 반복</strong>하며, 컨텍스트를 다루는 방식만 바꾼 4가지 설정을 비교했습니다.</p>
+
+<table>
+  <thead><tr><th>설정</th><th>컨텍스트 정책</th><th>한 줄 설명</th></tr></thead>
+  <tbody>
+    <tr><td><strong>C1</strong></td><td>유저 모델 없음</td><td>비교를 위한 출발점(아래 설명). 사람 없는 환경에서 GPT-5 단독.</td></tr>
+    <tr><td><strong>C2</strong></td><td><strong>전체 기록</strong> 유지</td><td>표준 관행 = 기준선. 대화 전부를 매 턴 그대로 들고 감.</td></tr>
+    <tr><td><strong>C3</strong></td><td><strong>최근 5개</strong>만 유지 (pruning)</td><td>최근 도구 호출/응답 5쌍만 남기고 나머지는 버림.</td></tr>
+    <tr><td><strong>C4</strong></td><td>최근 5개 <strong>+ 요약</strong></td><td>버리기 전에, 버려질 내용을 한 줄로 요약해 끼워 넣음.</td></tr>
+  </tbody>
+</table>
+
+<div class="lcba-note">
+  <strong>C1은 왜 따로 있나?</strong> 비대화형(사람이 없는) 환경에서 GPT-5는 중간에 "이거 추가할까요?"를 묻고 멈춰버리는 버릇이 있었습니다. 그래서 C2~C4에는 "유저 역할"을 하는 보조 LLM을 똑같이 넣어 이 멈춤을 막았습니다. 즉 <strong>컨텍스트 엔지니어링의 효과는 유저 모델을 고정한 C2 → C3 → C4 비교로만 본다</strong>는 게 핵심입니다. C1은 "유저 모델이 왜 필요한지"를 보여주는 곁가지입니다.
+</div>
+
+<hr>
+
+<h2 id="sec-4">4. 결과 ① — 잘라냈더니 더 잘했다</h2>
+
+<p>먼저 가장 충격적인 비교, <strong>전체 기록(C2) vs 최근 5개만(C3)</strong>입니다. 상식대로라면 정보가 더 많은 C2가 이겨야 합니다. 결과는 반대였습니다.</p>
+
+<figure class="lcba-fig"><svg viewBox="0 0 920 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="네 설정의 완료율 막대그래프: C1 8%, C2 71%, C3 79%, C4 91.6%. C2는 토큰을 가장 많이 쓰고도 C3·C4보다 낮다">
+  <!-- 축 -->
+  <line x1="80" y1="40" x2="80" y2="350" stroke="currentColor" stroke-opacity="0.25" stroke-width="1.5"/>
+  <line x1="80" y1="350" x2="880" y2="350" stroke="currentColor" stroke-opacity="0.25" stroke-width="1.5"/>
+  <g font-size="11" fill="currentColor" opacity="0.5" text-anchor="end">
+    <text x="72" y="354">0%</text>
+    <text x="72" y="278">25%</text>
+    <text x="72" y="201">50%</text>
+    <text x="72" y="125">75%</text>
+    <text x="72" y="48">100%</text>
+  </g>
+  <line x1="80" y1="273" x2="880" y2="273" stroke="currentColor" stroke-opacity="0.08"/>
+  <line x1="80" y1="196" x2="880" y2="196" stroke="currentColor" stroke-opacity="0.08"/>
+  <line x1="80" y1="120" x2="880" y2="120" stroke="currentColor" stroke-opacity="0.08"/>
+
+  <!-- C1 8.0% -> height 24.8, top 325.2 -->
+  <rect x="140" y="325" width="120" height="25" rx="5" fill="var(--lcba-slate)" fill-opacity="0.55"/>
+  <text x="200" y="316" text-anchor="middle" font-size="16" font-weight="800" fill="var(--lcba-slate)">8.0%</text>
+  <text x="200" y="372" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">C1</text>
+  <text x="200" y="390" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6">유저모델 없음</text>
+  <text x="200" y="406" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6">533K · 3.1h</text>
+
+  <!-- C2 71.0% -> 219.2, top 130.8 -->
+  <rect x="320" y="131" width="120" height="219" rx="5" fill="var(--lcba-rose)" fill-opacity="0.6" stroke="var(--lcba-rose)" stroke-width="2"/>
+  <text x="380" y="122" text-anchor="middle" font-size="16" font-weight="800" fill="var(--lcba-rose)">71.0%</text>
+  <text x="380" y="372" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">C2</text>
+  <text x="380" y="390" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6">전체 기록</text>
+  <text x="380" y="406" text-anchor="middle" font-size="11.5" fill="var(--lcba-rose)" font-weight="700">1,481K · 14.6h</text>
+
+  <!-- C3 79.0% -> 243.9, top 106.1 -->
+  <rect x="500" y="106" width="120" height="244" rx="5" fill="var(--lcba-cyan)" fill-opacity="0.55" stroke="var(--lcba-cyan)" stroke-width="2"/>
+  <text x="560" y="97" text-anchor="middle" font-size="16" font-weight="800" fill="var(--lcba-cyan)">79.0%</text>
+  <text x="560" y="372" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">C3</text>
+  <text x="560" y="390" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6">최근 5개</text>
+  <text x="560" y="406" text-anchor="middle" font-size="11.5" fill="var(--lcba-cyan)" font-weight="700">535K · 5.4h</text>
+
+  <!-- C4 91.6% -> 282.9, top 67.1 -->
+  <rect x="680" y="67" width="120" height="283" rx="5" fill="var(--lcba-emerald)" fill-opacity="0.6" stroke="var(--lcba-emerald)" stroke-width="2"/>
+  <text x="740" y="58" text-anchor="middle" font-size="16" font-weight="800" fill="var(--lcba-emerald)">91.6%</text>
+  <text x="740" y="372" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">C4</text>
+  <text x="740" y="390" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6">최근 5개 + 요약</text>
+  <text x="740" y="406" text-anchor="middle" font-size="11.5" fill="var(--lcba-emerald)" font-weight="700">553K · 5.8h</text>
+
+  <text x="480" y="30" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor" opacity="0.8">완료율(잔액 정확히 $0.00 도달 비율) · 막대 아래는 토큰 사용량 · 소요 시간</text>
+</svg><figcaption>C2는 토큰을 거의 3배 쓰고 시간은 2.7배 쓰고도 C3보다 완료율이 낮다. 정보를 더 줬는데 성능이 떨어진 것이다.</figcaption></figure>
+
+<p>숫자로 정리하면 이렇습니다.</p>
+
+<table>
+  <thead><tr><th>설정</th><th>완료율</th><th>잔액 ≤10%</th><th>총 토큰</th><th>시간</th></tr></thead>
+  <tbody>
+    <tr><td>C2 (전체 기록)</td><td>71.0%</td><td>74.0%</td><td>1,481K</td><td>14.56h</td></tr>
+    <tr><td><strong>C3 (최근 5개)</strong></td><td><strong>79.0%</strong> (+8%p)</td><td>87.0%</td><td><strong>535K</strong> (−63.9%)</td><td><strong>5.39h</strong> (−63%)</td></tr>
+  </tbody>
+</table>
+
+<p>왜 이런 일이 벌어질까요? 핵심은 <strong>"낡은 상태(stale state)"</strong>입니다. 에이전트가 초반에 받은 도구 응답은 <em>그 시점의</em> 폼 상태를 담고 있습니다. 그런데 작업이 진행되면서 폼은 계속 바뀌죠. 옛 응답은 이미 <strong>덮어쓰인 과거</strong>인데, 전체 기록을 들고 있으면 모델이 이 낡은 스냅숏을 현재로 착각하고 엉뚱한 결정을 내립니다.</p>
+
+<p>논문의 실제 실패 사례를 보면 직관적으로 이해됩니다. C2(전체 기록)에서 자주 나온 "낡은 상태 참조" 실수입니다.</p>
+
+{{< highlight text >}}
+A: get_form_state()
+T: {lines: [{Room, $180}], total_added: $180, remaining: $420}
+A: add_line(RoomTax, $40)
+... (5번의 도구 호출이 더 지나간 뒤) ...
+A: # 맨 처음의 스냅숏을 다시 참조한다
+A: add_line(Room, $180)   # 중복! 폼엔 이미 Room이 들어가 있음
+=> 잔액: -$180 (초과 배분, Room 라인이 중복됨)
+{{< /highlight >}}
+
+<p>처음 스냅숏("Room이 아직 없네")을 보고, 이미 한참 전에 넣은 Room 라인을 또 넣어버린 겁니다. 책상에 낡은 메모가 쌓여 있으니, 이미 끝낸 일을 다시 하는 거죠. <strong>최근 5개만 남기면 이 "낡은 메모"가 애초에 사라지므로</strong> 모델은 항상 현재 폼 상태에 집중하게 됩니다.</p>
+
+<hr>
+
+<h2 id="sec-5">5. 결과 ② — 그런데 너무 잘라내면 길을 잃는다</h2>
+
+<p>그럼 무조건 많이 잘라낼수록 좋을까요? 아닙니다. 여기서 두 번째 반전이 나옵니다. C3(최근 5개만)는 또 다른 실수가 늘었습니다. 바로 <strong>"조기 종료(premature termination)"</strong>입니다.</p>
+
+<p>최근 5개만 남기다 보면, 초반에 봤던 "남은 잔액 $240" 같은 <em>전체 진행 상황</em>이 창 밖으로 밀려납니다. 그러면 모델은 "내가 얼마나 했고 얼마가 남았는지"를 잊고, 일이 다 안 끝났는데 폼을 제출해버립니다.</p>
+
+{{< highlight text >}}
+A: get_form_state()
+T: {total_added: $340, remaining: $240}
+A: add_line(Parking, $45)
+# pruning 창이 앞쪽의 "remaining: $240" 줄을 밀어냄
+A: # 에이전트가 더 이상 남은 잔액을 못 봄
+A: submit_form()
+=> 잔액: $195 미배분. 폼이 미완성 상태로 제출됨.
+{{< /highlight >}}
+
+<p>해결책이 <strong>C4 = 최근 5개 + 요약</strong>입니다. 오래된 내용을 <em>그냥 버리는 게 아니라</em>, 버리기 직전에 한 줄짜리 진행 요약으로 압축해 끼워 넣는 거죠. 논문에 실린 실제 요약 출력은 이렇습니다.</p>
+
+{{< highlight text >}}
+이전 도구 호출 요약(Summary of previous tool calls):
+- 경비 보고서 폼을 열고 ER-00184(호텔, 영수증 총액 $612.40)로 이동함.
+- "Itemize" 버튼을 눌러 호텔 라인의 항목 분할 하위 폼을 엶.
+- add_line으로 Hotel-Room 라인 $180.00 추가함.
+- add_line으로 Hotel-Tax 라인 $14.40 추가함.
+{{< /highlight >}}
+
+<p>흥미로운 점은 이 요약이 <strong>잔액을 직접 계산하지 않는다</strong>는 것입니다. 그냥 "어떤 폼을 열었고, 어떤 버튼을 눌렀고, 무슨 라인을 넣었는지"를 일반적으로 서술할 뿐인데도, 이것만으로 에이전트가 "아 내가 여기까지 했지"라는 <strong>작업 수준의 인식</strong>을 회복해 조기 종료를 멈춥니다.</p>
+
+<p>결과적으로 C4는 모든 지표에서 1등입니다.</p>
+
+<table>
+  <thead><tr><th>설정</th><th>완료율</th><th>잔액 ≤10%</th><th>금액 배분율</th><th>총 토큰</th></tr></thead>
+  <tbody>
+    <tr><td>C2 (전체 기록)</td><td>71.0%</td><td>74.0%</td><td>92.03%</td><td>1,481K</td></tr>
+    <tr><td>C3 (최근 5개)</td><td>79.0%</td><td>87.0%</td><td>96.92%</td><td>535K</td></tr>
+    <tr><td><strong>C4 (5개+요약)</strong></td><td><strong>91.6%</strong></td><td><strong>99.6%</strong></td><td><strong>99.64%</strong></td><td>553K</td></tr>
+  </tbody>
+</table>
+
+<p>요약을 추가하는 비용은 <strong>C3 대비 토큰 3.4% 증가</strong>에 불과합니다(요약을 위한 LLM 호출이 퇴거 이벤트당 딱 한 번 추가될 뿐). 전체 기록(C2)과 비교하면 <strong>토큰 62.7% 절감, 시간 60.2% 단축, 완료율 +20.6%p</strong>. 통계적으로도 C3와 C4의 95% 신뢰구간이 깔끔하게 분리돼([73.5, 83.6] vs [87.5, 94.4]), 요약의 효과가 우연이 아님을 보여줍니다.</p>
+
+<hr>
+
+<h2 id="sec-6">6. 메커니즘: 컨텍스트를 어떻게 구성하나</h2>
+
+<p>C4의 컨텍스트 구성 알고리즘은 의외로 단순합니다(논문의 Algorithm 1). 조절 항목은 두 가지뿐입니다.</p>
+
+<ul>
+  <li><strong>N (pruning window)</strong> — 최근 도구 호출/응답을 몇 쌍이나 그대로 남길지. 논문은 <strong>N=5</strong>.</li>
+  <li><strong>W (summary window)</strong> — 밀려나는(퇴거되는) 메시지 중 몇 개를 요약해 한 줄로 다시 끼워 넣을지. 논문은 <strong>W=3</strong>.</li>
+</ul>
+
+<figure class="lcba-fig"><svg viewBox="0 0 920 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="세 가지 컨텍스트 정책 비교: C2 전체 유지, C3 최근 5개만, C4 최근 5개 더하기 요약 한 줄">
+  <!-- C2 -->
+  <text x="20" y="42" font-size="13.5" font-weight="700" fill="var(--lcba-rose)">C2 · 전체 기록</text>
+  <g>
+    <rect x="20" y="54" width="700" height="32" rx="5" fill="var(--lcba-slate)" fill-opacity="0.45" stroke="var(--lcba-slate)" stroke-width="1"/>
+    <text x="370" y="75" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.85">m1 · m2 · m3 · m4 · … · m26 · m27 · m28 · m29 · m30  (전부 매 턴 재전송)</text>
+    <text x="855" y="75" text-anchor="middle" font-size="13" font-weight="800" fill="var(--lcba-rose)">1,481K</text>
+  </g>
+
+  <!-- C3 -->
+  <text x="20" y="142" font-size="13.5" font-weight="700" fill="var(--lcba-cyan)">C3 · 최근 5개만 (pruning)</text>
+  <g>
+    <rect x="20" y="154" width="430" height="32" rx="5" fill="none" stroke="var(--lcba-rose)" stroke-width="1.4" stroke-dasharray="5 4"/>
+    <text x="235" y="175" text-anchor="middle" font-size="12" fill="var(--lcba-rose)" opacity="0.8">✂ m1 … m25  (버려짐 — 진행 상황도 함께 사라짐)</text>
+    <rect x="458" y="154" width="262" height="32" rx="5" fill="var(--lcba-cyan)" fill-opacity="0.5" stroke="var(--lcba-cyan)" stroke-width="1.4"/>
+    <text x="589" y="175" text-anchor="middle" font-size="12" fill="currentColor">m26 · m27 · m28 · m29 · m30</text>
+    <text x="855" y="175" text-anchor="middle" font-size="13" font-weight="800" fill="var(--lcba-cyan)">535K</text>
+  </g>
+
+  <!-- C4 -->
+  <text x="20" y="242" font-size="13.5" font-weight="700" fill="var(--lcba-emerald)">C4 · 최근 5개 + 요약 한 줄</text>
+  <g>
+    <rect x="20" y="254" width="180" height="32" rx="5" fill="var(--lcba-violet)" fill-opacity="0.45" stroke="var(--lcba-violet)" stroke-width="1.6"/>
+    <text x="110" y="275" text-anchor="middle" font-size="11.5" fill="currentColor">📝 요약(W=3 압축)</text>
+    <rect x="208" y="254" width="242" height="32" rx="5" fill="none" stroke="var(--lcba-rose)" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="329" y="275" text-anchor="middle" font-size="11.5" fill="var(--lcba-rose)" opacity="0.75">✂ 나머지 옛 메시지</text>
+    <rect x="458" y="254" width="262" height="32" rx="5" fill="var(--lcba-emerald)" fill-opacity="0.5" stroke="var(--lcba-emerald)" stroke-width="1.6"/>
+    <text x="589" y="275" text-anchor="middle" font-size="12" fill="currentColor">m26 · m27 · m28 · m29 · m30</text>
+    <text x="855" y="275" text-anchor="middle" font-size="13" font-weight="800" fill="var(--lcba-emerald)">553K</text>
+  </g>
+  <text x="370" y="325" text-anchor="middle" font-size="12.5" fill="currentColor" opacity="0.7">두 개의 정보 채널 — <tspan fill="var(--lcba-emerald)" font-weight="700">최근 5개 = 지금의 폼 상태(지역 정보)</tspan> · <tspan fill="var(--lcba-violet)" font-weight="700">요약 = 전체 진행 상황(전역 정보)</tspan></text>
+</svg><figcaption>C4의 비결은 두 채널의 분업이다. 최근 메시지가 "지금 무엇을 하는 중인가"를, 요약 한 줄이 "전체에서 어디까지 왔는가"를 담당한다.</figcaption></figure>
+
+<p>정리하면 C4는 이렇게 동작합니다. <strong>(1)</strong> 최근 N개 쌍은 원문 그대로 남긴다 → 현재 상태 파악. <strong>(2)</strong> 밀려나는 옛 메시지 중 가장 최근 W개를 한 줄 요약으로 압축해, 퇴거된 자리 맨 앞에 한 번 끼워 넣는다 → 전체 진행 파악. 이 단순한 분업이, 전체 기록도 못 한 91.6%를 만들어냅니다.</p>
+
+<p>이 결과는 호텔 경비에만 국한되지 않았습니다. 연구진은 출장(렌터카·항공)과 식대·선물 카테고리에서도 같은 실험을 반복했고, <strong>모든 카테고리에서 +19~20%p의 일관된 향상</strong>을 확인했습니다. 또 에이전트를 Claude Sonnet 4.5로 바꿔도 "요약이 pruning을 이긴다"는 결과가 그대로였습니다.</p>
+
+<hr>
+
+<h2 id="sec-7">7. 실패의 해부: 두 가지 실수의 줄다리기</h2>
+
+<p>이 논문에서 가장 통찰적인 부분은 <strong>실패를 종류별로 분류</strong>한 표입니다. 정책마다 어떤 실수가 늘고 주는지를 보면, 왜 "pruning + 요약"의 조합이 정답인지가 선명해집니다.</p>
+
+<figure class="lcba-fig"><svg viewBox="0 0 880 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="두 실패 모드의 추이: 낡은 상태 참조는 C2 34에서 C3 6, C4 4로 감소. 조기 종료는 C2 9에서 C3 18로 증가했다가 C4 3으로 급감.">
+  <line x1="90" y1="40" x2="90" y2="250" stroke="currentColor" stroke-opacity="0.25" stroke-width="1.5"/>
+  <line x1="90" y1="250" x2="800" y2="250" stroke="currentColor" stroke-opacity="0.25" stroke-width="1.5"/>
+  <g font-size="11" fill="currentColor" opacity="0.5" text-anchor="end">
+    <text x="82" y="254">0</text>
+    <text x="82" y="194">10</text>
+    <text x="82" y="134">20</text>
+    <text x="82" y="74">30</text>
+  </g>
+  <!-- x labels -->
+  <g font-size="13" font-weight="700" fill="currentColor" text-anchor="middle">
+    <text x="230" y="274">C2 (전체 기록)</text>
+    <text x="445" y="274">C3 (최근 5개)</text>
+    <text x="660" y="274">C4 (5개+요약)</text>
+  </g>
+  <!-- y = 250 - count*6 -->
+  <!-- 낡은 상태: 34->6->4  => y: 46, 214, 226 -->
+  <polyline points="230,46 445,214 660,226" fill="none" stroke="var(--lcba-rose)" stroke-width="3"/>
+  <circle cx="230" cy="46" r="6" fill="var(--lcba-rose)"/><text x="230" y="34" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--lcba-rose)">34</text>
+  <circle cx="445" cy="214" r="6" fill="var(--lcba-rose)"/><text x="460" y="208" font-size="12.5" font-weight="800" fill="var(--lcba-rose)">6</text>
+  <circle cx="660" cy="226" r="6" fill="var(--lcba-rose)"/><text x="675" y="221" font-size="12.5" font-weight="800" fill="var(--lcba-rose)">4</text>
+  <!-- 조기 종료: 9->18->3 => y: 196, 142, 232 -->
+  <polyline points="230,196 445,142 660,232" fill="none" stroke="var(--lcba-violet)" stroke-width="3"/>
+  <circle cx="230" cy="196" r="6" fill="var(--lcba-violet)"/><text x="230" y="186" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--lcba-violet)">9</text>
+  <circle cx="445" cy="142" r="6" fill="var(--lcba-violet)"/><text x="445" y="132" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--lcba-violet)">18</text>
+  <circle cx="660" cy="232" r="6" fill="var(--lcba-violet)"/><text x="675" y="227" font-size="12.5" font-weight="800" fill="var(--lcba-violet)">3</text>
+  <!-- legend -->
+  <rect x="120" y="48" width="14" height="4" fill="var(--lcba-rose)"/><text x="142" y="53" font-size="12" fill="currentColor" opacity="0.8">낡은 상태 참조 — pruning이 잡는다</text>
+  <rect x="120" y="70" width="14" height="4" fill="var(--lcba-violet)"/><text x="142" y="75" font-size="12" fill="currentColor" opacity="0.8">조기 종료 — pruning이 키우고, 요약이 잡는다</text>
+</svg><figcaption>두 실수는 정반대 방향으로 움직인다. 전체 기록을 자르면 "낡은 상태" 실수가 사라지지만 "조기 종료"가 늘고 — 요약을 더하면 그 조기 종료까지 잡힌다.</figcaption></figure>
+
+<p>5회 실행을 합산한 미완료 건수(총 50작업 × 5회 = 250런 기준)는 이렇게 움직입니다.</p>
+
+<table>
+  <thead><tr><th>실패 모드</th><th>C2</th><th>C3</th><th>C4</th></tr></thead>
+  <tbody>
+    <tr><td>낡은 상태 참조 (stale-state)</td><td>34</td><td>6</td><td>4</td></tr>
+    <tr><td>조기 종료 (premature termination)</td><td>9</td><td>18</td><td>3</td></tr>
+    <tr><td>중복/누락된 반복 항목</td><td>12</td><td>11</td><td>5</td></tr>
+    <tr><td>잘못된 하위 카테고리 매핑</td><td>8</td><td>9</td><td>6</td></tr>
+    <tr><td>도구/폼 내비게이션 오류</td><td>6</td><td>5</td><td>2</td></tr>
+    <tr><td>잔액 불일치</td><td>4</td><td>4</td><td>1</td></tr>
+    <tr><td><strong>총 미완료</strong></td><td><strong>73</strong></td><td><strong>53</strong></td><td><strong>21</strong></td></tr>
+  </tbody>
+</table>
+
+<p>이야기가 깔끔하게 들어맞습니다. <strong>pruning(C3)은 낡은 상태 참조를 34→6으로 84%나 줄이지만</strong>, 진행 상황을 잃어 조기 종료를 9→18로 두 배 늘립니다. <strong>요약(C4)은 그 조기 종료를 18→3으로 6분의 1로 잡으면서, 낡은 상태도 다시 끌어올리지 않습니다.</strong> 두 기법이 서로의 약점을 정확히 메우는 거죠.</p>
+
+<hr>
+
+<h2 id="sec-8">8. 그래서 내 에이전트엔 어떻게 적용하나</h2>
+
+<p>논문이 D365라는 특정 환경을 다루지만, 교훈은 바로 실무에 적용할 수 있습니다. 도구를 많이 쓰는 에이전트를 만든다면 이렇게 접근해 보세요.</p>
+
+<ol>
+  <li><strong>전체 기록은 기본값이 아니라 선택지다.</strong> "대화 전부를 매 턴 재전송"하는 표준 관행을 의심하세요. 도구 응답이 큰 워크플로일수록, 그 기록의 상당수는 이미 지나간 상태입니다.</li>
+  <li><strong>가장 먼저 시도할 건 "최근 N개만 남기기"다.</strong> 구현이 가장 단순하고(요약용 LLM 호출조차 없음), 토큰을 가장 크게 줄이며, 낡은 상태 오류까지 잡습니다. 출발점으로 <strong>N=5</strong>가 합리적입니다.</li>
+  <li><strong>그다음, 가벼운 요약 한 줄을 더하라.</strong> pruning만으로 "에이전트가 일을 일찍 끝내버린다" 싶으면, 버려지는 내용을 진행 요약으로 압축해 끼워 넣으세요. 잔액 같은 걸 정밀 계산할 필요 없이, "무엇을 했는지" 서술만으로도 충분합니다.</li>
+  <li><strong>토큰 단위로 자르지는 마라.</strong> LLMLingua류의 토큰 압축은 RAG/QA엔 좋지만, 폼 조작 에이전트에선 컨트롤 이름·숫자 같은 식별자를 망가뜨릴 수 있습니다. 잘라낼 단위는 토큰이 아니라 <strong>"도구 호출/응답 쌍"</strong>입니다.</li>
+  <li><strong>측정으로 검증하라.</strong> N, W 값은 작업 구조에 따라 다릅니다. 이 논문도 "한 항목 입력에 도구 호출 2~3개가 필요하니 5개면 두 사이클 분량"이라는 분석에서 N=5를 골랐습니다. 당신의 작업 한 단위가 몇 번의 도구 호출인지 세어 보고 N을 정하세요.</li>
+</ol>
+
+<div class="lcba-note">
+  <strong>좋은 소식 — 이미 도구가 있습니다.</strong> 이 논문의 "pruning + 요약"은 새 개념이 아니라 업계가 수렴 중인 패턴입니다. Anthropic API는 똑같은 두 기법을 기본 기능으로 제공합니다. <strong>tool-result clearing</strong>(오래된 도구 응답을 자리표시자로 치환 — 가장 가벼운 형태의 pruning)과 <strong>compaction</strong>(임계치 도달 시 대화를 요약으로 압축, Claude Code의 <code>/compact</code>가 이것)입니다. 직접 구현하기 전에, 쓰는 플랫폼에 이런 기능이 있는지부터 확인하세요.
+</div>
+
+<p>학계도 같은 방향입니다. 같은 달 나온 <strong>ACON</strong>(arXiv:2510.00615, ICML 2026)은 압축 규칙 자체를 에이전트의 실패 사례로부터 학습시키고, JetBrains 연구(2025.12)는 "observation masking vs 요약"을 비교했습니다. 공통된 결론은 하나입니다 — <strong>긴 작업 에이전트에서 컨텍스트는 관리 대상이지, 무한정 쌓아두는 로그가 아니다.</strong></p>
+
+<hr>
+
+<h2 id="sec-9">9. 한계 — 이건 만병통치약이 아니다</h2>
+
+<p>이 논문이 좋은 이유 중 하나는, 저자들이 스스로 범위를 분명히 못 박았다는 점입니다. 그대로 옮길 가치가 있습니다.</p>
+
+<ul>
+  <li><strong>단일 도메인 증거다.</strong> 호텔 경비 정산이라는, 반복 하위 카테고리·복잡한 매핑·엄격한 0원 조건을 가진 워크플로 한 부류를 다뤘습니다. 저자들은 이를 <em>"보편적 일반화의 증명이 아니라, 한 부류의 기업 도구 사용 워크플로에 대한 강력한 증거"</em>라고 명시합니다.</li>
+  <li><strong>잘라내도 안 풀리는 실수가 남는다.</strong> "Room tax vs Non-Room tax" 같은 유사 명칭의 하위 카테고리 매핑 오류는 컨텍스트 정책과 무관합니다(23개짜리 카테고리 사전이 부르는 별개의 난이도). pruning·요약이 잡는 건 어디까지나 "낡은 상태"와 "조기 종료"입니다.</li>
+  <li><strong>완료율 91.6%는 여전히 8.4%가 실패한다는 뜻이다.</strong> 프로덕션에서는 플래그된 케이스에 대한 사람의 검토가 필요합니다.</li>
+</ul>
+
+<p>그래도 핵심 메시지는 도메인을 넘어 단단합니다. <strong>"더 많은 맥락 = 더 나은 성능"이라는 등식은, 적어도 도구를 많이 쓰는 장기 작업에서는 성립하지 않는다.</strong></p>
+
+<hr>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<blockquote class="lcba-pull">
+  <p><strong>"오래된 도구 응답은 중립적인 기록이 아니다. 그것은 적극적으로 해로운 노이즈다."</strong></p>
+</blockquote>
+
+<ul>
+  <li><strong>문제</strong> — 도구 쓰는 에이전트는 매 턴 전체 기록을 재전송해 토큰이 폭증하고, 옛 도구 응답("낡은 폼 상태")이 노이즈가 되어 성능까지 떨어뜨린다.</li>
+  <li><strong>해법 ①</strong> — 최근 N개(=5)만 남기고 잘라내면, 토큰 64%↓ + 완료율 +8%p. 낡은 상태 오류가 사라진다.</li>
+  <li><strong>해법 ②</strong> — 단, 너무 잘라내면 진행 상황을 잊고 일찍 끝낸다. 버려질 내용을 <strong>한 줄 요약</strong>으로 끼워 넣으면(C4) 완료율 91.6%, 토큰은 여전히 전체 기록의 1/3.</li>
+  <li><strong>왜</strong> — 최근 메시지(지역 상태)와 요약(전역 진행)이라는 <strong>두 채널의 분업</strong> 덕분.</li>
+  <li><strong>실천</strong> — 전체 기록을 의심하라 → 최근 N개만 남겨라 → 가벼운 요약을 더하라 → 토큰이 아니라 도구 쌍 단위로 잘라라 → N·W는 측정으로 정하라. Anthropic의 tool-result clearing/compaction처럼 이미 나온 기능부터 써라.</li>
+</ul>
+
+<p>컨텍스트 창은 계속 커질 겁니다. 하지만 이 논문의 교훈은 그 반대 방향을 가리킵니다. <strong>에이전트를 똑똑하게 만드는 건 더 큰 창이 아니라, 그 창에 무엇을 남길지 정하는 손</strong>입니다. 맥락은, 적을수록 똑똑합니다.</p>
+
+<hr>
+
+<h3 id="refs">참고 자료</h3>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2606.10209" target="_blank" rel="noopener">Lodha et al., <em>Less Context, Better Agents: Efficient Context Engineering for Long-Horizon Tool-Using LLM Agents</em> — Microsoft, arXiv:2606.10209 (2026)</a> (이 글의 원문)</li>
+  <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic — Effective Context Engineering for AI Agents</a></li>
+  <li><a href="https://www.anthropic.com/news/model-context-protocol" target="_blank" rel="noopener">Anthropic — Introducing the Model Context Protocol (MCP)</a></li>
+  <li><a href="https://research.trychroma.com/context-rot" target="_blank" rel="noopener">Chroma Research — Context Rot: 입력이 길수록 성능이 떨어지는 현상</a></li>
+  <li><a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noopener">Liu et al. — Lost in the Middle (TACL 2024)</a></li>
+  <li><a href="https://arxiv.org/abs/2510.00615" target="_blank" rel="noopener">Kang et al. — ACON: Optimizing Context Compression for Long-Horizon LLM Agents (ICML 2026)</a></li>
+  <li><a href="https://github.com/microsoft/LLMLingua" target="_blank" rel="noopener">Microsoft — LLMLingua (토큰 단위 프롬프트 압축)</a></li>
+  <li><a href="https://blog.jetbrains.com/research/2025/12/efficient-context-management/" target="_blank" rel="noopener">JetBrains Research — Efficient Context Management (observation masking vs 요약)</a></li>
+</ul>

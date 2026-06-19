@@ -1,0 +1,31 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Less Context, Better Agents — 컨텍스트(토큰)는 줄고 성능은 오르는 두 화살표가 교차하는 표지">
+  <defs>
+    <linearGradient id="lcba-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <marker id="lcba-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#lcba-bg)"/>
+
+  <!-- 내려가는 화살표: 토큰/맥락 -->
+  <g color="#fb7185">
+    <path d="M170,150 C 430,150 600,360 980,470" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" marker-end="url(#lcba-ar)" opacity="0.92"/>
+    <text x="150" y="135" font-family="ui-sans-serif,system-ui,sans-serif" font-size="30" font-weight="700" fill="#fb7185">맥락(토큰) ↓ 64%</text>
+  </g>
+
+  <!-- 올라가는 화살표: 성능 -->
+  <g color="#34d399">
+    <path d="M170,480 C 430,480 600,270 980,160" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" marker-end="url(#lcba-ar)" opacity="0.92"/>
+    <text x="760" y="135" font-family="ui-sans-serif,system-ui,sans-serif" font-size="30" font-weight="700" fill="#34d399">완료율 71% → 91.6%</text>
+  </g>
+
+  <!-- 교차점 표시 -->
+  <circle cx="575" cy="315" r="9" fill="#e2e8f0" opacity="0.85"/>
+
+  <!-- 제목 -->
+  <text x="600" y="560" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="62" font-weight="800" fill="#f8fafc">Less Context, Better Agents</text>
+  <text x="600" y="608" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="27" font-weight="500" fill="#94a3b8">맥락을 덜 줄수록 더 똑똑해지는 에이전트 — 컨텍스트 엔지니어링</text>
+</svg>

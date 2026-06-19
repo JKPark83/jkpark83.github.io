@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 470" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR',sans-serif">
+  <rect width="820" height="470" fill="#0f1117"/>
+  <text x="410" y="36" fill="#e6edf3" font-size="21" font-weight="700" text-anchor="middle">Agent Builder 시사점 — 프롬프트 필터 1겹이 아니라 방어 다층화</text>
+  <text x="410" y="58" fill="#8b949e" font-size="13" text-anchor="middle">"적응형 공격자 앞에선 단일 가드레일은 무너진다" (arXiv:2601.17548)</text>
+
+  <!-- attacker -->
+  <rect x="30" y="190" width="150" height="80" rx="10" fill="#2d1418" stroke="#f85149" stroke-width="2"/>
+  <text x="105" y="222" fill="#f85149" font-size="14" font-weight="700" text-anchor="middle">악성 입력</text>
+  <text x="105" y="244" fill="#ff9d96" font-size="11" text-anchor="middle">툴 응답·파일·MCP</text>
+  <text x="105" y="260" fill="#ff9d96" font-size="11" text-anchor="middle">웹 페이지·이메일</text>
+
+  <!-- arrow -->
+  <line x1="180" y1="230" x2="215" y2="230" stroke="#f85149" stroke-width="3"/>
+  <polygon points="215,224 227,230 215,236" fill="#f85149"/>
+
+  <!-- layers -->
+  <g>
+    <rect x="232" y="150" width="150" height="160" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="2"/>
+    <text x="307" y="180" fill="#3fb950" font-size="14" font-weight="700" text-anchor="middle">① 최소 권한</text>
+    <text x="307" y="210" fill="#e6edf3" font-size="12" text-anchor="middle">샌드박스 / 읽기전용</text>
+    <text x="307" y="230" fill="#e6edf3" font-size="12" text-anchor="middle">쓰기 범위 제한</text>
+    <text x="307" y="250" fill="#e6edf3" font-size="12" text-anchor="middle">네트워크 차단</text>
+    <text x="307" y="282" fill="#8b949e" font-size="11" text-anchor="middle">Codex sandbox_mode</text>
+    <text x="307" y="298" fill="#8b949e" font-size="11" text-anchor="middle">=workspace-write</text>
+  </g>
+
+  <g>
+    <rect x="397" y="150" width="150" height="160" rx="10" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
+    <text x="472" y="180" fill="#58a6ff" font-size="14" font-weight="700" text-anchor="middle">② 정책 게이트</text>
+    <text x="472" y="210" fill="#e6edf3" font-size="12" text-anchor="middle">파괴적 명령 승인</text>
+    <text x="472" y="230" fill="#e6edf3" font-size="12" text-anchor="middle">allowlist 도구만</text>
+    <text x="472" y="250" fill="#e6edf3" font-size="12" text-anchor="middle">민감 작업 휴먼인루프</text>
+    <text x="472" y="282" fill="#8b949e" font-size="11" text-anchor="middle">Claude Code v2.1.183</text>
+    <text x="472" y="298" fill="#8b949e" font-size="11" text-anchor="middle">git/IaC destroy 차단</text>
+  </g>
+
+  <g>
+    <rect x="562" y="150" width="150" height="160" rx="10" fill="#161b22" stroke="#a371f7" stroke-width="2"/>
+    <text x="637" y="180" fill="#a371f7" font-size="14" font-weight="700" text-anchor="middle">③ 감사 / 격리</text>
+    <text x="637" y="210" fill="#e6edf3" font-size="12" text-anchor="middle">전 행위 로깅</text>
+    <text x="637" y="230" fill="#e6edf3" font-size="12" text-anchor="middle">신뢰 경계 분리</text>
+    <text x="637" y="250" fill="#e6edf3" font-size="12" text-anchor="middle">비밀정보 격리</text>
+    <text x="637" y="282" fill="#8b949e" font-size="11" text-anchor="middle">사후 추적 가능성</text>
+    <text x="637" y="298" fill="#8b949e" font-size="11" text-anchor="middle">확보</text>
+  </g>
+
+  <!-- arrows between -->
+  <g stroke="#30363d" stroke-width="3">
+    <line x1="382" y1="230" x2="397" y2="230"/>
+    <line x1="547" y1="230" x2="562" y2="230"/>
+  </g>
+
+  <!-- output -->
+  <line x1="712" y1="230" x2="745" y2="230" stroke="#3fb950" stroke-width="3"/>
+  <polygon points="745,224 757,230 745,236" fill="#3fb950"/>
+  <text x="765" y="220" fill="#3fb950" font-size="13" font-weight="700" text-anchor="middle">안전</text>
+  <text x="765" y="240" fill="#3fb950" font-size="13" font-weight="700" text-anchor="middle">실행</text>
+
+  <text x="410" y="360" fill="#e6edf3" font-size="13" text-anchor="middle" font-weight="600">핵심: 한 겹이 뚫려도 다음 겹이 막는다 — "프롬프트로 막기"보다 권한·정책·감사를 분리</text>
+  <text x="410" y="384" fill="#8b949e" font-size="12" text-anchor="middle">공격 비용은 싸고 폴리모픽 → 탐지보다 권한 최소화가 비용 대비 효과적</text>
+  <text x="410" y="448" fill="#6e7681" font-size="11" text-anchor="middle">근거: arXiv:2601.17548 (defense-in-depth) · Claude Code changelog · Codex sandboxing docs</text>
+</svg>

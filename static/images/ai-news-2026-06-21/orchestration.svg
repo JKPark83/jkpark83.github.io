@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" font-family="-apple-system,Segoe UI,Roboto,sans-serif" width="100%" height="auto" role="img" aria-label="유틸리티 기반 오케스트레이션 결정 루프">
+  <rect width="720" height="360" fill="#0f1117"/>
+  <text x="360" y="34" text-anchor="middle" fill="#e6e6e6" font-size="20" font-weight="700">Utility-Guided 오케스트레이션 결정 루프</text>
+  <text x="360" y="56" text-anchor="middle" fill="#94a3b8" font-size="12">매 스텝 5개 행동을 기대이득·비용·불확실성·중복으로 점수화해 선택</text>
+
+  <!-- state box -->
+  <rect x="40" y="150" width="120" height="60" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="100" y="178" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">현재 상태</text>
+  <text x="100" y="196" text-anchor="middle" fill="#94a3b8" font-size="11">질문 + 진행맥락</text>
+
+  <!-- scorer -->
+  <rect x="220" y="140" width="130" height="80" rx="10" fill="#172033" stroke="#fbbf24" stroke-width="2"/>
+  <text x="285" y="170" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="700">효용 점수기</text>
+  <text x="285" y="190" text-anchor="middle" fill="#cbd5e1" font-size="10">gain − cost</text>
+  <text x="285" y="206" text-anchor="middle" fill="#cbd5e1" font-size="10">− 불확실성·중복</text>
+
+  <!-- 5 actions -->
+  <g font-size="11" font-weight="700">
+    <rect x="430" y="60"  width="110" height="34" rx="8" fill="#1f2937" stroke="#34d399"/>
+    <text x="485" y="82" text-anchor="middle" fill="#34d399">retrieve</text>
+    <rect x="430" y="104" width="110" height="34" rx="8" fill="#1f2937" stroke="#60a5fa"/>
+    <text x="485" y="126" text-anchor="middle" fill="#60a5fa">tool call</text>
+    <rect x="430" y="148" width="110" height="34" rx="8" fill="#1f2937" stroke="#a78bfa"/>
+    <text x="485" y="170" text-anchor="middle" fill="#a78bfa">verify</text>
+    <rect x="430" y="192" width="110" height="34" rx="8" fill="#1f2937" stroke="#f472b6"/>
+    <text x="485" y="214" text-anchor="middle" fill="#f472b6">respond</text>
+    <rect x="430" y="236" width="110" height="34" rx="8" fill="#1f2937" stroke="#f87171"/>
+    <text x="485" y="258" text-anchor="middle" fill="#f87171">stop</text>
+  </g>
+
+  <!-- stop / answer -->
+  <rect x="590" y="148" width="100" height="60" rx="10" fill="#1e293b" stroke="#f87171" stroke-width="2"/>
+  <text x="640" y="174" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="700">조기 종료</text>
+  <text x="640" y="192" text-anchor="middle" fill="#94a3b8" font-size="10">불필요 호출 차단</text>
+
+  <!-- arrows -->
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <g stroke="#64748b" stroke-width="1.6" fill="none" marker-end="url(#ar)">
+    <line x1="160" y1="180" x2="216" y2="180"/>
+    <line x1="350" y1="172" x2="426" y2="120"/>
+    <line x1="350" y1="180" x2="426" y2="165"/>
+    <line x1="350" y1="188" x2="426" y2="248"/>
+    <line x1="540" y1="253" x2="586" y2="195"/>
+  </g>
+  <!-- feedback loop -->
+  <path d="M485 270 C 485 320, 100 320, 100 214" stroke="#475569" stroke-width="1.4" fill="none" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+  <text x="290" y="338" text-anchor="middle" fill="#64748b" font-size="11">행동 결과로 상태 갱신 → 다시 점수화 (이득&lt;비용이면 stop)</text>
+</svg>

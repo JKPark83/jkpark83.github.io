@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="760" height="300" fill="#0f172a"/>
+  <text x="40" y="40" fill="#f8fafc" font-size="19" font-weight="700">오픈소스 스포트라이트 — GitHub 스타 (2026-06-22 확인)</text>
+  <text x="40" y="62" fill="#94a3b8" font-size="12.5">훈련(ART) · 스캐폴드(SWE-agent) · 평가(SWE-bench)</text>
+
+  <!-- SWE-agent: 19582 -> width 620 -->
+  <text x="40" y="108" fill="#e2e8f0" font-size="13.5" font-weight="600">SWE-agent</text>
+  <rect x="40" y="116" width="620" height="26" rx="5" fill="#a78bfa"/>
+  <text x="668" y="135" fill="#e2e8f0" font-size="13" font-weight="700">19,582★</text>
+
+  <!-- OpenPipe/ART: 10147 -> width 321 -->
+  <text x="40" y="170" fill="#e2e8f0" font-size="13.5" font-weight="600">OpenPipe / ART</text>
+  <rect x="40" y="178" width="321" height="26" rx="5" fill="#38bdf8"/>
+  <text x="369" y="197" fill="#e2e8f0" font-size="13" font-weight="700">10,147★</text>
+
+  <!-- SWE-bench: 5218 -> width 165 -->
+  <text x="40" y="232" fill="#e2e8f0" font-size="13.5" font-weight="600">SWE-bench</text>
+  <rect x="40" y="240" width="165" height="26" rx="5" fill="#fbbf24"/>
+  <text x="213" y="259" fill="#e2e8f0" font-size="13" font-weight="700">5,218★</text>
+
+  <text x="40" y="292" fill="#64748b" font-size="11">출처: GitHub REST API · 막대 길이는 스타 수에 비례</text>
+</svg>

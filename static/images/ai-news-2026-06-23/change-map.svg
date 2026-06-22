@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="430" fill="#0f172a"/>
+  <text x="380" y="34" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">오늘의 AI 변화 지도 — 2026-06-23</text>
+  <text x="380" y="56" text-anchor="middle" fill="#94a3b8" font-size="13">테마: 에이전트 메모리가 코딩 툴에 기본 탑재되는 흐름</text>
+
+  <!-- center -->
+  <rect x="300" y="186" width="160" height="58" rx="12" fill="#2563eb"/>
+  <text x="380" y="212" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">에이전트 메모리</text>
+  <text x="380" y="231" text-anchor="middle" fill="#dbeafe" font-size="11">write · manage · read</text>
+
+  <!-- connectors -->
+  <g stroke="#475569" stroke-width="2" fill="none">
+    <path d="M300 200 L170 120"/>
+    <path d="M300 230 L170 330"/>
+    <path d="M460 200 L590 120"/>
+    <path d="M460 230 L590 330"/>
+  </g>
+
+  <!-- 모델/툴 -->
+  <rect x="30" y="86" width="270" height="74" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="44" y="110" fill="#38bdf8" font-size="13" font-weight="700">🤖 모델 · 툴</text>
+  <text x="44" y="130" fill="#e2e8f0" font-size="11.5">Claude Code v2.1.186 (MCP CLI 인증)</text>
+  <text x="44" y="148" fill="#e2e8f0" font-size="11.5">Codex Memories 레이어 정식화</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="300" width="270" height="74" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="44" y="324" fill="#34d399" font-size="13" font-weight="700">🛠 오픈소스 메모리 레이어</text>
+  <text x="44" y="344" fill="#e2e8f0" font-size="11.5">mem0 59.1k · supermemory 27.3k</text>
+  <text x="44" y="362" fill="#e2e8f0" font-size="11.5">SimpleMem 3.5k</text>
+
+  <!-- 논문 -->
+  <rect x="460" y="86" width="270" height="74" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+  <text x="474" y="110" fill="#fbbf24" font-size="13" font-weight="700">📚 논문</text>
+  <text x="474" y="130" fill="#e2e8f0" font-size="11.5">메모리 서베이 2603.07670</text>
+  <text x="474" y="148" fill="#e2e8f0" font-size="11.5">Focus(ACC) 2601.07190</text>
+
+  <!-- 팁 -->
+  <rect x="460" y="300" width="270" height="74" rx="10" fill="#1e293b" stroke="#c084fc" stroke-width="1.5"/>
+  <text x="474" y="324" fill="#c084fc" font-size="13" font-weight="700">🧑‍💻 실전 팁</text>
+  <text x="474" y="344" fill="#e2e8f0" font-size="11.5">Auto memory · Codex Memories</text>
+  <text x="474" y="362" fill="#e2e8f0" font-size="11.5">start_focus/complete_focus 패턴</text>
+
+  <text x="380" y="408" text-anchor="middle" fill="#64748b" font-size="11">출처: 각 항목 공식 문서·GitHub API·arXiv (본문 링크) / 생성 다이어그램</text>
+</svg>

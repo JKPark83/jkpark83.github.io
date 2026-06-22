@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="360" fill="#0b1120"/>
+  <text x="380" y="32" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">Focus 패턴 — 세션 내 능동적 컨텍스트 압축</text>
+  <text x="380" y="54" text-anchor="middle" fill="#94a3b8" font-size="12.5">arXiv 2601.07190 · ReAct 루프에 start_focus / complete_focus 추가</text>
+
+  <!-- step boxes -->
+  <g>
+    <rect x="36" y="92" width="150" height="78" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="111" y="120" text-anchor="middle" fill="#38bdf8" font-size="13" font-weight="700">① start_focus</text>
+    <text x="111" y="142" text-anchor="middle" fill="#e2e8f0" font-size="11">조사 대상 선언</text>
+    <text x="111" y="158" text-anchor="middle" fill="#94a3b8" font-size="10.5">"DB 연결 디버그"</text>
+
+    <rect x="226" y="92" width="150" height="78" rx="10" fill="#1e293b" stroke="#a3e635" stroke-width="1.5"/>
+    <text x="301" y="120" text-anchor="middle" fill="#a3e635" font-size="13" font-weight="700">② explore</text>
+    <text x="301" y="142" text-anchor="middle" fill="#e2e8f0" font-size="11">read · edit · run</text>
+    <text x="301" y="158" text-anchor="middle" fill="#94a3b8" font-size="10.5">원본 히스토리 누적</text>
+
+    <rect x="416" y="92" width="150" height="78" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="491" y="120" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="700">③ complete_focus</text>
+    <text x="491" y="142" text-anchor="middle" fill="#e2e8f0" font-size="11">학습 요약 생성</text>
+    <text x="491" y="158" text-anchor="middle" fill="#94a3b8" font-size="10.5">사실·경로·버그·결과</text>
+
+    <rect x="606" y="92" width="124" height="78" rx="10" fill="#1e293b" stroke="#c084fc" stroke-width="1.5"/>
+    <text x="668" y="120" text-anchor="middle" fill="#c084fc" font-size="13" font-weight="700">④ prune</text>
+    <text x="668" y="142" text-anchor="middle" fill="#e2e8f0" font-size="11">원본 히스토리</text>
+    <text x="668" y="158" text-anchor="middle" fill="#e2e8f0" font-size="11">제거(withdraw)</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="#64748b" stroke-width="2" fill="#64748b">
+    <line x1="186" y1="131" x2="222" y2="131"/><polygon points="222,126 232,131 222,136"/>
+    <line x1="376" y1="131" x2="412" y2="131"/><polygon points="412,126 422,131 412,136"/>
+    <line x1="566" y1="131" x2="602" y2="131"/><polygon points="602,126 612,131 602,136"/>
+  </g>
+
+  <!-- knowledge block -->
+  <rect x="226" y="210" width="340" height="64" rx="10" fill="#0f766e"/>
+  <text x="396" y="236" text-anchor="middle" fill="#f0fdfa" font-size="14" font-weight="700">📦 Knowledge 블록 (영속 유지)</text>
+  <text x="396" y="257" text-anchor="middle" fill="#ccfbf1" font-size="11.5">요약만 컨텍스트에 남고 raw 히스토리는 폐기</text>
+  <g stroke="#0f766e" stroke-width="2" fill="none"><path d="M491 170 L491 208"/></g>
+  <polygon points="486,208 491,218 496,208" fill="#0f766e"/>
+
+  <text x="380" y="306" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="700">결과: SWE-bench Lite 컨텍스트 집약 5건 · Claude Haiku 4.5 → 세션 내 22.7% 토큰 절감</text>
+  <text x="380" y="332" text-anchor="middle" fill="#64748b" font-size="11">⚠ N=5 소규모 사례 연구 — 경향 참고용. 출처: arXiv 2601.07190 / 생성 다이어그램</text>
+</svg>

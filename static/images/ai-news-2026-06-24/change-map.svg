@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif" role="img" aria-label="오늘의 AI 변화 지도">
+  <rect width="820" height="430" fill="#0f172a"/>
+  <text x="24" y="38" fill="#f8fafc" font-size="22" font-weight="700">오늘의 AI 변화 지도 — 2026-06-24</text>
+  <text x="24" y="62" fill="#94a3b8" font-size="14">프런티어 접근 리스크 → 통제권 확보 &amp; 폴백 스택</text>
+
+  <!-- Column 1: 리스크 -->
+  <rect x="24" y="92" width="234" height="300" rx="12" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="40" y="120" fill="#fca5a5" font-size="15" font-weight="700">⚠ 접근 리스크</text>
+  <rect x="40" y="136" width="202" height="74" rx="8" fill="#0f172a"/>
+  <text x="52" y="160" fill="#f8fafc" font-size="13" font-weight="600">Fable 5 / Mythos 5</text>
+  <text x="52" y="180" fill="#cbd5e1" font-size="12">美 수출통제로 접근 중단</text>
+  <text x="52" y="198" fill="#cbd5e1" font-size="12">(6/12~, 재개 미확정)</text>
+  <rect x="40" y="222" width="202" height="74" rx="8" fill="#0f172a"/>
+  <text x="52" y="246" fill="#f8fafc" font-size="13" font-weight="600">Gemini 3.5 Pro</text>
+  <text x="52" y="266" fill="#cbd5e1" font-size="12">6월 GA 목표 → 또 지연</text>
+  <text x="52" y="284" fill="#cbd5e1" font-size="12">Vertex 제한 프리뷰만</text>
+  <rect x="40" y="308" width="202" height="66" rx="8" fill="#0f172a"/>
+  <text x="52" y="332" fill="#f8fafc" font-size="13" font-weight="600">시사점</text>
+  <text x="52" y="352" fill="#cbd5e1" font-size="12">단일 프런티어 종속 =</text>
+  <text x="52" y="368" fill="#cbd5e1" font-size="12">정책 리스크 노출</text>
+
+  <!-- Column 2: 통제권 -->
+  <rect x="293" y="92" width="234" height="300" rx="12" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="309" y="120" fill="#7dd3fc" font-size="15" font-weight="700">🛡 통제권 (도구)</text>
+  <rect x="309" y="136" width="202" height="118" rx="8" fill="#0f172a"/>
+  <text x="321" y="160" fill="#f8fafc" font-size="13" font-weight="600">Claude Code v2.1.187</text>
+  <text x="321" y="182" fill="#cbd5e1" font-size="12">· sandbox.credentials:</text>
+  <text x="321" y="199" fill="#cbd5e1" font-size="12">  비밀·자격증명 접근 차단</text>
+  <text x="321" y="221" fill="#cbd5e1" font-size="12">· 조직 모델 제한:</text>
+  <text x="321" y="238" fill="#cbd5e1" font-size="12">  허용 모델만 강제</text>
+  <rect x="309" y="266" width="202" height="108" rx="8" fill="#0f172a"/>
+  <text x="321" y="290" fill="#f8fafc" font-size="13" font-weight="600">Codex</text>
+  <text x="321" y="312" fill="#cbd5e1" font-size="12">· thread별 branch/worktree</text>
+  <text x="321" y="329" fill="#cbd5e1" font-size="12">· env 설정 스크립트</text>
+  <text x="321" y="351" fill="#cbd5e1" font-size="12">→ 병렬 작업 격리</text>
+
+  <!-- Column 3: 폴백 스택 -->
+  <rect x="562" y="92" width="234" height="300" rx="12" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="578" y="120" fill="#6ee7b7" font-size="15" font-weight="700">🧩 폴백 스택</text>
+  <rect x="578" y="136" width="202" height="60" rx="8" fill="#0f172a"/>
+  <text x="590" y="160" fill="#f8fafc" font-size="13" font-weight="600">자체 RAG/에이전트 빌더</text>
+  <text x="590" y="180" fill="#cbd5e1" font-size="12">Langflow · Dify · RAGFlow</text>
+  <rect x="578" y="208" width="202" height="60" rx="8" fill="#0f172a"/>
+  <text x="590" y="232" fill="#f8fafc" font-size="13" font-weight="600">오픈웨이트 후보</text>
+  <text x="590" y="252" fill="#cbd5e1" font-size="12">교체 가능한 모델 레이어</text>
+  <rect x="578" y="280" width="202" height="94" rx="8" fill="#0f172a"/>
+  <text x="590" y="304" fill="#f8fafc" font-size="13" font-weight="600">오늘 할 일</text>
+  <text x="590" y="324" fill="#cbd5e1" font-size="12">평가셋을 모델 비종속화</text>
+  <text x="590" y="342" fill="#cbd5e1" font-size="12">→ 폴백 회귀 테스트</text>
+  <text x="590" y="360" fill="#cbd5e1" font-size="12">상시 가능 상태 유지</text>
+
+  <!-- arrows -->
+  <path d="M258 242 L293 242" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M527 242 L562 242" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+</svg>

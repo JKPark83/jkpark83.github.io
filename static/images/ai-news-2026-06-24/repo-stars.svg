@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 360" font-family="-apple-system,Segoe UI,Roboto,sans-serif" role="img" aria-label="오픈소스 RAG 에이전트 빌더 별점 비교">
+  <rect width="820" height="360" fill="#0f172a"/>
+  <text x="24" y="38" fill="#f8fafc" font-size="22" font-weight="700">자체 RAG/에이전트 빌더 — GitHub ★ 비교</text>
+  <text x="24" y="60" fill="#94a3b8" font-size="13">GitHub API 기준 (2026-06-24 조회), 단위: 천(k)</text>
+
+  <!-- axis baseline -->
+  <line x1="210" y1="100" x2="210" y2="316" stroke="#334155" stroke-width="1.5"/>
+
+  <!-- Langflow: 149,986 -> longest bar -->
+  <text x="196" y="135" fill="#e2e8f0" font-size="14" text-anchor="end" font-weight="600">Langflow</text>
+  <text x="196" y="152" fill="#64748b" font-size="11" text-anchor="end">Python</text>
+  <rect x="210" y="118" width="540" height="38" rx="6" fill="#38bdf8"/>
+  <text x="742" y="142" fill="#0f172a" font-size="15" text-anchor="end" font-weight="700">150.0k ★</text>
+
+  <!-- Dify: 146,316 -->
+  <text x="196" y="205" fill="#e2e8f0" font-size="14" text-anchor="end" font-weight="600">Dify</text>
+  <text x="196" y="222" fill="#64748b" font-size="11" text-anchor="end">TypeScript</text>
+  <rect x="210" y="188" width="527" height="38" rx="6" fill="#818cf8"/>
+  <text x="729" y="212" fill="#0f172a" font-size="15" text-anchor="end" font-weight="700">146.3k ★</text>
+
+  <!-- RAGFlow: 83,458 -->
+  <text x="196" y="275" fill="#e2e8f0" font-size="14" text-anchor="end" font-weight="600">RAGFlow</text>
+  <text x="196" y="292" fill="#64748b" font-size="11" text-anchor="end">Python</text>
+  <rect x="210" y="258" width="300" height="38" rx="6" fill="#34d399"/>
+  <text x="502" y="282" fill="#0f172a" font-size="15" text-anchor="end" font-weight="700">83.5k ★</text>
+
+  <text x="24" y="344" fill="#94a3b8" font-size="12">막대 길이는 ★ 수에 비례 (최대값 150.0k = 540px 기준)</text>
+</svg>

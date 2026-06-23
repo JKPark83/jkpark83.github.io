@@ -1,0 +1,599 @@
+---
+title: "모델은 엔진일 뿐: AI 에이전트를 움직이는 '하네스 엔지니어링' 기초부터 심화까지"
+date: 2026-06-23T21:00:00+09:00
+draft: false
+tags: ["AI", "에이전트", "하네스 엔지니어링", "LLM", "Agent", "Harness Engineering", "Context Engineering"]
+categories: ["AI 엔지니어링"]
+summary: "좋은 모델을 손에 넣어도 그것만으로는 아무 일도 못 합니다. 모델은 텍스트를 뱉는 엔진일 뿐이고, 그 엔진을 '실제로 일하는 에이전트'로 바꾸는 건 주위를 감싸는 시스템 — 하네스(harness)입니다. 에이전트 루프, 툴, 컨텍스트 관리, 메모리, 검증, 권한까지. 프롬프트 → 컨텍스트 → 하네스로 옮겨 간 엔지니어링의 무게중심을, 주니어 개발자도 따라올 수 있게 기초부터 심화까지 정리합니다."
+ShowToc: false
+cover:
+  image: "harness-engineering-cover.svg"
+  alt: "가운데 LLM(엔진)을 에이전트 루프·툴·컨텍스트·메모리·검증·권한이 둘러싼 하네스 표지"
+  caption: "모델은 엔진일 뿐 — 차를 굴러가게 하는 건 그 주위를 감싼 하네스다"
+  relative: false
+---
+
+<style>
+/* ── Harness Engineering 포스트 전용 스타일 (hge- 접두사) ── */
+.hge-fig{
+  --hge-indigo:#6366f1; --hge-violet:#8b5cf6; --hge-cyan:#06b6d4;
+  --hge-amber:#f59e0b; --hge-rose:#f43f5e; --hge-emerald:#10b981; --hge-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .hge-fig{
+  --hge-indigo:#818cf8; --hge-violet:#a78bfa; --hge-cyan:#22d3ee;
+  --hge-amber:#fbbf24; --hge-rose:#fb7185; --hge-emerald:#34d399; --hge-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .hge-fig{
+    --hge-indigo:#818cf8; --hge-violet:#a78bfa; --hge-cyan:#22d3ee;
+    --hge-amber:#fbbf24; --hge-rose:#fb7185; --hge-emerald:#34d399; --hge-slate:#94a3b8;
+  }
+}
+.hge-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.hge-fig text{font-family:inherit}
+.hge-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.hge-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.hge-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.hge-toc ol{margin:0;padding-left:1.25rem}
+.hge-toc li{margin:.22rem 0;font-size:.95rem}
+.hge-toc a{text-decoration:none}
+.hge-toc a:hover{text-decoration:underline}
+.hge-toc .hge-part{list-style:none;margin:.7rem 0 .25rem -1.25rem;font-weight:700;font-size:.82rem;letter-spacing:.02em;opacity:.55;text-transform:uppercase}
+.hge-pull{font-size:1.12rem;line-height:1.72}
+.hge-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.hge-note{border-left:4px solid var(--hge-indigo,#6366f1);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.hge-note strong{color:var(--hge-indigo,#6366f1)}
+.hge-part-h{font-size:.85rem;font-weight:700;letter-spacing:.04em;opacity:.5;text-transform:uppercase;margin:2.6rem 0 -.4rem}
+.hge-fig{--hge-indigo:#6366f1}
+</style>
+
+<blockquote class="hge-pull">
+  <p>한 분석에 따르면, Claude Code 같은 코딩 에이전트의 코드베이스에서 <strong>모델에게 무엇을 시킬지 정하는 'AI 로직'이 차지하는 비중은 아주 작고</strong>, 대부분은 권한 검사·컨텍스트 관리·도구 연결·복구 처리 같은 <strong>주변 인프라</strong>입니다.</p>
+  <footer>— 즉, 에이전트의 실력은 모델이 아니라 그 모델을 감싼 <em>하네스</em>에서 갈린다는 뜻입니다.</footer>
+</blockquote>
+
+<p>요즘 "AI 에이전트를 만든다"는 말을 자주 듣습니다. 그런데 막상 좋은 모델(GPT, Claude, Gemini…)을 API로 불러 보면 당황하게 됩니다. 모델은 <strong>질문을 받으면 글을 써서 돌려줄 뿐</strong>, 파일을 읽지도, 명령어를 실행하지도, 어제 한 일을 기억하지도 못하니까요. "이걸로 어떻게 코딩을 대신 시키지?" 싶은 거죠.</p>
+
+<p>그 간극을 메우는 것이 이 글의 주제, <strong>하네스(harness)</strong>입니다. 비유하자면 <strong>모델은 엔진</strong>입니다. 엔진은 강력하지만, 엔진만으로는 도로를 달릴 수 없습니다. 섀시, 바퀴, 핸들, 계기판, 브레이크, 안전벨트 — 이 나머지 전부를 합쳐야 비로소 "자동차"가 되고 사람을 태우고 달립니다. <strong>그 '나머지 전부'에 해당하는 것이 하네스</strong>이고, 그걸 잘 설계하는 일이 <strong>하네스 엔지니어링(harness engineering)</strong>입니다.</p>
+
+<p>이 글은 그 분야를 <strong>기초부터 심화까지</strong> 한 바퀴 돌아봅니다. 에이전트가 아직 낯선 주니어 개발자도 따라올 수 있게, 비유와 짧은 코드부터 시작합니다.</p>
+
+<nav class="hge-toc">
+  <div class="hge-toc-title">목차</div>
+  <ol>
+    <li class="hge-part">1부 · 기초</li>
+    <li><a href="#sec-1">하네스란 무엇인가 — 엔진과 자동차의 차이</a></li>
+    <li><a href="#sec-2">왜 지금 하네스 엔지니어링인가 — 프롬프트 → 컨텍스트 → 하네스</a></li>
+    <li><a href="#sec-3">모든 것의 심장: 에이전트 루프(ReAct)</a></li>
+    <li class="hge-part">2부 · 핵심 구성요소</li>
+    <li><a href="#sec-4">시스템 프롬프트 — 에이전트의 운영 매뉴얼</a></li>
+    <li><a href="#sec-5">툴(Tool) — 에이전트의 손발, 그리고 좋은 툴의 조건</a></li>
+    <li><a href="#sec-6">컨텍스트 관리 — 유한한 작업 기억을 지키는 법</a></li>
+    <li><a href="#sec-7">메모리 — 컨텍스트 너머를 기억하기</a></li>
+    <li class="hge-part">3부 · 심화</li>
+    <li><a href="#sec-8">장기 실행 에이전트 — 컴팩션만으론 부족하다</a></li>
+    <li><a href="#sec-9">멀티에이전트 오케스트레이션 — 일을 나눠 맡기기</a></li>
+    <li><a href="#sec-10">검증과 피드백 루프 — "다 됐어요"를 믿지 않기</a></li>
+    <li><a href="#sec-11">권한과 샌드박스 — 생각과 실행을 분리하라</a></li>
+    <li><a href="#sec-12">평가·신뢰성·비용 — 한 번 성공이 진짜 성공은 아니다</a></li>
+    <li class="hge-part">마치며</li>
+    <li><a href="#sec-13">주니어 개발자를 위한 학습 경로</a></li>
+    <li><a href="#sec-14">마무리 (TL;DR)</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<p class="hge-part-h">1부 · 기초</p>
+
+<h2 id="sec-1">1. 하네스란 무엇인가 — 엔진과 자동차의 차이</h2>
+
+<p>먼저 용어를 맞추겠습니다. 여기서 말하는 <strong>하네스</strong>는 전기 배선 뭉치나 테스트 하네스가 아니라, <strong>LLM을 감싸서 '실제로 일하는 에이전트'로 만들어 주는 런타임 시스템 전체</strong>를 가리킵니다. Anthropic은 이를 <em>"복잡한 작업을 모델이 수행할 수 있게 해주는 구조적 틀(framework)"</em>이라고 설명합니다.</p>
+
+<p>왜 이게 필요한지는, 모델 혼자서 할 수 있는 일과 못 하는 일을 나눠 보면 분명해집니다.</p>
+
+<figure class="hge-fig"><svg viewBox="0 0 940 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="모델 단독은 텍스트만 출력하지만, 하네스가 감싸면 읽고 실행하고 기억하며 일한다">
+  <defs>
+    <marker id="hge1-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+  <!-- 왼쪽: 모델 단독 -->
+  <text x="190" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor" opacity="0.8">모델 단독</text>
+  <rect x="95" y="120" width="190" height="74" rx="14" fill="var(--hge-indigo)" fill-opacity="0.16" stroke="var(--hge-indigo)" stroke-width="2.5"/>
+  <text x="190" y="152" text-anchor="middle" font-size="17" font-weight="800" fill="var(--hge-indigo)">LLM</text>
+  <text x="190" y="176" text-anchor="middle" font-size="12.5" fill="currentColor" opacity="0.7">엔진</text>
+  <text x="40" y="100" font-size="12.5" fill="currentColor" opacity="0.7">텍스트 in</text>
+  <line x1="40" y1="110" x2="93" y2="140" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#hge1-a)"/>
+  <text x="300" y="100" font-size="12.5" fill="currentColor" opacity="0.7">텍스트 out</text>
+  <line x1="287" y1="140" x2="340" y2="110" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#hge1-a)"/>
+  <text x="190" y="232" text-anchor="middle" font-size="12.5" fill="var(--hge-rose)" font-weight="600">파일도 못 읽고, 실행도 못 하고,</text>
+  <text x="190" y="252" text-anchor="middle" font-size="12.5" fill="var(--hge-rose)" font-weight="600">방금 한 일도 못 기억한다</text>
+
+  <!-- 구분선 -->
+  <line x1="470" y1="40" x2="470" y2="290" stroke="currentColor" stroke-opacity="0.18" stroke-width="1.5" stroke-dasharray="4 5"/>
+
+  <!-- 오른쪽: 모델 + 하네스 -->
+  <text x="710" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor" opacity="0.8">모델 + 하네스</text>
+  <rect x="560" y="55" width="300" height="225" rx="18" fill="none" stroke="var(--hge-emerald)" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <text x="710" y="78" text-anchor="middle" font-size="12.5" fill="var(--hge-emerald)" font-weight="700">하네스 (감싸는 시스템)</text>
+  <rect x="650" y="150" width="120" height="58" rx="12" fill="var(--hge-indigo)" fill-opacity="0.16" stroke="var(--hge-indigo)" stroke-width="2.5"/>
+  <text x="710" y="184" text-anchor="middle" font-size="15" font-weight="800" fill="var(--hge-indigo)">LLM</text>
+  <g font-size="11.5" font-weight="700">
+    <rect x="575" y="100" width="90" height="30" rx="8" fill="var(--hge-cyan)" fill-opacity="0.16" stroke="var(--hge-cyan)" stroke-width="1.8"/><text x="620" y="120" text-anchor="middle" fill="var(--hge-cyan)">툴(손발)</text>
+    <rect x="755" y="100" width="92" height="30" rx="8" fill="var(--hge-amber)" fill-opacity="0.16" stroke="var(--hge-amber)" stroke-width="1.8"/><text x="801" y="120" text-anchor="middle" fill="var(--hge-amber)">컨텍스트</text>
+    <rect x="575" y="225" width="90" height="30" rx="8" fill="var(--hge-violet)" fill-opacity="0.16" stroke="var(--hge-violet)" stroke-width="1.8"/><text x="620" y="245" text-anchor="middle" fill="var(--hge-violet)">메모리</text>
+    <rect x="755" y="225" width="92" height="30" rx="8" fill="var(--hge-rose)" fill-opacity="0.16" stroke="var(--hge-rose)" stroke-width="1.8"/><text x="801" y="245" text-anchor="middle" fill="var(--hge-rose)">검증·루프</text>
+  </g>
+  <line x1="665" y1="165" x2="640" y2="132" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.8"/>
+  <line x1="755" y1="165" x2="785" y2="132" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.8"/>
+  <line x1="665" y1="195" x2="640" y2="223" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.8"/>
+  <line x1="755" y1="195" x2="785" y2="223" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.8"/>
+</svg><figcaption>같은 모델이라도 무엇으로 감싸느냐에 따라 '글 쓰는 챗봇'이 되기도, '일하는 에이전트'가 되기도 한다.</figcaption></figure>
+
+<p>모델은 입력(프롬프트)을 받아 출력(텍스트)을 내놓는 함수에 가깝습니다. 파일을 읽으려면 누군가 파일을 읽어다 텍스트로 넣어 줘야 하고, 모델이 "이 명령을 실행해 줘"라고 말해도 실제로 실행하고 결과를 다시 넣어 주는 누군가가 필요합니다. <strong>그 '누군가'가 전부 하네스</strong>입니다. 구체적으로는 이런 부품들로 이뤄집니다.</p>
+
+<ul>
+  <li><strong>에이전트 루프</strong> — "생각 → 행동 → 관찰"을 반복시키는 제어 구조 (3장)</li>
+  <li><strong>시스템 프롬프트</strong> — 에이전트가 어떻게 행동할지 정한 운영 규칙 (4장)</li>
+  <li><strong>툴(tool)</strong> — 파일 읽기, 명령 실행, 검색 같은 에이전트의 손발 (5장)</li>
+  <li><strong>컨텍스트 관리</strong> — 한정된 입력 공간을 어떻게 채우고 비울지 (6장)</li>
+  <li><strong>메모리</strong> — 대화가 끝나도 남는 장기 기억 (7장)</li>
+  <li><strong>검증·권한·평가</strong> — 결과를 믿어도 되는지, 위험한 행동을 막는 안전장치 (10~12장)</li>
+</ul>
+
+<div class="hge-note">
+  <strong>핵심 한 문장.</strong> 하네스 엔지니어링은 "더 똑똑한 모델을 만드는 일"이 아닙니다. <strong>이미 똑똑한 모델의 잠재력을, 실제 업무에서 안정적으로 끌어내도록 그 주위를 설계하는 일</strong>입니다. 모델을 바꾸지 않고도 에이전트의 성공률을 크게 끌어올릴 수 있는 영역이죠.
+</div>
+
+<hr>
+
+<h2 id="sec-2">2. 왜 지금 하네스 엔지니어링인가 — 프롬프트 → 컨텍스트 → 하네스</h2>
+
+<p>이 분야가 갑자기 주목받는 데는 이유가 있습니다. LLM을 다루는 기술의 <strong>무게중심이 단계적으로 바깥으로 이동</strong>해 왔기 때문입니다.</p>
+
+<figure class="hge-fig"><svg viewBox="0 0 960 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="가중치에서 프롬프트, 컨텍스트, 하네스로 넓어지는 엔지니어링의 무게중심">
+  <defs>
+    <marker id="hge2-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.5"/></marker>
+  </defs>
+  <g font-size="13">
+    <!-- 1 가중치 -->
+    <rect x="20" y="70" width="200" height="96" rx="13" fill="var(--hge-slate)" fill-opacity="0.14" stroke="var(--hge-slate)" stroke-width="2"/>
+    <text x="120" y="98" text-anchor="middle" font-size="15" font-weight="800" fill="currentColor" opacity="0.85">① 모델 가중치</text>
+    <text x="120" y="120" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">학습 · 파인튜닝</text>
+    <text x="120" y="140" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">"모델 자체를 바꾼다"</text>
+
+    <!-- 2 프롬프트 -->
+    <rect x="250" y="70" width="200" height="96" rx="13" fill="var(--hge-cyan)" fill-opacity="0.14" stroke="var(--hge-cyan)" stroke-width="2"/>
+    <text x="350" y="98" text-anchor="middle" font-size="15" font-weight="800" fill="var(--hge-cyan)">② 프롬프트</text>
+    <text x="350" y="120" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">~2022–2023</text>
+    <text x="350" y="140" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">"한 번의 질문을 잘 쓴다"</text>
+
+    <!-- 3 컨텍스트 -->
+    <rect x="480" y="70" width="200" height="96" rx="13" fill="var(--hge-amber)" fill-opacity="0.14" stroke="var(--hge-amber)" stroke-width="2"/>
+    <text x="580" y="98" text-anchor="middle" font-size="15" font-weight="800" fill="var(--hge-amber)">③ 컨텍스트</text>
+    <text x="580" y="120" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">2024–2025</text>
+    <text x="580" y="140" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">"줄 토큰 전체를 설계"</text>
+
+    <!-- 4 하네스 -->
+    <rect x="710" y="70" width="230" height="96" rx="13" fill="var(--hge-emerald)" fill-opacity="0.16" stroke="var(--hge-emerald)" stroke-width="2.5"/>
+    <text x="825" y="98" text-anchor="middle" font-size="15" font-weight="800" fill="var(--hge-emerald)">④ 하네스</text>
+    <text x="825" y="120" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">2025–2026</text>
+    <text x="825" y="140" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">"감싸는 시스템 전체를 설계"</text>
+  </g>
+  <line x1="220" y1="118" x2="248" y2="118" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge2-a)"/>
+  <line x1="450" y1="118" x2="478" y2="118" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge2-a)"/>
+  <line x1="680" y1="118" x2="708" y2="118" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge2-a)"/>
+  <text x="480" y="210" text-anchor="middle" font-size="12.5" fill="currentColor" opacity="0.62">안쪽(모델)에서 바깥쪽(시스템)으로 — 다룰 수 있는 범위가 점점 넓어진다</text>
+</svg><figcaption>모델은 점점 똑똑해졌다. 그래서 병목이 "모델 자체"에서 "모델을 어떻게 쓰느냐"로 옮겨 갔다.</figcaption></figure>
+
+<p>한때 가장 뜨거웠던 건 <strong>프롬프트 엔지니어링</strong>이었습니다. "이 마법의 주문(프롬프트)을 쓰면 모델이 더 잘 답한다"는 식이었죠. 하지만 모델이 똑똑해질수록, 한 줄짜리 주문보다 <strong>모델에게 무엇을 보여 줄지</strong>가 더 중요해졌습니다.</p>
+
+<p>그래서 등장한 것이 <strong>컨텍스트 엔지니어링(context engineering)</strong>입니다. Anthropic은 2025년 9월, Claude Sonnet 4.5와 함께 낸 글에서 이렇게 정의합니다. 핵심 질문은 더 이상 "어떤 단어를 쓸까"가 아니라, <strong>"어떤 컨텍스트 구성이 우리가 원하는 모델 동작을 만들어 낼 가능성이 가장 높은가"</strong>라고요. 여기서 컨텍스트란 <em>모델이 답을 생성할 때 입력으로 보는 토큰 전체</em>를 말합니다. 가이드는 간단합니다 — <strong>"유익하되, 간결하게(informative, yet tight)."</strong></p>
+
+<p>그리고 지금, 무게중심은 한 걸음 더 바깥으로 나갔습니다. 컨텍스트를 잘 채우는 것만으로는 부족하고, <strong>그 컨텍스트를 매 턴 어떻게 채우고 비울지, 도구를 어떻게 부르고, 결과를 어떻게 검증하고, 위험한 행동을 어떻게 막을지 — 시스템 전체를 설계</strong>해야 합니다. 그게 하네스 엔지니어링입니다.</p>
+
+<div class="hge-note">
+  <strong>오해 방지.</strong> 이 셋은 서로를 대체하지 않습니다. 좋은 하네스 안에도 좋은 프롬프트(시스템 프롬프트)와 좋은 컨텍스트 관리가 들어갑니다. <strong>프롬프트·컨텍스트는 하네스의 부품</strong>이고, 하네스는 그 부품들을 묶어 돌리는 차체에 가깝습니다.
+</div>
+
+<hr>
+
+<h2 id="sec-3">3. 모든 것의 심장: 에이전트 루프(ReAct)</h2>
+
+<p>하네스의 가장 안쪽에는 <strong>에이전트 루프</strong>가 있습니다. 이름은 거창하지만 구조는 의외로 단순합니다. <strong>생각(reasoning) → 행동(action) → 관찰(observation)</strong>을 끝없이 반복하는 것뿐입니다. 이 패턴을 <strong>ReAct</strong>(Reason + Act)라고 부릅니다.</p>
+
+<figure class="hge-fig"><svg viewBox="0 0 900 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="생각 행동 관찰을 반복하다 끝나면 답을 내는 에이전트 루프">
+  <defs>
+    <marker id="hge3-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+  <!-- 세 노드 -->
+  <rect x="120" y="60" width="190" height="66" rx="14" fill="var(--hge-indigo)" fill-opacity="0.15" stroke="var(--hge-indigo)" stroke-width="2.5"/>
+  <text x="215" y="90" text-anchor="middle" font-size="16" font-weight="800" fill="var(--hge-indigo)">① 생각</text>
+  <text x="215" y="112" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.7">다음에 뭘 할지 모델이 정한다</text>
+
+  <rect x="590" y="60" width="190" height="66" rx="14" fill="var(--hge-cyan)" fill-opacity="0.15" stroke="var(--hge-cyan)" stroke-width="2.5"/>
+  <text x="685" y="90" text-anchor="middle" font-size="16" font-weight="800" fill="var(--hge-cyan)">② 행동</text>
+  <text x="685" y="112" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.7">툴을 호출한다</text>
+
+  <rect x="355" y="210" width="190" height="66" rx="14" fill="var(--hge-amber)" fill-opacity="0.15" stroke="var(--hge-amber)" stroke-width="2.5"/>
+  <text x="450" y="240" text-anchor="middle" font-size="16" font-weight="800" fill="var(--hge-amber)">③ 관찰</text>
+  <text x="450" y="262" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.7">결과를 받아 맥락에 덧붙인다</text>
+
+  <!-- 화살표 (시계방향 순환) -->
+  <line x1="310" y1="93" x2="588" y2="93" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge3-a)"/>
+  <path d="M700,126 C 720,180 600,210 548,232" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge3-a)"/>
+  <path d="M352,232 C 300,210 180,180 200,126" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge3-a)"/>
+  <text x="450" y="84" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.55">도구 호출 생성</text>
+
+  <!-- 종료 분기 -->
+  <line x1="215" y1="60" x2="215" y2="34" stroke="var(--hge-emerald)" stroke-width="2.5" marker-end="url(#hge3-a)"/>
+  <rect x="120" y="6" width="190" height="28" rx="9" fill="var(--hge-emerald)" fill-opacity="0.16" stroke="var(--hge-emerald)" stroke-width="2"/>
+  <text x="215" y="25" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hge-emerald)">끝났다고 판단 → 최종 답 반환</text>
+
+  <text x="450" y="305" text-anchor="middle" font-size="12.5" fill="currentColor" opacity="0.6">이 한 바퀴를, 작업이 끝날 때까지(때로는 수십~수백 번) 반복한다</text>
+</svg><figcaption>"복잡한 플래닝 엔진"을 상상하기 쉽지만, 실제 에이전트 루프의 뼈대는 이렇게 단순한 while 반복이다.</figcaption></figure>
+
+<p>코드로 보면 더 분명합니다. 거의 모든 코딩 에이전트의 핵심은 이 <code>while</code> 루프 한 덩어리입니다.</p>
+
+<pre><code class="language-python"># 에이전트 루프의 뼈대 — 과장 없이, 사실 이게 거의 전부입니다
+context = [system_prompt, user_request]   # 모델에게 줄 맥락(토큰 묶음)
+
+while True:
+    response = llm(context)               # ① 생각: 다음 수를 모델이 정한다
+    context.append(response)
+
+    if response.is_final_answer:          #    끝났다고 판단하면 루프 종료
+        return response.answer
+
+    tool_name, tool_args = response.tool_call   # ② 행동: 어떤 툴을 부를지
+    result = run_tool(tool_name, tool_args)     #    하네스가 실제로 실행
+    context.append(result)                # ③ 관찰: 결과를 맥락에 덧붙인다
+    # 다시 위로 — 모델이 그 결과를 보고 다음 수를 둔다
+</code></pre>
+
+<p>Anthropic이 만든 Claude Code 같은 도구도, 안을 들여다보면 본질은 이 ReAct 패턴의 <code>while</code> 루프입니다. 거창한 의사결정 그래프가 아니라, <strong>"맥락을 모은다 → 모델을 부른다 → 도구를 실행한다 → 반복한다"</strong>의 단순한 순환이죠. 하네스 엔지니어링의 많은 부분은 결국 <strong>이 루프의 각 단계를 어떻게 더 똑똑하고 안전하게 만드느냐</strong>의 문제입니다.</p>
+
+<div class="hge-note">
+  <strong>여기서 질문이 생깁니다.</strong> "매 턴 <code>context</code>에 결과를 계속 <code>append</code>하면, 맥락이 끝없이 부풀지 않나?" 정확합니다. 바로 그 문제를 다루는 게 6장(컨텍스트 관리)이고, 이 블로그의 <a href="/posts/loop-engineering/">루프 엔지니어링</a> 글에서 루프 자체를 더 깊이 파고듭니다.
+</div>
+
+<hr>
+
+<p class="hge-part-h">2부 · 핵심 구성요소</p>
+
+<h2 id="sec-4">4. 시스템 프롬프트 — 에이전트의 운영 매뉴얼</h2>
+
+<p>루프가 매 턴 모델을 부를 때, 맨 앞에 항상 따라붙는 글이 있습니다. <strong>시스템 프롬프트</strong>입니다. 사용자의 그때그때 질문이 아니라, <strong>"너는 어떤 존재이고, 어떻게 행동해야 하는가"</strong>를 정해 두는 상시 지침이죠. 신입에게 건네는 <strong>업무 매뉴얼이자 행동 강령</strong>에 가깝습니다.</p>
+
+<p>여기에는 보통 이런 것들이 들어갑니다.</p>
+
+<ul>
+  <li><strong>역할과 목표</strong> — "너는 코드를 작성·수정하는 엔지니어링 에이전트다"</li>
+  <li><strong>행동 규칙</strong> — "큰 변경 전에는 계획을 먼저 보여라", "테스트를 통과시킨 뒤 끝냈다고 말하라"</li>
+  <li><strong>가진 도구와 사용법</strong> — 어떤 툴이 있고 언제 쓰는지</li>
+  <li><strong>출력 형식·말투</strong> — 결과를 어떤 형태로 돌려줄지</li>
+  <li><strong>안전 경계</strong> — 하면 안 되는 일, 사람에게 물어봐야 하는 일</li>
+</ul>
+
+<p>시스템 프롬프트는 길수록 좋은 게 아닙니다. 컨텍스트 엔지니어링의 원칙 그대로 <strong>"유익하되 간결하게"</strong>가 핵심입니다. 규칙이 너무 많거나 서로 모순되면 모델이 헷갈리고, 무엇보다 그 길이만큼 매 턴 <strong>토큰(=비용)과 주의력</strong>을 깎아 먹습니다. 좋은 시스템 프롬프트는 <strong>꼭 필요한 규칙만, 모델이 오해 없이 따를 수 있게</strong> 적은 것입니다.</p>
+
+<div class="hge-note">
+  <strong>주니어를 위한 팁.</strong> 시스템 프롬프트는 코드처럼 다루세요. 한 번 쓰고 끝이 아니라, 에이전트가 자주 저지르는 실수를 보면서 규칙을 한 줄씩 고쳐 나가는 <strong>반복 개선의 대상</strong>입니다. "왜 자꾸 테스트를 안 돌리지?" 싶으면, 모델을 탓하기 전에 시스템 프롬프트에 그 규칙이 분명히 적혀 있는지부터 확인하세요.
+</div>
+
+<hr>
+
+<h2 id="sec-5">5. 툴(Tool) — 에이전트의 손발, 그리고 좋은 툴의 조건</h2>
+
+<p>모델이 "이 파일을 읽고 싶다"고 <em>생각</em>해도, 실제로 읽으려면 <strong>툴(tool)</strong>이 필요합니다. 툴은 에이전트의 <strong>손발</strong>입니다. 모델은 "어떤 툴을 어떤 인자로 부를지"를 글로 표현하고, 하네스가 그걸 받아 진짜로 실행한 뒤 결과를 돌려줍니다.</p>
+
+<p>모델에게 툴은 이런 <strong>스키마(설명서)</strong> 형태로 주어집니다. 이름, 무엇을 하는지, 어떤 인자를 받는지를 적어 두면 모델이 그걸 보고 호출 방법을 정합니다.</p>
+
+<pre><code class="language-json">{
+  "name": "read_file",
+  "description": "파일 내용을 읽어 텍스트로 반환한다. 경로는 프로젝트 루트 기준 상대 경로.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "path": { "type": "string", "description": "읽을 파일의 경로" }
+    },
+    "required": ["path"]
+  }
+}
+</code></pre>
+
+<p>흥미로운 사실이 있습니다. 서로 따로 만들어진 코딩 에이전트들을 비교해 보면, 도구의 개수는 제각각이어도 <strong>핵심 능력은 거의 같은 네 가지로 수렴</strong>한다는 점입니다. 바로 <strong>읽기(read) · 검색(search) · 편집(edit) · 실행(execute)</strong>입니다. 즉 좋은 에이전트를 만들기 위해 수십 개의 툴이 필요한 게 아니라, <strong>이 최소 집합을 얼마나 신뢰성 있게 만드느냐</strong>가 관건이라는 뜻입니다.</p>
+
+<p>"신뢰성 있는 툴"이 무슨 뜻인지, 파일 편집 툴을 예로 들어 보겠습니다. 모델이 코드를 고치게 하려면 "몇 번째 줄을 바꿔라"라고 시킬 수도 있고, "이 문자열을 저 문자열로 바꿔라"라고 시킬 수도 있습니다. 실무에서 여러 팀이 독립적으로 도달한 결론은 후자, 즉 <strong>'기존 문자열 → 새 문자열'을 정확히 매칭해 치환하는 방식</strong>이 더 안정적이라는 것이었습니다. 줄 번호는 파일이 조금만 바뀌어도 어긋나지만, 정확한 문자열 매칭은 모델이 "무엇을 바꾸려는지"를 그대로 표현하기 때문이죠.</p>
+
+<div class="hge-note">
+  <strong>이게 왜 중요할까요?</strong> 툴 설계는 사소해 보이지만, <strong>에이전트의 실패 대부분이 "모델이 멍청해서"가 아니라 "툴이 애매하거나 깨지기 쉬워서"</strong> 일어납니다. 설명이 모호한 툴, 에러를 이상하게 돌려주는 툴, 한 번에 너무 많은 걸 하는 툴은 똑똑한 모델도 헛발질하게 만듭니다. <strong>좋은 툴 = 좋은 에이전트</strong>라고 해도 과언이 아닙니다.
+</div>
+
+<hr>
+
+<h2 id="sec-6">6. 컨텍스트 관리 — 유한한 작업 기억을 지키는 법</h2>
+
+<p>3장에서 예고한 문제로 돌아옵니다. 루프가 돌 때마다 도구 결과가 <code>context</code>에 쌓이는데, 모델이 한 번에 볼 수 있는 입력에는 <strong>상한(컨텍스트 창)</strong>이 있습니다. 게다가 창이 크다고 해서 마냥 좋은 것도 아닙니다.</p>
+
+<div class="hge-note">
+  <strong>책상 비유.</strong> 컨텍스트 창은 책상입니다. 책상이 넓다고 서류를 무한정 쌓아 두면, 정작 지금 필요한 한 장을 못 찾습니다. 입력이 길어질수록 모델이 중간 내용을 놓치는 현상(흔히 <strong>"컨텍스트 부패, context rot"</strong>라 부릅니다)도 잘 알려져 있죠. 그래서 <strong>책상을 넓히는 것보다, 지금 필요한 서류만 올려 두는 일</strong>이 더 중요합니다.
+</div>
+
+<p>그래서 하네스는 매 턴 모델을 부르기 <em>전에</em> 컨텍스트를 손봅니다. 대표적인 두 가지 전략이 있습니다.</p>
+
+<ul>
+  <li><strong>잘라내기(pruning / observation masking)</strong> — 오래된 도구 결과처럼 더는 필요 없는 부분을 통째로 빼거나 자리표시자로 치환합니다. 가장 단순하고, 토큰을 가장 크게 줄입니다.</li>
+  <li><strong>요약(summarization / compaction)</strong> — 버리기 전에 그 내용을 <strong>한 줄 요약</strong>으로 압축해 끼워 넣습니다. "무엇을 했는지"라는 진행 맥락을 잃지 않으면서 분량을 줄이죠. Claude Code의 <code>/compact</code>가 이 방식입니다.</li>
+</ul>
+
+<p>최근 연구들은 이 두 가지를 <strong>함께</strong> 쓸 때 가장 좋다고 입을 모읍니다. 잘라내기는 토큰을 줄이고 낡은 정보로 인한 혼란을 막지만, 너무 잘라내면 진행 상황을 잊어버립니다. 요약이 그 빈자리를 메워 주죠. 핵심 메시지는 하나입니다 — <strong>긴 작업에서 컨텍스트는 "무한정 쌓아 두는 로그"가 아니라 "능동적으로 관리하는 대상"</strong>이라는 것입니다.</p>
+
+<div class="hge-note">
+  <strong>더 깊이 읽기.</strong> "맥락을 잘라냈더니 오히려 성능이 올랐다"는 실험을 구체적인 수치와 함께 다룬 글이 이 블로그에 있습니다 → <a href="/posts/less-context-better-agents/">맥락은 적을수록 똑똑하다</a>. 컨텍스트 관리만 따로 파고들고 싶다면 추천합니다.
+</div>
+
+<hr>
+
+<h2 id="sec-7">7. 메모리 — 컨텍스트 너머를 기억하기</h2>
+
+<p>컨텍스트 창은 <strong>단기 기억</strong>입니다. 대화가 끝나거나 컴팩션으로 잘려 나가면 사라지죠. 그런데 "어제 짜다 만 기능을 오늘 이어서" 같은 긴 작업을 하려면, 세션이 끝나도 남는 <strong>장기 기억</strong>이 필요합니다. 사람으로 치면 머릿속 단기 기억과, 노트에 적어 둔 기록의 차이입니다.</p>
+
+<figure class="hge-fig"><svg viewBox="0 0 920 350" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="단기 기억인 컨텍스트 창과 파일로 남는 장기 기억의 대비">
+  <defs>
+    <marker id="hge7-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+  <!-- 단기 -->
+  <rect x="40" y="60" width="320" height="220" rx="16" fill="var(--hge-amber)" fill-opacity="0.08" stroke="var(--hge-amber)" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="200" y="90" text-anchor="middle" font-size="15" font-weight="800" fill="var(--hge-amber)">단기 기억 — 컨텍스트 창</text>
+  <text x="200" y="113" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.7">지금 모델이 보고 있는 토큰</text>
+  <g font-size="12">
+    <rect x="70" y="135" width="260" height="30" rx="7" fill="var(--hge-amber)" fill-opacity="0.16"/><text x="200" y="155" text-anchor="middle" fill="currentColor" opacity="0.85">시스템 프롬프트 · 최근 대화</text>
+    <rect x="70" y="173" width="260" height="30" rx="7" fill="var(--hge-amber)" fill-opacity="0.16"/><text x="200" y="193" text-anchor="middle" fill="currentColor" opacity="0.85">방금 부른 도구의 결과</text>
+  </g>
+  <text x="200" y="245" text-anchor="middle" font-size="12.5" fill="var(--hge-rose)" font-weight="600">세션이 끝나거나 잘리면 → 사라진다</text>
+
+  <!-- 화살표: 중요한 건 적어둔다 -->
+  <line x1="362" y1="170" x2="556" y2="170" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge7-a)"/>
+  <text x="459" y="158" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.65">중요한 건</text>
+  <text x="459" y="190" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.65">파일에 적어 둔다</text>
+
+  <!-- 장기 -->
+  <rect x="560" y="60" width="320" height="220" rx="16" fill="var(--hge-emerald)" fill-opacity="0.08" stroke="var(--hge-emerald)" stroke-width="2.5"/>
+  <text x="720" y="90" text-anchor="middle" font-size="15" font-weight="800" fill="var(--hge-emerald)">장기 기억 — 파일</text>
+  <text x="720" y="113" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.7">세션이 바뀌어도 남는다</text>
+  <g font-size="11.5">
+    <rect x="590" y="132" width="260" height="34" rx="7" fill="var(--hge-emerald)" fill-opacity="0.14"/><text x="720" y="154" text-anchor="middle" fill="currentColor" opacity="0.88">📝 진행 로그 (무엇을 했나)</text>
+    <rect x="590" y="172" width="260" height="34" rx="7" fill="var(--hge-emerald)" fill-opacity="0.14"/><text x="720" y="194" text-anchor="middle" fill="currentColor" opacity="0.88">✅ 기능 목록 JSON (통과/실패)</text>
+    <rect x="590" y="212" width="260" height="34" rx="7" fill="var(--hge-emerald)" fill-opacity="0.14"/><text x="720" y="234" text-anchor="middle" fill="currentColor" opacity="0.88">🔖 git 히스토리 (되돌리기)</text>
+  </g>
+  <text x="720" y="266" text-anchor="middle" font-size="12.5" fill="var(--hge-emerald)" font-weight="600">다음 세션이 읽고 이어서 일한다</text>
+
+  <text x="460" y="320" text-anchor="middle" font-size="12.5" fill="currentColor" opacity="0.6">머릿속 기억(컨텍스트)과 노트(파일)의 분업 — 둘 다 있어야 긴 작업을 한다</text>
+</svg><figcaption>장기 기억의 가장 단순하고 강력한 형태는 거창한 벡터 DB가 아니라, 에이전트가 스스로 읽고 쓰는 '파일'이다.</figcaption></figure>
+
+<p>Anthropic이 장기 실행 에이전트를 다룬 글에서 권하는 방식이 바로 이 <strong>파일 기반 메모리</strong>입니다. 구체적으로 세 가지 산출물을 둡니다.</p>
+
+<ul>
+  <li><strong>진행 로그</strong>(<code>claude-progress.txt</code> 같은 텍스트 파일) — 무엇을 했고 어떤 결정을 내렸는지 줄글로 기록</li>
+  <li><strong>기능 목록</strong>(JSON 파일) — 만들어야 할 기능들을 적고, 각각 완료/미완료를 표시</li>
+  <li><strong>git 히스토리</strong> — 의미 있는 커밋 메시지와 함께 변경을 남겨, 잘못되면 되돌릴 수 있는 체크포인트로 활용</li>
+</ul>
+
+<p>핵심은 <strong>"기억을 머릿속(컨텍스트)에만 두지 말고, 밖(파일)에 적어 둔다"</strong>는 발상입니다. 그러면 컨텍스트가 잘려도, 다음 세션이 그 파일을 읽고 "아, 여기까지 했구나" 하며 이어서 일할 수 있습니다.</p>
+
+<hr>
+
+<p class="hge-part-h">3부 · 심화</p>
+
+<h2 id="sec-8">8. 장기 실행 에이전트 — 컴팩션만으론 부족하다</h2>
+
+<p>여기서부터가 진짜 어려운 영역입니다. 몇 분짜리 작업이 아니라 <strong>몇 시간, 여러 세션에 걸친 작업</strong>을 시키면 어떻게 될까요? "컨텍스트 관리(6장)랑 메모리(7장)만 잘하면 되는 것 아냐?"라고 생각할 수 있습니다. 그런데 Anthropic의 실험이 보여준 결론은 단호합니다 — <strong>컴팩션만으로는 부족하다</strong>는 것입니다.</p>
+
+<p>아무리 뛰어난 모델(예: Opus 4.5)에게도 <strong>"고수준 한 줄 지시"만 던지면 프로덕션급 결과를 못 냅니다.</strong> 에이전트가 흔히 보이는 실패가 두 가지 있습니다.</p>
+
+<ul>
+  <li><strong>한꺼번에 너무 많이 시도한다</strong> — 기능 열 개를 동시에 건드리다 다 어중간하게 만든다.</li>
+  <li><strong>덜 됐는데 "다 됐다"고 선언한다</strong> — 실제로는 절반만 구현해 놓고 끝났다고 한다.</li>
+</ul>
+
+<p>그래서 효과적인 하네스는 모델에게 일을 시키는 방식 자체를 설계합니다. Anthropic이 제시한 패턴 하나가 <strong>2-에이전트 아키텍처</strong>입니다.</p>
+
+<ul>
+  <li><strong>초기화 에이전트(Initializer)</strong> — 딱 한 번 돌면서 환경을 세팅합니다. 작업용 스캐폴딩 파일, 기능 명세(JSON), 첫 git 커밋을 만들어 둡니다.</li>
+  <li><strong>코딩 에이전트(Coding)</strong> — 매 세션 돌면서 <strong>한 번에 한 기능씩</strong> 점진적으로 진행하고, 다음 세션을 위한 흔적(진행 로그·커밋)을 분명히 남깁니다.</li>
+</ul>
+
+<p>재미있는 건, 이 둘이 <strong>시스템 프롬프트도, 도구도, 하네스도 똑같이 공유</strong>한다는 점입니다. 차이는 오직 <strong>맨 처음 받는 지시(프롬프트)</strong>뿐이죠. 같은 일꾼인데, 첫 지시가 "환경을 세팅하라"냐 "이어서 한 기능을 끝내라"냐만 다른 겁니다.</p>
+
+<p>그리고 한 세션의 흐름도 정해 둡니다. <strong>① 시작할 때 진행 산출물을 먼저 읽고 ② 기준이 되는 동작 테스트를 돌려 "지금 멀쩡한지" 확인한 뒤 ③ 한 기능만 골라 작업하고 ④ 끝나면 설명적인 커밋을 남긴다.</strong> 이 규율 덕분에, 세션이 수십 번 바뀌어도 작업이 무너지지 않고 쌓입니다.</p>
+
+<div class="hge-note">
+  <strong>핵심 통찰.</strong> 장기 실행 에이전트의 비결은 "모델이 모든 걸 기억하게 만드는 것"이 아니라, <strong>"기억하지 못해도 이어서 일할 수 있는 구조를 밖에 만들어 두는 것"</strong>입니다. 사람도 큰 프로젝트를 머릿속에만 담지 않고 이슈 트래커와 문서로 관리하잖아요. 똑같은 원리입니다.
+</div>
+
+<hr>
+
+<h2 id="sec-9">9. 멀티에이전트 오케스트레이션 — 일을 나눠 맡기기</h2>
+
+<p>작업이 더 커지면, 에이전트 하나가 모든 걸 처리하는 대신 <strong>여러 에이전트에게 일을 나눠 맡기는</strong> 방식을 씁니다. 회사가 커지면 한 명이 다 하지 않고 팀을 나누는 것과 같습니다. 이걸 <strong>멀티에이전트 오케스트레이션</strong>이라고 합니다.</p>
+
+<figure class="hge-fig"><svg viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="오케스트레이터가 하위 에이전트들에게 일을 나눠 맡기고 결과를 모은다">
+  <defs>
+    <marker id="hge9-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+  <!-- 오케스트레이터 -->
+  <rect x="330" y="30" width="240" height="60" rx="14" fill="var(--hge-indigo)" fill-opacity="0.16" stroke="var(--hge-indigo)" stroke-width="2.5"/>
+  <text x="450" y="56" text-anchor="middle" font-size="15" font-weight="800" fill="var(--hge-indigo)">오케스트레이터 (메인)</text>
+  <text x="450" y="77" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">큰 일을 쪼개 나눠 주고, 결과를 합친다</text>
+
+  <!-- 하위 에이전트 3 -->
+  <g font-size="12">
+    <rect x="70" y="170" width="200" height="64" rx="13" fill="var(--hge-cyan)" fill-opacity="0.15" stroke="var(--hge-cyan)" stroke-width="2"/>
+    <text x="170" y="197" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--hge-cyan)">하위 ① 검색·조사</text>
+    <text x="170" y="217" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">독립된 컨텍스트 창</text>
+
+    <rect x="350" y="170" width="200" height="64" rx="13" fill="var(--hge-amber)" fill-opacity="0.15" stroke="var(--hge-amber)" stroke-width="2"/>
+    <text x="450" y="197" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--hge-amber)">하위 ② 구현</text>
+    <text x="450" y="217" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">독립된 컨텍스트 창</text>
+
+    <rect x="630" y="170" width="200" height="64" rx="13" fill="var(--hge-emerald)" fill-opacity="0.15" stroke="var(--hge-emerald)" stroke-width="2"/>
+    <text x="730" y="197" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--hge-emerald)">하위 ③ 검증</text>
+    <text x="730" y="217" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">독립된 컨텍스트 창</text>
+  </g>
+
+  <!-- 화살표 down -->
+  <line x1="400" y1="90" x2="190" y2="168" stroke="currentColor" stroke-opacity="0.45" stroke-width="2" marker-end="url(#hge9-a)"/>
+  <line x1="450" y1="90" x2="450" y2="168" stroke="currentColor" stroke-opacity="0.45" stroke-width="2" marker-end="url(#hge9-a)"/>
+  <line x1="500" y1="90" x2="710" y2="168" stroke="currentColor" stroke-opacity="0.45" stroke-width="2" marker-end="url(#hge9-a)"/>
+  <!-- 결과 모으기 -->
+  <path d="M170,234 C 170,280 430,285 440,92" fill="none" stroke="currentColor" stroke-opacity="0.28" stroke-width="1.8" stroke-dasharray="4 5" marker-end="url(#hge9-a)"/>
+  <path d="M730,234 C 730,280 470,285 460,92" fill="none" stroke="currentColor" stroke-opacity="0.28" stroke-width="1.8" stroke-dasharray="4 5" marker-end="url(#hge9-a)"/>
+  <text x="450" y="305" text-anchor="middle" font-size="12.5" fill="currentColor" opacity="0.6">각자 자기 맥락에서 일하고 → 핵심 결과만 메인에 돌려준다</text>
+</svg><figcaption>하위 에이전트는 각자 독립된 컨텍스트에서 일하므로, 서로의 잡다한 중간 과정이 메인의 책상을 어지럽히지 않는다.</figcaption></figure>
+
+<p>이 방식의 진짜 장점은 "여러 개라서 빠르다"가 아니라 <strong>컨텍스트 격리(context isolation)</strong>입니다. 하위 에이전트가 자료 100개를 뒤지는 지저분한 과정은 그 에이전트의 컨텍스트 안에서만 벌어지고, 메인 오케스트레이터에게는 <strong>깔끔하게 정리된 결론만</strong> 돌아옵니다. 메인의 책상이 깨끗하게 유지되는 거죠. 또 서로 독립적인 일은 <strong>병렬로 동시에</strong> 굴릴 수도 있습니다.</p>
+
+<p>물론 공짜는 아닙니다. 에이전트가 많아질수록 <strong>토큰 비용이 곱절로 늘고</strong>, 누가 무엇을 했는지 조율·추적하기가 어려워집니다. 그래서 "무조건 멀티에이전트"가 아니라, <strong>일이 자연스럽게 독립된 덩어리로 나뉘고 각 덩어리의 중간 과정이 길 때</strong> 쓰는 게 정석입니다.</p>
+
+<hr>
+
+<h2 id="sec-10">10. 검증과 피드백 루프 — "다 됐어요"를 믿지 않기</h2>
+
+<p>8장에서 봤듯, 에이전트는 <strong>덜 됐는데 다 됐다고 말하는</strong> 버릇이 있습니다. 그래서 잘 만든 하네스는 모델의 "다 됐어요"를 곧이곧대로 믿지 않고, <strong>스스로 확인하는 단계</strong>를 루프 안에 넣습니다. 이것이 검증과 피드백 루프입니다.</p>
+
+<figure class="hge-fig"><svg viewBox="0 0 900 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="생성하고 테스트해서 실패하면 고치고 통과하면 끝내는 검증 루프">
+  <defs>
+    <marker id="hge10-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+  <rect x="60" y="100" width="170" height="62" rx="13" fill="var(--hge-indigo)" fill-opacity="0.15" stroke="var(--hge-indigo)" stroke-width="2.5"/>
+  <text x="145" y="128" text-anchor="middle" font-size="14.5" font-weight="800" fill="var(--hge-indigo)">생성</text>
+  <text x="145" y="148" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">코드를 쓴다</text>
+
+  <rect x="365" y="100" width="170" height="62" rx="13" fill="var(--hge-amber)" fill-opacity="0.15" stroke="var(--hge-amber)" stroke-width="2.5"/>
+  <text x="450" y="128" text-anchor="middle" font-size="14.5" font-weight="800" fill="var(--hge-amber)">테스트</text>
+  <text x="450" y="148" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">실제로 돌려 본다</text>
+
+  <rect x="670" y="100" width="170" height="62" rx="13" fill="var(--hge-emerald)" fill-opacity="0.16" stroke="var(--hge-emerald)" stroke-width="2.5"/>
+  <text x="755" y="128" text-anchor="middle" font-size="14.5" font-weight="800" fill="var(--hge-emerald)">통과 → 끝</text>
+  <text x="755" y="148" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">증거를 갖고 완료</text>
+
+  <line x1="230" y1="131" x2="363" y2="131" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge10-a)"/>
+  <line x1="535" y1="131" x2="668" y2="131" stroke="currentColor" stroke-opacity="0.5" stroke-width="2.5" marker-end="url(#hge10-a)"/>
+  <text x="600" y="120" text-anchor="middle" font-size="11.5" fill="var(--hge-emerald)" opacity="0.85">통과</text>
+
+  <!-- 실패 시 되돌아가는 화살표 -->
+  <path d="M450,162 C 450,225 145,225 145,164" fill="none" stroke="var(--hge-rose)" stroke-opacity="0.7" stroke-width="2.5" marker-end="url(#hge10-a)"/>
+  <text x="300" y="215" text-anchor="middle" font-size="12.5" fill="var(--hge-rose)" font-weight="700">실패 → 에러를 보고 다시 고친다 (피드백)</text>
+
+  <text x="450" y="60" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor" opacity="0.8">생성 → 테스트 → (실패하면) 수정 → 다시 테스트</text>
+</svg><figcaption>"테스트가 통과했다"는 객관적 증거가 나올 때까지 루프를 돈다 — 모델의 주관적 자신감이 아니라.</figcaption></figure>
+
+<p>검증의 형태는 다양합니다. Anthropic의 권고는 특히 실전적입니다 — <strong>단위 테스트만으로 끝내지 말고, 브라우저 자동화 같은 걸로 "사용자 입장에서 진짜 동작하는지" 끝까지(end-to-end) 확인하라</strong>는 것입니다. 모델이 "버튼을 추가했다"고 말하는 것과, 실제로 그 버튼을 눌렀을 때 동작하는 것은 다른 이야기니까요.</p>
+
+<p>한 발 더 나아간 기법도 있습니다.</p>
+
+<ul>
+  <li><strong>자기 비판(self-critique)</strong> — 모델이 행동하기 전에 "이게 정말 맞나?"를 한 번 스스로 따져 보게 한다.</li>
+  <li><strong>어드버서리얼 검증(adversarial verification)</strong> — 결과를 그대로 믿는 대신, <strong>"이게 틀렸음을 증명해 보라"</strong>고 시키는 별도의 검증자를 둔다. 여러 검증자에게 투표를 시켜 다수가 반박하면 폐기하는 식이다.</li>
+  <li><strong>휴먼인더루프(human-in-the-loop)</strong> — 위험하거나 애매한 결정은 사람에게 확인을 받는다.</li>
+</ul>
+
+<div class="hge-note">
+  <strong>솔직한 메모.</strong> 사실 이 블로그 글 자체도, 자료를 모은 뒤 "각 주장을 반박해 보라"는 어드버서리얼 검증을 거쳤습니다. 그 과정에서 출처가 불분명한 정밀 수치 몇 개를 일부러 뺐습니다. 검증 루프가 없으면, 그럴듯하지만 틀린 내용이 그대로 살아남습니다 — 사람이 쓰든 에이전트가 쓰든 마찬가지죠.
+</div>
+
+<hr>
+
+<h2 id="sec-11">11. 권한과 샌드박스 — 생각과 실행을 분리하라</h2>
+
+<p>에이전트에게 손발(툴)을 주는 순간, 위험도 함께 생깁니다. 모델이 실수로(혹은 악의적인 입력에 속아) <code>rm -rf</code> 같은 파괴적 명령을 내리면 어떻게 될까요? 그래서 하네스에는 반드시 <strong>안전장치</strong>가 들어갑니다.</p>
+
+<p>핵심 설계 원칙은 <strong>"생각하는 부분과 실행을 허가하는 부분을 분리한다"</strong>는 것입니다. 모델은 "이 명령을 실행하고 싶다"고 <em>제안</em>할 수 있을 뿐, 실제로 실행할지 말지는 <strong>모델과 별개의 결정론적 코드(권한 검사기)</strong>가 정합니다. 이렇게 분리해 두면, 설령 모델이 이상한 행동을 하려 해도 <strong>권한 계층을 모델이 마음대로 뚫지 못합니다.</strong></p>
+
+<ul>
+  <li><strong>권한 게이트(permission gate)</strong> — 위험한 툴(파일 삭제, 외부 전송 등)은 실행 전에 사람의 승인을 요구하거나, 허용 목록에 있는 것만 통과시킨다.</li>
+  <li><strong>샌드박스(sandbox)</strong> — 에이전트를 격리된 환경(컨테이너, 임시 작업 폴더 등)에서 돌려, 사고가 나도 피해가 그 안에 갇히게 한다.</li>
+  <li><strong>읽기 전용 모드</strong> — 계획만 세우는 단계에서는 아예 쓰기 도구를 주지 않아, 실수의 여지를 원천 차단한다.</li>
+</ul>
+
+<div class="hge-note">
+  <strong>비유.</strong> 자동차의 엔진이 아무리 강해도, 브레이크와 안전벨트 없이는 도로에 내보내지 않습니다. 권한·샌드박스는 에이전트의 브레이크와 안전벨트입니다. 그리고 앞서 본 "코드베이스의 대부분이 AI 로직이 아니라 인프라"라는 사실의 큰 부분이 바로 이 안전장치들입니다.
+</div>
+
+<hr>
+
+<h2 id="sec-12">12. 평가·신뢰성·비용 — 한 번 성공이 진짜 성공은 아니다</h2>
+
+<p>하네스를 잘 만들었는지 어떻게 알까요? "한 번 돌려 봤더니 잘되더라"로는 부족합니다. 에이전트는 <strong>같은 작업도 돌릴 때마다 조금씩 다르게 행동</strong>하기 때문입니다(모델 출력에 무작위성이 있습니다). 그래서 하네스 엔지니어링에는 <strong>평가(evaluation, 줄여서 eval)</strong>가 따라붙습니다.</p>
+
+<p>여기서 주의할 함정이 있습니다. 많은 벤치마크가 <strong>"한 번 돌려 성공했나"</strong>만 측정하는데, 실제 프로덕션에서 중요한 건 <strong>"열 번 돌리면 몇 번 성공하나(신뢰성)"</strong>입니다. 입력을 살짝만 바꿔도 성공률이 눈에 띄게 떨어지는, 즉 <strong>에이전트가 의외로 깨지기 쉽다(fragile)</strong>는 연구 결과도 있습니다. 그래서 좋은 평가는 같은 작업을 <strong>여러 번 반복</strong>하고, 입력을 조금씩 비틀어 보며 안정성을 봅니다.</p>
+
+<p>또 하나 빼놓을 수 없는 축이 <strong>비용</strong>입니다. 에이전트는 루프를 돌 때마다 토큰을 쓰고, 토큰은 곧 돈입니다. 그래서 같은 작업을 <strong>더 적은 토큰으로 끝내는</strong> 하네스가 좋은 하네스입니다. 6장의 컨텍스트 관리(잘라내기·요약)가 단지 "성능"만이 아니라 <strong>비용</strong>의 문제이기도 한 이유죠.</p>
+
+<table>
+  <thead><tr><th>흔한 착각</th><th>실제로 봐야 할 것</th></tr></thead>
+  <tbody>
+    <tr><td>한 번 돌려서 성공 → 완성</td><td>여러 번 돌렸을 때의 <strong>성공률(신뢰성)</strong></td></tr>
+    <tr><td>벤치마크 점수만 높으면 됨</td><td>입력을 비틀어도 <strong>버티는지(견고성)</strong></td></tr>
+    <tr><td>성능만 좋으면 됨</td><td>작업당 <strong>토큰·시간(비용)</strong>까지</td></tr>
+    <tr><td>모델을 바꾸면 다 해결</td><td>같은 모델로도 <strong>하네스가 점수를 가른다</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="hge-note">
+  <strong>중요한 미묘함.</strong> 많은 벤치마크가 "모델의 실력"과 "하네스의 실력"을 뒤섞어 측정합니다. 그래서 점수가 올랐을 때 그게 더 좋은 모델 덕인지, 더 좋은 하네스 덕인지 떼어 보기 어렵습니다. 내 에이전트를 개선할 때는 <strong>한 번에 하나만 바꾸고(모델 고정 → 하네스만 손보기)</strong> 측정하는 습관이 중요합니다.
+</div>
+
+<hr>
+
+<p class="hge-part-h">마치며</p>
+
+<h2 id="sec-13">13. 주니어 개발자를 위한 학습 경로</h2>
+
+<p>한 번에 다 만들려 하면 막막합니다. 아래 순서대로 <strong>작게 만들고 하나씩 붙여 가는</strong> 걸 권합니다. 각 단계는 앞 단계 위에 자연스럽게 쌓입니다.</p>
+
+<ol>
+  <li><strong>가장 작은 ReAct 루프부터.</strong> 3장의 <code>while</code> 루프를 그대로 따라 만들어 보세요. 툴은 <code>get_current_time()</code> 같은 장난감 하나면 충분합니다. "모델이 툴을 부르고, 내가 실행해서 결과를 돌려주는" 한 사이클을 직접 보는 게 첫걸음입니다.</li>
+  <li><strong>진짜 툴 1~2개를 붙인다.</strong> 파일 읽기, 셸 명령 실행 같은 걸 추가해 보세요(샌드박스 안에서!). 이때부터 "툴 설명을 어떻게 써야 모델이 헷갈리지 않는지"가 피부로 느껴집니다(5장).</li>
+  <li><strong>컨텍스트가 터지는 걸 경험한다.</strong> 루프를 길게 돌려 보면 입력이 부풀어 오르는 걸 직접 보게 됩니다. 그때 "최근 N개만 남기기"부터 적용해 보세요(6장).</li>
+  <li><strong>파일 메모리를 더한다.</strong> 진행 상황을 <code>progress.txt</code>에 적게 하고, 다음 실행이 그걸 읽고 이어 가게 만들어 보세요(7장).</li>
+  <li><strong>검증 루프를 넣는다.</strong> "테스트가 통과할 때까지 고쳐라"를 루프에 넣으면, 에이전트의 결과 품질이 확 올라갑니다(10장).</li>
+  <li><strong>그다음에 멀티에이전트.</strong> 위가 안정된 뒤에야 일을 나눠 맡기는 단계로 갑니다(9장). 처음부터 멀티에이전트로 시작하지 마세요 — 디버깅 지옥입니다.</li>
+</ol>
+
+<p>그리고 가장 좋은 교재는 <strong>잘 만든 하네스의 1차 출처</strong>입니다. 아래 Anthropic의 두 글은 이 분야의 사실상 표준 참고서이니 꼭 읽어 보세요.</p>
+
+<hr>
+
+<h2 id="sec-14">14. 마무리 (TL;DR)</h2>
+
+<blockquote class="hge-pull">
+  <p><strong>"에이전트의 실력은 모델이 아니라, 그 모델을 감싼 하네스에서 갈린다."</strong></p>
+</blockquote>
+
+<ul>
+  <li><strong>하네스란</strong> — LLM(엔진)을 '실제로 일하는 에이전트'로 만드는 주변 시스템 전체. 루프·프롬프트·툴·컨텍스트·메모리·검증·권한.</li>
+  <li><strong>왜 지금</strong> — 엔지니어링의 무게중심이 <strong>프롬프트 → 컨텍스트 → 하네스</strong>로 옮겨 왔다. 모델이 똑똑해진 만큼 병목이 바깥으로 이동했다.</li>
+  <li><strong>심장</strong> — 에이전트 루프(ReAct): 생각 → 행동 → 관찰의 단순한 <code>while</code> 반복. 하네스의 많은 일은 이 루프의 각 단계를 다듬는 것.</li>
+  <li><strong>핵심 부품</strong> — 시스템 프롬프트(운영 매뉴얼), 신뢰성 있는 툴(읽기·검색·편집·실행), 컨텍스트 관리(잘라내기+요약), 파일 기반 메모리.</li>
+  <li><strong>심화</strong> — 장기 작업엔 컴팩션만으론 부족 → 2-에이전트·세션 규율. 큰 작업엔 멀티에이전트(컨텍스트 격리). 결과는 검증 루프로 확인. 권한·샌드박스로 안전 확보. 평가는 한 번이 아니라 반복·비용까지.</li>
+  <li><strong>시작은</strong> — 가장 작은 ReAct 루프부터. 툴 → 컨텍스트 → 메모리 → 검증 → 멀티에이전트 순으로 하나씩 쌓아라.</li>
+</ul>
+
+<p>모델은 앞으로도 계속 똑똑해질 겁니다. 하지만 그 똑똑함을 <strong>실제 업무에서 안정적으로 꺼내 쓰는 일</strong>은 여전히 우리 몫입니다. 좋은 엔진을 좋은 자동차로 만드는 것 — 그게 하네스 엔지니어링이고, 지금 에이전트를 만드는 개발자가 가장 많은 차이를 만들어 낼 수 있는 자리입니다.</p>
+
+<hr>
+
+<h3 id="refs">참고 자료</h3>
+
+<ul>
+  <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic — Effective Context Engineering for AI Agents</a> (2025-09-29, 컨텍스트 엔지니어링의 정의)</li>
+  <li><a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents" target="_blank" rel="noopener">Anthropic — Effective Harnesses for Long-Running Agents</a> (하네스·파일 메모리·2-에이전트·검증 패턴)</li>
+  <li><a href="https://arxiv.org/abs/2603.05344" target="_blank" rel="noopener">Building Effective AI Coding Agents for the Terminal: Scaffolding, Harness, Context Engineering, and Lessons Learned</a> (arXiv:2603.05344)</li>
+  <li><a href="https://www.langchain.com/blog/the-anatomy-of-an-agent-harness" target="_blank" rel="noopener">LangChain — The Anatomy of an Agent Harness</a></li>
+  <li><a href="https://blog.jetbrains.com/research/2025/12/efficient-context-management/" target="_blank" rel="noopener">JetBrains Research — Efficient Context Management (observation masking vs 요약)</a></li>
+  <li><a href="https://github.com/VILA-Lab/Dive-into-Claude-Code" target="_blank" rel="noopener">Dive into Claude Code — 코딩 에이전트 내부 구조 분석</a></li>
+  <li><a href="/posts/less-context-better-agents/">[이 블로그] 맥락은 적을수록 똑똑하다 — 컨텍스트 엔지니어링</a></li>
+  <li><a href="/posts/loop-engineering/">[이 블로그] 루프 엔지니어링 — 에이전트 루프 깊이 보기</a></li>
+</ul>

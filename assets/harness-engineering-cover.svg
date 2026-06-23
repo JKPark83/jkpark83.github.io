@@ -1,0 +1,62 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="가운데 LLM(엔진)을 루프·툴·컨텍스트·메모리·검증·권한이 둘러싼 하네스 표지">
+  <defs>
+    <linearGradient id="hge-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <radialGradient id="hge-core" cx="50%" cy="42%" r="60%">
+      <stop offset="0" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#hge-bg)"/>
+
+  <!-- 연결선 (코어 ↔ 칩) -->
+  <g stroke="#64748b" stroke-width="2" stroke-opacity="0.5">
+    <line x1="600" y1="250" x2="600" y2="96"/>
+    <line x1="600" y1="250" x2="752" y2="174"/>
+    <line x1="600" y1="250" x2="752" y2="326"/>
+    <line x1="600" y1="250" x2="600" y2="404"/>
+    <line x1="600" y1="250" x2="448" y2="326"/>
+    <line x1="600" y1="250" x2="448" y2="174"/>
+  </g>
+
+  <!-- 코어: LLM(엔진) -->
+  <circle cx="600" cy="250" r="80" fill="url(#hge-core)"/>
+  <circle cx="600" cy="250" r="80" fill="none" stroke="#c7d2fe" stroke-width="2" stroke-opacity="0.7"/>
+  <text x="600" y="244" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="34" font-weight="800" fill="#fff">LLM</text>
+  <text x="600" y="276" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19" font-weight="500" fill="#e0e7ff">엔진</text>
+
+  <!-- 둘러싼 하네스 구성요소 칩 6개 -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="700" text-anchor="middle">
+    <g color="#34d399">
+      <rect x="536" y="74" width="128" height="44" rx="22" fill="#0b3b2e" stroke="currentColor" stroke-width="2"/>
+      <text x="600" y="103" fill="#6ee7b7">에이전트 루프</text>
+    </g>
+    <g color="#22d3ee">
+      <rect x="688" y="152" width="128" height="44" rx="22" fill="#0b3a44" stroke="currentColor" stroke-width="2"/>
+      <text x="752" y="181" fill="#67e8f9">툴</text>
+    </g>
+    <g color="#fbbf24">
+      <rect x="688" y="304" width="128" height="44" rx="22" fill="#3f2e08" stroke="currentColor" stroke-width="2"/>
+      <text x="752" y="333" fill="#fcd34d">컨텍스트</text>
+    </g>
+    <g color="#a78bfa">
+      <rect x="536" y="382" width="128" height="44" rx="22" fill="#2a1d52" stroke="currentColor" stroke-width="2"/>
+      <text x="600" y="411" fill="#c4b5fd">메모리</text>
+    </g>
+    <g color="#fb7185">
+      <rect x="384" y="304" width="128" height="44" rx="22" fill="#46141f" stroke="currentColor" stroke-width="2"/>
+      <text x="448" y="333" fill="#fda4af">검증</text>
+    </g>
+    <g color="#94a3b8">
+      <rect x="384" y="152" width="128" height="44" rx="22" fill="#1e293b" stroke="currentColor" stroke-width="2"/>
+      <text x="448" y="181" fill="#cbd5e1">권한·샌드박스</text>
+    </g>
+  </g>
+
+  <!-- 제목 -->
+  <text x="600" y="512" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="60" font-weight="800" fill="#f8fafc">하네스 엔지니어링</text>
+  <text x="600" y="558" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="27" font-weight="500" fill="#94a3b8">좋은 모델을 진짜 일꾼으로 만드는 기술 — 기초부터 심화까지</text>
+  <text x="600" y="598" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="500" fill="#64748b">모델은 엔진일 뿐. 차를 굴러가게 하는 건 그 주위를 감싼 하네스다.</text>
+</svg>

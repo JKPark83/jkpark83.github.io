@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="360" fill="#0f1117"/>
+  <text x="24" y="38" fill="#e6e6e6" font-size="20" font-weight="700">오늘의 AI 변화 지도 — 2026-06-25</text>
+  <text x="24" y="60" fill="#8a93a6" font-size="13">키워드: 에이전트 토큰 비용 줄이기</text>
+
+  <!-- center node -->
+  <circle cx="380" cy="200" r="58" fill="#1c2742" stroke="#5b8def" stroke-width="2"/>
+  <text x="380" y="195" fill="#cfe0ff" font-size="14" font-weight="700" text-anchor="middle">토큰 효율</text>
+  <text x="380" y="214" fill="#cfe0ff" font-size="14" font-weight="700" text-anchor="middle">에이전트</text>
+
+  <!-- edges -->
+  <line x1="200" y1="120" x2="335" y2="175" stroke="#3a466a" stroke-width="2"/>
+  <line x1="200" y1="280" x2="335" y2="225" stroke="#3a466a" stroke-width="2"/>
+  <line x1="560" y1="120" x2="430" y2="175" stroke="#3a466a" stroke-width="2"/>
+  <line x1="560" y1="280" x2="430" y2="225" stroke="#3a466a" stroke-width="2"/>
+
+  <!-- repo: semble -->
+  <rect x="40" y="92" width="170" height="58" rx="10" fill="#16241c" stroke="#3ddc97" stroke-width="1.5"/>
+  <text x="56" y="116" fill="#7ef0bf" font-size="13" font-weight="700">semble · 5.4k★</text>
+  <text x="56" y="136" fill="#a9d9c4" font-size="11.5">코드검색 토큰 -98%</text>
+
+  <!-- repo: SkillOpt -->
+  <rect x="40" y="252" width="170" height="58" rx="10" fill="#16241c" stroke="#3ddc97" stroke-width="1.5"/>
+  <text x="56" y="276" fill="#7ef0bf" font-size="13" font-weight="700">SkillOpt · 9.1k★</text>
+  <text x="56" y="296" fill="#a9d9c4" font-size="11.5">스킬 자동 진화</text>
+
+  <!-- Codex -->
+  <rect x="550" y="92" width="180" height="58" rx="10" fill="#241a16" stroke="#f0a93d" stroke-width="1.5"/>
+  <text x="566" y="116" fill="#ffcf86" font-size="13" font-weight="700">Codex 0.143 alpha</text>
+  <text x="566" y="136" fill="#e6c9a4" font-size="11.5">롤아웃 토큰 예산</text>
+
+  <!-- Claude Code -->
+  <rect x="550" y="252" width="180" height="58" rx="10" fill="#1a1f2e" stroke="#5b8def" stroke-width="1.5"/>
+  <text x="566" y="276" fill="#a9c4ff" font-size="13" font-weight="700">Claude Code 2.1.190</text>
+  <text x="566" y="296" fill="#c4d4f0" font-size="11.5">버그픽스·안정화</text>
+
+  <text x="24" y="346" fill="#5d6577" font-size="11">출처: GitHub API, code.claude.com, developers.openai.com (모두 검증됨)</text>
+</svg>

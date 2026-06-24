@@ -1,0 +1,55 @@
+{{- define "main" }}
+
+{{- $pages := where site.RegularPages "Type" "in" site.Params.mainSections }}
+{{- $pages = where $pages "Params.hiddenInHomeList" "!=" "true" }}
+{{- $paginator := .Paginate $pages }}
+
+<div class="home-wrap">
+
+  {{- /* ── 인사말 히어로 (1페이지에서만) ── */ -}}
+  {{- if (and site.Params.homeInfoParams (eq $paginator.PageNumber 1)) }}
+  {{- with site.Params.homeInfoParams }}
+  <section class="home-hero">
+    <h1>{{ .Title | markdownify }}</h1>
+    <div class="home-hero-desc">{{ .Content | $.RenderString (dict "display" "block") }}</div>
+    <div class="home-hero-social">
+      {{- partial "social_icons.html" (dict "align" .AlignSocialIconsTo) }}
+    </div>
+  </section>
+  {{- end }}
+  {{- end }}
+
+  {{- /* ── 본문 콘텐츠(있다면) ── */ -}}
+  {{- if .Content }}
+  <div class="post-content md-content">{{ .Content }}</div>
+  {{- end }}
+
+  {{- /* ── 최근 글 — 매소너리 ── */ -}}
+  <div class="home-secthead">
+    <h2>{{ if gt $paginator.PageNumber 1 }}{{ $paginator.PageNumber }} 페이지{{ else }}최근 글{{ end }}</h2>
+    <span class="home-secthead-line"></span>
+  </div>
+
+  <div class="home-grid">
+    {{- range $paginator.Pages }}
+    {{- partial "post_card.html" (dict "page" . "masonry" true "showCat" true) }}
+    {{- end }}
+  </div>
+
+  {{- /* ── 페이지네이션 ── */ -}}
+  {{- if gt $paginator.TotalPages 1 }}
+  <footer class="page-footer">
+    <nav class="pagination">
+      {{- if $paginator.HasPrev }}
+      <a class="prev" href="{{ $paginator.Prev.URL | absURL }}">«&nbsp;{{ i18n "prev_page" }}</a>
+      {{- end }}
+      {{- if $paginator.HasNext }}
+      <a class="next" href="{{ $paginator.Next.URL | absURL }}">{{ i18n "next_page" }}&nbsp;»</a>
+      {{- end }}
+    </nav>
+  </footer>
+  {{- end }}
+
+</div>
+
+{{- end }}{{/* end main */}}

@@ -1,0 +1,319 @@
+/* ===========================================================
+   JKPark 블로그 — 커스텀 스타일 (PaperMod 확장)
+   · 인디고·바이올렛 액센트
+   · 공용 카드(.pc-*) — 홈 매소너리 + archives 그리드 공유
+   · archives 사이드바 레이아웃(.arch-*)
+   · 홈 매소너리(.home-*)
+   · 전체 타이포/여백 리파인
+   =========================================================== */
+
+/* ── 액센트 & 토큰 ───────────────────────────────────────── */
+:root {
+  --accent: #6366f1;          /* indigo-500 */
+  --accent-2: #8b5cf6;        /* violet-500 */
+  --accent-soft: rgba(99, 102, 241, .10);
+  --accent-grad: linear-gradient(135deg, #6366f1, #8b5cf6);
+  --card-radius: 14px;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .10);
+  --card-shadow-hover: 0 18px 40px rgba(67, 56, 202, .18);
+}
+:root[data-theme="dark"] {
+  --accent: #818cf8;
+  --accent-2: #a78bfa;
+  --accent-soft: rgba(129, 140, 248, .15);
+  --accent-grad: linear-gradient(135deg, #818cf8, #a78bfa);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  --card-shadow-hover: 0 18px 40px rgba(0, 0, 0, .55);
+}
+
+/* ── 타이포: Pretendard ──────────────────────────────────── */
+body {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", "Helvetica Neue", sans-serif;
+  letter-spacing: -0.003em;
+}
+.entry-header h2, .post-title, .page-header h1,
+.arch-section-head, .pc-title {
+  letter-spacing: -0.02em;
+}
+
+/* ── 전체 리파인: 링크·메뉴·태그 액센트 ─────────────────── */
+.post-content a,
+.post-content a:visited { color: var(--accent); }
+#menu .active { border-bottom-color: var(--accent) !important; }
+.terms-tags a:hover,
+.post-tags a:hover { border-color: var(--accent); color: var(--accent); }
+.post-content blockquote { border-inline-start-color: var(--accent); }
+
+/* 본문 글 페이지: 제목/여백 약간의 숨통 */
+.post-single .post-title { line-height: 1.25; }
+.first-entry .entry-header h1 { line-height: 1.25; }
+
+/* ===========================================================
+   공용 카드 — .pc-card  (홈 매소너리 + archives 그리드)
+   =========================================================== */
+.pc-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--entry);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  color: var(--primary);
+  box-shadow: var(--card-shadow);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.pc-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--card-shadow-hover);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.pc-thumb {
+  position: relative;
+  overflow: hidden;
+  background: var(--accent-grad);
+  aspect-ratio: 16 / 9;            /* 그리드 기본 — 매소너리에서 해제 */
+}
+.pc-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .35s ease;
+}
+.pc-card:hover .pc-thumb img { transform: scale(1.04); }
+.pc-thumb--ph { aspect-ratio: 16 / 9; }
+.pc-thumb-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 46px;
+  font-weight: 800;
+  color: #fff;
+  opacity: .95;
+}
+
+.pc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 15px 17px 17px;
+}
+.pc-cat {
+  align-self: flex-start;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 3px 10px;
+  line-height: 1.4;
+}
+.pc-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pc-card:hover .pc-title { color: var(--accent); }
+.pc-summary {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--secondary);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pc-meta {
+  font-size: 12.5px;
+  color: var(--secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pc-dot { opacity: .6; }
+
+/* ===========================================================
+   홈 — 히어로 + 매소너리
+   =========================================================== */
+.main:has(.home-wrap) {
+  max-width: 1120px;
+  width: 100%;
+}
+.home-hero {
+  margin: 6px 0 30px;
+  padding: 30px 32px;
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, var(--accent-soft), transparent 60%),
+    var(--entry);
+  border: 1px solid var(--border);
+}
+.home-hero h1 {
+  margin: 0 0 8px;
+  font-size: clamp(26px, 4vw, 36px);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+.home-hero p, .home-hero-desc p {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--secondary);
+  max-width: 60ch;
+}
+.home-hero .home-hero-social { margin-top: 16px; }
+.home-hero .home-hero-social .social-icons a { margin-inline-end: 12px; }
+
+.home-secthead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 2px 18px;
+}
+.home-secthead h2 {
+  font-size: 19px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.home-secthead .home-secthead-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* 매소너리: CSS multicol (순수 CSS, 안정적) */
+.home-grid {
+  column-width: 300px;
+  column-gap: 24px;
+}
+.home-grid .pc-card {
+  width: 100%;
+  margin: 0 0 24px;
+  break-inside: avoid;
+}
+/* 매소너리 카드: 썸네일 자연 비율로 높이 변주 */
+.pc-card--masonry .pc-thumb { aspect-ratio: auto; }
+.pc-card--masonry .pc-thumb img { height: auto; object-fit: contain; }
+.pc-card--masonry .pc-thumb--ph { aspect-ratio: 16 / 9; }
+.pc-card--masonry .pc-summary { -webkit-line-clamp: 5; }
+
+/* 페이지네이션 버튼 액센트 */
+.pagination .next, .pagination .prev { background: var(--accent); }
+
+/* ===========================================================
+   archives — 사이드바 + 카테고리별 카드 그리드
+   =========================================================== */
+.main:has(.arch) {
+  max-width: 1080px;
+  width: 100%;
+}
+.arch-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 36px;
+  align-items: start;
+  margin-top: 8px;
+}
+
+.arch-side { position: sticky; top: calc(var(--header-height) + 16px); }
+.arch-nav-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--secondary);
+  text-transform: uppercase;
+  margin: 0 0 10px 10px;
+}
+.arch-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.arch-nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--primary);
+  border-left: 3px solid transparent;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.arch-nav a:hover { background: var(--accent-soft); }
+.arch-nav a.active {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.arch-nav-name { font-size: 15px; line-height: 1.3; }
+.arch-nav-count {
+  flex: none;
+  font-size: 12px;
+  color: var(--secondary);
+  background: var(--theme);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.arch-nav a.active .arch-nav-count {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.arch-nav-total { margin: 14px 0 0 10px; font-size: 12px; color: var(--secondary); }
+
+.arch-section { margin-bottom: 46px; scroll-margin-top: calc(var(--header-height) + 16px); }
+.arch-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 22px;
+  margin: 0 0 18px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--border);
+}
+.arch-section-head a { color: var(--primary); }
+.arch-section-head a:hover { color: var(--accent); }
+.arch-section-count { font-size: 13px; color: var(--secondary); font-weight: 400; }
+
+.arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 22px;
+}
+
+/* ===========================================================
+   반응형
+   =========================================================== */
+@media screen and (max-width: 900px) {
+  .arch-layout { grid-template-columns: 1fr; gap: 18px; }
+  .arch-side { position: static; }
+  .arch-nav-title, .arch-nav-total { display: none; }
+  .arch-nav ul { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+  .arch-nav a { border-left: none; border: 1px solid var(--border); padding: 6px 12px; }
+  .arch-nav a.active { border-left: 1px solid var(--accent); border-color: var(--accent); }
+}
+@media screen and (max-width: 768px) {
+  .home-hero { padding: 24px 22px; }
+  .home-grid { column-width: 240px; column-gap: 16px; }
+  .home-grid .pc-card { margin-bottom: 16px; }
+}
+@media screen and (max-width: 480px) {
+  .arch-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pc-title { font-size: 15px; }
+  .arch-grid .pc-summary { display: none; }
+}

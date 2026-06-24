@@ -1,5 +1,10 @@
 {{- define "main" }}
 
+{{- $terms := index site.Taxonomies "categories" }}
+{{- $mainPages := where site.RegularPages "Type" "in" site.Params.mainSections }}
+{{- $uncategorized := where $mainPages "Params.categories" nil }}
+{{- $total := len $mainPages }}
+
 <header class="page-header">
   <h1>
     {{ .Title }}
@@ -17,45 +22,105 @@
     {{- end }}
   </h1>
   {{- if .Description }}
-  <div class="post-description">
-    {{ .Description }}
-  </div>
+  <div class="post-description">{{ .Description }}</div>
   {{- end }}
 </header>
 
-{{- /* 글 목록을 분류(카테고리)별로 묶어서 출력 — 글이 많은 분류부터 */ -}}
-{{- $terms := index site.Taxonomies "categories" }}
-{{- range $terms.ByCount }}
-<div class="archive-year">
-  <h2 class="archive-year-header" id="{{ .Name | urlize }}">
-    <a class="archive-header-link" href="{{ .Page.Permalink }}">{{ .Page.Title }}</a>
-    <sup class="archive-count">&nbsp;{{ .Count }}</sup>
-  </h2>
-  <div class="archive-posts">
-    {{- range .Pages }}
-    {{- if eq .Kind "page" }}
-    {{- partial "archive_entry.html" . }}
-    {{- end }}
-    {{- end }}
-  </div>
-</div>
-{{- end }}
+<div class="arch">
+  <div class="arch-layout">
 
-{{- /* 분류가 지정되지 않은 글은 '미분류'로 모아서 출력 */ -}}
-{{- $mainPages := where site.RegularPages "Type" "in" site.Params.mainSections }}
-{{- $uncategorized := where $mainPages "Params.categories" nil }}
-{{- with $uncategorized }}
-<div class="archive-year">
-  <h2 class="archive-year-header" id="uncategorized">
-    미분류
-    <sup class="archive-count">&nbsp;{{ len . }}</sup>
-  </h2>
-  <div class="archive-posts">
-    {{- range . }}
-    {{- partial "archive_entry.html" . }}
-    {{- end }}
+    {{- /* ── 좌측: 카테고리 내비게이션 (스티키) ── */ -}}
+    <aside class="arch-side">
+      <nav class="arch-nav" aria-label="카테고리">
+        <p class="arch-nav-title">카테고리</p>
+        <ul>
+          {{- range $terms.ByCount }}
+          <li>
+            <a href="#cat-{{ .Name | urlize }}" data-cat="cat-{{ .Name | urlize }}">
+              <span class="arch-nav-name">{{ .Page.Title }}</span>
+              <span class="arch-nav-count">{{ .Count }}</span>
+            </a>
+          </li>
+          {{- end }}
+          {{- with $uncategorized }}
+          <li>
+            <a href="#cat-uncategorized" data-cat="cat-uncategorized">
+              <span class="arch-nav-name">미분류</span>
+              <span class="arch-nav-count">{{ len . }}</span>
+            </a>
+          </li>
+          {{- end }}
+        </ul>
+        <p class="arch-nav-total">전체 {{ $total }}개의 글</p>
+      </nav>
+    </aside>
+
+    {{- /* ── 우측: 카테고리별 카드 그리드 ── */ -}}
+    <div class="arch-main">
+      {{- range $terms.ByCount }}
+      <section class="arch-section" id="cat-{{ .Name | urlize }}">
+        <h2 class="arch-section-head">
+          <a href="{{ .Page.Permalink }}">{{ .Page.Title }}</a>
+          <sup class="arch-section-count">{{ .Count }}</sup>
+        </h2>
+        <div class="arch-grid">
+          {{- range .Pages }}
+          {{- if eq .Kind "page" }}
+          {{- partial "post_card.html" (dict "page" .) }}
+          {{- end }}
+          {{- end }}
+        </div>
+      </section>
+      {{- end }}
+
+      {{- with $uncategorized }}
+      <section class="arch-section" id="cat-uncategorized">
+        <h2 class="arch-section-head">
+          미분류
+          <sup class="arch-section-count">{{ len . }}</sup>
+        </h2>
+        <div class="arch-grid">
+          {{- range . }}
+          {{- partial "post_card.html" (dict "page" .) }}
+          {{- end }}
+        </div>
+      </section>
+      {{- end }}
+    </div>
+
   </div>
 </div>
-{{- end }}
+
+<script>
+// 스크롤에 따라 현재 보고 있는 카테고리를 사이드바에서 강조
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('.arch-nav a[data-cat]'));
+  if (!links.length) return;
+  var sections = links.map(function (a) { return document.getElementById(a.dataset.cat); }).filter(Boolean);
+
+  function setActive(id) {
+    links.forEach(function (a) { a.classList.toggle('active', a.dataset.cat === id); });
+  }
+
+  if ('IntersectionObserver' in window) {
+    var visible = {};
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting ? e.intersectionRatio : 0; });
+      var top = null, max = -1;
+      sections.forEach(function (s) {
+        var r = visible[s.id] || 0;
+        if (r > max) { max = r; top = s.id; }
+      });
+      if (top && max > 0) setActive(top);
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: [0, 0.25, 0.5, 1] });
+    sections.forEach(function (s) { io.observe(s); });
+  }
+
+  links.forEach(function (a) {
+    a.addEventListener('click', function () { setActive(a.dataset.cat); });
+  });
+  setActive(links[0].dataset.cat);
+})();
+</script>
 
 {{- end }}{{/* end main */}}

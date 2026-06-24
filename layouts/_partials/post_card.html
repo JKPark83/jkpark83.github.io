@@ -1,0 +1,56 @@
+{{- /* 공용 포스트 카드 — 컨텍스트: (dict "page" $page "masonry" bool "showCat" bool)
+       썸네일 자동 해석: ① front matter cover → ② 본문 첫 이미지 → ③ 글자 플레이스홀더 */ -}}
+{{- $masonry := .masonry | default false }}
+{{- $showCat := .showCat | default false }}
+{{- with .page }}
+
+{{- $coverRes := false }}
+{{- $coverURL := "" }}
+{{- with .Params.cover.image }}
+  {{- with (resources.ByType "image").GetMatch (printf "*%s*" .) }}
+    {{- $coverRes = . }}
+  {{- else }}
+    {{- $coverURL = . | absURL }}
+  {{- end }}
+{{- end }}
+{{- if (and (not $coverRes) (eq $coverURL "")) }}
+  {{- with (findRESubmatch `(?s)<img[^>]+src=["']([^"']+)["']` .Content 1) }}
+    {{- $coverURL = index (index . 0) 1 }}
+  {{- end }}
+{{- end }}
+{{- $hasImg := (or $coverRes (ne $coverURL "")) }}
+
+<a class="pc-card{{ if $masonry }} pc-card--masonry{{ end }}" href="{{ .Permalink }}">
+  <div class="pc-thumb{{ if not $hasImg }} pc-thumb--ph{{ end }}">
+    {{- if $coverRes }}
+      {{- $processable := slice "jpg" "jpeg" "png" "gif" "bmp" "tiff" "webp" }}
+      {{- if (and (in $processable $coverRes.MediaType.SubType) (hugo.IsProduction | or (eq site.Params.env "production"))) }}
+        {{- $img := cond $masonry ($coverRes.Resize "640x") ($coverRes.Fill "600x340 Center") }}
+        <img loading="lazy" src="{{ $img.Permalink }}" width="{{ $img.Width }}" height="{{ $img.Height }}" alt="{{ .Title | plainify }}">
+      {{- else }}
+        <img loading="lazy" src="{{ $coverRes.Permalink }}" alt="{{ .Title | plainify }}">
+      {{- end }}
+    {{- else if (ne $coverURL "") }}
+      <img loading="lazy" src="{{ $coverURL }}" alt="{{ .Title | plainify }}">
+    {{- else }}
+      <span class="pc-thumb-ph" aria-hidden="true">{{ substr (.Title | plainify) 0 1 }}</span>
+    {{- end }}
+  </div>
+  <div class="pc-body">
+    {{- if $showCat }}{{- with .Params.categories }}
+    <span class="pc-cat">{{ index . 0 }}</span>
+    {{- end }}{{- end }}
+    <h3 class="pc-title">{{ .Title }}</h3>
+    {{- with .Summary }}
+    <p class="pc-summary">{{ . | plainify }}</p>
+    {{- end }}
+    <div class="pc-meta">
+      <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date | time.Format (default ":date_long" site.Params.DateFormat) }}</time>
+      {{- if (.Param "ShowReadingTime") }}
+      <span class="pc-dot">·</span>
+      <span>{{ i18n "read_time" .ReadingTime | default (printf "%d min" .ReadingTime) }}</span>
+      {{- end }}
+    </div>
+  </div>
+</a>
+{{- end }}

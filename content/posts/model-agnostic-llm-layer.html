@@ -1,0 +1,433 @@
+---
+title: "모델은 언제든 사라진다: 한 곳에 묶이지 않는 LLM 레이어 만들기"
+date: 2026-06-24T21:00:00+09:00
+draft: false
+tags: ["AI", "LLM", "에이전트", "LiteLLM", "AI Gateway", "Fallback", "Evals", "OpenTelemetry"]
+categories: ["AI 엔지니어링"]
+summary: "어느 날 쓰던 모델이 사라지거나, 조직 정책으로 막히거나, 429를 뱉기 시작하면 어떻게 될까요? 한 프로바이더에 코드를 묶어 두면 그 순간 서비스가 멈춥니다. 앱과 모델 사이에 게이트웨이 한 겹을 두고, 폴백을 걸고, 그 폴백을 평가로 검증하는 '모델-애그노스틱 LLM 레이어'를 주니어 개발자도 따라올 수 있게 기초부터 정리합니다."
+ShowToc: false
+cover:
+  image: "model-agnostic-llm-layer-cover.svg"
+  alt: "내 앱이 게이트웨이 한 겹을 거쳐 여러 모델 프로바이더에 연결되고, 막힌 1차 모델 대신 2차 폴백으로 트래픽이 우회하는 표지"
+  caption: "한 모델에 인생을 걸지 마라 — 게이트웨이 한 겹이 서비스를 살린다"
+  relative: false
+---
+
+<style>
+/* ── Model-Agnostic LLM Layer 포스트 전용 스타일 (mal- 접두사) ── */
+.mal-fig{
+  --mal-indigo:#6366f1; --mal-violet:#8b5cf6; --mal-cyan:#06b6d4;
+  --mal-amber:#f59e0b; --mal-rose:#f43f5e; --mal-emerald:#10b981; --mal-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .mal-fig{
+  --mal-indigo:#818cf8; --mal-violet:#a78bfa; --mal-cyan:#22d3ee;
+  --mal-amber:#fbbf24; --mal-rose:#fb7185; --mal-emerald:#34d399; --mal-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .mal-fig{
+    --mal-indigo:#818cf8; --mal-violet:#a78bfa; --mal-cyan:#22d3ee;
+    --mal-amber:#fbbf24; --mal-rose:#fb7185; --mal-emerald:#34d399; --mal-slate:#94a3b8;
+  }
+}
+.mal-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.mal-fig text{font-family:inherit}
+.mal-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.mal-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.mal-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.mal-toc ol{margin:0;padding-left:1.25rem}
+.mal-toc li{margin:.2rem 0;font-size:.95rem}
+.mal-toc a{text-decoration:none}
+.mal-toc a:hover{text-decoration:underline}
+.mal-pull{font-size:1.12rem;line-height:1.72}
+.mal-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.mal-note{border-left:4px solid var(--mal-indigo,#6366f1);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.mal-note strong{color:var(--mal-indigo,#6366f1)}
+.mal-warn{border-left:4px solid var(--mal-rose,#f43f5e);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.mal-warn strong{color:var(--mal-rose,#f43f5e)}
+.mal-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.mal-tbl th,.mal-tbl td{border:1px solid var(--border);padding:.55rem .7rem;text-align:left;vertical-align:top}
+.mal-tbl th{background:var(--entry);font-weight:700}
+.mal-fig{--mal-indigo:#6366f1}
+</style>
+
+<blockquote class="mal-pull">
+  <p>2026년 6월, Claude Code <strong>v2.1.187</strong>에 "조직이 지정한 모델 제한" 기능이 들어갔습니다. 관리자가 막아 둔 모델을 고르면 <em>"조직 설정에 의해 제한됨"</em>이라는 메시지가 뜨고, 그 모델은 더 이상 쓸 수 없습니다.</p>
+  <footer>— 모델은 내가 통제할 수 없는 의존성입니다. 어느 날 갑자기 사라질 수 있습니다.</footer>
+</blockquote>
+
+<p>코드를 짤 때 우리는 보통 <code>openai.chat.completions.create(model="gpt-...")</code> 한 줄을 깊숙한 곳에 박아 둡니다. 데모에서는 잘 돕니다. 그런데 프로덕션에서 이 한 줄은 <strong>가장 위험한 의존성</strong>이 됩니다. 내가 만들지도, 호스팅하지도, 통제하지도 못하는 외부 서비스 하나에 서비스 전체의 운명을 거는 셈이거든요.</p>
+
+<p>이번 주 화제가 된 Claude Code의 모델 제한 기능은 빙산의 일각입니다. 모델은 <strong>예고 없이 deprecated 되고</strong>, 회사 정책이나 규제로 막히고, 트래픽이 몰리면 <code>429 Too Many Requests</code>를 뱉고, 가격이 오르고, 어느 날 더 좋은 모델로 갈아타고 싶어집니다. 그때마다 코드 곳곳에 박힌 모델 이름을 찾아 고치고 다시 배포해야 한다면, 그건 엔지니어링이 아니라 도박입니다.</p>
+
+<p>그래서 2026년의 AI 엔지니어링에서 빠지지 않는 패턴이 <strong>모델-애그노스틱 레이어(model-agnostic layer)</strong>입니다. "특정 모델에 종속되지 않는 한 겹"을 앱과 모델 사이에 끼워 넣는 것이죠. 이 글에서는 그 레이어를 <em>왜</em> 두는지, <em>어떻게</em> 만드는지, 그리고 초보가 꼭 빠지는 함정까지 차근차근 풀어 보겠습니다.</p>
+
+<nav class="mal-toc">
+  <div class="mal-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">모델은 내가 통제 못 하는 의존성이다</a></li>
+    <li><a href="#sec-2">핵심 발상: 앱과 모델 사이에 "경계" 한 겹</a></li>
+    <li><a href="#sec-3">게이트웨이를 직접 써보기 (LiteLLM)</a></li>
+    <li><a href="#sec-4">폴백 라우팅 — 무엇이 폴백을 부르나</a></li>
+    <li><a href="#sec-5">함정: 테스트 안 한 폴백은 폴백이 아니다</a></li>
+    <li><a href="#sec-6">관측: 프로바이더를 공정하게 비교하기</a></li>
+    <li><a href="#sec-7">무엇을 쓸까 — 선택지 비교</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. 모델은 내가 통제 못 하는 의존성이다</h2>
+
+<p>먼저 문제를 정확히 보겠습니다. 우리가 외부 모델 API를 부를 때 의존하는 것은 단순한 라이브러리가 아닙니다. 버전을 고정(pin)해 둘 수도 없고, 내 서버에 복제해 둘 수도 없는, <strong>완전히 통제 밖에 있는 실시간 서비스</strong>입니다. 깨질 수 있는 지점을 늘어놓아 보면 이렇습니다.</p>
+
+<ul>
+  <li><strong>모델 단종(deprecation)</strong> — 모델 회사가 구버전을 내리고 새 버전으로 강제 이전합니다. 출력 성향이 미묘하게 달라져 프롬프트가 깨질 수 있습니다.</li>
+  <li><strong>접근 제한(governance)</strong> — 위 인용처럼 조직·규제·지역 정책으로 특정 모델이 막힙니다.</li>
+  <li><strong>일시 장애</strong> — <code>5xx</code> 서버 오류, 타임아웃, 또는 트래픽 폭주로 인한 <code>429</code> 레이트 리밋.</li>
+  <li><strong>컨텍스트 초과</strong> — 입력이 모델의 컨텍스트 창보다 길면 <code>ContextWindowExceeded</code> 오류가 납니다.</li>
+  <li><strong>콘텐츠 정책 거부</strong> — 안전 필터가 요청을 막아 응답이 안 옵니다.</li>
+  <li><strong>가격·성능 변화</strong> — 더 싸거나 더 좋은 모델이 나오면 갈아타고 싶어집니다.</li>
+</ul>
+
+<p>핵심은 이겁니다. <strong>이 사건들은 "혹시"가 아니라 "언제"의 문제입니다.</strong> 운영을 길게 하다 보면 거의 다 한 번씩 겪습니다. 그러니 "안 깨지게" 만드는 게 아니라 "깨져도 서비스는 굴러가게" 만드는 게 목표입니다. 데이터베이스에 백업과 복제본을 두듯, 모델에도 대비책이 필요합니다.</p>
+
+<hr>
+
+<h2 id="sec-2">2. 핵심 발상: 앱과 모델 사이에 "경계" 한 겹</h2>
+
+<p>해법의 출발점은 소프트웨어 공학의 오래된 원칙입니다. <strong>변하는 것을 한곳에 가두라.</strong> 모델은 변합니다. 그러니 모델을 부르는 코드를 앱 전체에 흩뿌리지 말고, <strong>딱 한 겹의 경계(boundary)</strong> 뒤에 숨깁니다. 앱의 나머지는 그 경계하고만 이야기합니다.</p>
+
+<p>이 경계를 부르는 이름이 여럿입니다. SDK 수준이면 <strong>프로바이더 추상화(provider abstraction)</strong>, 별도 서버로 띄우면 <strong>LLM 게이트웨이(gateway)</strong> 또는 <strong>프록시(proxy)</strong>라고 합니다. 이름은 달라도 발상은 같습니다. 앱은 "모델 X에게 이 메시지를 보내 줘"가 아니라, 그냥 <strong>"내 채팅 엔드포인트에 이 메시지를 보내 줘"</strong>라고만 말합니다. 그 뒤에서 실제로 누구를 부를지는 경계가 정합니다.</p>
+
+<figure class="mal-fig"><svg viewBox="0 0 940 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽은 앱이 여러 모델 SDK에 직접 묶인 모습, 오른쪽은 게이트웨이 한 겹을 거쳐 모델에 연결된 모습 비교">
+  <defs>
+    <marker id="mal-d1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+
+  <!-- 왼쪽: 직접 결합 (안티패턴) -->
+  <text x="30" y="28" font-size="14" font-weight="800" fill="var(--mal-rose)">✗ 직접 결합 — 모델이 깨지면 앱이 깨진다</text>
+  <rect x="30" y="48" width="120" height="220" rx="12" fill="var(--mal-indigo)" fill-opacity="0.12" stroke="var(--mal-indigo)" stroke-width="2"/>
+  <text x="90" y="150" text-anchor="middle" font-size="14" font-weight="700" fill="var(--mal-indigo)">내 앱</text>
+  <text x="90" y="172" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">모델 이름이</text>
+  <text x="90" y="187" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">곳곳에 박힘</text>
+
+  <g font-size="11.5">
+    <line x1="150" y1="90" x2="300" y2="80" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#mal-d1)"/>
+    <line x1="150" y1="158" x2="300" y2="158" stroke="var(--mal-rose)" stroke-width="2.5" marker-end="url(#mal-d1)"/>
+    <line x1="150" y1="226" x2="300" y2="236" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#mal-d1)"/>
+    <rect x="302" y="62" width="110" height="38" rx="8" fill="var(--mal-slate)" fill-opacity="0.18" stroke="var(--mal-slate)" stroke-width="1.5"/><text x="357" y="86" text-anchor="middle" fill="currentColor">모델 A</text>
+    <rect x="302" y="139" width="110" height="38" rx="8" fill="var(--mal-rose)" fill-opacity="0.18" stroke="var(--mal-rose)" stroke-width="2" stroke-dasharray="6 5"/><text x="357" y="163" text-anchor="middle" fill="var(--mal-rose)" font-weight="700">모델 B ✗</text>
+    <rect x="302" y="216" width="110" height="38" rx="8" fill="var(--mal-slate)" fill-opacity="0.18" stroke="var(--mal-slate)" stroke-width="1.5"/><text x="357" y="240" text-anchor="middle" fill="currentColor">모델 C</text>
+  </g>
+  <text x="232" y="300" text-anchor="middle" font-size="11" fill="var(--mal-rose)" opacity="0.85">B가 막히면 B를 부르던 코드를 전부 고쳐야 함</text>
+
+  <line x1="470" y1="40" x2="470" y2="320" stroke="currentColor" stroke-opacity="0.2" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+  <!-- 오른쪽: 게이트웨이 경계 -->
+  <text x="520" y="28" font-size="14" font-weight="800" fill="var(--mal-emerald)">✓ 게이트웨이 경계 — 앱은 한 곳만 본다</text>
+  <rect x="520" y="48" width="110" height="220" rx="12" fill="var(--mal-indigo)" fill-opacity="0.12" stroke="var(--mal-indigo)" stroke-width="2"/>
+  <text x="575" y="152" text-anchor="middle" font-size="14" font-weight="700" fill="var(--mal-indigo)">내 앱</text>
+  <text x="575" y="174" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">엔드포인트</text>
+  <text x="575" y="189" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">하나만 호출</text>
+
+  <line x1="630" y1="158" x2="672" y2="158" stroke="var(--mal-cyan)" stroke-width="3" marker-end="url(#mal-d1)"/>
+  <rect x="674" y="108" width="96" height="100" rx="12" fill="var(--mal-cyan)" fill-opacity="0.16" stroke="var(--mal-cyan)" stroke-width="2.5"/>
+  <text x="722" y="150" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--mal-cyan)">게이트웨이</text>
+  <text x="722" y="170" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.65">라우팅·폴백</text>
+
+  <g font-size="11.5">
+    <line x1="770" y1="120" x2="830" y2="80" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#mal-d1)"/>
+    <line x1="770" y1="158" x2="830" y2="158" stroke="var(--mal-emerald)" stroke-width="2.5" marker-end="url(#mal-d1)"/>
+    <line x1="770" y1="196" x2="830" y2="236" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#mal-d1)"/>
+    <rect x="832" y="62" width="78" height="36" rx="8" fill="var(--mal-rose)" fill-opacity="0.16" stroke="var(--mal-rose)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="871" y="85" text-anchor="middle" fill="var(--mal-rose)">A ✗</text>
+    <rect x="832" y="140" width="78" height="36" rx="8" fill="var(--mal-emerald)" fill-opacity="0.16" stroke="var(--mal-emerald)" stroke-width="2"/><text x="871" y="163" text-anchor="middle" fill="var(--mal-emerald)" font-weight="700">B ✓</text>
+    <rect x="832" y="218" width="78" height="36" rx="8" fill="var(--mal-slate)" fill-opacity="0.16" stroke="var(--mal-slate)" stroke-width="1.5"/><text x="871" y="241" text-anchor="middle" fill="currentColor">C</text>
+  </g>
+  <text x="760" y="300" text-anchor="middle" font-size="11" fill="var(--mal-emerald)" opacity="0.85">A가 막히면 게이트웨이가 알아서 B로 우회 — 앱 코드는 그대로</text>
+</svg><figcaption>변하는 것(모델)을 경계 한 겹 뒤에 가두면, 모델이 깨져도 앱 코드는 손대지 않는다.</figcaption></figure>
+
+<p>이 한 겹 덕분에 따라오는 이점이 큽니다. 모델을 바꾸려면 <strong>설정 한 줄</strong>만 고치면 됩니다. 여러 프로바이더의 키·요금·레이트 리밋을 한곳에서 관리합니다. 비용·토큰·지연시간 로깅도 경계에서 한 번에 합니다. 그리고 다음 절에서 볼 <strong>폴백(fallback)</strong>도 바로 여기서 일어납니다.</p>
+
+<hr>
+
+<h2 id="sec-3">3. 게이트웨이를 직접 써보기 (LiteLLM)</h2>
+
+<p>가장 널리 쓰이는 오픈소스 게이트웨이가 <a href="https://github.com/BerriAI/litellm" target="_blank" rel="noopener"><strong>LiteLLM</strong></a>입니다(2026년 6월 기준 GitHub 별 약 5.1만 개). 100개가 넘는 프로바이더 API를 <strong>OpenAI 호환 형식</strong> 하나로 감싸 줍니다. 즉, 코드는 OpenAI를 부르는 것처럼 짜고, 뒤에서 실제 모델만 바꿔 끼우는 식입니다.</p>
+
+<p>가장 간단한 형태는 파이썬 SDK입니다. <code>completion()</code> 한 함수로 어떤 프로바이더든 똑같이 부릅니다.</p>
+
+{{< highlight python >}}
+# pip install litellm
+from litellm import completion
+
+# 모델 이름 문자열 하나만 바꾸면 프로바이더가 바뀐다 — 호출부는 동일
+messages = [{"role": "user", "content": "한 줄로 자기소개 해줘"}]
+
+resp = completion(model="openai/gpt-5.1", messages=messages)        # OpenAI
+# resp = completion(model="anthropic/claude-opus-4-8", messages=messages)  # Anthropic
+# resp = completion(model="gemini/gemini-3-flash", messages=messages)      # Google
+
+print(resp.choices[0].message.content)   # 응답 구조도 OpenAI 형식으로 통일된다
+{{< /highlight >}}
+
+<p>여기서 핵심은 <code>messages</code>를 만들고 응답을 꺼내는 코드가 <strong>프로바이더와 무관하게 똑같다</strong>는 점입니다. 모델 문자열만 설정값으로 빼 두면, 모델 교체가 코드 수정이 아니라 <em>설정 변경</em>이 됩니다.</p>
+
+<p>팀 규모로 가면 SDK보다 <strong>프록시 서버</strong> 형태가 낫습니다. LiteLLM을 별도 서버로 띄우고, 모든 앱이 그 서버 하나만 바라보게 하는 거죠. 그러면 키 관리·예산·로깅·폴백 정책을 앱과 분리해 한곳에서 운영할 수 있습니다. 설정은 YAML로 합니다.</p>
+
+{{< highlight yaml >}}
+# config.yaml — 게이트웨이가 알고 있는 모델 목록
+model_list:
+  - model_name: chat-primary          # 앱이 부르는 "별칭" — 앱은 이 이름만 안다
+    litellm_params:
+      model: openai/gpt-5.1
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: chat-backup           # 같은 역할의 백업 모델 (다른 프로바이더)
+    litellm_params:
+      model: anthropic/claude-opus-4-8
+      api_key: os.environ/ANTHROPIC_API_KEY
+{{< /highlight >}}
+
+<p>이제 앱은 모델 이름이 아니라 <code>chat-primary</code>라는 <strong>역할 별칭</strong>을 부릅니다. 실제로 어떤 모델이 그 역할을 맡는지는 게이트웨이 설정이 결정합니다. 다음 절에서 이 구조 위에 폴백을 얹어 보겠습니다.</p>
+
+<hr>
+
+<h2 id="sec-4">4. 폴백 라우팅 — 무엇이 폴백을 부르나</h2>
+
+<p><strong>폴백(fallback)</strong>은 1차 모델 호출이 실패했을 때 자동으로 2차, 3차 모델로 넘어가는 장치입니다. 핵심은 <strong>"어떤 실패에 어떤 대응을 할지"</strong>를 실패 종류별로 나눠 정의하는 것입니다. 모든 실패를 똑같이 다루면 안 됩니다. 예를 들어 입력이 너무 길어서 난 오류라면, 같은 입력을 다른 모델에 그대로 보내도 또 터집니다. <em>컨텍스트 창이 더 큰</em> 모델로 보내야 하죠.</p>
+
+<figure class="mal-fig"><svg viewBox="0 0 940 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="모델 호출이 실패했을 때 오류 종류에 따라 재시도, 일반 폴백, 큰 컨텍스트 폴백, 안전 정책 폴백으로 분기하는 의사결정 흐름도">
+  <defs>
+    <marker id="mal-f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/></marker>
+  </defs>
+  <rect x="370" y="20" width="200" height="48" rx="11" fill="var(--mal-indigo)" fill-opacity="0.14" stroke="var(--mal-indigo)" stroke-width="2"/>
+  <text x="470" y="49" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--mal-indigo)">1차 모델 호출 실패</text>
+
+  <line x1="470" y1="68" x2="470" y2="100" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" marker-end="url(#mal-f1)"/>
+  <text x="470" y="92" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">어떤 오류인가?</text>
+
+  <!-- 4 갈래 -->
+  <g font-size="11.5">
+    <!-- 분기 라인 -->
+    <line x1="470" y1="104" x2="130" y2="150" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.6" marker-end="url(#mal-f1)"/>
+    <line x1="470" y1="104" x2="370" y2="150" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.6" marker-end="url(#mal-f1)"/>
+    <line x1="470" y1="104" x2="600" y2="150" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.6" marker-end="url(#mal-f1)"/>
+    <line x1="470" y1="104" x2="830" y2="150" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.6" marker-end="url(#mal-f1)"/>
+
+    <!-- 1. 일시 오류 -->
+    <rect x="40" y="152" width="190" height="58" rx="10" fill="var(--mal-amber)" fill-opacity="0.14" stroke="var(--mal-amber)" stroke-width="1.8"/>
+    <text x="135" y="176" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mal-amber)">429 · 5xx · 타임아웃</text>
+    <text x="135" y="196" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">일시적 문제</text>
+
+    <!-- 2. 프로바이더 다운 -->
+    <rect x="280" y="152" width="180" height="58" rx="10" fill="var(--mal-rose)" fill-opacity="0.14" stroke="var(--mal-rose)" stroke-width="1.8"/>
+    <text x="370" y="176" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mal-rose)">제한 · 다운 · 인증오류</text>
+    <text x="370" y="196" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">이 모델은 못 쓴다</text>
+
+    <!-- 3. 컨텍스트 초과 -->
+    <rect x="500" y="152" width="190" height="58" rx="10" fill="var(--mal-cyan)" fill-opacity="0.14" stroke="var(--mal-cyan)" stroke-width="1.8"/>
+    <text x="595" y="176" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mal-cyan)">ContextWindowExceeded</text>
+    <text x="595" y="196" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">입력이 너무 길다</text>
+
+    <!-- 4. 콘텐츠 정책 -->
+    <rect x="730" y="152" width="180" height="58" rx="10" fill="var(--mal-violet)" fill-opacity="0.14" stroke="var(--mal-violet)" stroke-width="1.8"/>
+    <text x="820" y="176" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mal-violet)">콘텐츠 정책 거부</text>
+    <text x="820" y="196" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">안전 필터에 막힘</text>
+  </g>
+
+  <!-- 대응 -->
+  <g font-size="11">
+    <line x1="135" y1="210" x2="135" y2="250" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.6" marker-end="url(#mal-f1)"/>
+    <line x1="370" y1="210" x2="370" y2="250" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.6" marker-end="url(#mal-f1)"/>
+    <line x1="595" y1="210" x2="595" y2="250" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.6" marker-end="url(#mal-f1)"/>
+    <line x1="820" y1="210" x2="820" y2="250" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.6" marker-end="url(#mal-f1)"/>
+
+    <rect x="40" y="252" width="190" height="64" rx="10" fill="var(--mal-emerald)" fill-opacity="0.12" stroke="var(--mal-emerald)" stroke-width="1.8"/>
+    <text x="135" y="276" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--mal-emerald)">먼저 재시도</text>
+    <text x="135" y="296" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">num_retries</text>
+    <text x="135" y="310" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">(백오프 후)</text>
+
+    <rect x="280" y="252" width="180" height="64" rx="10" fill="var(--mal-emerald)" fill-opacity="0.12" stroke="var(--mal-emerald)" stroke-width="1.8"/>
+    <text x="370" y="276" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--mal-emerald)">일반 폴백</text>
+    <text x="370" y="296" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">fallbacks</text>
+    <text x="370" y="310" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">→ 다른 프로바이더</text>
+
+    <rect x="500" y="252" width="190" height="64" rx="10" fill="var(--mal-emerald)" fill-opacity="0.12" stroke="var(--mal-emerald)" stroke-width="1.8"/>
+    <text x="595" y="276" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--mal-emerald)">큰 컨텍스트 폴백</text>
+    <text x="595" y="296" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">context_window_</text>
+    <text x="595" y="310" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">fallbacks</text>
+
+    <rect x="730" y="252" width="180" height="64" rx="10" fill="var(--mal-emerald)" fill-opacity="0.12" stroke="var(--mal-emerald)" stroke-width="1.8"/>
+    <text x="820" y="276" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--mal-emerald)">정책 폴백</text>
+    <text x="820" y="296" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">content_policy_</text>
+    <text x="820" y="310" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">fallbacks</text>
+  </g>
+  <text x="470" y="352" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.65">실패 종류마다 대응이 다르다 — "무조건 다른 모델로"가 항상 정답은 아니다.</text>
+</svg><figcaption>LiteLLM은 오류 종류별로 폴백 목록을 따로 둔다. 일시 오류는 재시도, 컨텍스트 초과는 더 큰 모델로, 정책 거부는 다른 모델로.</figcaption></figure>
+
+<p>LiteLLM 프록시에서는 이 정책을 <code>router_settings</code> 아래에 적습니다. 키 이름이 곧 위 그림의 분기와 일대일로 대응합니다.</p>
+
+{{< highlight yaml >}}
+router_settings:
+  num_retries: 2                 # 폴백 전에 같은 모델을 2번까지 재시도(지수 백오프)
+  timeout: 30                    # 한 호출당 최대 대기 시간(초)
+
+  # 1) 일반 폴백: chat-primary가 실패하면 순서대로 시도
+  fallbacks:
+    - {"chat-primary": ["chat-backup", "chat-last-resort"]}
+
+  # 2) 입력이 컨텍스트 창을 넘으면 → 더 큰 창을 가진 모델로
+  context_window_fallbacks:
+    - {"chat-primary": ["chat-bigctx"]}
+
+  # 3) 안전 필터에 막히면 → 정책이 다른 모델로
+  content_policy_fallbacks:
+    - {"chat-primary": ["chat-backup"]}
+{{< /highlight >}}
+
+<p>동작 순서는 이렇습니다. 먼저 1차 모델을 <code>num_retries</code>만큼 재시도합니다(일시적인 <code>429</code>·<code>5xx</code>는 잠깐 기다리면 풀릴 때가 많으니까요). 그래도 안 되면 오류 종류를 보고 알맞은 폴백 목록의 다음 모델로 넘어갑니다. <code>ContextWindowExceededError</code>면 <code>context_window_fallbacks</code>를, 콘텐츠 정책 거부면 <code>content_policy_fallbacks</code>를, 그 외 일반 실패는 <code>fallbacks</code>를 탑니다.</p>
+
+<div class="mal-note">
+  <strong>왜 굳이 나눌까?</strong> 폴백을 하나로 뭉뚱그리면 비효율이 생깁니다. 입력이 길어서 난 오류인데 같은 길이를 다른 일반 모델에 보내면 또 <code>ContextWindowExceeded</code>가 납니다. 재시도·폴백을 헛돌게 만들 뿐이죠. "이 실패에는 이 대응"을 분리하는 게 폴백 설계의 핵심입니다.
+</div>
+
+<hr>
+
+<h2 id="sec-5">5. 함정: 테스트 안 한 폴백은 폴백이 아니다</h2>
+
+<p>여기서 초보가 가장 많이 빠지는 함정을 짚겠습니다. 폴백을 걸어 두면 마음이 놓입니다. "1차가 죽어도 2차가 받아주겠지." 그런데 <strong>한 번도 검증한 적 없는 2차 모델은 사실 폴백이 아닙니다.</strong> 정작 1차가 죽는 위기의 순간에, 2차가 프롬프트를 엉뚱하게 해석하거나 도구 호출 형식을 못 맞춰서 더 큰 사고를 낼 수 있거든요.</p>
+
+<p>모델마다 같은 프롬프트에 다르게 반응합니다. 시스템 프롬프트를 따르는 정도, JSON을 정확히 뱉는 능력, 도구 호출(tool calling) 형식, 거절하는 성향이 다 다릅니다. 그래서 "갈아탈 수 있는 상태"를 만들려면 <strong>평가(eval)로 폴백을 미리 검증</strong>해야 합니다. 이것이 <strong>모델-애그노스틱 평가(model-agnostic eval)</strong>입니다.</p>
+
+<p>방법은 단순합니다. 내 작업을 대표하는 입력·기대출력 묶음, 즉 <strong>골든 데이터셋(golden dataset)</strong>을 만들어 두고, <em>똑같은 평가</em>를 1차 모델과 폴백 후보에 각각 돌려 점수를 비교합니다. 폴백 후보가 합격선을 넘으면 그제야 "production-ready" 도장을 찍는 거죠.</p>
+
+{{< highlight python >}}
+# 같은 평가 세트를 여러 모델에 똑같이 돌려 비교한다
+from litellm import completion
+
+CANDIDATES = ["openai/gpt-5.1", "anthropic/claude-opus-4-8"]   # 1차와 폴백 후보
+
+# golden: [{"input": ..., "check": <합격 판정 함수>}, ...]  — 내 작업을 대표하는 예시들
+def run_eval(model, golden):
+    passed = 0
+    for case in golden:
+        out = completion(model=model,
+                         messages=[{"role": "user", "content": case["input"]}])
+        text = out.choices[0].message.content
+        if case["check"](text):     # 정답 포함? 형식 맞음? JSON 파싱됨? 등
+            passed += 1
+    return passed / len(golden)     # 합격률
+
+for m in CANDIDATES:
+    score = run_eval(m, golden)
+    print(f"{m:32s} 합격률 {score:.1%}")
+    # 폴백 후보가 합격선(예: 0.9) 미만이면 → 아직 폴백으로 쓰면 안 된다
+{{< /highlight >}}
+
+<p><code>check</code> 함수는 작업에 맞게 정합니다. "정답 키워드가 들어 있나", "JSON으로 파싱되나", "필수 필드가 있나" 같은 규칙 기반이면 가장 싸고 안정적입니다. 더 주관적인 품질(말투·정확성)을 볼 때는 다른 LLM에게 채점을 맡기는 <strong>LLM-as-a-judge</strong> 방식을 씁니다. 다만 여기에 함정이 하나 더 있습니다.</p>
+
+<div class="mal-warn">
+  <strong>판정 모델(judge)도 모델이다.</strong> LLM-as-a-judge로 채점한다면, 채점하는 모델 버전을 <strong>고정(pin)</strong>해야 합니다. 어느 날 판정 모델이 조용히 업데이트되면, 코드는 그대로인데 점수만 들썩여 "성능이 떨어졌다"는 착각을 부릅니다. 판정 모델을 바꿀 때는 <em>캘리브레이션 세트</em>(정답을 아는 묶음)로 점수 차이를 먼저 재고, 그 교체를 "평가 스위트 마이그레이션"으로 신중히 다뤄야 합니다.
+</div>
+
+<p>핵심 원칙은 이겁니다. <strong>"내 폴백은 검증됐는가?"에 숫자로 답할 수 없다면, 그건 폴백이 아니라 희망입니다.</strong></p>
+
+<hr>
+
+<h2 id="sec-6">6. 관측: 프로바이더를 공정하게 비교하기</h2>
+
+<p>모델을 갈아탈 수 있으려면, 갈아탔을 때 무슨 일이 벌어지는지 <strong>같은 잣대로</strong> 봐야 합니다. 그런데 프로바이더마다 응답 로그 형식이 제각각이면 비교가 안 됩니다. 그래서 2026년의 사실상 표준이 된 것이 <strong>OpenTelemetry GenAI 시맨틱 컨벤션</strong>입니다.</p>
+
+<p>OpenTelemetry(OTel)는 원래 일반 소프트웨어의 로그·트레이스·메트릭을 표준화한 CNCF 프로젝트입니다. 여기에 LLM용 규약이 추가됐는데, <code>gen_ai.*</code>라는 통일된 속성 이름으로 <strong>요청 모델·프로바이더·토큰 수·비용·도구 호출·종료 사유</strong> 같은 걸 기록합니다. 어떤 프로바이더를 쓰든 같은 형식으로 남으니, 벤더에 묶이지 않고 공정하게 비교·전환할 수 있습니다.</p>
+
+<div class="mal-note">
+  <strong>알아둘 점.</strong> 2026년 기준 GenAI 시맨틱 컨벤션의 상당수는 아직 <em>experimental</em>(실험) 단계입니다. 그래도 Datadog 같은 주요 관측 도구가 네이티브로 지원하기 시작했고, OTLP를 받는 백엔드(Langfuse·Phoenix·Honeycomb 등)면 어디로든 보낼 수 있습니다. 한 번 OTel로 계측해 두면 관측 도구를 갈아탈 때도 코드를 다시 안 짜도 됩니다 — 모델뿐 아니라 <em>관측 벤더</em>에도 묶이지 않는 셈이죠.
+</div>
+
+<p>실무에서 게이트웨이(LiteLLM 등)는 이런 로깅을 대신 해주는 경우가 많습니다. 그러니 직접 계측 코드를 다 짜기보다, 게이트웨이의 로깅·관측 연동 기능을 먼저 켜 보는 걸 권합니다. 폴백이 실제로 몇 번 발동했는지, 어느 모델이 더 싸고 빠른지가 한 대시보드에서 보이기 시작하면, 그때부터 모델 선택이 감이 아니라 데이터가 됩니다.</p>
+
+<hr>
+
+<h2 id="sec-7">7. 무엇을 쓸까 — 선택지 비교</h2>
+
+<p>"모델-애그노스틱 레이어"를 만드는 길은 하나가 아닙니다. 상황에 맞게 고르면 됩니다. 대표 선택지를 정리했습니다.</p>
+
+<table class="mal-tbl">
+  <thead>
+    <tr><th>도구</th><th>형태</th><th>특징</th><th>이럴 때</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>LiteLLM</strong></td>
+      <td>오픈소스 SDK + 셀프호스팅 프록시</td>
+      <td>100+ 프로바이더를 OpenAI 형식으로 통일. 오류 종류별 폴백·재시도·비용추적·로깅. 별 약 5.1만.</td>
+      <td>직접 호스팅하며 통제권을 갖고 싶을 때, 파이썬 백엔드</td>
+    </tr>
+    <tr>
+      <td><strong>OpenRouter</strong></td>
+      <td>호스팅형 통합 API</td>
+      <td>400+ 모델을 단일 API로. 자동 페일오버. 단, <code>fallbacks</code>는 최대 3개까지(초과 시 400 오류), <code>models</code> 파라미터와 동시 사용 불가.</td>
+      <td>인프라 운영 없이 빠르게 여러 모델을 붙이고 싶을 때</td>
+    </tr>
+    <tr>
+      <td><strong>Vercel AI SDK</strong></td>
+      <td>TypeScript 라이브러리(+ AI Gateway)</td>
+      <td><code>generateText</code> 등이 어떤 프로바이더 모델 인스턴스든 받음. 모델 파라미터만 바꾸면 코드는 그대로. <code>providerOptions</code>로 백업 모델 배열 지정.</td>
+      <td>TypeScript/Next.js 풀스택, 프론트 통합</td>
+    </tr>
+    <tr>
+      <td><strong>Portkey Gateway</strong></td>
+      <td>오픈소스 게이트웨이(MIT)</td>
+      <td>1,600+ 모델 라우팅 + 가드레일 통합. 별 약 1.2만.</td>
+      <td>가드레일·라우팅을 한 게이트웨이에서 함께 두고 싶을 때</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>고르는 기준은 단순합니다. <strong>인프라를 직접 운영할 의지가 있나(셀프호스팅 vs 호스팅), 어떤 언어 생태계인가(파이썬 vs TypeScript), 폴백·가드레일·관측 중 무엇이 가장 급한가.</strong> 무엇을 고르든, 중요한 건 도구 이름이 아니라 "앱과 모델 사이에 경계 한 겹"이라는 패턴 자체입니다.</p>
+
+<hr>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>프롬프트는 모델 간에 그대로 옮겨지지 않는다.</strong> A에 맞춰 튜닝한 프롬프트가 B에선 JSON을 깨거나 도구 호출 형식을 틀릴 수 있습니다. 폴백을 켤 거면 프롬프트도 후보 모델에서 검증하세요(5절).</li>
+  <li><strong>폴백 개수에 제한이 있는 서비스가 있다.</strong> 예컨대 OpenRouter는 <code>fallbacks</code>를 3개까지만 받습니다. "일단 다 넣어두자"가 안 통합니다.</li>
+  <li><strong>재시도 시 이중 청구를 조심하라.</strong> 같은 요청을 재시도·폴백하면 결제가 두 번 될 수 있습니다. 게이트웨이가 지원하면 <em>idempotency key</em>(멱등 키)를 붙여 같은 요청이 중복 과금되지 않게 하세요.</li>
+  <li><strong>판정 모델 버전을 고정하라.</strong> LLM-as-a-judge를 쓴다면 채점 모델을 pin 하고, 바꿀 땐 캘리브레이션부터(5절).</li>
+  <li><strong>폴백이 발동했다는 사실 자체를 알람으로 띄워라.</strong> 폴백은 "조용히 잘 막아줬다"가 아니라 "1차가 아프다"는 신호입니다. 발동 횟수를 관측(6절)하고 임계치를 넘으면 알림을 받으세요.</li>
+  <li><strong>비용·지연을 모델별로 기록하라.</strong> 폴백 모델이 훨씬 비싸거나 느리면, 장애가 길어질 때 비용 폭탄이나 지연 폭증으로 이어집니다. <code>gen_ai.*</code> 메트릭으로 미리 파악해 두세요.</li>
+  <li><strong>경계를 우회하지 마라.</strong> 급하다고 특정 파일에서 프로바이더 SDK를 직접 부르기 시작하면, 애써 만든 한 겹이 무너집니다. 모델 호출은 무조건 게이트웨이를 통하게 규칙으로 못 박으세요.</li>
+</ul>
+
+<hr>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>모델은 통제 밖 의존성이다.</strong> 단종·제한·장애·가격변화는 "혹시"가 아니라 "언제"의 문제다.</li>
+  <li><strong>앱과 모델 사이에 경계 한 겹을 둬라.</strong> 게이트웨이/프록시(LiteLLM 등)나 프로바이더 추상화(Vercel AI SDK 등)로, 앱은 역할 별칭만 부르게 한다.</li>
+  <li><strong>폴백은 실패 종류별로 나눠라.</strong> 일시 오류는 재시도, 일반 실패는 다른 프로바이더, 컨텍스트 초과는 더 큰 모델, 정책 거부는 정책이 다른 모델로.</li>
+  <li><strong>테스트 안 한 폴백은 폴백이 아니다.</strong> 골든 데이터셋으로 1차와 폴백을 같은 평가에 돌려, 합격선을 넘은 것만 "production-ready"로 인정한다. 판정 모델은 pin 한다.</li>
+  <li><strong>OpenTelemetry GenAI 컨벤션으로 관측하라.</strong> <code>gen_ai.*</code> 표준 속성으로 프로바이더를 공정하게 비교하고, 폴백 발동을 알람으로 본다.</li>
+  <li>도구보다 <strong>패턴</strong>이 본질이다. 무엇을 쓰든 "한 곳에 묶이지 않는다"는 원칙을 지키면, 모델이 사라져도 서비스는 굴러간다.</li>
+</ul>
+
+<hr>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://github.com/BerriAI/litellm" target="_blank" rel="noopener">BerriAI/LiteLLM — GitHub</a> (프로바이더 통합 SDK·프록시, 별 수치 확인)</li>
+  <li><a href="https://docs.litellm.ai/docs/proxy/reliability" target="_blank" rel="noopener">LiteLLM Docs — Fallbacks (reliability)</a> (<code>fallbacks</code>·<code>context_window_fallbacks</code>·<code>content_policy_fallbacks</code>·<code>num_retries</code>)</li>
+  <li><a href="https://deepwiki.com/BerriAI/litellm/7.1-fallbacks-and-retries" target="_blank" rel="noopener">LiteLLM — Fallbacks and Retries (DeepWiki)</a></li>
+  <li><a href="https://openrouter.ai/docs/guides/routing/model-fallbacks" target="_blank" rel="noopener">OpenRouter Docs — Model Fallbacks</a> (폴백 최대 3개 제한 등)</li>
+  <li><a href="https://github.com/Portkey-AI/gateway" target="_blank" rel="noopener">Portkey-AI/Gateway — GitHub</a> (오픈소스 AI 게이트웨이)</li>
+  <li><a href="https://vercel.com/docs/ai-sdk" target="_blank" rel="noopener">Vercel AI SDK — Docs</a> / <a href="https://ai-sdk.dev/docs/ai-sdk-core/provider-management" target="_blank" rel="noopener">Provider &amp; Model Management</a></li>
+  <li><a href="https://code.claude.com/docs/en/changelog" target="_blank" rel="noopener">Claude Code Changelog</a> (v2.1.187 — 조직 지정 모델 제한, 도입 배경)</li>
+  <li><a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/" target="_blank" rel="noopener">OpenTelemetry — GenAI Semantic Conventions</a> (<code>gen_ai.*</code> 속성 표준)</li>
+  <li><a href="https://www.datadoghq.com/blog/llm-otel-semantic-convention/" target="_blank" rel="noopener">Datadog — Native support for OTel GenAI Semantic Conventions</a></li>
+  <li><a href="https://www.langchain.com/state-of-agent-engineering" target="_blank" rel="noopener">LangChain — State of Agent Engineering 2026</a> (평가·관측이 프로덕션 1순위 장벽)</li>
+</ul>

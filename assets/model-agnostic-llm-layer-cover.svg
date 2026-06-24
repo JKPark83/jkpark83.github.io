@@ -1,0 +1,54 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="내 앱이 게이트웨이 한 겹을 거쳐 여러 모델 프로바이더에 연결되고, 막힌 모델 대신 폴백 모델로 트래픽이 우회하는 표지">
+  <defs>
+    <linearGradient id="mal-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <marker id="mal-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a5b4fc"/>
+    </marker>
+    <marker id="mal-arx" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fb7185"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mal-bg)"/>
+
+  <!-- 내 앱 -->
+  <rect x="70" y="255" width="190" height="120" rx="18" fill="#6366f1" fill-opacity="0.18" stroke="#818cf8" stroke-width="2.5"/>
+  <text x="165" y="305" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="800" fill="#c7d2fe">내 앱</text>
+  <text x="165" y="340" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5b4fc" opacity="0.85">한 줄만 바꾼다</text>
+
+  <!-- 게이트웨이 경계 -->
+  <rect x="430" y="215" width="200" height="200" rx="22" fill="#06b6d4" fill-opacity="0.16" stroke="#22d3ee" stroke-width="3"/>
+  <text x="530" y="290" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="800" fill="#67e8f9">LLM</text>
+  <text x="530" y="328" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="800" fill="#67e8f9">게이트웨이</text>
+  <text x="530" y="368" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#a5f3fc" opacity="0.9">라우팅 · 폴백 · 로깅</text>
+
+  <line x1="262" y1="315" x2="424" y2="315" stroke="#a5b4fc" stroke-width="3.5" marker-end="url(#mal-ar)"/>
+
+  <!-- 프로바이더 3개 -->
+  <!-- 1차 (막힘) -->
+  <rect x="830" y="120" width="290" height="86" rx="16" fill="#f43f5e" fill-opacity="0.14" stroke="#fb7185" stroke-width="2.5" stroke-dasharray="9 7"/>
+  <text x="975" y="155" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#fda4af">1차 모델</text>
+  <text x="975" y="184" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#fda4af" opacity="0.9">제한 · 다운 · 429</text>
+  <line x1="888" y1="130" x2="1062" y2="196" stroke="#fb7185" stroke-width="3"/>
+  <line x1="1062" y1="130" x2="888" y2="196" stroke="#fb7185" stroke-width="3"/>
+
+  <line x1="636" y1="290" x2="824" y2="180" stroke="#fb7185" stroke-width="3" stroke-dasharray="7 6" marker-end="url(#mal-arx)"/>
+
+  <!-- 2차 폴백 (성공) -->
+  <rect x="830" y="272" width="290" height="86" rx="16" fill="#10b981" fill-opacity="0.16" stroke="#34d399" stroke-width="3"/>
+  <text x="975" y="307" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="800" fill="#6ee7b7">2차 폴백 모델</text>
+  <text x="975" y="336" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#6ee7b7" opacity="0.95">평가로 검증 완료 ✓</text>
+  <line x1="636" y1="320" x2="824" y2="315" stroke="#34d399" stroke-width="4" marker-end="url(#mal-ar)"/>
+
+  <!-- 3차 -->
+  <rect x="830" y="424" width="290" height="86" rx="16" fill="#64748b" fill-opacity="0.16" stroke="#94a3b8" stroke-width="2.5"/>
+  <text x="975" y="459" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#cbd5e1">3차 폴백 모델</text>
+  <text x="975" y="488" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#cbd5e1" opacity="0.9">최후의 보루</text>
+  <line x1="636" y1="350" x2="824" y2="455" stroke="#94a3b8" stroke-width="2.5" stroke-dasharray="6 6" marker-end="url(#mal-ar)"/>
+
+  <!-- 타이틀 -->
+  <text x="70" y="86" font-family="sans-serif" font-size="40" font-weight="900" fill="#f1f5f9">모델은 언제든 사라진다</text>
+  <text x="70" y="560" font-family="sans-serif" font-size="22" font-weight="600" fill="#a5b4fc">한 곳에 묶이지 않는 LLM 레이어 — 게이트웨이 · 폴백 · 모델-애그노스틱 평가</text>
+</svg>

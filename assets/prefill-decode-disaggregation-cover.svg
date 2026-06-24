@@ -1,0 +1,63 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="요청이 들어오면 프리필 GPU 풀이 입력을 한꺼번에 처리해 KV 캐시를 만들고, 그 KV 캐시를 네트워크로 디코드 GPU 풀에 넘기면 디코드가 토큰을 하나씩 생성하는 PD 분리 구조 표지">
+  <defs>
+    <linearGradient id="pdd-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#0f2238"/>
+    </linearGradient>
+    <linearGradient id="pdd-pre" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="pdd-dec" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+    <marker id="pdd-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a5f3fc"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#pdd-bg)"/>
+
+  <text x="600" y="92" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="46" font-weight="800">프리필과 디코드는 사이가 나쁘다</text>
+  <text x="600" y="138" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="25" font-weight="500">한 GPU에 둘을 묶으면 서로를 방해한다 — 그래서 갈라놓는다 (PD 분리)</text>
+
+  <!-- 요청 -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="70" y="300" width="120" height="72" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="130" y="332" text-anchor="middle" fill="#e2e8f0" font-size="20" font-weight="700">요청</text>
+    <text x="130" y="357" text-anchor="middle" fill="#94a3b8" font-size="15">prompt</text>
+  </g>
+  <line x1="190" y1="336" x2="318" y2="336" stroke="#64748b" stroke-width="2.5" marker-end="url(#pdd-ar)"/>
+
+  <!-- 프리필 풀 -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="330" y="232" width="300" height="208" rx="18" fill="#1e293b" stroke="url(#pdd-pre)" stroke-width="2.5"/>
+    <text x="480" y="272" text-anchor="middle" fill="#fbbf24" font-size="25" font-weight="800">프리필 GPU 풀</text>
+    <text x="480" y="300" text-anchor="middle" fill="#cbd5e1" font-size="16">입력을 한꺼번에 처리 · 연산 집약</text>
+    <rect x="356" y="320" width="112" height="44" rx="8" fill="#7c2d12" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="412" y="348" text-anchor="middle" fill="#fde68a" font-size="16" font-weight="700">GPU</text>
+    <rect x="492" y="320" width="112" height="44" rx="8" fill="#7c2d12" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="548" y="348" text-anchor="middle" fill="#fde68a" font-size="16" font-weight="700">GPU</text>
+    <text x="480" y="408" text-anchor="middle" fill="#fca5a5" font-size="15">→ KV 캐시 생성</text>
+  </g>
+
+  <!-- KV 전송 -->
+  <line x1="630" y1="336" x2="768" y2="336" stroke="#a5f3fc" stroke-width="3" marker-end="url(#pdd-ar)"/>
+  <text x="699" y="318" text-anchor="middle" fill="#a5f3fc" font-family="system-ui,sans-serif" font-size="15" font-weight="700">KV 캐시</text>
+  <text x="699" y="364" text-anchor="middle" fill="#7dd3fc" font-family="system-ui,sans-serif" font-size="13">네트워크 전송</text>
+
+  <!-- 디코드 풀 -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="780" y="232" width="300" height="208" rx="18" fill="#1e293b" stroke="url(#pdd-dec)" stroke-width="2.5"/>
+    <text x="930" y="272" text-anchor="middle" fill="#22d3ee" font-size="25" font-weight="800">디코드 GPU 풀</text>
+    <text x="930" y="300" text-anchor="middle" fill="#cbd5e1" font-size="16">토큰 1개씩 생성 · 메모리 집약</text>
+    <rect x="806" y="320" width="112" height="44" rx="8" fill="#164e63" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="862" y="348" text-anchor="middle" fill="#a5f3fc" font-size="16" font-weight="700">GPU</text>
+    <rect x="942" y="320" width="112" height="44" rx="8" fill="#164e63" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="998" y="348" text-anchor="middle" fill="#a5f3fc" font-size="16" font-weight="700">GPU</text>
+    <text x="930" y="408" text-anchor="middle" fill="#67e8f9" font-size="15">→ 토큰 스트리밍</text>
+  </g>
+
+  <text x="600" y="548" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="17">TTFT는 프리필이, 토큰 간 지연(TPOT)은 디코드가 따로 책임진다</text>
+</svg>

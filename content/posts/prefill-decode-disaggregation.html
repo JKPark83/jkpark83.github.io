@@ -1,0 +1,392 @@
+---
+title: "프리필과 디코드는 사이가 나쁘다: LLM 추론 서빙을 가르는 'PD 분리' 기초부터 실전까지"
+date: 2026-06-25T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM", "추론 서빙", "PD 분리", "vLLM", "SGLang", "KV 캐시", "Inference"]
+categories: ["AI 엔지니어링"]
+summary: "같은 GPU 위에서 입력을 읽는 '프리필'과 답을 뱉는 '디코드'는 서로를 방해합니다. 하나는 연산이 모자라 허덕이고, 다른 하나는 메모리 대역폭이 모자라 허덕이는데, 한 묶음으로 돌리면 둘 다 손해입니다. 그래서 2026년 추론 서빙의 표준이 된 것이 둘을 다른 GPU로 갈라놓는 'PD 분리(prefill-decode disaggregation)'입니다. 왜 둘이 사이가 나쁜지, 갈라놓으면 왜 빨라지는지, vLLM·SGLang으로 어떻게 띄우는지, 그리고 언제는 오히려 손해인지까지 주니어 개발자도 따라올 수 있게 정리합니다."
+ShowToc: false
+cover:
+  image: "prefill-decode-disaggregation-cover.svg"
+  alt: "프리필 GPU 풀이 입력을 한꺼번에 처리해 KV 캐시를 만들고, 그 KV 캐시를 네트워크로 디코드 GPU 풀에 넘기면 디코드가 토큰을 하나씩 생성하는 PD 분리 구조"
+  caption: "프리필과 디코드는 성격이 정반대다 — 그래서 같은 GPU에 묶지 않고 갈라놓는다"
+  relative: false
+---
+
+<style>
+/* ── Prefill-Decode Disaggregation 포스트 전용 스타일 (pdd- 접두사) ── */
+.pdd-fig{
+  --pdd-pre:#d97706; --pdd-dec:#0891b2; --pdd-indigo:#6366f1;
+  --pdd-rose:#f43f5e; --pdd-emerald:#10b981; --pdd-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .pdd-fig{
+  --pdd-pre:#fbbf24; --pdd-dec:#22d3ee; --pdd-indigo:#818cf8;
+  --pdd-rose:#fb7185; --pdd-emerald:#34d399; --pdd-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .pdd-fig{
+    --pdd-pre:#fbbf24; --pdd-dec:#22d3ee; --pdd-indigo:#818cf8;
+    --pdd-rose:#fb7185; --pdd-emerald:#34d399; --pdd-slate:#94a3b8;
+  }
+}
+.pdd-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.pdd-fig text{font-family:inherit}
+.pdd-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.pdd-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.pdd-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.pdd-toc ol{margin:0;padding-left:1.25rem}
+.pdd-toc li{margin:.22rem 0;font-size:.95rem}
+.pdd-toc a{text-decoration:none}
+.pdd-toc a:hover{text-decoration:underline}
+.pdd-pull{font-size:1.12rem;line-height:1.72}
+.pdd-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.pdd-note{border-left:4px solid var(--pdd-indigo,#6366f1);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.pdd-note strong{color:var(--pdd-indigo,#6366f1)}
+.pdd-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.95rem}
+.pdd-tbl th,.pdd-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.pdd-tbl th{background:var(--entry);font-weight:700}
+</style>
+
+<blockquote class="pdd-pull">
+  <p>학습이 끝난 모델을 실제 서비스에 올리면, 진짜 돈이 새는 곳은 학습이 아니라 <strong>추론(inference)</strong>입니다. 사용자가 메시지를 보낼 때마다 GPU가 돌고, 그 GPU는 비쌉니다.</p>
+  <footer>— 그래서 "같은 GPU로 몇 명을 더 받을 수 있는가"가 곧 비용입니다. PD 분리는 그 숫자를 끌어올리는, 2026년 서빙의 표준 기술입니다.</footer>
+</blockquote>
+
+<p>요즘 LLM API를 쓰다 보면 두 가지 지연(latency)을 자주 마주칩니다. 하나는 <strong>"엔터를 치고 첫 글자가 뜰 때까지"</strong> 기다리는 시간, 다른 하나는 <strong>"그다음부터 글자가 또르르 흘러나오는 속도"</strong>입니다. 첫 글자는 금방 떴는데 그 뒤가 답답하게 끊기거나, 반대로 첫 글자가 한참 안 뜨는 경험, 한 번쯤 해 보셨을 겁니다.</p>
+
+<p>이 두 지연은 사실 <strong>완전히 다른 두 작업</strong>에서 나옵니다. 그리고 이 둘을 같은 GPU 위에 한 묶음으로 올려 두면 서로의 발목을 잡습니다. 2026년 들어 vLLM·SGLang·TensorRT-LLM·NVIDIA Dynamo 같은 주요 서빙 프레임워크가 약속이라도 한 듯 채택한 해법이 바로 둘을 갈라놓는 <strong>PD 분리(prefill-decode disaggregation)</strong>입니다. DeepSeek 같은 곳은 이미 프로덕션 규모로 돌리고 있고요. 이번 주에도 "이게 항상 이득이냐"를 두고 새 논문과 가이드가 쏟아질 만큼 실무의 뜨거운 주제입니다.</p>
+
+<p>이 글은 그 PD 분리를 <strong>기초부터 실전까지</strong> 한 바퀴 돕니다. GPU 인프라를 깊이 안 다뤄 본 주니어 개발자도 따라올 수 있게, 비유와 그림부터 시작하겠습니다.</p>
+
+<nav class="pdd-toc">
+  <div class="pdd-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">LLM은 답을 두 단계로 만든다 — 프리필과 디코드</a></li>
+    <li><a href="#sec-2">왜 둘은 성격이 정반대인가 — 연산 집약 vs 메모리 집약</a></li>
+    <li><a href="#sec-3">한 GPU에 묶으면 생기는 문제 — 간섭</a></li>
+    <li><a href="#sec-4">해법: 둘을 갈라놓는다 — PD 분리</a></li>
+    <li><a href="#sec-5">요청이 흐르는 길 — 작동 원리</a></li>
+    <li><a href="#sec-6">숫자로 보는 효과 — goodput</a></li>
+    <li><a href="#sec-7">실전: SGLang으로 직접 띄워 보기</a></li>
+    <li><a href="#sec-8">항상 이득은 아니다 — 언제 쓰면 안 되나</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. LLM은 답을 두 단계로 만든다 — 프리필과 디코드</h2>
+
+<p>LLM이 답을 만드는 과정은 사실 <strong>두 단계</strong>로 나뉩니다. 이걸 구분하는 게 이 글 전체의 출발점입니다.</p>
+
+<p><strong>1) 프리필(prefill) — 입력을 읽는 단계.</strong> 사용자가 보낸 프롬프트(예: 2,000토큰짜리 질문) 전체를 모델에 한 번에 통과시킵니다. 이때 모델은 입력 토큰들에 대한 내부 상태, 즉 <strong>KV 캐시(KV cache)</strong>를 만들어 둡니다. KV 캐시는 "이 입력을 이미 다 읽었다"는 계산 결과를 저장해 둔 메모장이라고 보면 됩니다. 이 단계가 끝나는 순간 <strong>첫 토큰</strong>이 나옵니다.</p>
+
+<p><strong>2) 디코드(decode) — 답을 한 글자씩 뱉는 단계.</strong> 첫 토큰이 나온 뒤로는, 모델이 <strong>토큰을 한 개 만들고 → 그걸 다시 입력에 붙여 → 다음 한 개를 만들고</strong>를 반복합니다. 한 스텝에 딱 한 토큰씩, 답이 끝날 때까지요. 이때마다 앞서 만들어 둔 KV 캐시를 계속 읽어 씁니다.</p>
+
+<p>이 두 단계는 우리가 체감하는 두 지표와 그대로 연결됩니다.</p>
+
+<ul>
+  <li><strong>TTFT</strong>(Time To First Token, 첫 토큰까지 시간): 프리필이 끝나야 첫 토큰이 나오니, <strong>TTFT는 프리필이 책임</strong>집니다. "엔터 치고 첫 글자 뜰 때까지".</li>
+  <li><strong>TPOT</strong>(Time Per Output Token, 토큰당 시간) 또는 <strong>ITL</strong>(Inter-Token Latency, 토큰 간 지연): 디코드가 한 토큰을 만드는 간격이니, <strong>TPOT는 디코드가 책임</strong>집니다. "그 뒤로 글자가 흘러나오는 속도".</li>
+</ul>
+
+<div class="pdd-note">
+  <p><strong>왜 중요한가:</strong> 서비스마다 둘 중 무엇이 더 중요한지가 다릅니다. 챗봇은 첫 글자가 빨리 떠야 사용자가 안심하니 <strong>TTFT</strong>가 중요하고, 긴 문서를 생성하는 작업은 <strong>TPOT</strong>(생성 속도)가 더 중요합니다. PD 분리의 핵심 동기가 바로 "이 둘을 따로 최적화하고 싶다"는 데서 출발합니다.</p>
+</div>
+
+<p>코드로 보면 두 단계의 모양 차이가 더 분명합니다. 아래는 실제 서빙 엔진이 아니라, 흐름만 보여 주는 의사 코드입니다.</p>
+
+{{< highlight python >}}
+# 1) 프리필: 입력 전체를 '한 번에' 통과시켜 KV 캐시를 만든다
+kv_cache = model.prefill(prompt_tokens)      # 예: 2,000토큰을 병렬로 처리
+first_token = model.first_token(kv_cache)    # 이 순간이 TTFT
+
+# 2) 디코드: 한 토큰씩, 끝날 때까지 반복 (한 스텝 = 한 토큰)
+token = first_token
+output = [token]
+while token != EOS:                          # 답이 끝날 때까지
+    # 직전까지의 KV 캐시를 읽어 '딱 한 토큰'만 새로 계산한다
+    token, kv_cache = model.decode_step(token, kv_cache)  # 매 스텝 간격이 TPOT
+    output.append(token)
+{{< /highlight >}}
+
+<p>여기서 핵심은 모양의 차이입니다. <strong>프리필은 2,000토큰을 한 번에</strong> 처리하는 큼직한 행렬 연산 한 방이고, <strong>디코드는 1토큰씩 수백 번</strong> 반복하는 잔손질입니다. 이 모양 차이가 다음 절의 모든 것을 결정합니다.</p>
+
+<h2 id="sec-2">2. 왜 둘은 성격이 정반대인가 — 연산 집약 vs 메모리 집약</h2>
+
+<p>GPU의 성능은 크게 두 자원으로 갈립니다. <strong>연산 능력</strong>(초당 곱셈·덧셈을 얼마나 하나, FLOPs)과 <strong>메모리 대역폭</strong>(GPU 안의 고속 메모리 HBM에서 데이터를 초당 얼마나 빨리 읽어 오나)입니다. 작업이 둘 중 무엇에 먼저 막히느냐로 성격이 갈립니다.</p>
+
+<p><strong>프리필은 연산 집약(compute-bound)입니다.</strong> 입력 2,000토큰을 한꺼번에 큰 행렬로 곱하니, GPU의 연산 유닛이 꽉 찹니다. 토큰이 많을수록 계산량이 쭉쭉 늘어, GPU가 "계산하느라" 바쁩니다.</p>
+
+<p><strong>디코드는 메모리 집약(memory-bound)입니다.</strong> 한 스텝에 토큰 딱 1개만 계산하니 연산량 자체는 작습니다. 그런데 그 1토큰을 만들려고 <strong>모델 가중치 전체와 그동안 쌓인 KV 캐시를 매번 메모리에서 읽어</strong> 와야 합니다. 계산은 금방인데 데이터 읽어 오는 시간이 발목을 잡습니다. GPU의 연산 유닛은 한가한데 메모리 통로가 막혀 있는, 말하자면 "공장은 노는데 컨베이어벨트만 꽉 찬" 상태입니다.</p>
+
+<figure class="pdd-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="프리필은 연산 유닛이 꽉 차고 메모리 대역폭은 여유가 있는 연산 집약 작업이고, 디코드는 메모리 대역폭이 꽉 차고 연산 유닛은 한가한 메모리 집약 작업임을 막대로 비교한 그림">
+  <text x="190" y="34" text-anchor="middle" font-size="20" font-weight="800" fill="var(--pdd-pre)">프리필 (입력 읽기)</text>
+  <text x="190" y="58" text-anchor="middle" font-size="14" fill="var(--pdd-slate)">연산 집약 · TTFT를 결정</text>
+
+  <text x="80" y="108" font-size="13" fill="var(--pdd-slate)">연산 유닛</text>
+  <rect x="80" y="116" width="220" height="26" rx="6" fill="#1e293b" stroke="var(--pdd-slate)" stroke-width="1"/>
+  <rect x="80" y="116" width="205" height="26" rx="6" fill="var(--pdd-pre)"/>
+  <text x="312" y="135" font-size="13" font-weight="700" fill="var(--pdd-pre)">꽉 참</text>
+
+  <text x="80" y="178" font-size="13" fill="var(--pdd-slate)">메모리 대역폭</text>
+  <rect x="80" y="186" width="220" height="26" rx="6" fill="#1e293b" stroke="var(--pdd-slate)" stroke-width="1"/>
+  <rect x="80" y="186" width="80" height="26" rx="6" fill="#475569"/>
+  <text x="170" y="205" font-size="13" fill="var(--pdd-slate)">여유</text>
+
+  <line x1="380" y1="80" x2="380" y2="250" stroke="var(--pdd-slate)" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <text x="570" y="34" text-anchor="middle" font-size="20" font-weight="800" fill="var(--pdd-dec)">디코드 (답 생성)</text>
+  <text x="570" y="58" text-anchor="middle" font-size="14" fill="var(--pdd-slate)">메모리 집약 · TPOT를 결정</text>
+
+  <text x="430" y="108" font-size="13" fill="var(--pdd-slate)">연산 유닛</text>
+  <rect x="430" y="116" width="220" height="26" rx="6" fill="#1e293b" stroke="var(--pdd-slate)" stroke-width="1"/>
+  <rect x="430" y="116" width="70" height="26" rx="6" fill="#475569"/>
+  <text x="510" y="135" font-size="13" fill="var(--pdd-slate)">한가</text>
+
+  <text x="430" y="178" font-size="13" fill="var(--pdd-slate)">메모리 대역폭</text>
+  <rect x="430" y="186" width="220" height="26" rx="6" fill="#1e293b" stroke="var(--pdd-slate)" stroke-width="1"/>
+  <rect x="430" y="186" width="210" height="26" rx="6" fill="var(--pdd-dec)"/>
+  <text x="662" y="205" font-size="13" font-weight="700" fill="var(--pdd-dec)">꽉 참</text>
+
+  <text x="380" y="282" text-anchor="middle" font-size="14" fill="var(--pdd-slate)">→ 막히는 자원이 정반대다. 좋아하는 GPU 설정도, 좋아하는 배치 크기도 다르다.</text>
+</svg>
+<figcaption>프리필과 디코드는 병목 자원이 정반대다 — 그래서 둘을 한 GPU에 묶으면 어느 쪽도 제대로 못 쓴다.</figcaption>
+</figure>
+
+<p>병목이 정반대라는 건, <strong>좋아하는 하드웨어 설정도 다르다</strong>는 뜻입니다. 프리필은 연산 빠른 GPU에서, 디코드는 메모리 대역폭 크고 KV 캐시 담을 공간 넉넉한 GPU에서 잘 돕니다. 병렬화(parallelism) 전략이나 배치 크기도 둘이 선호하는 값이 다릅니다.</p>
+
+<h2 id="sec-3">3. 한 GPU에 묶으면 생기는 문제 — 간섭</h2>
+
+<p>전통적인 서빙은 두 단계를 <strong>같은 GPU에 같이 올려(co-located)</strong> 돌립니다. 들어오는 요청들의 프리필과 디코드를 한 배치(batch)에 섞어서요. 문제는 여기서 터집니다.</p>
+
+<p>긴 프롬프트의 프리필이 한 번 끼어들면, GPU의 연산 유닛을 통째로 오래 점유합니다. 그동안 같은 GPU에서 <strong>토큰을 한 개씩 흘려보내던 다른 요청들의 디코드가 멈춰</strong> 섭니다. 사용자 입장에선 잘 나오던 글자가 갑자기 뚝 끊기는 거죠. 이게 <strong>프리필-디코드 간섭(interference)</strong>입니다.</p>
+
+<p>비유하자면, 좁은 주방에서 한 요리사가 <strong>"대량 손질"(프리필)</strong>과 <strong>"접시에 한 점씩 플레이팅"(디코드)</strong>을 동시에 하는 셈입니다. 큰 재료를 손질하느라 도마를 점령하면, 한 점씩 담아 내보내야 할 접시들이 줄줄이 밀립니다. 게다가 두 작업을 한 묶음으로 묶어 두니, GPU 개수나 병렬화 같은 자원 배분도 <strong>둘에 동시에 최적인 값으로 타협</strong>할 수밖에 없습니다. 어느 쪽도 100% 만족하지 못합니다.</p>
+
+<div class="pdd-note">
+  <p><strong>먼저 나온 완충책, 청크 프리필(chunked prefill):</strong> "긴 프리필을 작은 조각으로 잘라, 디코드 사이사이에 끼워 넣자"는 기법입니다. 한 GPU 안에서 간섭을 줄여 주고, 대부분의 배포에서 <strong>가장 먼저 시도할 만한 첫 수</strong>입니다. 다만 조각을 키우면 TTFT는 좋아지지만 간섭이 늘어 TPOT가 나빠지는 <strong>맞교환</strong>이 남습니다. 한 GPU 안에서의 타협이라는 한계는 여전한 거죠. PD 분리는 한 발 더 나가 <strong>아예 GPU를 갈라</strong> 그 타협 자체를 없앱니다.</p>
+</div>
+
+<h2 id="sec-4">4. 해법: 둘을 갈라놓는다 — PD 분리</h2>
+
+<p>아이디어는 한 문장입니다. <strong>프리필 전용 GPU 풀과 디코드 전용 GPU 풀을 따로 두자.</strong> 주방을 둘로 나눠, 한쪽은 손질만 하고 다른 쪽은 플레이팅만 하게 하는 겁니다.</p>
+
+<p>이러면 둘이 서로를 방해할 일이 사라집니다. 프리필 풀은 연산에만 집중해 TTFT를 최적화하고, 디코드 풀은 메모리 대역폭에만 집중해 TPOT를 최적화합니다. <strong>각 풀의 GPU 종류·개수·병렬화를 그 단계에 딱 맞게</strong> 따로 정할 수도 있습니다. 트래픽이 프리필 쪽으로 쏠리면 프리필 GPU만 늘리면 되고요.</p>
+
+<p>대신 새 숙제가 하나 생깁니다. 프리필이 만든 <strong>KV 캐시를 디코드 풀로 옮겨</strong> 줘야 합니다. 같은 GPU 안이면 그냥 메모리에 있던 걸 이어 쓰면 되지만, 이제 둘은 다른 기계니까요. 그래서 PD 분리의 성패는 <strong>"KV 캐시를 얼마나 빠르게 넘기느냐"</strong>에 달려 있습니다.</p>
+
+<figure class="pdd-fig">
+<svg viewBox="0 0 760 360" role="img" aria-label="위쪽은 한 GPU에 프리필과 디코드를 함께 올려 긴 프리필이 디코드를 멈추게 하는 간섭 구조이고, 아래쪽은 프리필 풀과 디코드 풀을 나누고 그 사이로 KV 캐시를 전송하는 PD 분리 구조를 비교한 그림">
+  <text x="20" y="30" font-size="15" font-weight="800" fill="var(--pdd-rose)">기존: 한 GPU에 같이 (co-located)</text>
+  <rect x="20" y="44" width="500" height="92" rx="12" fill="#1e293b" stroke="var(--pdd-rose)" stroke-width="1.8"/>
+  <rect x="40" y="64" width="120" height="52" rx="8" fill="#7c2d12" stroke="var(--pdd-pre)" stroke-width="1.2"/>
+  <text x="100" y="86" text-anchor="middle" font-size="13" font-weight="700" fill="var(--pdd-pre)">프리필</text>
+  <text x="100" y="104" text-anchor="middle" font-size="11" fill="#cbd5e1">(긴 작업)</text>
+  <rect x="176" y="64" width="80" height="52" rx="8" fill="#164e63" stroke="var(--pdd-dec)" stroke-width="1.2"/>
+  <text x="216" y="93" text-anchor="middle" font-size="13" font-weight="700" fill="var(--pdd-dec)">디코드</text>
+  <rect x="272" y="64" width="80" height="52" rx="8" fill="#164e63" stroke="var(--pdd-dec)" stroke-width="1.2"/>
+  <text x="312" y="86" text-anchor="middle" font-size="13" font-weight="700" fill="var(--pdd-dec)">디코드</text>
+  <text x="312" y="104" text-anchor="middle" font-size="11" fill="var(--pdd-rose)">⏸ 대기</text>
+  <text x="540" y="82" font-size="13" fill="var(--pdd-rose)">긴 프리필이 끼면</text>
+  <text x="540" y="102" font-size="13" fill="var(--pdd-rose)">디코드가 멈춤 → 간섭</text>
+
+  <line x1="20" y1="170" x2="740" y2="170" stroke="var(--pdd-slate)" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <text x="20" y="206" font-size="15" font-weight="800" fill="var(--pdd-emerald)">PD 분리: 풀을 나누고 KV만 전송</text>
+  <rect x="20" y="222" width="250" height="104" rx="12" fill="#1e293b" stroke="var(--pdd-pre)" stroke-width="1.8"/>
+  <text x="145" y="248" text-anchor="middle" font-size="14" font-weight="800" fill="var(--pdd-pre)">프리필 풀</text>
+  <rect x="44" y="262" width="92" height="46" rx="7" fill="#7c2d12" stroke="var(--pdd-pre)" stroke-width="1"/>
+  <text x="90" y="290" text-anchor="middle" font-size="12" font-weight="700" fill="var(--pdd-pre)">GPU</text>
+  <rect x="154" y="262" width="92" height="46" rx="7" fill="#7c2d12" stroke="var(--pdd-pre)" stroke-width="1"/>
+  <text x="200" y="290" text-anchor="middle" font-size="12" font-weight="700" fill="var(--pdd-pre)">GPU</text>
+
+  <line x1="270" y1="274" x2="488" y2="274" stroke="var(--pdd-dec)" stroke-width="2.5" marker-end="url(#pdd-ar2)"/>
+  <text x="379" y="262" text-anchor="middle" font-size="12" font-weight="700" fill="var(--pdd-dec)">KV 캐시</text>
+  <text x="379" y="294" text-anchor="middle" font-size="11" fill="var(--pdd-slate)">네트워크</text>
+
+  <rect x="490" y="222" width="250" height="104" rx="12" fill="#1e293b" stroke="var(--pdd-dec)" stroke-width="1.8"/>
+  <text x="615" y="248" text-anchor="middle" font-size="14" font-weight="800" fill="var(--pdd-dec)">디코드 풀</text>
+  <rect x="514" y="262" width="92" height="46" rx="7" fill="#164e63" stroke="var(--pdd-dec)" stroke-width="1"/>
+  <text x="560" y="290" text-anchor="middle" font-size="12" font-weight="700" fill="var(--pdd-dec)">GPU</text>
+  <rect x="624" y="262" width="92" height="46" rx="7" fill="#164e63" stroke="var(--pdd-dec)" stroke-width="1"/>
+  <text x="670" y="290" text-anchor="middle" font-size="12" font-weight="700" fill="var(--pdd-dec)">GPU</text>
+
+  <defs>
+    <marker id="pdd-ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--pdd-dec)"/>
+    </marker>
+  </defs>
+</svg>
+<figcaption>둘을 갈라놓으면 간섭이 사라진다. 대신 프리필이 만든 KV 캐시를 네트워크로 디코드 풀에 넘기는 일이 새 과제가 된다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 요청이 흐르는 길 — 작동 원리</h2>
+
+<p>실제 시스템(예: SGLang의 PD 분리)에서 요청 하나가 어떻게 흐르는지 단계로 따라가 보겠습니다. 구성 요소는 세 개입니다. 들어온 요청을 짝지어 주는 <strong>프록시(또는 라우터)</strong>, <strong>프리필 서버</strong>, <strong>디코드 서버</strong>.</p>
+
+<ol>
+  <li><strong>짝짓기.</strong> 요청이 프록시에 도착하면, 부하 분산 규칙에 따라 프리필 서버 하나와 디코드 서버 하나를 골라 짝지어 줍니다.</li>
+  <li><strong>핸드셰이크 &amp; 자리 예약.</strong> 골라진 두 서버가 악수를 나눕니다. 이때 <strong>디코드 서버가 KV 캐시를 받을 자리를 미리 비워(preallocate)</strong> 둡니다. 받을 그릇을 먼저 준비해 두는 셈입니다.</li>
+  <li><strong>프리필 실행.</strong> 디코드가 준비됐다는 신호를 보내면, 프리필 서버가 입력을 통과시켜 KV 캐시를 계산합니다.</li>
+  <li><strong>KV 캐시 전송.</strong> 다 만든 KV 캐시를 디코드 서버로 넘깁니다. 이 전송은 <strong>NIXL</strong>(NVIDIA Inference Xfer Library)이나 <strong>Mooncake</strong> 같은 전용 전송 엔진이 RDMA·NVLink 같은 빠른 통로로 처리합니다. 2026년 기준 vLLM과 NVIDIA Dynamo 모두 NIXL을 표준 전송 수단으로 씁니다.</li>
+  <li><strong>디코드 실행.</strong> KV 캐시를 받은 디코드 서버가 토큰을 한 개씩 생성해 사용자에게 스트리밍합니다.</li>
+</ol>
+
+<div class="pdd-note">
+  <p><strong>여기서 가장 자주 터지는 지점:</strong> 4번 KV 전송입니다. KV 캐시는 의외로 큽니다(모델·길이에 따라 수백 MB~GB급). 통로가 느리면 <strong>디코드 GPU가 캐시를 기다리며 멍하니 노는</strong> 상황이 벌어집니다. 그래서 PD 분리는 사실상 <strong>빠른 인터커넥트(InfiniBand·NVLink·RDMA)를 깐 환경</strong>을 전제로 합니다. 일반 이더넷 한 가닥으로는 분리의 이득이 전송 지연에 다 잡아먹힙니다.</p>
+</div>
+
+<h2 id="sec-6">6. 숫자로 보는 효과 — goodput</h2>
+
+<p>효과를 이야기할 때 단순 "처리량(throughput)"만 보면 함정에 빠집니다. 지연 요구사항을 어긴 응답은 사용자에겐 실패나 마찬가지니까요. 그래서 이 분야는 <strong>goodput</strong>이라는 지표를 씁니다. <strong>"정해진 TTFT·TPOT 기준을 지키면서 처리한, 쓸모 있는 요청량"</strong>이라는 뜻입니다.</p>
+
+<p>PD 분리를 처음 체계적으로 제안한 <strong>DistServe</strong> 논문(arXiv 2401.09670)의 수치가 자주 인용됩니다. 같은 지연 제약(요청의 90% 이상이 기준 통과)을 지키면서, 당시 최고 수준 시스템 대비 <strong>약 4.48배 많은 요청을 처리</strong>하거나, 같은 부하에서 <strong>약 10.2배 더 빡빡한 SLO</strong>를 맞출 수 있었다고 보고합니다.</p>
+
+<figure class="pdd-fig">
+<svg viewBox="0 0 720 220" role="img" aria-label="같은 지연 제약 아래에서 PD 분리가 기존 시스템 대비 약 4.48배 많은 요청을 처리한다는 것을 막대 길이로 비교한 그림">
+  <text x="360" y="28" text-anchor="middle" font-size="15" font-weight="800" fill="var(--pdd-slate)">같은 지연 기준(요청 90%+ 통과)에서 처리 가능한 요청량 — DistServe 보고</text>
+
+  <text x="20" y="84" font-size="14" fill="var(--pdd-slate)">기존(co-located)</text>
+  <rect x="180" y="68" width="90" height="30" rx="6" fill="#475569"/>
+  <text x="284" y="89" font-size="13" font-weight="700" fill="var(--pdd-slate)">1.0×</text>
+
+  <text x="20" y="150" font-size="14" fill="var(--pdd-emerald)" font-weight="700">PD 분리</text>
+  <rect x="180" y="134" width="403" height="30" rx="6" fill="var(--pdd-emerald)"/>
+  <text x="597" y="155" font-size="13" font-weight="800" fill="var(--pdd-emerald)">최대 4.48×</text>
+
+  <text x="360" y="200" text-anchor="middle" font-size="12.5" fill="var(--pdd-slate)">출처: DistServe (arXiv 2401.09670). 모델·워크로드·지연 기준에 따라 결과는 달라진다.</text>
+</svg>
+<figcaption>같은 지연 약속을 지키면서 더 많은 사용자를 받는다는 것 — 이게 곧 GPU당 비용 절감으로 이어진다.</figcaption>
+</figure>
+
+<p>물론 이 숫자는 특정 모델·워크로드·지연 기준에서 나온 값입니다. 환경이 다르면 결과도 다릅니다. 그래도 방향은 분명합니다. <strong>간섭을 없애고 두 단계를 따로 최적화하면, 같은 GPU로 더 많은 사용자를 약속한 품질로 받는다.</strong> 그래서 2026년 들어 PD 분리는 대규모 서빙의 사실상 표준이 됐습니다.</p>
+
+<h2 id="sec-7">7. 실전: SGLang으로 직접 띄워 보기</h2>
+
+<p>개념을 잡았으니 실제 명령어를 보겠습니다. <strong>SGLang</strong>은 PD 분리를 라우터 한 줄로 묶어 주는 대표적인 오픈소스 서빙 프레임워크입니다. 구조는 앞에서 본 그대로 — 프리필 서버, 디코드 서버, 그리고 둘을 짝지어 주는 라우터입니다.</p>
+
+<p>먼저 프리필 서버와 디코드 서버를 각각 <code>--disaggregation-mode</code>로 띄웁니다(아래는 개념을 보여 주는 축약 형태입니다).</p>
+
+{{< highlight bash >}}
+# 프리필 전용 서버 (포트 30002)
+python -m sglang.launch_server \
+  --model-path <모델> \
+  --disaggregation-mode prefill \
+  --port 30002
+
+# 디코드 전용 서버 (포트 30001) — 다른 GPU에서
+python -m sglang.launch_server \
+  --model-path <모델> \
+  --disaggregation-mode decode \
+  --port 30001
+{{< /highlight >}}
+
+<p>그다음 라우터를 띄워 둘을 묶습니다. 프리필·디코드 서버를 여러 개 등록할 수 있고, 라우터가 요청마다 짝을 골라 줍니다.</p>
+
+{{< highlight bash >}}
+# 라우터: 프리필 1대 + 디코드 2대를 묶고 9000번 포트로 노출
+python -m sglang_router.launch_router \
+  --pd-disaggregation \
+  --prefill "http://127.0.0.1:30002" \
+  --decode  "http://127.0.0.1:30001" \
+  --decode  "http://127.0.0.1:30003" \
+  --host 0.0.0.0 \
+  --port 9000
+{{< /highlight >}}
+
+<p>이제 클라이언트는 <code>9000</code> 포트 하나만 바라보면 됩니다. 뒤에서 프리필·디코드가 갈라져 돌아간다는 사실은 몰라도 됩니다. KV 캐시 전송 엔진은 <strong>Mooncake</strong> 또는 <strong>NIXL</strong> 중에서 고를 수 있고, 인프라에 맞춰 NIXL의 백엔드(UCX·LIBFABRIC 등)를 환경 변수로 바꿔 끼웁니다.</p>
+
+<p>vLLM 진영도 비슷합니다. 2025년 12월 공개된 <strong>vLLM Router</strong>는 Rust로 짠 가벼운 부하 분산기로, 프리필·디코드를 구분해 라우팅하고 <strong>접두사 캐시(prefix cache)까지 고려</strong>해 요청을 보냅니다. NVIDIA <strong>Dynamo</strong>는 한발 더 나가, 짧은 프리필이거나 접두사 캐시 적중률이 높은 요청은 <strong>전송 없이 로컬에서 처리</strong>하는 <strong>조건부 분리(conditional disaggregation)</strong>까지 지원합니다. "항상 분리"가 아니라 "이득일 때만 분리"하는 거죠. 이 대목이 바로 다음 절로 이어집니다.</p>
+
+<h2 id="sec-8">8. 항상 이득은 아니다 — 언제 쓰면 안 되나</h2>
+
+<p>여기까지 읽고 "그럼 무조건 분리하면 되겠네"라고 생각했다면, 잠깐 멈추세요. PD 분리는 <strong>KV 캐시 전송이라는 비용</strong>을 새로 떠안는 구조입니다. 그 비용보다 간섭 제거의 이득이 클 때만 남는 장사입니다. 다음 경우엔 오히려 손해입니다.</p>
+
+<table class="pdd-tbl">
+  <thead><tr><th>상황</th><th>왜 분리가 손해인가</th></tr></thead>
+  <tbody>
+    <tr><td><strong>짧은 프롬프트</strong> (대략 512토큰 미만)</td><td>프리필이 원래 싸다. 그 작은 작업을 떼서 보내느라 드는 KV 전송 비용이 이득을 넘어선다.</td></tr>
+    <tr><td><strong>낮은 동시 사용자</strong> (대략 10명 미만)</td><td>배치로 모아 얻는 이득 자체가 안 생긴다. 분리 인프라의 복잡도만 떠안는다.</td></tr>
+    <tr><td><strong>TTFT가 절대적으로 중요한 경우</strong></td><td>차가운 요청은 KV 전송에 약 50~200ms 네트워크 지연이 더 붙는다. 첫 토큰이 1순위라면 한 노드 안의 청크 프리필이 낫다.</td></tr>
+    <tr><td><strong>작은 워크로드 · 튜닝 안 된 GPU</strong></td><td>잘못 맞추면 오히려 20~30% 느려지기도 한다.</td></tr>
+  </tbody>
+</table>
+
+<p>그래서 현실적인 순서는 이렇습니다. <strong>먼저 한 노드에서 청크 프리필·접두사 캐시·연속 배치(continuous batching)로 충분히 짜낸다.</strong> 그래도 트래픽이 커서 간섭이 병목으로 남고, 빠른 인터커넥트가 깔려 있을 때 비로소 PD 분리로 넘어갑니다.</p>
+
+<figure class="pdd-fig">
+<svg viewBox="0 0 720 340" role="img" aria-label="프롬프트가 짧거나 동시 사용자가 적거나 빠른 인터커넥트가 없으면 청크 프리필을 쓰고, 그 반대로 트래픽이 크고 간섭이 병목이며 빠른 인터커넥트가 있으면 PD 분리를 선택하라는 결정 흐름도">
+  <rect x="250" y="16" width="220" height="50" rx="10" fill="#1e293b" stroke="var(--pdd-indigo)" stroke-width="1.8"/>
+  <text x="360" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#e2e8f0">추론 서빙을 빠르게?</text>
+
+  <line x1="360" y1="66" x2="360" y2="96" stroke="var(--pdd-slate)" stroke-width="1.5" marker-end="url(#pdd-ar3)"/>
+  <rect x="210" y="98" width="300" height="50" rx="10" fill="#1e293b" stroke="var(--pdd-slate)" stroke-width="1.5"/>
+  <text x="360" y="121" text-anchor="middle" font-size="13" fill="#e2e8f0">프롬프트가 길고, 동시 사용자가 많은가?</text>
+  <text x="360" y="139" text-anchor="middle" font-size="12" fill="var(--pdd-slate)">그리고 빠른 인터커넥트(RDMA/NVLink)가 있나?</text>
+
+  <line x1="290" y1="148" x2="180" y2="196" stroke="var(--pdd-slate)" stroke-width="1.5" marker-end="url(#pdd-ar3)"/>
+  <text x="200" y="178" font-size="13" font-weight="700" fill="var(--pdd-rose)">아니오</text>
+  <line x1="430" y1="148" x2="540" y2="196" stroke="var(--pdd-slate)" stroke-width="1.5" marker-end="url(#pdd-ar3)"/>
+  <text x="505" y="178" font-size="13" font-weight="700" fill="var(--pdd-emerald)">예</text>
+
+  <rect x="40" y="200" width="280" height="74" rx="10" fill="#1e293b" stroke="var(--pdd-pre)" stroke-width="1.8"/>
+  <text x="180" y="226" text-anchor="middle" font-size="14" font-weight="800" fill="var(--pdd-pre)">청크 프리필 + 접두사 캐시</text>
+  <text x="180" y="248" text-anchor="middle" font-size="12" fill="var(--pdd-slate)">한 노드에서 먼저 짜낸다</text>
+  <text x="180" y="265" text-anchor="middle" font-size="12" fill="var(--pdd-slate)">대부분 배포의 합리적 첫 수</text>
+
+  <rect x="400" y="200" width="280" height="74" rx="10" fill="#1e293b" stroke="var(--pdd-dec)" stroke-width="1.8"/>
+  <text x="540" y="226" text-anchor="middle" font-size="14" font-weight="800" fill="var(--pdd-dec)">PD 분리</text>
+  <text x="540" y="248" text-anchor="middle" font-size="12" fill="var(--pdd-slate)">프리필·디코드 풀을 나눈다</text>
+  <text x="540" y="265" text-anchor="middle" font-size="12" fill="var(--pdd-slate)">대규모 · 간섭이 병목일 때</text>
+
+  <text x="360" y="312" text-anchor="middle" font-size="12.5" fill="var(--pdd-slate)">조건부 분리(Dynamo): 짧은 프리필·캐시 적중은 전송 없이 로컬 처리 — 둘의 좋은 점만 취한다</text>
+
+  <defs>
+    <marker id="pdd-ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--pdd-slate)"/>
+    </marker>
+  </defs>
+</svg>
+<figcaption>PD 분리는 만병통치약이 아니다. 짧은 프롬프트·적은 사용자·느린 네트워크라면 청크 프리필이 더 낫다.</figcaption>
+</figure>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>인터커넥트부터 확인하라.</strong> PD 분리의 8할은 KV 전송 속도입니다. InfiniBand·NVLink·RDMA가 없는 환경에서 분리부터 켜면, 전송 지연이 이득을 다 먹어 오히려 느려집니다. "왜 분리했는데 더 느리지?"의 단골 원인입니다.</li>
+  <li><strong>두 지표를 따로 측정하라.</strong> 평균 지연 하나로 뭉뚱그리지 말고 <strong>TTFT와 TPOT(ITL)를 나눠서</strong> 보세요. 분리의 효과는 이 둘을 갈라 봐야 비로소 드러납니다. 한 덩어리로 보면 개선이 묻힙니다.</li>
+  <li><strong>풀 사이 비율을 튜닝하라.</strong> 프리필 GPU와 디코드 GPU의 개수 비율이 트래픽 성격(입력이 긴가, 출력이 긴가)과 안 맞으면 한쪽이 논다. 워크로드를 보고 비율을 맞추는 게 운영의 핵심입니다.</li>
+  <li><strong>작은 규모에서 성급히 도입하지 말라.</strong> 사용자가 적고 프롬프트가 짧으면 분리는 복잡도만 늘립니다. 청크 프리필·연속 배치로 먼저 충분히 좋아지는지부터 확인하세요.</li>
+  <li><strong>"분리 = 항상 켬"이 아니다.</strong> 조건부 분리처럼, 짧은 요청이나 캐시 적중 요청은 로컬에서 처리하는 게 낫습니다. 프레임워크가 이런 옵션을 주는지 확인하세요.</li>
+</ul>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>LLM 추론은 두 단계다.</strong> 입력을 한 번에 읽는 <strong>프리필</strong>(TTFT를 결정, 연산 집약)과, 토큰을 한 개씩 뱉는 <strong>디코드</strong>(TPOT를 결정, 메모리 집약).</li>
+  <li><strong>둘은 병목 자원이 정반대다.</strong> 한 GPU에 묶으면 긴 프리필이 디코드를 멈추는 <strong>간섭</strong>이 생기고, 자원 배분도 타협할 수밖에 없다.</li>
+  <li><strong>PD 분리는 둘을 다른 GPU 풀로 갈라놓는다.</strong> 간섭이 사라지고 각 단계를 따로 최적화할 수 있다. 대신 <strong>KV 캐시를 디코드 풀로 빠르게 전송</strong>하는 게 새 과제다.</li>
+  <li><strong>효과는 크다.</strong> DistServe 기준 같은 지연 약속에서 최대 약 4.48배 요청을 더 받는다. 그래서 2026년 vLLM·SGLang·TensorRT-LLM·Dynamo의 표준이 됐다.</li>
+  <li><strong>그러나 만능은 아니다.</strong> 짧은 프롬프트·적은 사용자·느린 네트워크라면 청크 프리필이 낫다. <strong>먼저 한 노드에서 짜내고</strong>, 간섭이 진짜 병목일 때 분리로 넘어가라.</li>
+</ul>
+
+<hr>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2401.09670" target="_blank" rel="noopener">DistServe: Disaggregating Prefill and Decoding for Goodput-optimized LLM Serving (arXiv 2401.09670)</a> — PD 분리 원조 논문, 4.48×·10.2× 수치 출처</li>
+  <li><a href="https://github.com/LLMServe/DistServe" target="_blank" rel="noopener">LLMServe/DistServe — GitHub</a> — 분리 서빙 시스템 구현</li>
+  <li><a href="https://bentoml.com/llm/inference-optimization/prefill-decode-disaggregation" target="_blank" rel="noopener">LLM Inference Handbook — Prefill-decode disaggregation (BentoML)</a> — 개념·장단점 정리</li>
+  <li><a href="https://docs.sglang.ai/advanced_features/pd_disaggregation.html" target="_blank" rel="noopener">SGLang Docs — PD Disaggregation</a> / <a href="https://github.com/sgl-project/sglang/blob/main/docs/advanced_features/pd_disaggregation.md" target="_blank" rel="noopener">GitHub 원문</a> — 라우터·서버 실행 명령, Mooncake/NIXL 백엔드</li>
+  <li><a href="https://vllm-project.github.io/2025/12/13/vllm-router-release.html" target="_blank" rel="noopener">vLLM Router Release (2025-12-13)</a> — Rust 기반 P/D·접두사 캐시 인지 라우터</li>
+  <li><a href="https://docs.dynamo.nvidia.com/dynamo/design-docs/disaggregated-serving" target="_blank" rel="noopener">NVIDIA Dynamo — Disaggregated Serving</a> — 조건부 분리·NIXL 전송</li>
+  <li><a href="https://arxiv.org/pdf/2403.02310" target="_blank" rel="noopener">Sarathi-Serve (arXiv 2403.02310)</a> — 청크 프리필과 처리량·지연 맞교환</li>
+  <li><a href="https://www.spheron.network/blog/prefill-decode-disaggregation-gpu-cloud/" target="_blank" rel="noopener">Prefill-Decode Disaggregation on GPU Cloud (Spheron, 2026 Guide)</a> — 언제 쓰면 안 되나(짧은 프롬프트·낮은 동시성·전송 지연)</li>
+  <li><a href="https://rocm.blogs.amd.com/software-tools-optimization/disaggregation/README.html" target="_blank" rel="noopener">Disaggregating Prefill &amp; Decode with SGLang on AMD MI300X</a> — 실제 배포 사례</li>
+</ul>

@@ -27,6 +27,10 @@ enableEmoji = true
   description = "개발하면서 배우고 정리한 것들을 기록합니다."
   author = "JKPark"
   defaultTheme = "dark"        # 기본 다크 — 방문자는 우상단 토글로 라이트 전환 가능
+
+  # 방문자/조회수 카운터(Cloudflare Worker) 배포 URL.
+  # 비워두면 카운터 기능은 비활성(안전). 배포 방법: infra/counter/README.md 참고.
+  counterAPI = "https://jkpark-blog-counter.jkpark-blog-counter.workers.dev"
   ShowReadingTime = true
   ShowShareButtons = true
   ShowPostNavLinks = true

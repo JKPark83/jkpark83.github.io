@@ -1,0 +1,54 @@
+{{- /* 방문자/조회수 카운터 — counterAPI(Cloudflare Worker)가 설정된 경우에만 동작 */ -}}
+{{- with site.Params.counterAPI }}
+<script>
+(function () {
+  var API = {{ . | jsonify }};
+  if (!API) return;
+  API = API.replace(/\/+$/, "");
+
+  // 1차(first-party) 방문자 ID — localStorage에 무작위 UUID 저장. 쿠키/추적 없음.
+  var vid;
+  try {
+    vid = localStorage.getItem("blog_vid");
+    if (!vid) {
+      vid = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : "v-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem("blog_vid", vid);
+    }
+  } catch (e) { vid = "anon"; }
+
+  var path = location.pathname || "/";
+  var fmt = function (n) { return (n == null ? "–" : Number(n).toLocaleString()); };
+  var fill = function (sel, n) {
+    document.querySelectorAll(sel).forEach(function (el) { el.textContent = fmt(n); });
+  };
+
+  // 단일 글 페이지에만 조회수 배지를 메타 영역에 끼워 넣음(목록 페이지엔 미적용)
+  function injectPostViews(views) {
+    var meta = document.querySelector(".post-single .post-meta");
+    if (!meta || meta.querySelector(".post-views")) return;
+    var span = document.createElement("span");
+    span.className = "post-views";
+    span.innerHTML =
+      '&nbsp;·&nbsp;<svg class="pv-eye" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>' +
+      ' 조회 <span data-counter-views>–</span>';
+    meta.appendChild(span);
+    span.querySelector("[data-counter-views]").textContent = fmt(views);
+  }
+
+  var u = API + "/hit?path=" + encodeURIComponent(path) + "&vid=" + encodeURIComponent(vid);
+  fetch(u, { method: "GET", keepalive: true, cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      fill("[data-counter-today]", d.todayVisitors);
+      fill("[data-counter-total]", d.totalVisitors);
+      fill("[data-counter-views]", d.views);   // 마크업에 이미 있는 경우
+      injectPostViews(d.views);                // 글 페이지 메타에 동적 삽입
+    })
+    .catch(function () { /* 카운터 장애 시 조용히 무시 */ });
+})();
+</script>
+{{- end }}

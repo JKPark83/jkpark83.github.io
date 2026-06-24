@@ -174,6 +174,34 @@ body {
 .home-hero .home-hero-social { margin-top: 16px; }
 .home-hero .home-hero-social .social-icons a { margin-inline-end: 12px; }
 
+/* 홈 헤더 방문자 통계 배지 */
+.home-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  font-size: 13px;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+}
+.home-stats .home-stat-ico { color: var(--accent); flex: none; }
+.home-stats b { color: var(--accent); font-weight: 700; }
+.home-stats .home-stat-sep { opacity: .4; }
+
+/* 글 메타에 동적 삽입되는 조회수 배지 */
+.post-meta .post-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.post-meta .post-views .pv-eye { vertical-align: -2px; opacity: .8; }
+.post-meta .post-views [data-counter-views] { font-variant-numeric: tabular-nums; }
+
 .home-secthead {
   display: flex;
   align-items: baseline;

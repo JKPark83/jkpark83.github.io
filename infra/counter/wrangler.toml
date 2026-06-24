@@ -1,0 +1,9 @@
+name = "jkpark-blog-counter"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# KV 네임스페이스 바인딩. 아래 id 는 아직 비어 있음 —
+# `wrangler kv namespace create COUNTER` 실행 후 출력된 id 를 채워 넣으세요.
+[[kv_namespaces]]
+binding = "COUNTER"
+id = "261f60036a624997a5431ee4ccd6db16"

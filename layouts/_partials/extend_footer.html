@@ -2,7 +2,8 @@
 {{- with site.Params.counterAPI }}
 <script>
 (function () {
-  var API = {{ . | jsonify }};
+  {{- /* Hugo가 <script> JS 컨텍스트에서 문자열을 자동으로 따옴표 처리하므로 jsonify 불필요 */}}
+  var API = {{ . }};
   if (!API) return;
   API = API.replace(/\/+$/, "");
 

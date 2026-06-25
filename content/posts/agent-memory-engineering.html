@@ -1,0 +1,424 @@
+---
+title: "매번 처음 만나는 AI는 그만: 에이전트에게 '기억'을 붙이는 법"
+date: 2026-06-26T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM", "에이전트", "메모리", "context engineering", "Mem0", "Letta", "RAG"]
+categories: ["AI 엔지니어링"]
+summary: "LLM은 기본적으로 상태가 없어서, 대화창을 닫으면 사용자를 통째로 잊어버립니다. 어제 알려 준 이름도, 정해 둔 말투도, 지난주에 겪은 사고도 기억하지 못합니다. 그래서 2026년 에이전트 엔지니어링의 핵심 화두가 '메모리(memory)'입니다. 대화 기록을 컨텍스트에 그냥 다 욱여넣는 대신, 무엇을 뽑아 두고(추출) 어떻게 정리하고(통합) 필요할 때만 꺼내 쓰는지(검색)를 설계하는 일이죠. 단기·장기 기억의 구분, 의미·일화·절차라는 세 종류, MemGPT의 운영체제 비유, Mem0로 다섯 줄 만에 기억 붙이기, RAG와의 차이, 그리고 주니어가 자주 밟는 함정까지 한 바퀴 돕니다."
+ShowToc: false
+cover:
+  image: "agent-memory-engineering-cover.svg"
+  alt: "사용자와 stateless LLM 에이전트 사이에 '기억층'을 두고, 장기 기억을 의미·일화·절차 세 종류로 저장해 매 세션 이어 쓰는 에이전트 메모리 구조"
+  caption: "LLM은 매번 처음 만나는 사람 — 그래서 바깥에 '기억'을 붙여 준다"
+  relative: false
+---
+
+<style>
+/* ── Agent Memory 포스트 전용 스타일 (am- 접두사) ── */
+.am-fig{
+  --am-indigo:#6366f1; --am-emerald:#10b981; --am-amber:#d97706;
+  --am-rose:#e11d48; --am-cyan:#0891b2; --am-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .am-fig{
+  --am-indigo:#818cf8; --am-emerald:#34d399; --am-amber:#fbbf24;
+  --am-rose:#fb7185; --am-cyan:#22d3ee; --am-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .am-fig{
+    --am-indigo:#818cf8; --am-emerald:#34d399; --am-amber:#fbbf24;
+    --am-rose:#fb7185; --am-cyan:#22d3ee; --am-slate:#94a3b8;
+  }
+}
+.am-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.am-fig text{font-family:inherit}
+.am-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.am-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.am-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.am-toc ol{margin:0;padding-left:1.25rem}
+.am-toc li{margin:.22rem 0;font-size:.95rem}
+.am-toc a{text-decoration:none}
+.am-toc a:hover{text-decoration:underline}
+.am-pull{font-size:1.12rem;line-height:1.72}
+.am-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.am-note{border-left:4px solid var(--am-indigo,#6366f1);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.am-note strong{color:var(--am-indigo,#6366f1)}
+.am-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.95rem}
+.am-tbl th,.am-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.am-tbl th{background:var(--entry);font-weight:700}
+</style>
+
+<blockquote class="am-pull">
+  <p>모델은 똑똑한데, 어제 한 대화를 오늘은 통째로 잊어버립니다. 이름도, 말투도, 지난주에 겪은 사고도요. LLM은 기본적으로 <strong>상태가 없는(stateless)</strong> 함수라서 그렇습니다.</p>
+  <footer>— 그래서 "어떻게 기억하게 만들 것인가"가, 2026년 에이전트 엔지니어링에서 모델 선택만큼 중요한 설계 문제가 됐습니다.</footer>
+</blockquote>
+
+<p>챗봇에게 "저는 매운 음식을 못 먹어요"라고 말한 적이 있을 겁니다. 그런데 다음 날 같은 챗봇이 떡볶이 맛집을 추천하면 어떤 기분이 드나요? 모델이 멍청해서가 아닙니다. <strong>기억할 곳이 없어서</strong> 그렇습니다.</p>
+
+<p>LLM은 본질적으로 "입력을 넣으면 출력을 뱉는" 함수입니다. 함수는 호출이 끝나면 아무것도 남기지 않습니다. 우리가 ChatGPT 같은 서비스에서 "대화가 이어진다"고 느끼는 건, 사실 매 요청마다 <strong>이전 대화 기록을 통째로 다시 입력에 붙여 넣기 때문</strong>입니다. 창을 닫으면, 또는 대화가 너무 길어져 기록을 잘라내면, 그 순간 모델은 당신을 처음 만나는 사람처럼 대합니다.</p>
+
+<p>이 문제를 제대로 풀자는 게 바로 <strong>에이전트 메모리(agent memory)</strong>입니다. 이번 주에도 "메모리는 컨텍스트 엔지니어링(context engineering)의 다음 장"이라는 글들이 줄줄이 올라왔고, Mem0·Letta·Zep 같은 메모리 프레임워크 비교 글이 실무자들 사이에서 활발히 공유됐습니다. 2026년 들어 메모리는 "있으면 좋은 것"이 아니라, 벤치마크와 논문과 전용 생태계를 갖춘 <strong>독립된 엔지니어링 분야</strong>가 됐습니다.</p>
+
+<p>이 글은 그 메모리를 <strong>기초부터 실전까지</strong> 한 바퀴 돕니다. 벡터 DB를 깊이 안 다뤄 본 주니어 개발자도 따라올 수 있게, 비유와 그림부터 시작하겠습니다.</p>
+
+<nav class="am-toc">
+  <div class="am-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">컨텍스트 윈도우는 '기억'이 아니다</a></li>
+    <li><a href="#sec-2">단기 기억과 장기 기억</a></li>
+    <li><a href="#sec-3">장기 기억의 세 종류 — 의미 · 일화 · 절차</a></li>
+    <li><a href="#sec-4">메모리는 어떻게 동작하나 — 쓰기 길과 읽기 길</a></li>
+    <li><a href="#sec-5">RAG랑 뭐가 다른가요?</a></li>
+    <li><a href="#sec-6">숫자로 보는 효과</a></li>
+    <li><a href="#sec-7">실전: Mem0로 다섯 줄 만에 기억 붙이기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. 컨텍스트 윈도우는 '기억'이 아니다</h2>
+
+<p>"요즘 모델은 컨텍스트 윈도우(context window)가 100만 토큰이라던데, 그냥 대화 기록을 다 넣으면 되는 거 아닌가요?" — 가장 흔한 오해입니다.</p>
+
+<p><strong>컨텍스트 윈도우</strong>는 모델이 "이번 한 번의 호출에서" 한꺼번에 읽을 수 있는 토큰의 한도입니다. 사람으로 치면 <strong>책상 위에 펼쳐 둔 종이</strong>의 크기죠. 책상이 아무리 넓어도 세 가지 문제가 있습니다.</p>
+
+<ul>
+  <li><strong>비용</strong>: 입력 토큰은 돈입니다. 매 요청마다 수만 토큰짜리 대화 기록을 통째로 다시 넣으면, 대화가 길어질수록 호출 한 번의 가격이 계속 비싸집니다.</li>
+  <li><strong>지연(latency)</strong>: 넣는 토큰이 많을수록 모델이 입력을 읽는 시간이 길어집니다. 첫 글자가 뜰 때까지 더 오래 기다리게 되죠.</li>
+  <li><strong>주의 분산</strong>: 토큰을 많이 넣는다고 모델이 그걸 다 잘 쓰는 건 아닙니다. 긴 입력의 한가운데 묻힌 정보는 자주 놓칩니다(흔히 'lost in the middle'이라 부릅니다). 책상이 종이로 뒤덮이면 정작 필요한 한 장을 못 찾는 것과 같습니다.</li>
+</ul>
+
+<p>게다가 책상은 결국 치워집니다. 세션이 끝나거나, 대화가 한도를 넘겨 오래된 부분을 잘라내는 순간, 거기 있던 내용은 사라집니다. 즉 <strong>컨텍스트 윈도우는 작업용 책상이지, 서랍이나 캐비닛이 아닙니다.</strong> 진짜 '기억'은 호출이 끝나도 남아 있고, 다음에 필요할 때 다시 꺼내 쓸 수 있어야 합니다. 그걸 모델 바깥에 따로 만들어 주는 일이 바로 메모리 엔지니어링입니다.</p>
+
+<div class="am-note">
+  <p><strong>핵심 한 줄:</strong> 컨텍스트 윈도우 = 매 호출마다 비워지는 <em>작업 공간</em>, 메모리 = 호출이 끝나도 남는 <em>저장 공간</em>. 메모리의 일은 "장기 저장소에서 지금 필요한 조각만 골라 작업 공간에 올려 주는 것"입니다.</p>
+</div>
+
+<h2 id="sec-2">2. 단기 기억과 장기 기억</h2>
+
+<p>사람의 기억을 빌려 오면 그림이 또렷해집니다. 우리에게는 방금 들은 전화번호를 잠깐 붙잡아 두는 <strong>단기 기억</strong>과, 몇 년 전 일도 떠올리는 <strong>장기 기억</strong>이 있죠. 에이전트도 똑같이 둘로 나눠 생각하면 편합니다.</p>
+
+<ul>
+  <li><strong>단기 기억(short-term memory)</strong> = 지금 진행 중인 대화. 곧 컨텍스트 윈도우 안에 들어 있는 내용입니다. 빠르고 정확하지만 좁고, 세션이 끝나면 사라집니다.</li>
+  <li><strong>장기 기억(long-term memory)</strong> = 세션을 넘어 계속 남는 저장소. 모델 바깥의 데이터베이스(주로 벡터 DB, 때로는 그래프 DB)에 보관하고, 필요할 때만 검색해서 단기 기억으로 끌어올립니다.</li>
+</ul>
+
+<p>이 구조를 가장 먼저 깔끔하게 정리한 연구가 2023년의 <strong>MemGPT</strong>(현재 <strong>Letta</strong> 프로젝트로 이어짐)입니다. 핵심 비유가 운영체제(OS)예요. 컴퓨터에서 RAM은 빠르지만 작고, 디스크는 느리지만 거의 무한합니다. OS는 둘 사이에서 데이터를 부지런히 옮깁니다(paging). MemGPT는 LLM에게 똑같은 일을 시킵니다.</p>
+
+<ul>
+  <li><strong>메인 컨텍스트(main context)</strong> = RAM. 지금 컨텍스트 윈도우에 올라와 있는 내용.</li>
+  <li><strong>리콜 메모리(recall memory)</strong> = 검색 가능한 과거 대화 로그.</li>
+  <li><strong>아카이브 메모리(archival memory)</strong> = 사실을 쌓아 두는 거의 무한한 외부 저장소.</li>
+</ul>
+
+<p>중요한 건 <strong>"무엇을 RAM에 올리고 무엇을 디스크로 내릴지"를 모델 스스로 함수 호출로 결정한다</strong>는 점입니다. 컨텍스트가 꽉 차 가면 오래된 내용을 아카이브로 내리고(page out), 옛날 약속이 필요해지면 검색해서 다시 올립니다(page in). 덕분에 작은 컨텍스트 윈도우로도 사실상 끝없는 대화를 이어 갈 수 있습니다.</p>
+
+<figure class="am-fig" role="img" aria-label="단기 기억은 컨텍스트 윈도우 안의 작업 공간이고, 장기 기억은 바깥의 의미·일화·절차 저장소이며, 둘 사이를 추출과 검색이 오간다">
+  <svg viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg">
+    <!-- 단기 기억 박스 -->
+    <rect x="30" y="40" width="300" height="280" rx="14" fill="none" stroke="var(--am-slate)" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="180" y="68" text-anchor="middle" fill="var(--am-slate)" font-size="15" font-weight="700">단기 기억 · 작업 공간</text>
+    <text x="180" y="88" text-anchor="middle" fill="var(--am-slate)" font-size="12">= 컨텍스트 윈도우 (세션 끝나면 사라짐)</text>
+    <rect x="60" y="108" width="240" height="44" rx="9" fill="var(--am-cyan)" opacity="0.18"/>
+    <text x="180" y="135" text-anchor="middle" fill="var(--am-cyan)" font-size="14" font-weight="700">시스템 프롬프트</text>
+    <rect x="60" y="162" width="240" height="44" rx="9" fill="var(--am-cyan)" opacity="0.18"/>
+    <text x="180" y="189" text-anchor="middle" fill="var(--am-cyan)" font-size="14" font-weight="700">지금 진행 중인 대화</text>
+    <rect x="60" y="216" width="240" height="44" rx="9" fill="var(--am-indigo)" opacity="0.22"/>
+    <text x="180" y="237" text-anchor="middle" fill="var(--am-indigo)" font-size="13" font-weight="700">검색해 온 관련 기억</text>
+    <text x="180" y="253" text-anchor="middle" fill="var(--am-indigo)" font-size="11">← 필요한 것만 올림</text>
+
+    <!-- 장기 기억 박스 -->
+    <rect x="430" y="40" width="300" height="280" rx="14" fill="none" stroke="var(--am-indigo)" stroke-width="2"/>
+    <text x="580" y="68" text-anchor="middle" fill="var(--am-indigo)" font-size="15" font-weight="700">장기 기억 · 저장 공간</text>
+    <text x="580" y="88" text-anchor="middle" fill="var(--am-slate)" font-size="12">= 외부 DB (세션 넘어 영구 보관)</text>
+    <rect x="460" y="108" width="240" height="40" rx="9" fill="var(--am-emerald)" opacity="0.2"/>
+    <text x="580" y="133" text-anchor="middle" fill="var(--am-emerald)" font-size="13" font-weight="700">의미 — 사실 · 선호</text>
+    <rect x="460" y="158" width="240" height="40" rx="9" fill="var(--am-amber)" opacity="0.22"/>
+    <text x="580" y="183" text-anchor="middle" fill="var(--am-amber)" font-size="13" font-weight="700">일화 — 언제 무슨 일이</text>
+    <rect x="460" y="208" width="240" height="40" rx="9" fill="var(--am-rose)" opacity="0.2"/>
+    <text x="580" y="233" text-anchor="middle" fill="var(--am-rose)" font-size="13" font-weight="700">절차 — 방법 · 규칙</text>
+    <text x="580" y="280" text-anchor="middle" fill="var(--am-slate)" font-size="12">수십만 개도 거뜬 (벡터/그래프 DB)</text>
+
+    <!-- 화살표 -->
+    <line x1="330" y1="150" x2="430" y2="150" stroke="var(--am-emerald)" stroke-width="2.5" marker-end="url(#am-arr)"/>
+    <text x="380" y="140" text-anchor="middle" fill="var(--am-emerald)" font-size="11" font-weight="700">추출</text>
+    <line x1="430" y1="225" x2="330" y2="225" stroke="var(--am-indigo)" stroke-width="2.5" marker-end="url(#am-arr)"/>
+    <text x="380" y="245" text-anchor="middle" fill="var(--am-indigo)" font-size="11" font-weight="700">검색</text>
+    <defs>
+      <marker id="am-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--am-slate)"/>
+      </marker>
+    </defs>
+  </svg>
+  <figcaption>단기 기억(작업 공간)과 장기 기억(저장 공간)은 역할이 다르다. 대화에서 중요한 조각을 <b>추출</b>해 장기 기억에 쌓고, 필요할 때 <b>검색</b>해 다시 작업 공간으로 올린다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 장기 기억의 세 종류 — 의미 · 일화 · 절차</h2>
+
+<p>장기 기억이라고 다 같지 않습니다. 인지심리학자 엔델 툴빙(Endel Tulving)이 1972년에 정리한 인간 기억의 분류를, 에이전트 메모리도 거의 그대로 빌려 씁니다. 세 종류로 나뉩니다.</p>
+
+<ul>
+  <li><strong>의미 기억(semantic memory)</strong> — "<em>무엇이 사실인가</em>". 사용자의 이름, 직업, 선호("매운 음식 못 먹음"), 정책·설정 같은 <strong>시간과 무관한 사실</strong>입니다. 사람으로 치면 "서울은 한국의 수도다"를 아는 것과 같죠.</li>
+  <li><strong>일화 기억(episodic memory)</strong> — "<em>언제 무슨 일이 있었나</em>". 특정 시점의 사건과 상호작용입니다. "지난주 화요일에 결제 오류로 환불을 요청했다" 같은, <strong>타임스탬프가 붙은 경험</strong>입니다.</li>
+  <li><strong>절차 기억(procedural memory)</strong> — "<em>어떻게 하는가</em>". 학습된 행동 방식과 규칙입니다. "이 사용자에게는 코드 예시를 먼저 보여 준 뒤 설명한다" 같은, 반복으로 굳어진 <strong>일하는 방식</strong>이죠. 사람으로 치면 자전거 타는 법입니다.</li>
+</ul>
+
+<p>왜 굳이 나눌까요? <strong>저장하고 꺼내는 방식이 다르기 때문</strong>입니다. 의미 기억은 충돌하면 최신 사실로 덮어써야 합니다("이직했어요" → 직업 갱신). 일화 기억은 덮어쓰면 안 되고 시간순으로 쌓아야 합니다(과거 사건은 그대로 보존). 절차 기억은 보통 시스템 프롬프트나 규칙 형태로 녹여 넣습니다. 종류를 섞어 한 통에 담으면, 갱신해야 할 것과 보존해야 할 것이 뒤엉켜 엉뚱한 답이 나옵니다.</p>
+
+<div class="am-note">
+  <p><strong>주니어 팁:</strong> 처음부터 셋을 다 만들 필요는 없습니다. 대부분의 서비스는 <strong>의미 기억(사용자 사실·선호)</strong> 하나만 잘 만들어도 체감 품질이 확 올라갑니다. 일화·절차는 필요해질 때 붙이세요.</p>
+</div>
+
+<h2 id="sec-4">4. 메모리는 어떻게 동작하나 — 쓰기 길과 읽기 길</h2>
+
+<p>이제 진짜 동작입니다. 메모리 시스템은 두 갈래 길로 이루어집니다. 대화를 기억으로 바꿔 쌓는 <strong>쓰기 길(write path)</strong>, 그리고 쌓인 기억에서 지금 필요한 것만 꺼내는 <strong>읽기 길(read path)</strong>입니다.</p>
+
+<p><strong>쓰기 길</strong>은 보통 세 단계입니다. 대화 기록을 통째로 저장하는 게 아니라, 가공해서 핵심만 남깁니다.</p>
+
+<ol>
+  <li><strong>추출(extract)</strong>: LLM이 대화를 읽고 "기억할 만한 사실"만 짧은 문장으로 뽑습니다. "어제 점심에 떡볶이 먹고 속이 안 좋았는데, 사실 저 매운 거 잘 못 먹거든요" → <code>사용자는 매운 음식을 잘 못 먹는다</code>. 잡담은 버립니다.</li>
+  <li><strong>통합(consolidate)</strong>: 새 기억을 기존 기억과 대조합니다. 똑같으면 버리고(중복 제거), 충돌하면 갱신하고("이제 매운 거 괜찮아졌어요" → 기존 사실 수정), 새로우면 추가합니다. 이 단계가 없으면 같은 사실이 수백 개씩 쌓입니다.</li>
+  <li><strong>저장(store)</strong>: 정리된 기억을 임베딩(embedding)으로 바꿔 벡터 DB에 넣습니다. 사람·주제 사이의 관계가 중요하면 그래프 DB를 같이 씁니다.</li>
+</ol>
+
+<p><strong>읽기 길</strong>은 두 단계입니다.</p>
+
+<ol>
+  <li><strong>검색(retrieve)</strong>: 지금 사용자의 입력을 임베딩으로 바꿔, 의미가 가까운 기억 몇 개를 벡터 DB에서 찾습니다. "이번 주말에 뭐 먹을까?"라는 질문에 <code>사용자는 매운 음식을 잘 못 먹는다</code>가 딸려 나오는 식입니다.</li>
+  <li><strong>주입(inject)</strong>: 찾아온 기억 몇 줄을 프롬프트(시스템 메시지 등)에 끼워 넣고 모델을 호출합니다. 전체 대화 기록이 아니라 <strong>관련 있는 몇 줄만</strong> 들어가는 게 핵심입니다.</li>
+</ol>
+
+<figure class="am-fig" role="img" aria-label="쓰기 길은 대화에서 추출, 통합, 저장으로 기억을 쌓고, 읽기 길은 검색과 주입으로 관련 기억만 프롬프트에 넣는다">
+  <svg viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg">
+    <!-- 쓰기 길 -->
+    <text x="20" y="40" fill="var(--am-emerald)" font-size="14" font-weight="800">쓰기 길 (write)</text>
+    <g font-size="13" font-weight="700">
+      <rect x="20" y="56" width="120" height="56" rx="10" fill="var(--am-slate)" opacity="0.18"/>
+      <text x="80" y="82" text-anchor="middle" fill="var(--am-slate)">대화</text>
+      <text x="80" y="100" text-anchor="middle" fill="var(--am-slate)" font-size="11" font-weight="500">사용자 ↔ 에이전트</text>
+
+      <rect x="170" y="56" width="120" height="56" rx="10" fill="var(--am-emerald)" opacity="0.2"/>
+      <text x="230" y="82" text-anchor="middle" fill="var(--am-emerald)">추출</text>
+      <text x="230" y="100" text-anchor="middle" fill="var(--am-emerald)" font-size="11" font-weight="500">핵심 사실만</text>
+
+      <rect x="320" y="56" width="120" height="56" rx="10" fill="var(--am-amber)" opacity="0.22"/>
+      <text x="380" y="82" text-anchor="middle" fill="var(--am-amber)">통합</text>
+      <text x="380" y="100" text-anchor="middle" fill="var(--am-amber)" font-size="11" font-weight="500">중복·충돌 정리</text>
+
+      <rect x="470" y="56" width="120" height="56" rx="10" fill="var(--am-indigo)" opacity="0.22"/>
+      <text x="530" y="82" text-anchor="middle" fill="var(--am-indigo)">저장</text>
+      <text x="530" y="100" text-anchor="middle" fill="var(--am-indigo)" font-size="11" font-weight="500">임베딩 → DB</text>
+    </g>
+    <line x1="140" y1="84" x2="168" y2="84" stroke="var(--am-slate)" stroke-width="2.5" marker-end="url(#am-arr2)"/>
+    <line x1="290" y1="84" x2="318" y2="84" stroke="var(--am-emerald)" stroke-width="2.5" marker-end="url(#am-arr2)"/>
+    <line x1="440" y1="84" x2="468" y2="84" stroke="var(--am-amber)" stroke-width="2.5" marker-end="url(#am-arr2)"/>
+
+    <!-- DB -->
+    <ellipse cx="530" cy="170" rx="60" ry="14" fill="var(--am-indigo)" opacity="0.3"/>
+    <path d="M470,170 v40 a60,14 0 0 0 120,0 v-40" fill="var(--am-indigo)" opacity="0.16"/>
+    <ellipse cx="530" cy="170" rx="60" ry="14" fill="none" stroke="var(--am-indigo)" stroke-width="2"/>
+    <text x="530" y="200" text-anchor="middle" fill="var(--am-indigo)" font-size="13" font-weight="700">장기 기억 DB</text>
+    <line x1="530" y1="112" x2="530" y2="156" stroke="var(--am-indigo)" stroke-width="2.5" marker-end="url(#am-arr2)"/>
+
+    <!-- 읽기 길 -->
+    <text x="20" y="250" fill="var(--am-cyan)" font-size="14" font-weight="800">읽기 길 (read)</text>
+    <g font-size="13" font-weight="700">
+      <rect x="20" y="266" width="120" height="48" rx="10" fill="var(--am-slate)" opacity="0.18"/>
+      <text x="80" y="295" text-anchor="middle" fill="var(--am-slate)">새 질문</text>
+
+      <rect x="200" y="266" width="140" height="48" rx="10" fill="var(--am-cyan)" opacity="0.2"/>
+      <text x="270" y="289" text-anchor="middle" fill="var(--am-cyan)">검색</text>
+      <text x="270" y="306" text-anchor="middle" fill="var(--am-cyan)" font-size="11" font-weight="500">가까운 기억 몇 개</text>
+
+      <rect x="400" y="266" width="140" height="48" rx="10" fill="var(--am-rose)" opacity="0.2"/>
+      <text x="470" y="289" text-anchor="middle" fill="var(--am-rose)">주입</text>
+      <text x="470" y="306" text-anchor="middle" fill="var(--am-rose)" font-size="11" font-weight="500">프롬프트에 몇 줄</text>
+
+      <rect x="600" y="266" width="120" height="48" rx="10" fill="var(--am-emerald)" opacity="0.2"/>
+      <text x="660" y="295" text-anchor="middle" fill="var(--am-emerald)">더 나은 답</text>
+    </g>
+    <line x1="140" y1="290" x2="198" y2="290" stroke="var(--am-slate)" stroke-width="2.5" marker-end="url(#am-arr2)"/>
+    <line x1="340" y1="290" x2="398" y2="290" stroke="var(--am-cyan)" stroke-width="2.5" marker-end="url(#am-arr2)"/>
+    <line x1="540" y1="290" x2="598" y2="290" stroke="var(--am-rose)" stroke-width="2.5" marker-end="url(#am-arr2)"/>
+    <line x1="530" y1="224" x2="290" y2="266" stroke="var(--am-cyan)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#am-arr2)"/>
+    <defs>
+      <marker id="am-arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--am-slate)"/>
+      </marker>
+    </defs>
+  </svg>
+  <figcaption>대화는 <b>추출 → 통합 → 저장</b>으로 기억이 되어 DB에 쌓이고(쓰기 길), 새 질문이 오면 <b>검색 → 주입</b>으로 관련 기억만 끌어와 답을 돕는다(읽기 길).</figcaption>
+</figure>
+
+<p>흐름을 의사 코드로 보면 이렇습니다. 실제 엔진이 아니라 모양만 보여 주는 예시입니다.</p>
+
+{{< highlight python >}}
+# ── 쓰기 길: 대화 한 토막이 끝날 때마다 ──
+def remember(conversation, user_id):
+    facts = llm_extract(conversation)        # 1) 핵심 사실만 뽑기
+    for fact in facts:
+        similar = db.search(embed(fact), user_id)   # 2) 비슷한 기억 찾기
+        if is_duplicate(fact, similar):
+            continue                                # 같은 사실이면 버림
+        elif conflicts(fact, similar):
+            db.update(similar.id, fact)             # 바뀐 사실이면 갱신
+        else:
+            db.add(embed(fact), fact, user_id)      # 3) 새 사실이면 저장
+
+# ── 읽기 길: 사용자가 새 메시지를 보낼 때마다 ──
+def answer(user_msg, user_id):
+    memories = db.search(embed(user_msg), user_id, top_k=5)  # 가까운 기억 5개
+    prompt = f"[기억]\n{format(memories)}\n\n[질문]\n{user_msg}" # 몇 줄만 주입
+    return llm(prompt)                            # 전체 기록이 아니라 '관련 기억'만
+{{< /highlight >}}
+
+<p>포인트는 두 가지입니다. 첫째, 대화를 <strong>그대로 쌓지 않고 사실로 가공</strong>합니다. 둘째, 매번 <strong>전부가 아니라 관련된 것 몇 개만</strong> 컨텍스트에 넣습니다. 이 두 가지가 비용·지연·정확도를 동시에 잡는 비결입니다.</p>
+
+<h2 id="sec-5">5. RAG랑 뭐가 다른가요?</h2>
+
+<p>"검색해서 프롬프트에 넣는다"니까 RAG(retrieval-augmented generation, 검색 증강 생성)와 똑같아 보입니다. 실제로 기술 스택(임베딩 + 벡터 DB + 검색)은 많이 겹칩니다. 하지만 <strong>무엇을 기억하느냐</strong>가 다릅니다.</p>
+
+<table class="am-tbl">
+  <thead>
+    <tr><th></th><th>RAG</th><th>에이전트 메모리</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>대상</strong></td><td>외부 지식 — 문서, 매뉴얼, 위키</td><td>상호작용 — 사용자와 나눈 대화·사실</td></tr>
+    <tr><td><strong>출처</strong></td><td>미리 준비된 정적 문서 더미</td><td>대화하면서 그때그때 생기고 바뀜</td></tr>
+    <tr><td><strong>갱신</strong></td><td>대체로 읽기 전용(문서를 다시 인덱싱)</td><td>계속 추가·수정·삭제(살아 있음)</td></tr>
+    <tr><td><strong>질문 예</strong></td><td>"환불 정책이 어떻게 되나요?"</td><td>"<b>제가</b> 저번에 요청한 환불 어떻게 됐죠?"</td></tr>
+  </tbody>
+</table>
+
+<p>한 줄로 정리하면, <strong>RAG는 "세상에 대한 지식"을 검색하고, 메모리는 "이 사용자에 대한 기억"을 검색</strong>합니다. 그래서 둘은 경쟁 관계가 아니라 보완 관계입니다. 실전 에이전트는 보통 둘을 같이 씁니다. 회사 정책은 RAG로, 이 고객이 누구인지는 메모리로 가져와 한 프롬프트에 합치는 식이죠.</p>
+
+<h2 id="sec-6">6. 숫자로 보는 효과</h2>
+
+<p>"그래서 대화 기록 다 넣는 것보다 정말 나아요?"를 숫자로 보겠습니다. 메모리 분야에서 가장 많이 인용되는 벤치마크가 <strong>LOCOMO</strong>입니다. 여러 세션에 걸친 긴 대화 10개(대화당 평균 약 600개 발화, 약 26,000토큰)에서 "이 사람에 대해 기억해야 답할 수 있는" 질문에 얼마나 잘 답하는지를 잽니다. LongMemEval, BEAM 같은 벤치마크도 함께 쓰입니다.</p>
+
+<p>대표적인 메모리 프레임워크 <strong>Mem0</strong>의 논문(arXiv:2504.19413, ECAI 2025)이 보고한 결과가 인상적입니다. 대화 기록 전체를 그대로 욱여넣는 <strong>full-context 방식과 비교</strong>해, Mem0 같은 메모리 계층은 <strong>p95 지연을 약 91% 낮추고, 토큰 비용을 90% 넘게 줄였습니다</strong>. 정확도(LLM-as-Judge 기준)는 OpenAI의 내장 메모리보다 약 <strong>26% 더 높았고요</strong>. 즉 "더 싸고, 더 빠른데, 더 정확"할 수 있다는 뜻입니다.</p>
+
+<figure class="am-fig" role="img" aria-label="대화 기록을 통째로 넣는 full-context 방식 대비, 메모리 계층은 토큰과 지연을 90% 이상 줄인다는 막대 비교">
+  <svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg">
+    <text x="360" y="30" text-anchor="middle" fill="var(--am-slate)" font-size="14" font-weight="700">한 번 답할 때 드는 비용 (full-context = 100% 기준)</text>
+
+    <!-- 토큰 그룹 -->
+    <text x="180" y="70" text-anchor="middle" fill="var(--am-slate)" font-size="13" font-weight="700">입력 토큰</text>
+    <rect x="70" y="86" width="220" height="34" rx="6" fill="var(--am-rose)" opacity="0.85"/>
+    <text x="180" y="109" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">full-context · 100%</text>
+    <rect x="70" y="128" width="22" height="34" rx="6" fill="var(--am-emerald)"/>
+    <text x="104" y="151" fill="var(--am-emerald)" font-size="13" font-weight="700">메모리 · ~10% (90%↓)</text>
+
+    <!-- 지연 그룹 -->
+    <text x="540" y="70" text-anchor="middle" fill="var(--am-slate)" font-size="13" font-weight="700">응답 지연 (p95)</text>
+    <rect x="430" y="86" width="220" height="34" rx="6" fill="var(--am-rose)" opacity="0.85"/>
+    <text x="540" y="109" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">full-context · 100%</text>
+    <rect x="430" y="128" width="20" height="34" rx="6" fill="var(--am-emerald)"/>
+    <text x="462" y="151" fill="var(--am-emerald)" font-size="13" font-weight="700">메모리 · ~9% (91%↓)</text>
+
+    <text x="360" y="210" text-anchor="middle" fill="var(--am-indigo)" font-size="15" font-weight="800">정확도(LLM-as-Judge): OpenAI 내장 메모리 대비 약 +26%</text>
+    <text x="360" y="248" text-anchor="middle" fill="var(--am-slate)" font-size="12">출처: Mem0 논문(arXiv:2504.19413) · LOCOMO 벤치마크</text>
+    <text x="360" y="270" text-anchor="middle" fill="var(--am-slate)" font-size="11" opacity="0.8">※ 절대 수치는 구현·설정에 따라 달라질 수 있음 — 핵심은 "통째로 넣기"의 비효율</text>
+  </svg>
+  <figcaption>대화 기록을 통째로 넣는 방식은 길어질수록 토큰과 지연이 함께 폭발한다. 필요한 기억만 골라 넣으면 비용을 한 자릿수 %까지 떨어뜨릴 수 있다.</figcaption>
+</figure>
+
+<div class="am-note">
+  <p><strong>주의:</strong> 벤치마크 숫자는 "메모리가 항상 정확도까지 이긴다"는 뜻이 아닙니다. 대화 전체를 다 넣으면 정확도 자체는 더 높을 때도 있습니다. 메모리의 진짜 가치는 <strong>"거의 비슷한 정확도를 1/10의 비용·지연으로"</strong> 얻는다는 데 있습니다. 대화가 길어질수록 이 차이는 더 벌어집니다.</p>
+</div>
+
+<h2 id="sec-7">7. 실전: Mem0로 다섯 줄 만에 기억 붙이기</h2>
+
+<p>이론은 충분합니다. 직접 붙여 봅시다. 오픈소스 메모리 라이브러리 <strong>Mem0</strong>를 쓰면, 앞서 본 추출·통합·저장·검색을 직접 구현하지 않고도 두 개의 메서드로 끝납니다. 기억을 쌓는 <code>add()</code>와 꺼내는 <code>search()</code>입니다.</p>
+
+{{< highlight python >}}
+# pip install mem0ai
+from mem0 import Memory
+
+m = Memory()                       # 기본은 로컬 벡터 DB로 동작
+USER = "jihu"                      # 사용자별로 기억을 분리하는 키
+
+# 1) 대화에서 기억 쌓기 — 추출·통합·저장을 Mem0가 알아서 처리
+m.add(
+    [
+        {"role": "user", "content": "저 매운 음식 잘 못 먹어요. 채식도 선호하고요."},
+        {"role": "assistant", "content": "알겠습니다, 순하고 채식 위주로 추천할게요."},
+    ],
+    user_id=USER,
+)
+
+# 2) 나중에, 완전히 다른 세션에서 — 관련 기억만 검색
+hits = m.search("주말에 외식 뭐 할지 추천해줘", user_id=USER)
+for h in hits["results"]:
+    print(h["memory"])
+# → "매운 음식을 잘 못 먹는다"
+# → "채식을 선호한다"
+{{< /highlight >}}
+
+<p>핵심은 <code>add()</code>에 대화를 통째로 넘겨도, 저장되는 건 "매운 음식 못 먹음", "채식 선호" 같은 <strong>짧은 사실</strong>이라는 점입니다. 잡담은 알아서 걸러집니다. 그리고 며칠 뒤 다른 세션에서 "주말 외식"을 물으면, 단어가 하나도 안 겹쳐도 의미가 가까운 기억이 딸려 나옵니다.</p>
+
+<p>실제 에이전트에 붙일 땐 이렇게 감쌉니다. 답하기 전에 <code>search()</code>로 기억을 끌어와 프롬프트에 넣고, 답한 뒤 <code>add()</code>로 이번 대화를 다시 기억에 쌓는 고리입니다.</p>
+
+{{< highlight python >}}
+def chat(user_msg, user_id):
+    # ① 읽기: 관련 기억을 검색해 시스템 프롬프트에 주입
+    memories = m.search(user_msg, user_id=user_id, limit=5)["results"]
+    facts = "\n".join(f"- {x['memory']}" for x in memories)
+    system = f"다음은 사용자에 대해 기억하는 사실이다:\n{facts}"
+
+    reply = llm(system=system, user=user_msg)   # ② 모델 호출
+
+    # ③ 쓰기: 이번 대화도 기억으로 쌓기 (다음 세션을 위해)
+    m.add(
+        [{"role": "user", "content": user_msg},
+         {"role": "assistant", "content": reply}],
+        user_id=user_id,
+    )
+    return reply
+{{< /highlight >}}
+
+<p>이 짧은 고리만으로도 에이전트는 "어제 한 말을 오늘도 기억하는" 서비스가 됩니다. Mem0 외에 OS 비유를 끝까지 밀어붙인 <strong>Letta</strong>(MemGPT 후신), 시간 지식 그래프로 사실의 변화를 추적하는 <strong>Zep</strong> 같은 선택지도 있습니다. 한 줄 요약: 직접 구현하기 전에, 이미 잘 만들어진 메모리 계층부터 써 보세요.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<p>메모리를 처음 붙일 때 주니어가 자주 밟는 함정들입니다.</p>
+
+<ul>
+  <li><strong>대화를 통째로 저장한다.</strong> 가장 흔한 실수입니다. 원본 대화를 그대로 쌓으면 DB가 잡담으로 가득 차고, 검색 정확도가 떨어집니다. 반드시 <strong>짧은 사실로 추출</strong>해서 저장하세요.</li>
+  <li><strong>통합(중복·충돌 정리)을 건너뛴다.</strong> "사용자는 매운 걸 못 먹는다"가 50번 저장되거나, "이직했어요" 뒤에도 옛 직업이 그대로 남아 충돌합니다. 저장 전에 <strong>비슷한 기억과 대조</strong>하는 단계를 꼭 넣으세요. 대부분의 라이브러리는 이걸 기본 제공합니다.</li>
+  <li><strong>너무 많이 검색해 다시 컨텍스트를 채운다.</strong> 메모리를 쓰는 이유가 컨텍스트 절약인데, <code>top_k</code>를 50으로 잡으면 도로 아미타불입니다. 보통 <strong>3~7개</strong>면 충분합니다.</li>
+  <li><strong>잘못된 기억이 영구 박제된다.</strong> 사용자가 농담으로 한 말이나 일시적 사실이 "영구 진실"로 굳으면 두고두고 헛소리를 합니다. 기억에 <strong>삭제·수정·만료(TTL)</strong> 경로를 처음부터 만들어 두세요.</li>
+  <li><strong>프라이버시를 안 챙긴다.</strong> 메모리는 본질적으로 개인정보 저장소입니다. 반드시 <code>user_id</code>로 기억을 <strong>철저히 격리</strong>하고("A의 기억이 B에게 새지 않게"), 사용자가 자기 기억을 보고 지울 수 있게 하세요. GDPR의 '잊힐 권리'는 메모리 설계에서 선택이 아니라 필수입니다.</li>
+  <li><strong>메모리를 평가하지 않는다.</strong> "기억이 잘 되나"를 감으로 판단하면 조용히 망가집니다. 엉뚱한 기억을 불러오는지, 충돌을 제대로 갱신하는지 작은 <strong>회귀 테스트 세트</strong>로 점검하세요. LOCOMO 같은 공개 벤치마크의 발상을 빌려 와도 좋습니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>LLM은 상태가 없다.</strong> 대화가 이어지는 듯 보이는 건 매번 기록을 다시 넣기 때문이고, 그것만으로는 세션을 넘기면 다 잊는다.</li>
+  <li><strong>컨텍스트 윈도우 ≠ 메모리.</strong> 윈도우는 매번 비워지는 작업 책상, 메모리는 호출이 끝나도 남는 저장 공간이다.</li>
+  <li><strong>기억은 단기(컨텍스트)와 장기(외부 DB)로 나뉘고</strong>, 장기 기억은 다시 <strong>의미(사실)·일화(사건)·절차(방법)</strong> 세 종류로 갈린다.</li>
+  <li><strong>동작은 두 갈래 길.</strong> 쓰기 길(추출 → 통합 → 저장)로 대화를 사실로 가공해 쌓고, 읽기 길(검색 → 주입)로 관련 기억 몇 개만 꺼내 쓴다.</li>
+  <li><strong>RAG는 "세상 지식", 메모리는 "이 사용자 기억".</strong> 경쟁이 아니라 보완. 실전에선 같이 쓴다.</li>
+  <li><strong>효과는 분명하다.</strong> 통째로 넣기 대비 토큰·지연을 90% 넘게 줄이면서 비슷하거나 더 나은 답을 낼 수 있다(Mem0/LOCOMO 기준).</li>
+  <li><strong>직접 만들기 전에 Mem0·Letta·Zep부터.</strong> <code>add()</code> / <code>search()</code> 두 메서드면 시작할 수 있다.</li>
+  <li><strong>함정은 정해져 있다.</strong> 통째 저장·통합 생략·과검색·잘못된 기억 박제·프라이버시·평가 누락 — 이 여섯 개만 피해도 절반은 성공이다.</li>
+</ul>
+
+<p>모델은 계속 똑똑해지지만, "이 사용자가 누구인지"는 모델 안에 들어 있지 않습니다. 그건 우리가 바깥에 지어 줘야 하는 구조입니다. 좋은 에이전트와 그냥 그런 챗봇을 가르는 건, 점점 더 <strong>"무엇을 기억하고 무엇을 잊느냐"</strong>가 됩니다.</p>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2504.19413" target="_blank" rel="noopener">Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory (arXiv:2504.19413, ECAI 2025)</a> — 추출·통합·검색 파이프라인과 LOCOMO 비교 수치</li>
+  <li><a href="https://arxiv.org/abs/2310.08560" target="_blank" rel="noopener">MemGPT: Towards LLMs as Operating Systems (arXiv:2310.08560)</a> — 메인/리콜/아카이브 메모리와 운영체제 paging 비유</li>
+  <li><a href="https://mem0.ai/blog/state-of-ai-agent-memory-2026" target="_blank" rel="noopener">State of AI Agent Memory 2026: Benchmarks, Architectures &amp; Production Gaps (Mem0)</a> — 2026년 메모리 생태계·벤치마크 총정리</li>
+  <li><a href="https://mem0.ai/blog/ai-memory-benchmarks-in-2026" target="_blank" rel="noopener">AI Memory Benchmarks 2026: LoCoMo, LongMemEval &amp; BEAM (Mem0)</a> — 주요 메모리 벤치마크 설명</li>
+  <li><a href="https://thenewstack.io/memory-for-ai-agents-a-new-paradigm-of-context-engineering/" target="_blank" rel="noopener">Memory for AI Agents: A New Paradigm of Context Engineering (The New Stack)</a> — 메모리를 컨텍스트 엔지니어링의 연장선으로 보는 시각</li>
+  <li><a href="https://github.com/mem0ai/mem0" target="_blank" rel="noopener">mem0ai/mem0 (GitHub)</a> — 오픈소스 범용 메모리 계층, <code>add()</code>/<code>search()</code> API</li>
+  <li><a href="https://github.com/letta-ai/letta" target="_blank" rel="noopener">letta-ai/letta (GitHub)</a> — MemGPT 후신, 상태를 가진(stateful) 에이전트 런타임</li>
+  <li><a href="https://atlan.com/know/types-of-ai-agent-memory/" target="_blank" rel="noopener">Types of AI Agent Memory: Episodic, Semantic, Procedural and More (Atlan)</a> — 기억 분류(툴빙 taxonomy)의 에이전트 적용</li>
+</ul>

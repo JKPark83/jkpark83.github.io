@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#7f8aa0"/>
+    </marker>
+  </defs>
+  <rect width="760" height="440" fill="#0f1117"/>
+  <text x="380" y="32" fill="#e8eaf0" font-size="19" font-weight="700" text-anchor="middle">도구 호출 방식 비교 — 매 호출 vs CodeAct</text>
+
+  <!-- TOP: traditional -->
+  <text x="30" y="64" fill="#f3b59c" font-size="14" font-weight="700">기존: 도구를 한 번에 하나씩 호출</text>
+  <g text-anchor="middle" font-size="11.5">
+    <rect x="30" y="76" width="96" height="46" rx="8" fill="#1e2330" stroke="#60a5fa"/>
+    <text x="78" y="96" fill="#dfe6f5">모델</text>
+    <text x="78" y="112" fill="#8b93a7" font-size="10">계획·호출</text>
+
+    <rect x="160" y="76" width="92" height="46" rx="8" fill="#161a24" stroke="#4a5167"/>
+    <text x="206" y="96" fill="#dfe6f5">tool A</text>
+    <text x="206" y="112" fill="#8b93a7" font-size="10">결과 전체 반환</text>
+
+    <rect x="286" y="76" width="92" height="46" rx="8" fill="#161a24" stroke="#4a5167"/>
+    <text x="332" y="96" fill="#dfe6f5">tool B</text>
+    <text x="332" y="112" fill="#8b93a7" font-size="10">결과 전체 반환</text>
+
+    <rect x="412" y="76" width="92" height="46" rx="8" fill="#161a24" stroke="#4a5167"/>
+    <text x="458" y="96" fill="#dfe6f5">tool C</text>
+    <text x="458" y="112" fill="#8b93a7" font-size="10">결과 전체 반환</text>
+
+    <rect x="556" y="76" width="174" height="46" rx="8" fill="#2a1620" stroke="#ef6a7a"/>
+    <text x="643" y="95" fill="#ffd3da">컨텍스트 폭증</text>
+    <text x="643" y="112" fill="#f6a6b1" font-size="10">중간결과 전부 모델 통과</text>
+  </g>
+  <g stroke="#4a5167" stroke-width="1.6" fill="none" marker-end="url(#ar)">
+    <path d="M126 99 H158"/>
+    <path d="M252 99 H284"/>
+    <path d="M378 99 H410"/>
+    <path d="M504 99 H554"/>
+  </g>
+  <text x="30" y="150" fill="#7f8aa0" font-size="10.5">↺ 모델로 매번 왕복 — round-trip마다 토큰이 누적된다</text>
+
+  <line x1="30" y1="172" x2="730" y2="172" stroke="#2a3040" stroke-width="1"/>
+
+  <!-- BOTTOM: CodeAct -->
+  <text x="30" y="204" fill="#9be7b4" font-size="14" font-weight="700">CodeAct: 계획을 코드 한 블록으로 — execute_code 1회</text>
+  <g text-anchor="middle" font-size="11.5">
+    <rect x="30" y="220" width="96" height="46" rx="8" fill="#1e2330" stroke="#60a5fa"/>
+    <text x="78" y="240" fill="#dfe6f5">모델</text>
+    <text x="78" y="256" fill="#8b93a7" font-size="10">코드 1회 생성</text>
+  </g>
+  <path d="M126 243 H166" stroke="#4a5167" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+
+  <rect x="172" y="210" width="372" height="120" rx="10" fill="#10241a" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="358" y="230" fill="#9be7b4" font-size="12" font-weight="700" text-anchor="middle">Hyperlight micro-VM (격리 샌드박스)</text>
+  <g font-family="ui-monospace,Menlo,monospace" font-size="10.5" fill="#cfe9d8">
+    <text x="186" y="254">a = call_tool("A", ...)</text>
+    <text x="186" y="272">b = transform(a)   # 로컬 처리</text>
+    <text x="186" y="290">c = call_tool("B", b)</text>
+    <text x="186" y="308">return summarize(c)  # 요약만 반환</text>
+  </g>
+  <text x="358" y="325" fill="#7f8aa0" font-size="9.5" text-anchor="middle">중간결과는 VM 안에 머무름 · 망/FS 접근은 허용한 것만</text>
+
+  <path d="M544 270 H584" stroke="#4a5167" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <rect x="586" y="240" width="150" height="60" rx="8" fill="#10241a" stroke="#34d399"/>
+  <text x="661" y="264" fill="#a7f3d0" font-size="12" font-weight="700" text-anchor="middle">요약만 모델로</text>
+  <text x="661" y="283" fill="#86d8b0" font-size="10.5" text-anchor="middle">지연 ~50%↓ 토큰 60%+↓</text>
+
+  <text x="30" y="362" fill="#9aa3b6" font-size="11">핵심: 데이터 가공·도구 오케스트레이션을 모델 밖(코드)에서 하고, 모델은 "요약"만 본다.</text>
+  <text x="30" y="382" fill="#6b7488" font-size="10">수치 출처: Microsoft Agent Framework 공식 devblog (대표 워크로드 기준, 근사값).</text>
+</svg>

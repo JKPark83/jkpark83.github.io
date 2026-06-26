@@ -1,0 +1,382 @@
+---
+title: "도구 메뉴판이 너무 길다: MCP 컨텍스트 폭증을 코드 실행으로 푸는 법"
+date: 2026-06-27T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM", "에이전트", "MCP", "tool calling", "context engineering", "code execution", "progressive disclosure"]
+categories: ["AI 엔지니어링"]
+summary: "MCP 서버를 여러 개 붙이면 도구 정의만으로 컨텍스트가 수만~십수만 토큰씩 차오릅니다. 도구를 직접 '호출'하는 대신 모델이 '코드를 써서' 도구를 부르게 하면, 필요한 도구만 그때그때 불러오고(점진적 공개) 큰 중간 결과는 샌드박스 안에서 걸러낼 수 있습니다. Anthropic은 이 방식으로 150,000토큰을 2,000토큰으로 줄였다고 합니다(98.7%↓). Tool Search Tool, Code Execution with MCP, Cloudflare Code Mode까지 세 가지 해법을 기초부터 코드와 그림으로 정리합니다."
+ShowToc: false
+cover:
+  image: "mcp-code-execution-cover.svg"
+  alt: "왼쪽은 도구 정의 100개가 컨텍스트를 가득 채운 긴 메뉴판(약 150,000토큰), 오른쪽은 코드 몇 줄로 필요한 도구만 불러 쓰는 모습(약 2,000토큰)"
+  caption: "도구를 '호출'하는 대신 '코드로 부른다' — MCP 컨텍스트 폭증을 코드 실행으로 푸는 법"
+  relative: false
+---
+
+<style>
+/* ── MCP Code Execution 포스트 전용 스타일 (mce- 접두사) ── */
+.mce-fig{
+  --mce-indigo:#6366f1; --mce-emerald:#10b981; --mce-amber:#d97706;
+  --mce-rose:#e11d48; --mce-cyan:#0891b2; --mce-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .mce-fig{
+  --mce-indigo:#818cf8; --mce-emerald:#34d399; --mce-amber:#fbbf24;
+  --mce-rose:#fb7185; --mce-cyan:#22d3ee; --mce-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .mce-fig{
+    --mce-indigo:#818cf8; --mce-emerald:#34d399; --mce-amber:#fbbf24;
+    --mce-rose:#fb7185; --mce-cyan:#22d3ee; --mce-slate:#94a3b8;
+  }
+}
+.mce-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.mce-fig text{font-family:inherit}
+.mce-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.mce-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.mce-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.mce-toc ol{margin:0;padding-left:1.25rem}
+.mce-toc li{margin:.22rem 0;font-size:.95rem}
+.mce-toc a{text-decoration:none}
+.mce-toc a:hover{text-decoration:underline}
+.mce-pull{font-size:1.12rem;line-height:1.72}
+.mce-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.mce-note{border-left:4px solid var(--mce-indigo,#6366f1);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.mce-note strong{color:var(--mce-indigo,#6366f1)}
+.mce-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.mce-tbl th,.mce-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.mce-tbl th{background:var(--entry);font-weight:700}
+.mce-tbl code{font-size:.86em}
+</style>
+
+<blockquote class="mce-pull">
+  <p>에이전트에 MCP 서버를 하나둘 붙이다 보면, 정작 첫 메시지를 보내기도 전에 컨텍스트가 수만 토큰씩 차 있습니다. 도구를 <strong>쓰기도 전에</strong> 도구 설명서만으로 자리를 다 잡아먹은 거죠.</p>
+  <footer>— 그래서 2026년의 화두는 "도구를 어떻게 부를 것인가"입니다. 호출(call) 대신 <strong>코드(code)</strong>로요.</footer>
+</blockquote>
+
+<p>에이전트에게 도구를 쥐여 주는 표준은 이제 <strong>MCP(Model Context Protocol)</strong>로 거의 굳었습니다. Notion, Slack, GitHub, 사내 DB… MCP 서버 하나만 연결하면 그 안의 도구 수십 개가 한꺼번에 딸려 옵니다. 편하죠. 그런데 이 편함에는 조용한 청구서가 붙습니다. <strong>도구를 많이 연결할수록, 아무 일도 하기 전에 컨텍스트가 먼저 터집니다.</strong></p>
+
+<p>이번 주 실무자 타임라인에는 "우리가 MCP를 잘못 쓰고 있었다"는 글이 줄줄이 올라왔습니다. 핵심은 하나입니다. 도구 50개를 연결하면 그 <strong>정의(definition)</strong>만으로 컨텍스트의 77,000토큰가량이 사라지고, 도구가 돌려주는 큰 결과까지 모델 컨텍스트를 왕복하면서 비용·지연·정확도가 동시에 무너진다는 것이죠. 그리고 이걸 푸는 세 가지 해법 — Anthropic의 <strong>Tool Search Tool</strong>, <strong>Code Execution with MCP</strong>, 그리고 Cloudflare의 <strong>Code Mode</strong> — 이 한데 묶여 "MCP 컨텍스트 다이어트"라는 주제로 화제가 됐습니다.</p>
+
+<p>이 글은 그 문제와 해법을 <strong>기초부터</strong> 정리합니다. MCP를 깊이 안 써 본 주니어 개발자도 따라올 수 있게, 왜 터지는지부터 그림으로 시작하겠습니다.</p>
+
+<nav class="mce-toc">
+  <div class="mce-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">먼저, 도구 호출은 어떻게 컨텍스트를 먹나</a></li>
+    <li><a href="#sec-2">두 가지 누수 — 정의 누수와 결과 누수</a></li>
+    <li><a href="#sec-3">해법 1: 점진적 공개 (Tool Search Tool)</a></li>
+    <li><a href="#sec-4">해법 2: 코드 실행 (Code Execution with MCP)</a></li>
+    <li><a href="#sec-5">해법 3: Cloudflare Code Mode</a></li>
+    <li><a href="#sec-6">왜 '코드로 부르기'가 이기나</a></li>
+    <li><a href="#sec-7">세 접근 비교 · 무엇을 언제</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. 먼저, 도구 호출은 어떻게 컨텍스트를 먹나</h2>
+
+<p>도구 호출(tool calling, 함수 호출이라고도 합니다)의 흐름부터 짚겠습니다. 모델은 사실 도구를 직접 실행하지 못합니다. 대신 "이 도구를 이런 인자로 불러 줘"라고 <strong>JSON을 뱉을</strong> 뿐이고, 실행은 바깥의 코드(에이전트 런타임)가 합니다.</p>
+
+<p>그러려면 모델이 "어떤 도구가 있고, 각 도구가 어떤 인자를 받는지"를 알아야 합니다. 그래서 매 요청마다 <strong>모든 도구의 정의(이름·설명·파라미터 스키마)를 시스템 프롬프트에 통째로 넣어</strong> 줍니다. 도구 하나의 스키마가 보통 수백 토큰입니다. 도구가 다섯 개면 별것 아니지만, MCP 서버 몇 개를 붙여 도구가 50~100개가 되면 이야기가 달라집니다.</p>
+
+<div class="mce-note">
+  <p><strong>왜 이게 문제일까요?</strong> 컨텍스트 윈도우(context window)는 모델이 한 번에 볼 수 있는 작업 공간입니다. 도구 정의가 이 공간의 앞자리를 미리 다 차지하면 ① <strong>입력 토큰값이 매 호출마다 비싸지고</strong>, ② <strong>긴 입력 한가운데 정보를 모델이 자주 놓치며</strong>(흔히 'lost in the middle'), ③ <strong>비슷한 이름의 도구가 많아질수록 엉뚱한 도구를 고릅니다.</strong> 즉 토큰만 새는 게 아니라 정확도까지 같이 떨어집니다.</p>
+</div>
+
+<p>실제 숫자로 보면 체감이 됩니다. MCP 도구 50개를 그냥 다 올리면 대략 <strong>77,000토큰</strong>이 도구 정의로만 소모됩니다. 모델 컨텍스트가 200K라면, 일 시작도 전에 3분의 1 이상이 "메뉴판"으로 채워지는 셈입니다.</p>
+
+<h2 id="sec-2">2. 두 가지 누수 — 정의 누수와 결과 누수</h2>
+
+<p>컨텍스트가 새는 통로는 사실 둘입니다. 이 둘을 구분해야 해법이 보입니다.</p>
+
+<figure class="mce-fig"><svg viewBox="0 0 760 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="도구 직접 호출에서 컨텍스트가 새는 두 통로: 위쪽은 모든 도구 정의를 미리 올리는 정의 누수, 아래쪽은 큰 도구 결과가 모델 컨텍스트를 왕복하는 결과 누수">
+  <rect x="0" y="0" width="760" height="430" fill="none"/>
+  <!-- 컨텍스트 윈도우 박스 -->
+  <rect x="30" y="30" width="290" height="370" rx="14" fill="var(--entry,#1e293b)" stroke="var(--mce-slate)" stroke-width="1.5"/>
+  <text x="175" y="58" text-anchor="middle" fill="var(--mce-slate)" font-size="15" font-weight="700">모델 컨텍스트 윈도우</text>
+  <!-- 정의 누수 영역 -->
+  <rect x="50" y="74" width="250" height="150" rx="8" fill="var(--mce-rose)" opacity="0.18"/>
+  <rect x="50" y="74" width="250" height="150" rx="8" fill="none" stroke="var(--mce-rose)" stroke-width="1.5"/>
+  <text x="175" y="100" text-anchor="middle" fill="var(--mce-rose)" font-size="14" font-weight="700">① 도구 정의 (미리 전부)</text>
+  <g fill="var(--mce-slate)" font-size="11" font-family="ui-monospace,monospace">
+    <text x="64" y="124">create_record · schema…</text>
+    <text x="64" y="142">update_record · schema…</text>
+    <text x="64" y="160">list_users · schema…</text>
+    <text x="64" y="178">send_message · schema…</text>
+    <text x="64" y="196">… 도구 96개 더 …</text>
+  </g>
+  <text x="175" y="216" text-anchor="middle" fill="var(--mce-rose)" font-size="12" font-weight="700">≈ 77,000 tokens</text>
+  <!-- 결과 누수 영역 -->
+  <rect x="50" y="238" width="250" height="120" rx="8" fill="var(--mce-amber)" opacity="0.18"/>
+  <rect x="50" y="238" width="250" height="120" rx="8" fill="none" stroke="var(--mce-amber)" stroke-width="1.5"/>
+  <text x="175" y="264" text-anchor="middle" fill="var(--mce-amber)" font-size="14" font-weight="700">② 도구 결과 (통째로)</text>
+  <g fill="var(--mce-slate)" font-size="11" font-family="ui-monospace,monospace">
+    <text x="64" y="288">[ row1, row2, row3, …</text>
+    <text x="64" y="306">  row998, row999, … ]</text>
+    <text x="64" y="324">10,000줄짜리 JSON 전체</text>
+  </g>
+  <text x="175" y="346" text-anchor="middle" fill="var(--mce-amber)" font-size="12" font-weight="700">필요 없는 데이터까지 왕복</text>
+  <text x="175" y="384" text-anchor="middle" fill="var(--mce-slate)" font-size="11">→ 정작 '생각할' 자리가 부족</text>
+
+  <!-- 화살표/설명 -->
+  <line x1="330" y1="150" x2="430" y2="150" stroke="var(--mce-rose)" stroke-width="2.5" marker-end="url(#mce-flow)"/>
+  <line x1="330" y1="298" x2="430" y2="298" stroke="var(--mce-amber)" stroke-width="2.5" marker-end="url(#mce-flow2)"/>
+  <defs>
+    <marker id="mce-flow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--mce-rose)"/></marker>
+    <marker id="mce-flow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--mce-amber)"/></marker>
+  </defs>
+
+  <rect x="440" y="100" width="290" height="100" rx="10" fill="none" stroke="var(--mce-rose)" stroke-width="1.5"/>
+  <text x="585" y="128" text-anchor="middle" fill="var(--mce-rose)" font-size="14" font-weight="700">정의 누수</text>
+  <text x="585" y="152" text-anchor="middle" fill="var(--mce-slate)" font-size="12">안 쓸 도구까지 매 호출 반복 전송</text>
+  <text x="585" y="172" text-anchor="middle" fill="var(--mce-slate)" font-size="12">→ 점진적 공개로 막는다</text>
+
+  <rect x="440" y="248" width="290" height="100" rx="10" fill="none" stroke="var(--mce-amber)" stroke-width="1.5"/>
+  <text x="585" y="276" text-anchor="middle" fill="var(--mce-amber)" font-size="14" font-weight="700">결과 누수</text>
+  <text x="585" y="300" text-anchor="middle" fill="var(--mce-slate)" font-size="12">큰 결과가 모델을 통째로 거쳐 감</text>
+  <text x="585" y="320" text-anchor="middle" fill="var(--mce-slate)" font-size="12">→ 코드 실행으로 막는다</text>
+</svg>
+<figcaption>컨텍스트가 새는 두 통로 — 안 쓸 도구 정의까지 미리 다 올리는 '정의 누수'와, 도구가 돌려준 큰 결과가 모델을 통째로 거쳐 가는 '결과 누수'.</figcaption></figure>
+
+<ul>
+  <li><strong>정의 누수</strong>: 이번 작업에서 쓸 도구는 두세 개인데, 연결된 도구 100개의 설명서를 매 호출마다 전부 다시 보냅니다. → <em>해법 1·3</em>이 겨냥하는 지점입니다.</li>
+  <li><strong>결과 누수</strong>: <code>list_users()</code>가 1만 건을 돌려주면, 그 1만 건이 통째로 모델 컨텍스트에 들어왔다가 다음 도구로 넘어갑니다. 정작 모델에 필요한 건 "활성 사용자 5명"뿐인데도요. → <em>해법 2·3</em>이 겨냥하는 지점입니다.</li>
+</ul>
+
+<h2 id="sec-3">3. 해법 1: 점진적 공개 (Tool Search Tool)</h2>
+
+<p>가장 직관적인 해법은 <strong>"안 쓸 도구는 안 보여 주기"</strong>입니다. 식당에 비유하면, 100쪽짜리 메뉴판을 통째로 안기는 대신 "찾으시는 메뉴 말씀하시면 그 페이지만 펼쳐 드릴게요"라고 하는 거죠. 이걸 <strong>점진적 공개(progressive disclosure)</strong>라고 부릅니다.</p>
+
+<p>Anthropic이 2025년 11월에 내놓은 <strong>Tool Search Tool</strong>이 정확히 이 방식입니다(beta 헤더 <code>advanced-tool-use-2025-11-20</code>). 도구 정의를 다 올리되, 당장 안 쓸 도구에는 <code>defer_loading: true</code> 표시를 답니다. 그러면 모델 컨텍스트에는 그 도구의 <strong>전체 정의 대신 '검색 가능한 후보'만</strong> 남고, 모델이 필요할 때 검색해서 그때 펼쳐 옵니다.</p>
+
+<figure class="mce-fig"><svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="점진적 공개 흐름. 모델은 처음에 검색 도구 하나만 보고, 작업에 필요할 때 도구를 검색해 그 정의만 컨텍스트로 펼쳐 온다">
+  <!-- 전체 도구 라이브러리 -->
+  <rect x="30" y="60" width="170" height="180" rx="12" fill="var(--entry,#1e293b)" stroke="var(--mce-slate)" stroke-width="1.5"/>
+  <text x="115" y="86" text-anchor="middle" fill="var(--mce-slate)" font-size="13" font-weight="700">전체 도구 100개</text>
+  <text x="115" y="104" text-anchor="middle" fill="var(--mce-slate)" font-size="11">(defer_loading: true)</text>
+  <g fill="var(--mce-cyan)" opacity="0.5">
+    <rect x="50" y="118" width="130" height="14" rx="3"/>
+    <rect x="50" y="138" width="130" height="14" rx="3"/>
+    <rect x="50" y="158" width="130" height="14" rx="3"/>
+    <rect x="50" y="178" width="130" height="14" rx="3"/>
+    <rect x="50" y="198" width="130" height="14" rx="3"/>
+  </g>
+  <text x="115" y="228" text-anchor="middle" fill="var(--mce-slate)" font-size="11">컨텍스트엔 아직 안 올림</text>
+
+  <!-- 검색 도구 -->
+  <line x1="200" y1="150" x2="270" y2="150" stroke="var(--mce-slate)" stroke-width="2" marker-end="url(#mce-a3)"/>
+  <defs><marker id="mce-a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--mce-slate)"/></marker></defs>
+  <rect x="278" y="110" width="160" height="80" rx="12" fill="var(--mce-indigo)" opacity="0.16"/>
+  <rect x="278" y="110" width="160" height="80" rx="12" fill="none" stroke="var(--mce-indigo)" stroke-width="1.8"/>
+  <text x="358" y="142" text-anchor="middle" fill="var(--mce-indigo)" font-size="14" font-weight="700">🔍 Tool Search</text>
+  <text x="358" y="164" text-anchor="middle" fill="var(--mce-slate)" font-size="11">"환불 관련 도구 찾아 줘"</text>
+
+  <!-- 모델 컨텍스트 -->
+  <line x1="438" y1="150" x2="508" y2="150" stroke="var(--mce-slate)" stroke-width="2" marker-end="url(#mce-a3)"/>
+  <rect x="516" y="60" width="174" height="180" rx="12" fill="var(--entry,#1e293b)" stroke="var(--mce-emerald)" stroke-width="1.8"/>
+  <text x="603" y="86" text-anchor="middle" fill="var(--mce-emerald)" font-size="13" font-weight="700">모델 컨텍스트</text>
+  <rect x="536" y="100" width="134" height="16" rx="3" fill="var(--mce-indigo)" opacity="0.6"/>
+  <text x="603" y="112" text-anchor="middle" fill="#fff" font-size="9">Tool Search 도구</text>
+  <rect x="536" y="126" width="134" height="40" rx="5" fill="var(--mce-emerald)" opacity="0.25" stroke="var(--mce-emerald)"/>
+  <text x="603" y="143" text-anchor="middle" fill="var(--mce-emerald)" font-size="10" font-weight="700">process_refund</text>
+  <text x="603" y="158" text-anchor="middle" fill="var(--mce-slate)" font-size="9">검색으로 펼쳐 온 정의만</text>
+  <text x="603" y="200" text-anchor="middle" fill="var(--mce-slate)" font-size="11">필요한 3개만 로드</text>
+  <text x="603" y="220" text-anchor="middle" fill="var(--mce-emerald)" font-size="12" font-weight="700">≈ 8,700 tokens</text>
+</svg>
+<figcaption>점진적 공개 — 처음엔 검색 도구 하나만 보이고, 작업에 필요한 도구만 검색해 그 정의를 컨텍스트로 펼쳐 온다. 도구 50개 기준 77K → 8.7K 토큰(약 85%↓).</figcaption></figure>
+
+<p>효과는 분명합니다. Anthropic 보고로는 MCP 평가에서 도구 정의 토큰이 <strong>약 85% 줄고</strong>(50개 기준 77K → 8.7K), 컨텍스트 윈도우의 95%가 실제 작업용으로 보존됐습니다. 정확도도 같이 올랐습니다. 도구가 많을 때 Tool Search를 켜니 Opus 4.5의 도구 사용 평가 점수가 <strong>79.5% → 88.1%</strong>로 올랐죠(Opus 4는 49% → 74%). 도구가 적게 보이니 모델이 헷갈릴 일도 준 겁니다.</p>
+
+<p>의사코드로 개념만 보면 이렇습니다.</p>
+
+{{< highlight python >}}
+# 직접 호출(Before): 도구 100개 정의를 매 요청마다 전부 전송
+tools = [crm_tool_1, crm_tool_2, ..., crm_tool_100]   # ≈ 150K tokens
+
+# 점진적 공개(After): 검색 도구 + '자주 쓰는 핵심 도구'만 먼저, 나머지는 보류
+response = client.beta.messages.create(
+    betas=["advanced-tool-use-2025-11-20"],
+    tools=[
+        tool_search_tool,                      # 도구를 찾아 주는 메타 도구
+        {**create_record, "defer_loading": False},  # 핵심 도구는 바로 노출
+        {**list_users,    "defer_loading": True},   # 나머지는 검색될 때만 펼침
+        {**send_message,  "defer_loading": True},
+        # ... 도구 97개 더, 전부 defer_loading: True
+    ],
+    messages=messages,
+)
+# 모델은 필요할 때 tool_search로 도구를 찾고, 찾은 정의만 컨텍스트에 들어온다
+{{< /highlight >}}
+
+<p>같은 릴리스에는 형제 기능이 둘 더 있습니다. <strong>Tool Use Examples</strong>(도구마다 현실적인 호출 예시를 붙여 복잡한 파라미터 정확도를 72% → 90%로 끌어올림)와, 다음 절의 주인공인 <strong>Programmatic Tool Calling</strong>입니다.</p>
+
+<h2 id="sec-4">4. 해법 2: 코드 실행 (Code Execution with MCP)</h2>
+
+<p>점진적 공개는 '정의 누수'를 막습니다. 하지만 '결과 누수' — 큰 도구 결과가 모델을 통째로 거쳐 가는 문제 — 는 그대로입니다. 여기서 더 과감한 발상이 나옵니다. <strong>도구를 하나씩 "호출"하게 하지 말고, 모델이 "코드를 써서" 도구를 부르게 하자.</strong></p>
+
+<p>핵심 아이디어는 이렇습니다. MCP 서버의 도구들을 모델에게 JSON 함수 목록으로 들이미는 대신, <strong>파일시스템 위의 코드 API</strong>처럼 보여 줍니다. 예를 들어 CRM 서버는 <code>./servers/crm.ts</code>, Slack 서버는 <code>./servers/slack.ts</code> 같은 식이죠. 모델은 필요한 함수만 <code>import</code> 하는 코드를 작성하고, 그 코드를 <strong>샌드박스에서 실행</strong>합니다.</p>
+
+<figure class="mce-fig"><svg viewBox="0 0 740 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="코드 실행 구조. 모델이 필요한 도구만 import하는 코드를 작성하면, 샌드박스가 도구를 호출하고 큰 결과를 그 안에서 걸러, 모델에는 작은 요약만 돌려준다">
+  <!-- 모델 -->
+  <rect x="30" y="130" width="150" height="100" rx="12" fill="var(--mce-indigo)" opacity="0.16"/>
+  <rect x="30" y="130" width="150" height="100" rx="12" fill="none" stroke="var(--mce-indigo)" stroke-width="1.8"/>
+  <text x="105" y="172" text-anchor="middle" fill="var(--mce-indigo)" font-size="15" font-weight="700">모델</text>
+  <text x="105" y="194" text-anchor="middle" fill="var(--mce-slate)" font-size="11">코드를 '작성'</text>
+
+  <!-- 화살표 1: 코드 -->
+  <line x1="180" y1="160" x2="270" y2="160" stroke="var(--mce-slate)" stroke-width="2" marker-end="url(#mce-a4)"/>
+  <text x="225" y="150" text-anchor="middle" fill="var(--mce-slate)" font-size="11">① 코드</text>
+  <defs><marker id="mce-a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--mce-slate)"/></marker></defs>
+
+  <!-- 샌드박스 -->
+  <rect x="276" y="60" width="270" height="240" rx="14" fill="var(--entry,#0f1b2d)" stroke="var(--mce-emerald)" stroke-width="1.8"/>
+  <text x="411" y="86" text-anchor="middle" fill="var(--mce-emerald)" font-size="14" font-weight="700">샌드박스 (코드 실행 환경)</text>
+  <rect x="296" y="100" width="230" height="70" rx="8" fill="#0b1220" stroke="var(--mce-slate)" stroke-width="1"/>
+  <g font-family="ui-monospace,monospace" font-size="10.5" fill="var(--mce-slate)">
+    <text x="308" y="120" fill="var(--mce-cyan)">import</text><text x="356" y="120"> { list_users } from crm</text>
+    <text x="308" y="138">rows = list_users()    # 1만 건</text>
+    <text x="308" y="156">top5 = filter(rows)[:5]  # 여기서 거름</text>
+  </g>
+  <!-- 도구 파일들 -->
+  <g font-size="10" fill="var(--mce-slate)">
+    <rect x="296" y="186" width="70" height="34" rx="6" fill="var(--mce-cyan)" opacity="0.18" stroke="var(--mce-cyan)"/>
+    <text x="331" y="207" text-anchor="middle">crm.ts</text>
+    <rect x="376" y="186" width="70" height="34" rx="6" fill="var(--mce-cyan)" opacity="0.12" stroke="var(--mce-cyan)" stroke-opacity="0.5"/>
+    <text x="411" y="207" text-anchor="middle">slack.ts</text>
+    <rect x="456" y="186" width="70" height="34" rx="6" fill="var(--mce-cyan)" opacity="0.12" stroke="var(--mce-cyan)" stroke-opacity="0.5"/>
+    <text x="491" y="207" text-anchor="middle">…96개</text>
+  </g>
+  <text x="411" y="245" text-anchor="middle" fill="var(--mce-slate)" font-size="10.5">큰 결과(1만 건)는 여기 머문다 — 모델로 안 감</text>
+  <text x="411" y="268" text-anchor="middle" fill="var(--mce-amber)" font-size="10.5">민감 데이터도 컨텍스트 밖에서 처리 가능</text>
+
+  <!-- 화살표 2: 작은 결과 -->
+  <line x1="546" y1="160" x2="636" y2="160" stroke="var(--mce-emerald)" stroke-width="2.2" marker-end="url(#mce-a5)"/>
+  <text x="591" y="150" text-anchor="middle" fill="var(--mce-emerald)" font-size="11">② 요약만</text>
+  <defs><marker id="mce-a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--mce-emerald)"/></marker></defs>
+  <rect x="642" y="130" width="70" height="60" rx="10" fill="var(--mce-emerald)" opacity="0.18" stroke="var(--mce-emerald)" stroke-width="1.5"/>
+  <text x="677" y="156" text-anchor="middle" fill="var(--mce-emerald)" font-size="11" font-weight="700">결과</text>
+  <text x="677" y="174" text-anchor="middle" fill="var(--mce-slate)" font-size="10">5명</text>
+</svg>
+<figcaption>코드 실행 — 모델은 필요한 도구만 import하는 코드를 쓰고, 샌드박스가 도구를 호출한다. 1만 건짜리 큰 결과는 샌드박스 안에서 걸러져, 모델에는 '활성 5명' 같은 요약만 돌아온다.</figcaption></figure>
+
+<p>이 구조가 두 누수를 동시에 막습니다.</p>
+<ul>
+  <li><strong>정의 누수 차단</strong>: 모델은 도구 100개의 스키마를 미리 받지 않습니다. 파일 목록을 훑고, 이번에 쓸 함수의 시그니처만 그때 읽습니다(이것도 일종의 점진적 공개입니다).</li>
+  <li><strong>결과 누수 차단</strong>: <code>list_users()</code>가 돌려준 1만 건은 <strong>샌드박스 안에 머뭅니다.</strong> 거기서 코드로 필터링·집계한 뒤, 모델에는 "활성 5명"이라는 작은 결과만 돌려줍니다.</li>
+</ul>
+
+<p>Anthropic은 이 방식으로 한 벤치마크에서 같은 작업의 토큰을 <strong>150,000 → 2,000</strong>으로 줄였다고 합니다. <strong>98.7% 절감</strong>입니다. 게다가 중간 데이터가 모델을 거치지 않으니, 개인정보 같은 민감 데이터를 <strong>컨텍스트에 노출하지 않고</strong> 흘려보낼 수 있다는 부가 효과까지 있습니다.</p>
+
+<p>Anthropic API의 <strong>Programmatic Tool Calling</strong>이 바로 이 발상을 제품화한 기능입니다. 모델이 코드를 써서 여러 도구를 엮고, 그 출력 중 무엇을 자기 컨텍스트에 들일지 직접 고릅니다. 실제로 Claude for Excel은 이 방식으로 수천 행짜리 스프레드시트를 컨텍스트를 넘치게 하지 않고 읽고 고칩니다.</p>
+
+<h2 id="sec-5">5. 해법 3: Cloudflare Code Mode</h2>
+
+<p>Cloudflare도 거의 같은 시기에 같은 결론에 도달했습니다. 이름은 <strong>Code Mode</strong>. 발상은 한 문장으로 요약됩니다. <em>"모델은 도구를 직접 호출하는 것보다, 도구를 호출하는 코드를 작성하는 데 훨씬 능하다."</em> LLM은 학습 데이터에서 JSON 함수 호출보다 실제 코드를 압도적으로 많이 봤으니까요.</p>
+
+<p>Code Mode는 연결된 MCP 서버들을 <strong>타입이 붙은 TypeScript API</strong>로 변환해 모델에게 보여 줍니다. 그리고 모델에게 노출되는 도구는 사실상 <strong>딱 두 개</strong>입니다 — <code>search()</code>(어떤 API가 있는지 찾기)와 <code>execute()</code>(작성한 코드 실행하기). 모델이 쓴 코드는 인터넷과 격리된 <strong>V8 isolate 샌드박스</strong>(Dynamic Worker)에서 돌고, 바깥세상으로 나가는 통로는 연결된 MCP 서버의 TS API뿐입니다.</p>
+
+<div class="mce-note">
+  <p><strong>숫자로 보면:</strong> 이 두 도구만으로 Cloudflare의 전체 API를 MCP로 제공하면서 컨텍스트 소비는 <strong>약 1,000토큰</strong>에 그칩니다. MCP 서버 하나를 TS API로 바꾸기만 해도 토큰을 <strong>약 81% 절감</strong>한다고 보고합니다. 샌드박스는 파일시스템도, 환경 변수 노출도 없고, 바깥 요청은 명시적으로 허용된 핸들러로만 나갑니다.</p>
+</div>
+
+<p>정리하면 셋은 강조점이 조금씩 다릅니다. Tool Search는 <strong>'정의를 미루는'</strong> 데, Code Execution과 Code Mode는 <strong>'호출을 코드로 바꾸는'</strong> 데 무게를 둡니다. 뒤의 둘은 결과 필터링까지 한 번에 가져갑니다.</p>
+
+<h2 id="sec-6">6. 왜 '코드로 부르기'가 이기나</h2>
+
+<p>도구를 한 번에 하나씩 호출하는 방식의 근본 한계는, <strong>매 호출마다 모델을 한 바퀴 돌아야 한다</strong>는 데 있습니다. "list_users 호출 → 결과 1만 건이 컨텍스트로 → 모델이 그중 5명 추림 → create_record 호출"처럼, 도구 사이를 오가는 데이터가 전부 모델을 경유합니다. 단계가 늘수록 토큰도, 왕복 지연도, 실수할 자리도 함께 늘죠.</p>
+
+<p>코드로 부르면 이 흐름이 <strong>한 번에</strong> 돕니다.</p>
+
+{{< highlight python >}}
+# 직접 호출 방식 — 모델을 3번 왕복하고, 1만 건이 컨텍스트를 통과한다
+rows = list_users()                 # ← 결과 1만 건이 모델 컨텍스트로
+active = [r for r in rows if r.active][:5]   # ← 모델이 머릿속으로 추림
+create_record(active)               # ← 또 한 번 왕복
+
+# 코드 실행 방식 — 모델은 아래 '코드'만 한 번 내보내고, 실행은 샌드박스가 한다
+def task():
+    rows = list_users()             # 1만 건은 샌드박스 안에만 존재
+    active = [r for r in rows if r.active][:5]   # 거르기도 샌드박스에서
+    return create_record(active)    # 모델엔 최종 결과 한 줄만 반환
+{{< /highlight >}}
+
+<p>차이는 셋입니다. ① 도구 정의를 <strong>필요할 때만</strong> 읽으니 정의 누수가 막히고, ② 큰 중간 결과가 <strong>샌드박스에 머무니</strong> 결과 누수가 막히며, ③ 반복·조건·필터 같은 <strong>제어 흐름을 코드가 처리</strong>하니 모델 왕복이 줄어 더 빠르고 싸집니다. 모델은 "무엇을 할지"만 코드로 정하고, "어떻게 데이터를 주무를지"는 코드가 알아서 합니다.</p>
+
+<h2 id="sec-7">7. 세 접근 비교 · 무엇을 언제</h2>
+
+<table class="mce-tbl">
+  <thead>
+    <tr><th>접근</th><th>핵심 아이디어</th><th>주로 막는 누수</th><th>보고된 효과</th><th>이럴 때</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>직접 호출</strong><br>(기존)</td>
+      <td>모든 도구 정의를 미리 올리고 하나씩 호출</td>
+      <td>—</td>
+      <td>50개 ≈ 77K 토큰</td>
+      <td>도구가 5~10개로 적을 때는 이게 제일 단순하고 충분</td>
+    </tr>
+    <tr>
+      <td><strong>Tool Search Tool</strong><br>(Anthropic)</td>
+      <td><code>defer_loading</code>으로 도구를 검색 시점에만 펼침</td>
+      <td>정의 누수</td>
+      <td>도구 토큰 ~85%↓<br>도구 평가 정확도↑</td>
+      <td>도구는 많지만 결과는 크지 않을 때, 기존 코드 변경 최소로</td>
+    </tr>
+    <tr>
+      <td><strong>Code Execution with MCP</strong><br>(Anthropic)</td>
+      <td>도구를 코드 API로 보여 주고 모델이 코드를 작성·실행</td>
+      <td>정의 + 결과 누수</td>
+      <td>150K → 2K (98.7%↓)</td>
+      <td>큰 결과를 거르거나 도구 여러 개를 엮을 때, 민감 데이터 보호</td>
+    </tr>
+    <tr>
+      <td><strong>Code Mode</strong><br>(Cloudflare)</td>
+      <td>MCP를 타입 붙은 TS API로 바꾸고 V8 isolate에서 실행</td>
+      <td>정의 + 결과 누수</td>
+      <td>전체 API ≈ 1,000 토큰<br>변환 시 ~81%↓</td>
+      <td>Workers/Cloudflare 생태계, 강한 샌드박스 격리가 필요할 때</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>고르는 기준은 간단합니다. <strong>도구가 적으면</strong> 그냥 직접 호출하세요. <strong>도구가 많아 정의가 부담이면</strong> Tool Search로 시작하세요(코드를 거의 안 고쳐도 됩니다). <strong>결과가 크거나 여러 도구를 엮어야 하면</strong> 코드 실행 계열로 넘어가세요. 세 가지는 배타적이지 않습니다 — 실제로는 "코드 실행 + 도구 검색"을 함께 쓰는 게 가장 강력합니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>작은 도구셋에 코드 실행을 끌어오기.</strong> 도구가 5개면 코드 실행 인프라(샌드박스·파일 API)가 오히려 짐입니다. 누수가 실제로 아플 때 도입하세요. 측정 먼저, 최적화 나중.</li>
+  <li><strong>샌드박스 보안을 가볍게 보기.</strong> 모델이 쓴 코드를 실행한다는 건, <strong>신뢰할 수 없는 코드를 실행</strong>한다는 뜻입니다. 반드시 격리된 환경(컨테이너, V8 isolate 등)에서 돌리고, 네트워크·파일·환경 변수 접근을 최소 권한으로 잠그세요. Code Mode가 "인터넷에서 격리, FS·env 없음"을 기본값으로 둔 데는 이유가 있습니다.</li>
+  <li><strong>모델이 코드를 못 쓸 거라 단정하기.</strong> 요즘 모델은 JSON 호출보다 코드를 더 잘 씁니다. 다만 작은 모델일수록 편차가 크니, 코드 실행 경로는 반드시 <strong>평가(eval)로 검증</strong>하고 실패 시 직접 호출로 떨어지는 폴백을 두세요.</li>
+  <li><strong>디버깅이 더 어려워짐을 잊기.</strong> "도구 한 번 호출"이 "코드 한 덩어리 실행"으로 바뀌면, 어디서 틀렸는지 추적이 까다로워집니다. 실행한 코드·입력·출력을 <strong>트레이스(trace)로 남겨</strong> 두세요. 관측(observability) 없이 코드 실행을 켜는 건 눈 감고 운전하는 격입니다.</li>
+  <li><strong>도구 이름·네임스페이스를 대충 짓기.</strong> 점진적 공개든 코드 실행이든, 모델이 "필요한 도구를 찾는" 단계가 생깁니다. <code>crm.create_record</code>처럼 서비스·동작으로 <strong>네임스페이스를 명확히</strong> 두면 검색·선택 정확도가 올라갑니다.</li>
+  <li><strong>전부 보류로 돌리기.</strong> Tool Search에서 자주 쓰는 핵심 도구까지 <code>defer_loading: true</code>로 두면, 매번 검색하느라 왕복이 늘 수 있습니다. 1군 도구는 바로 노출하고, 꼬리(long tail)만 보류하세요.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>MCP로 도구를 많이 붙이면 <strong>두 가지 누수</strong>로 컨텍스트가 샙니다 — 안 쓸 도구까지 미리 올리는 <strong>정의 누수</strong>, 큰 결과가 모델을 거쳐 가는 <strong>결과 누수</strong>.</li>
+  <li><strong>점진적 공개(Tool Search Tool)</strong>: <code>defer_loading</code>으로 도구를 검색 시점에만 펼쳐 정의 누수를 막습니다. 도구 토큰 약 85%↓, 정확도도 ↑.</li>
+  <li><strong>코드 실행(Code Execution with MCP)</strong>: 도구를 호출하는 대신 모델이 코드를 써서 부르고, 큰 결과는 샌드박스에서 걸러 요약만 반환합니다. Anthropic 보고 <strong>150K → 2K(98.7%↓)</strong>.</li>
+  <li><strong>Code Mode(Cloudflare)</strong>: MCP를 타입 붙은 TS API로 바꿔 V8 isolate에서 실행. 전체 API를 약 1,000토큰에, 변환만으로 ~81%↓.</li>
+  <li>고르는 법: 도구 적으면 직접 호출 → 정의가 부담이면 Tool Search → 결과가 크거나 여러 도구를 엮으면 코드 실행. <strong>측정 먼저, 그리고 샌드박스 보안과 트레이스는 필수.</strong></li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.anthropic.com/engineering/code-execution-with-mcp" target="_blank" rel="noopener">Code execution with MCP: Building more efficient agents (Anthropic Engineering)</a> — 도구를 코드 API로 노출하는 발상과 150,000 → 2,000 토큰(98.7%↓) 수치</li>
+  <li><a href="https://www.anthropic.com/engineering/advanced-tool-use" target="_blank" rel="noopener">Introducing advanced tool use on the Claude Developer Platform (Anthropic)</a> — Tool Search Tool(<code>defer_loading</code>)·Programmatic Tool Calling·Tool Use Examples, beta 헤더 <code>advanced-tool-use-2025-11-20</code></li>
+  <li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling" target="_blank" rel="noopener">Programmatic tool calling (Claude Platform Docs)</a> — 모델이 코드로 도구를 엮고 컨텍스트 입력을 제어하는 공식 문서</li>
+  <li><a href="https://blog.cloudflare.com/code-mode/" target="_blank" rel="noopener">Code Mode: the better way to use MCP (Cloudflare)</a> — MCP를 TypeScript API로 변환, <code>search()</code>/<code>execute()</code> 두 도구, V8 isolate 샌드박스</li>
+  <li><a href="https://developers.cloudflare.com/agents/api-reference/codemode/" target="_blank" rel="noopener">Code Mode (Cloudflare Agents Docs)</a> — 전체 API를 약 1,000토큰에, TS API 변환 시 ~81% 토큰 절감, Dynamic Worker 격리</li>
+  <li><a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">Model Context Protocol (공식 사이트)</a> — MCP가 무엇인지, 도구·리소스·서버 개념의 출발점</li>
+  <li><a href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank" rel="noopener">Writing effective tools for AI agents (Anthropic)</a> — 도구 설계·네임스페이스가 도구 선택 정확도에 미치는 영향</li>
+  <li><a href="https://www.infoq.com/news/2026/04/cloudflare-code-mode-mcp-server/" target="_blank" rel="noopener">Cloudflare Launches Code Mode MCP Server to Optimize Token Usage (InfoQ)</a> — Code Mode의 토큰 최적화 배경 보도</li>
+</ul>

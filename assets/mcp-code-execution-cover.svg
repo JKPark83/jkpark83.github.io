@@ -1,0 +1,74 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽은 도구 정의 100개가 컨텍스트를 가득 채운 긴 메뉴판, 오른쪽은 코드 몇 줄로 필요한 도구만 불러 쓰는 모습. MCP 도구 폭증을 코드 실행으로 푸는 글의 표지">
+  <defs>
+    <linearGradient id="mce-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#101f33"/>
+    </linearGradient>
+    <linearGradient id="mce-red" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fb7185"/>
+      <stop offset="1" stop-color="#e11d48"/>
+    </linearGradient>
+    <linearGradient id="mce-grn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <marker id="mce-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#mce-bg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="46" font-weight="800">도구 메뉴판이 너무 길다</text>
+  <text x="600" y="120" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="23">MCP 도구 폭증을 코드 실행으로 푸는 법</text>
+
+  <!-- 왼쪽: 긴 도구 정의 메뉴판 (컨텍스트가 꽉 참) -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="90" y="180" width="430" height="360" rx="16" fill="#1e293b" stroke="#fb7185" stroke-width="2"/>
+    <text x="305" y="216" text-anchor="middle" fill="#fb7185" font-size="22" font-weight="700">모든 도구 정의를 미리 로드</text>
+    <g fill="#334155">
+      <rect x="120" y="238" width="370" height="22" rx="5"/>
+      <rect x="120" y="268" width="370" height="22" rx="5"/>
+      <rect x="120" y="298" width="370" height="22" rx="5"/>
+      <rect x="120" y="328" width="370" height="22" rx="5"/>
+      <rect x="120" y="358" width="370" height="22" rx="5"/>
+      <rect x="120" y="388" width="370" height="22" rx="5"/>
+      <rect x="120" y="418" width="370" height="22" rx="5"/>
+      <rect x="120" y="448" width="370" height="22" rx="5"/>
+    </g>
+    <g fill="#64748b" font-size="13" font-family="ui-monospace,monospace">
+      <text x="132" y="254">create_record(...)  ·  schema 320 tokens</text>
+      <text x="132" y="284">update_record(...)  ·  schema 290 tokens</text>
+      <text x="132" y="314">list_users(...)     ·  schema 210 tokens</text>
+      <text x="132" y="344">send_message(...)   ·  schema 260 tokens</text>
+      <text x="132" y="374">search_docs(...)    ·  schema 240 tokens</text>
+      <text x="132" y="404">… 그리고 도구 95개 더</text>
+      <text x="132" y="434">…</text>
+      <text x="132" y="464">…</text>
+    </g>
+    <text x="305" y="514" text-anchor="middle" fill="#fb7185" font-size="26" font-weight="800" font-family="ui-monospace,monospace">≈ 150,000 tokens</text>
+  </g>
+
+  <!-- 화살표 -->
+  <line x1="540" y1="360" x2="668" y2="360" stroke="#94a3b8" stroke-width="3" marker-end="url(#mce-ar)"/>
+  <text x="604" y="345" text-anchor="middle" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="16" font-weight="700">코드 실행</text>
+
+  <!-- 오른쪽: 코드 몇 줄 -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="688" y="180" width="422" height="360" rx="16" fill="#0f1b2d" stroke="#34d399" stroke-width="2"/>
+    <text x="899" y="216" text-anchor="middle" fill="#34d399" font-size="22" font-weight="700">필요한 도구만 코드로</text>
+    <g font-family="ui-monospace,monospace" font-size="16">
+      <text x="716" y="262" fill="#7dd3fc">import</text><text x="786" y="262" fill="#e2e8f0"> { create_record }</text>
+      <text x="716" y="288" fill="#e2e8f0">  from </text><text x="788" y="288" fill="#fbbf24">'./servers/crm'</text>
+      <text x="716" y="332" fill="#94a3b8"># 큰 결과는 샌드박스 안에서 처리</text>
+      <text x="716" y="358" fill="#e2e8f0">rows = list_users()</text>
+      <text x="716" y="384" fill="#e2e8f0">recent = [r </text><text x="846" y="384" fill="#c4b5fd">for</text><text x="884" y="384" fill="#e2e8f0"> r </text><text x="916" y="384" fill="#c4b5fd">in</text><text x="944" y="384" fill="#e2e8f0"> rows</text>
+      <text x="716" y="408" fill="#e2e8f0">          </text><text x="816" y="408" fill="#c4b5fd">if</text><text x="844" y="408" fill="#e2e8f0"> r.active][:5]</text>
+      <text x="716" y="448" fill="#94a3b8"># 모델엔 요약 한 줄만 반환</text>
+      <text x="716" y="474" fill="#e2e8f0">create_record(recent)</text>
+    </g>
+    <text x="899" y="514" text-anchor="middle" fill="#34d399" font-size="26" font-weight="800" font-family="ui-monospace,monospace">≈ 2,000 tokens</text>
+  </g>
+
+  <text x="600" y="588" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="18">도구를 &quot;호출&quot;하는 대신 &quot;코드로 부른다&quot; — 컨텍스트 98.7% 절감 (출처: Anthropic)</text>
+</svg>

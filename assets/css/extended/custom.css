@@ -1,53 +1,148 @@
 /* ===========================================================
    JKPark 블로그 — 커스텀 스타일 (PaperMod 확장)
-   · 인디고·바이올렛 액센트
+   "개발 문서형 다크 테마" — nodejs-guide 스타일 이식
+   · 딥 네이비 배경 + 차분한 네온 그린/블루 액센트
    · 공용 카드(.pc-*) — 홈 매소너리 + archives 그리드 공유
    · archives 사이드바 레이아웃(.arch-*)
-   · 홈 매소너리(.home-*)
-   · 전체 타이포/여백 리파인
+   · 콜아웃/테이블/코드/섹션 헤딩 컴포넌트 리스킨
    =========================================================== */
 
-/* ── 액센트 & 토큰 ───────────────────────────────────────── */
-:root {
-  --accent: #6366f1;          /* indigo-500 */
-  --accent-2: #8b5cf6;        /* violet-500 */
-  --accent-soft: rgba(99, 102, 241, .10);
-  --accent-grad: linear-gradient(135deg, #6366f1, #8b5cf6);
-  --card-radius: 14px;
-  --card-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .10);
-  --card-shadow-hover: 0 18px 40px rgba(67, 56, 202, .18);
-}
+/* ── 1. 코어 팔레트 오버라이드 (다크) ─────────────────────────
+   PaperMod core/theme-vars.css 의 변수를 덮어써서 사이트 전역
+   (헤더·본문·카드·코드블록)을 한 번에 nodejs 톤으로 전환한다.   */
 :root[data-theme="dark"] {
-  --accent: #818cf8;
-  --accent-2: #a78bfa;
-  --accent-soft: rgba(129, 140, 248, .15);
-  --accent-grad: linear-gradient(135deg, #818cf8, #a78bfa);
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, .4);
-  --card-shadow-hover: 0 18px 40px rgba(0, 0, 0, .55);
+  --theme: #0f1117;          /* 페이지 배경 (bg) */
+  --entry: #1b1f2a;          /* 카드/엔트리 표면 (bg-card) */
+  --primary: #e8ecf3;        /* 제목·강조 텍스트 */
+  --secondary: #97a0b3;      /* 보조 텍스트 (text-dim) */
+  --tertiary: #2a3040;       /* 얇은 구분선·트랙 */
+  --content: #d7dce5;        /* 본문 텍스트 (text) */
+  --code-block-bg: #11141c;  /* 코드 블록 배경 (bg-code) */
+  --code-bg: #1b1f2a;        /* 인라인 코드 배경 (bg-card) */
+  --border: #2a3040;         /* 보더 */
+  --bg-soft: #161922;        /* 한 단계 밝은 표면 (사이드바·콜아웃·테이블) */
+  --text-faint: #6c7689;     /* 흐린 라벨 */
 }
 
-/* ── 타이포: Pretendard ──────────────────────────────────── */
+/* 라이트 모드는 PaperMod 기본 배경을 유지하되 보조 토큰만 정의 */
+:root {
+  --bg-soft: #f4f6fa;
+  --text-faint: #8a94a6;
+}
+
+/* ── 2. 액센트 토큰 ─────────────────────────────────────────
+   green = 브랜드/구조 액센트(라벨·호버·active), blue = 링크      */
+:root {
+  --accent: #15a06b;          /* green (라이트 대비 보정) */
+  --accent-2: #2f6fed;        /* blue link */
+  --accent-amber: #c2820a;
+  --accent-danger: #d6455a;
+  --accent-purple: #7c5cd6;
+  --accent-soft: rgba(21, 160, 107, .10);
+  --accent-grad: linear-gradient(135deg, #5dd39e, #3a9e76);
+  --card-radius: 12px;
+  --card-radius-sm: 8px;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .08);
+  --card-shadow-hover: 0 14px 34px rgba(16, 24, 40, .12);
+}
+:root[data-theme="dark"] {
+  --accent: #5dd39e;          /* node-ish green */
+  --accent-2: #6aa6ff;        /* link blue */
+  --accent-amber: #f7b955;
+  --accent-danger: #ef6f7e;
+  --accent-purple: #b794f6;
+  --accent-soft: rgba(93, 211, 158, .14);
+  --accent-grad: linear-gradient(135deg, #5dd39e, #3a9e76);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+  --card-shadow-hover: 0 14px 34px rgba(0, 0, 0, .5);
+}
+
+::selection { background: rgba(93, 211, 158, .25); }
+
+/* ── 3. 타이포: Pretendard ──────────────────────────────────── */
 body {
   font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", "Helvetica Neue", sans-serif;
   letter-spacing: -0.003em;
+  line-height: 1.72;
 }
 .entry-header h2, .post-title, .page-header h1,
 .arch-section-head, .pc-title {
   letter-spacing: -0.02em;
 }
 
-/* ── 전체 리파인: 링크·메뉴·태그 액센트 ─────────────────── */
+/* ── 4. 전역 리파인: 링크·메뉴·태그 ─────────────────────────── */
 .post-content a,
-.post-content a:visited { color: var(--accent); }
-#menu .active { border-bottom-color: var(--accent) !important; }
+.post-content a:visited { color: var(--accent-2); }                 /* 링크 = 블루 */
+.post-content a:hover { text-decoration: underline; }
+#menu .active { border-bottom-color: var(--accent) !important; }     /* active = 그린 */
 .terms-tags a:hover,
 .post-tags a:hover { border-color: var(--accent); color: var(--accent); }
-.post-content blockquote { border-inline-start-color: var(--accent); }
 
-/* 본문 글 페이지: 제목/여백 약간의 숨통 */
 .post-single .post-title { line-height: 1.25; }
 .first-entry .entry-header h1 { line-height: 1.25; }
+
+strong { color: var(--primary); font-weight: 650; }
+:root[data-theme="dark"] .post-content strong { color: #fff; }
+
+/* 섹션 헤딩 — h2 위 얇은 상단 보더로 구분 (nodejs 시그니처) */
+.post-content h2 {
+  border-top: 1px solid var(--border);
+  padding-top: 1.6rem;
+  margin-top: 2.4rem;
+  letter-spacing: -0.01em;
+}
+.post-content h2:first-child { border-top: none; padding-top: 0; }
+
+/* ── 5. 인라인 코드 + 코드 블록 ─────────────────────────────── */
+.post-content code:not(.highlight code) {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.1em 0.4em;
+  font-size: 0.86em;
+}
+:root[data-theme="dark"] .post-content :not(pre) > code { color: #e7c697; } /* 살구색 */
+
+.post-content div.highlight,
+.post-content pre {
+  background: var(--code-block-bg) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+}
+.post-content div.highlight pre { border: none; border-radius: 0; }
+
+/* ── 6. 인용구 → 콜아웃 스타일 (좌측 컬러 보더 + soft 배경) ──── */
+.post-content blockquote {
+  border-inline-start: 4px solid var(--accent);
+  background: var(--bg-soft);
+  border-radius: var(--card-radius-sm);
+  padding: 0.6rem 1.1rem;
+  margin: 1.3rem 0;
+  color: var(--content);
+}
+
+/* ── 7. 테이블 — 라운드 모서리 + soft 배경 ──────────────────── */
+.post-content table {
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background: var(--bg-soft);
+}
+.post-content table th {
+  background: var(--entry);
+  color: var(--primary);
+  font-weight: 650;
+}
+.post-content table th,
+.post-content table td {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0.85rem;
+}
+.post-content table tr:last-child td { border-bottom: none; }
 
 /* ===========================================================
    공용 카드 — .pc-card  (홈 매소너리 + archives 그리드)
@@ -61,19 +156,19 @@ body {
   overflow: hidden;
   color: var(--primary);
   box-shadow: var(--card-shadow);
-  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
 }
 .pc-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);                    /* 살짝 떠오름 (nodejs) */
   box-shadow: var(--card-shadow-hover);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-color: var(--accent);                    /* 호버 = 그린 보더 */
 }
 
 .pc-thumb {
   position: relative;
   overflow: hidden;
   background: var(--accent-grad);
-  aspect-ratio: 16 / 9;            /* 그리드 기본 — 매소너리에서 해제 */
+  aspect-ratio: 16 / 9;
 }
 .pc-thumb img {
   width: 100%;
@@ -92,7 +187,7 @@ body {
   justify-content: center;
   font-size: 46px;
   font-weight: 800;
-  color: #fff;
+  color: #06281c;                                  /* 그린 그라디언트 위 딥그린 글자 */
   opacity: .95;
 }
 
@@ -105,12 +200,15 @@ body {
 .pc-cat {
   align-self: flex-start;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent);
   background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   border-radius: 999px;
   padding: 3px 10px;
   line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 .pc-title {
   font-size: 17px;
@@ -236,7 +334,7 @@ body {
 .pc-card--masonry .pc-summary { -webkit-line-clamp: 5; }
 
 /* 페이지네이션 버튼 액센트 */
-.pagination .next, .pagination .prev { background: var(--accent); }
+.pagination .next, .pagination .prev { background: var(--accent); color: #06281c; }
 
 /* ===========================================================
    archives — 사이드바 + 카테고리별 카드 그리드

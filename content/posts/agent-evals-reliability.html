@@ -1,0 +1,431 @@
+---
+title: "데모는 잘 되는데 왜 프로덕션은 무너질까: 에이전트 평가(evals)와 pass@k·pass^k"
+date: 2026-06-28T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM", "에이전트", "evals", "평가", "pass@k", "pass^k", "LLM-as-judge", "신뢰성", "observability"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트가 데모에서는 한 번에 성공하는데 프로덕션에 올리면 자꾸 무너집니다. 한 번의 성공(역량)과 매번의 성공(신뢰성)은 전혀 다른 이야기이기 때문입니다. 이 둘을 가르는 지표가 pass@k와 pass^k입니다. 0.7의 성공률이라도 세 번 연속이면 34%로 떨어집니다. 평가의 기본 어휘(task·trial·transcript·outcome·grader)부터 트레이스 기반 채점, LLM-as-judge 보정(calibration), 그리고 직접 돌려 보는 작은 평가 하니스까지 기초부터 코드와 그림으로 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-evals-reliability-cover.svg"
+  alt: "왼쪽은 데모에서 한 번 성공한 초록 체크, 오른쪽은 프로덕션에서 같은 작업을 여덟 번 돌렸을 때 절반 넘게 실패하는 모습. 한 번의 성공은 신뢰성을 뜻하지 않는다."
+  caption: "한 번의 성공(pass@1)은 '할 수 있다'일 뿐, '믿을 수 있다'(pass^k)가 아니다 — 에이전트 평가의 핵심"
+  relative: false
+---
+
+<style>
+/* ── Agent Evals 포스트 전용 스타일 (aev- 접두사) ── */
+.aev-fig{
+  --aev-indigo:#6366f1; --aev-emerald:#10b981; --aev-amber:#d97706;
+  --aev-rose:#e11d48; --aev-cyan:#0891b2; --aev-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .aev-fig{
+  --aev-indigo:#818cf8; --aev-emerald:#34d399; --aev-amber:#fbbf24;
+  --aev-rose:#fb7185; --aev-cyan:#22d3ee; --aev-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .aev-fig{
+    --aev-indigo:#818cf8; --aev-emerald:#34d399; --aev-amber:#fbbf24;
+    --aev-rose:#fb7185; --aev-cyan:#22d3ee; --aev-slate:#94a3b8;
+  }
+}
+.aev-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.aev-fig text{font-family:inherit}
+.aev-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.aev-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.aev-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.aev-toc ol{margin:0;padding-left:1.25rem}
+.aev-toc li{margin:.22rem 0;font-size:.95rem}
+.aev-toc a{text-decoration:none}
+.aev-toc a:hover{text-decoration:underline}
+.aev-pull{font-size:1.12rem;line-height:1.72}
+.aev-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.aev-note{border-left:4px solid var(--aev-indigo,#6366f1);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.aev-note strong{color:var(--aev-indigo,#6366f1)}
+.aev-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.aev-tbl th,.aev-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.aev-tbl th{background:var(--entry);font-weight:700}
+.aev-tbl code{font-size:.86em}
+</style>
+
+<blockquote class="aev-pull">
+  <p>에이전트를 데모에서 한 번 돌려 보고 "오, 되네" 하고 프로덕션에 올립니다. 그런데 똑같은 작업을 사용자 100명이 돌리면 30~40명은 실패합니다. <strong>버그가 아닙니다.</strong> 한 번의 성공이 신뢰성을 뜻한 적이 없을 뿐이죠.</p>
+  <footer>— 2026년 에이전트 엔지니어링의 병목은 '더 똑똑한 모델'이 아니라 '믿을 수 있는가'로 넘어왔습니다.</footer>
+</blockquote>
+
+<p>2026년은 흔히 "에이전트의 해"라고 불립니다. 모델은 충분히 똑똑해졌고, 도구를 부르고 여러 단계를 스스로 밟습니다. 그런데 막상 프로덕션에 올리면 같은 작업인데도 어떤 날은 되고 어떤 날은 안 됩니다. 이번 주에도 실무자 타임라인에는 "데모는 화려한데 프로덕션은 왜 이러냐"는 글이 반복해서 올라왔습니다. 핵심 키워드는 하나, <strong>신뢰성(reliability)</strong>입니다.</p>
+
+<p>그리고 이 신뢰성 문제를 숫자로 잡는 도구가 바로 <strong>평가(eval, evaluation)</strong>입니다. 평가는 "내 에이전트가 얼마나 잘하나"를 재현 가능한 방식으로 재는 일입니다. 그런데 에이전트는 한 번 물어 한 번 답하는 챗봇과 달라서, 계획하고 도구를 부르고 검색하고 다시 도구를 부르는 긴 과정을 거칩니다. 게다가 <strong>같은 입력이라도 매번 답이 조금씩 다릅니다.</strong> 그래서 "정답률 80%"라는 한 줄 숫자로는 진실을 절반밖에 못 봅니다.</p>
+
+<p>이 글은 그 나머지 절반을 채웁니다. 평가의 기본 어휘부터, 역량과 신뢰성을 가르는 <strong>pass@k·pass^k</strong> 지표, 무엇을 채점할지(결과 vs 경로), LLM을 채점관으로 쓰는 법과 그 함정, 그리고 직접 돌려 보는 작은 평가 하니스까지 — 주니어 개발자도 따라올 수 있게 기초부터 정리합니다.</p>
+
+<nav class="aev-toc">
+  <div class="aev-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">한 번 성공 ≠ 믿을 수 있음 — 역량과 신뢰성</a></li>
+    <li><a href="#sec-2">평가의 기본 어휘 — task·trial·transcript·outcome·grader</a></li>
+    <li><a href="#sec-3">pass@k(역량) vs pass^k(신뢰성)</a></li>
+    <li><a href="#sec-4">무엇을 채점할까 — 결과 vs 경로(트레이스 기반 평가)</a></li>
+    <li><a href="#sec-5">LLM을 채점관으로 — LLM-as-judge와 보정</a></li>
+    <li><a href="#sec-6">실전: 작은 평가 하니스 만들기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. 한 번 성공 ≠ 믿을 수 있음 — 역량과 신뢰성</h2>
+
+<p>먼저 두 단어를 갈라 놓고 시작하겠습니다. <strong>역량(capability)</strong>은 "이 에이전트가 이 작업을 풀 수 <em>있는가</em>"입니다. <strong>신뢰성(reliability)</strong>은 "이 에이전트가 이 작업을 <em>매번</em> 풀어내는가"입니다. 데모는 보통 역량을 보여 줍니다. 프로덕션이 요구하는 건 신뢰성이고요.</p>
+
+<p>왜 둘이 갈릴까요? LLM은 본질적으로 확률적(stochastic)입니다. 같은 프롬프트라도 매번 조금 다른 토큰을 고르고, 도구를 부르는 순서나 인자도 흔들립니다. 단계가 하나면 그 흔들림이 작지만, 에이전트는 계획→도구→검색→도구→답변처럼 단계를 길게 잇습니다. 각 단계의 작은 실패 확률이 곱해지면서, <strong>전체가 끝까지 한 번도 안 틀릴 확률은 생각보다 빠르게 떨어집니다.</strong></p>
+
+<div class="aev-note">
+  <p><strong>비유로 보면.</strong> 자유투 성공률 70%인 농구 선수가 있습니다. "한 번 던져 넣을 수 있나?"는 거의 예(역량). 하지만 "세 번 연속 넣나?"는 0.7 × 0.7 × 0.7 = 34%로 뚝 떨어집니다(신뢰성). 에이전트도 똑같습니다. 한 작업을 세 단계로 처리한다면, 각 단계 70%여도 끝까지 성공은 34%입니다.</p>
+</div>
+
+<p>그래서 "정답률 70%"라는 한 줄은 <strong>역량과 신뢰성을 뭉개 버립니다.</strong> 프로덕션에서 중요한 건 "여러 번 돌렸을 때 매번 되느냐"인데, 평균 정답률은 그걸 말해 주지 않죠. 이 둘을 분리하는 지표가 다음 장의 pass@k와 pass^k입니다. 그 전에, 평가를 이야기하는 데 필요한 최소한의 어휘부터 맞추겠습니다.</p>
+
+<h2 id="sec-2">2. 평가의 기본 어휘 — task·trial·transcript·outcome·grader</h2>
+
+<p>Anthropic이 정리한 평가 어휘가 깔끔해서 그대로 빌려 오겠습니다. 평가 하나는 보통 이런 부품으로 이뤄집니다.</p>
+
+<ul>
+  <li><strong>task(과제)</strong> — 에이전트에게 시키는 한 가지 작업. 예: "주문 #1234를 환불해 줘". 입력과 초기 환경이 정해져 있어야 합니다.</li>
+  <li><strong>trial(시행)</strong> — 같은 task를 한 번 실행한 것. 확률적이니 한 task를 <strong>여러 trial</strong> 돌립니다.</li>
+  <li><strong>transcript(트랜스크립트)</strong> — 에이전트가 그 trial에서 한 말·생각·도구 호출의 전체 기록. 즉 "어떻게 했는가".</li>
+  <li><strong>outcome(결과)</strong> — 끝난 뒤 환경의 최종 상태. 즉 "무엇을 만들어 냈는가". 예: 주문이 실제로 환불됐는지.</li>
+  <li><strong>grader(채점기)</strong> — trial이 성공인지 판정하는 장치. 코드일 수도(정규식·DB 조회), LLM일 수도(LLM-as-judge) 있습니다.</li>
+</ul>
+
+<p>여기서 <strong>transcript와 outcome를 구분</strong>하는 게 핵심입니다. 에이전트가 멋진 추론을 늘어놓아도(transcript) 환불이 실제로 안 됐으면(outcome) 실패죠. 반대로 과정이 좀 엉성해도 결과만 맞으면 성공일 수 있습니다. 무엇을 채점할지는 4장에서 다시 보겠습니다.</p>
+
+<figure class="aev-fig"><svg viewBox="0 0 760 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="평가 파이프라인. 하나의 task를 여러 trial로 실행하면 각 trial이 transcript와 outcome를 남기고, grader가 성공·실패를 판정해 점수로 모은다.">
+  <rect x="20" y="95" width="120" height="60" rx="10" fill="none" stroke="var(--aev-indigo)" stroke-width="2"/>
+  <text x="80" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="var(--aev-indigo)">task</text>
+  <text x="80" y="140" text-anchor="middle" font-size="11" fill="var(--aev-slate)">"#1234 환불"</text>
+
+  <text x="80" y="180" text-anchor="middle" font-size="11" fill="var(--aev-slate)">N번 실행</text>
+  <path d="M140 125 H190" stroke="var(--aev-slate)" stroke-width="2" fill="none" marker-end="url(#aevarrow)"/>
+
+  <!-- trials -->
+  <g>
+    <rect x="200" y="40" width="180" height="44" rx="8" fill="none" stroke="var(--aev-slate)" stroke-width="1.5"/>
+    <text x="214" y="60" font-size="11.5" font-weight="700" fill="var(--aev-cyan)">trial 1</text>
+    <text x="214" y="76" font-size="10.5" fill="var(--aev-slate)">transcript + outcome</text>
+    <rect x="200" y="103" width="180" height="44" rx="8" fill="none" stroke="var(--aev-slate)" stroke-width="1.5"/>
+    <text x="214" y="123" font-size="11.5" font-weight="700" fill="var(--aev-cyan)">trial 2</text>
+    <text x="214" y="139" font-size="10.5" fill="var(--aev-slate)">transcript + outcome</text>
+    <rect x="200" y="166" width="180" height="44" rx="8" fill="none" stroke="var(--aev-slate)" stroke-width="1.5"/>
+    <text x="214" y="186" font-size="11.5" font-weight="700" fill="var(--aev-cyan)">trial N</text>
+    <text x="214" y="202" font-size="10.5" fill="var(--aev-slate)">transcript + outcome</text>
+  </g>
+
+  <path d="M380 125 H430" stroke="var(--aev-slate)" stroke-width="2" fill="none" marker-end="url(#aevarrow)"/>
+
+  <rect x="440" y="95" width="120" height="60" rx="10" fill="none" stroke="var(--aev-amber)" stroke-width="2"/>
+  <text x="500" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="var(--aev-amber)">grader</text>
+  <text x="500" y="140" text-anchor="middle" font-size="11" fill="var(--aev-slate)">성공/실패 판정</text>
+
+  <path d="M560 125 H610" stroke="var(--aev-slate)" stroke-width="2" fill="none" marker-end="url(#aevarrow)"/>
+
+  <rect x="620" y="80" width="120" height="90" rx="10" fill="none" stroke="var(--aev-emerald)" stroke-width="2"/>
+  <text x="680" y="108" text-anchor="middle" font-size="13" font-weight="700" fill="var(--aev-emerald)">점수</text>
+  <text x="680" y="130" text-anchor="middle" font-size="11" fill="var(--aev-slate)">pass@k</text>
+  <text x="680" y="148" text-anchor="middle" font-size="11" fill="var(--aev-slate)">pass^k</text>
+  <defs>
+    <marker id="aevarrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="var(--aev-slate)"/></marker>
+  </defs>
+</svg>
+<figcaption>평가 파이프라인 — 하나의 task를 N번(trial) 돌리면 각 trial이 transcript(과정)와 outcome(결과)를 남기고, grader가 성공·실패를 매겨 pass@k·pass^k 같은 점수로 모은다.</figcaption></figure>
+
+<h2 id="sec-3">3. pass@k(역량) vs pass^k(신뢰성)</h2>
+
+<p>이제 핵심 지표입니다. 한 task를 여러 trial 돌렸다고 합시다. 두 가지 질문을 던질 수 있습니다.</p>
+
+<ul>
+  <li><strong>pass@k</strong> — "k번 시도 중 <strong>적어도 한 번</strong> 성공할 확률". 즉 <strong>역량의 천장</strong>입니다. 재시도가 허용되거나 사람이 결과를 골라 쓸 수 있는 상황에서 의미가 있습니다.</li>
+  <li><strong>pass^k</strong> — "k번 시도가 <strong>전부</strong> 성공할 확률". 즉 <strong>신뢰성</strong>입니다. 자동화 파이프라인처럼 매번 알아서 맞아야 하는 상황에서 진짜 중요한 숫자입니다.</li>
+</ul>
+
+<p>per-trial 성공률을 p라고 하면, 시행이 독립일 때 직관식은 이렇습니다.</p>
+
+<ul>
+  <li>pass@k = 1 − (1 − p)<sup>k</sup> &nbsp;→ k가 커질수록 1에 가까워짐(낙관적 상한)</li>
+  <li>pass^k = p<sup>k</sup> &nbsp;→ k가 커질수록 0으로 빠르게 떨어짐(비관적 하한)</li>
+</ul>
+
+<p>p = 0.7로 숫자를 넣어 보겠습니다. 한 번이면 둘 다 70%지만, k가 커지면 정반대로 갈라집니다. pass@k는 위로, pass^k는 아래로요.</p>
+
+<figure class="aev-fig"><svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="per-trial 성공률 0.7일 때 시행 횟수 k에 따른 pass@k와 pass^k 곡선. pass@k는 위로 올라가 1에 가까워지고 pass^k는 아래로 내려가 0에 가까워진다.">
+  <!-- axes -->
+  <line x1="70" y1="40" x2="70" y2="300" stroke="var(--aev-slate)" stroke-width="1.5"/>
+  <line x1="70" y1="300" x2="690" y2="300" stroke="var(--aev-slate)" stroke-width="1.5"/>
+  <!-- y ticks -->
+  <text x="60" y="44" text-anchor="end" font-size="11" fill="var(--aev-slate)">1.0</text>
+  <text x="60" y="174" text-anchor="end" font-size="11" fill="var(--aev-slate)">0.5</text>
+  <text x="60" y="304" text-anchor="end" font-size="11" fill="var(--aev-slate)">0.0</text>
+  <line x1="67" y1="170" x2="73" y2="170" stroke="var(--aev-slate)"/>
+  <text x="380" y="335" text-anchor="middle" font-size="12" fill="var(--aev-slate)">시행 횟수 k (per-trial p = 0.7)</text>
+  <!-- x ticks -->
+  <g font-size="11" fill="var(--aev-slate)" text-anchor="middle">
+    <text x="70" y="318">1</text><text x="155" y="318">2</text><text x="241" y="318">3</text><text x="327" y="318">4</text><text x="413" y="318">5</text><text x="499" y="318">6</text><text x="584" y="318">7</text><text x="670" y="318">8</text>
+  </g>
+
+  <!-- pass@k curve (rises) -->
+  <polyline points="70,118 155,63 241,47 327,42 413,41 499,40 584,40 670,40" fill="none" stroke="var(--aev-emerald)" stroke-width="3"/>
+  <g fill="var(--aev-emerald)">
+    <circle cx="70" cy="118" r="4"/><circle cx="155" cy="63" r="4"/><circle cx="241" cy="47" r="4"/><circle cx="327" cy="42" r="4"/><circle cx="413" cy="41" r="4"/><circle cx="499" cy="40" r="4"/><circle cx="584" cy="40" r="4"/><circle cx="670" cy="40" r="4"/>
+  </g>
+  <text x="430" y="62" font-size="13" font-weight="700" fill="var(--aev-emerald)">pass@k — 역량(적어도 한 번)</text>
+
+  <!-- pass^k curve (falls) -->
+  <polyline points="70,118 155,173 241,211 327,238 413,256 499,269 584,279 670,285" fill="none" stroke="var(--aev-rose)" stroke-width="3"/>
+  <g fill="var(--aev-rose)">
+    <circle cx="70" cy="118" r="4"/><circle cx="155" cy="173" r="4"/><circle cx="241" cy="211" r="4"/><circle cx="327" cy="238" r="4"/><circle cx="413" cy="256" r="4"/><circle cx="499" cy="269" r="4"/><circle cx="584" cy="279" r="4"/><circle cx="670" cy="285" r="4"/>
+  </g>
+  <text x="430" y="255" font-size="13" font-weight="700" fill="var(--aev-rose)">pass^k — 신뢰성(전부)</text>
+
+  <!-- callouts -->
+  <text x="241" y="230" text-anchor="middle" font-size="11" fill="var(--aev-rose)">0.343</text>
+  <text x="670" y="33" text-anchor="middle" font-size="11" fill="var(--aev-emerald)">≈1.0</text>
+</svg>
+<figcaption>per-trial 0.7일 때 — pass@k(초록)는 k가 커질수록 1에 수렴하지만, pass^k(빨강)는 k=3에서 이미 0.343까지 떨어진다. 같은 모델, 같은 작업인데 어디를 보느냐에 따라 '거의 완벽'과 '셋 중 하나만 성공'으로 갈린다.</figcaption></figure>
+
+<p>이게 추상적인 수학 놀음이 아닙니다. 도구를 쓰는 에이전트를 사람-에이전트 대화로 평가하는 벤치마크 <a href="https://arxiv.org/abs/2406.12045" target="_blank" rel="noopener">τ-bench</a>가 바로 이 pass^k를 들고 나와 화제가 됐습니다. 보고에 따르면 GPT-4o는 retail 도메인에서 한 번(pass^1)은 약 61% 성공하지만, 같은 작업을 8번 연속(pass^8) 모두 성공할 확률은 <strong>25% 아래</strong>로 무너집니다. "잘하는데 못 믿는다(capable but unreliable)"는 말이 그래서 나옵니다.</p>
+
+<div class="aev-note">
+  <p><strong>실무 팁 — 임계값을 pass^k로 잡으세요.</strong> 자동화 파이프라인이 5% 넘는 실패를 못 버틴다면, 모델·프롬프트 변경을 승인하는 기준을 "평균 정답률"이 아니라 "pass^k ≥ 0.95"처럼 신뢰성으로 거세요. 평균만 보면 '좋아졌다'고 착각하기 쉽지만, 정작 사용자가 겪는 건 매 시도의 신뢰성입니다.</p>
+</div>
+
+<p>실제 코드에서는 p를 모르니 <strong>경험적으로</strong> 셉니다. 한 task를 n번 돌려 c번 성공했다면, 그 결과만으로 pass@k와 pass^k를 추정합니다. pass@k는 Codex/HumanEval 논문이 제안한 불편추정량(unbiased estimator)을 그대로 씁니다.</p>
+
+{{< highlight python >}}
+from math import comb
+
+def pass_at_k(n: int, c: int, k: int) -> float:
+    """n번 시행 중 c번 성공했을 때, k번 뽑아 '적어도 한 번' 성공할 확률(역량).
+    HumanEval/Codex의 불편추정량: 1 - C(n-c, k) / C(n, k)."""
+    if n - c < k:          # 실패가 k개도 안 되면, k개 다 실패는 불가능 → 무조건 성공
+        return 1.0
+    return 1.0 - comb(n - c, k) / comb(n, k)
+
+def pass_hat_k(n: int, c: int, k: int) -> float:
+    """k번 뽑아 '전부' 성공할 확률(신뢰성): C(c, k) / C(n, k)."""
+    if c < k:              # 성공이 k개도 안 되면 전부 성공은 불가능
+        return 0.0
+    return comb(c, k) / comb(n, k)
+
+# 예: 10번 돌려 7번 성공
+n, c = 10, 7
+print(f"pass@3 = {pass_at_k(n, c, 3):.3f}")   # ≈ 0.992  (역량은 거의 천장)
+print(f"pass^3 = {pass_hat_k(n, c, 3):.3f}")  # ≈ 0.292  (신뢰성은 바닥)
+{{< /highlight >}}
+
+<p>같은 데이터(10번 중 7번 성공)인데 pass@3은 0.99, pass^3은 0.29입니다. <strong>한 줄 평균(0.7)에 속지 말라</strong>는 말이 이 한 쌍의 숫자에 그대로 담겨 있습니다.</p>
+
+<h2 id="sec-4">4. 무엇을 채점할까 — 결과 vs 경로(트레이스 기반 평가)</h2>
+
+<p>지표를 정했으면, 이제 grader가 "성공"을 어떻게 판정할지 정해야 합니다. 크게 두 갈래입니다.</p>
+
+<ul>
+  <li><strong>결과 기반(outcome) 채점</strong> — 최종 상태만 봅니다. "주문이 실제로 환불됐는가?"를 DB에서 확인하는 식이죠. 과정이 어떻든 결과만 맞으면 통과. 가장 견고하고, 가능하면 1순위로 두는 방식입니다.</li>
+  <li><strong>경로 기반(transcript/trace) 채점</strong> — 과정의 각 단계(span)를 봅니다. 도구를 맞게 골랐나, 인자는 맞나, 검색은 제대로 했나, 쓸데없이 빙빙 돌지 않았나.</li>
+</ul>
+
+<p>Anthropic의 권고는 "되도록 <strong>경로가 아니라 결과를 채점하라</strong>"입니다. 경로를 너무 깐깐하게 보면, 사람이 안 거치는 더 똑똑한 길로 가도 '틀렸다'고 벌점을 주게 되니까요. 다만 에이전트가 길게 도는 작업에선 결과만으로 부족할 때가 있습니다. <strong>실패가 어디서 났는지</strong>를 알아야 고치죠. 그래서 등장하는 게 <strong>트레이스 기반 평가(trace-based evals)</strong>입니다.</p>
+
+<p>트레이스 기반 평가는 한 trial을 여러 <strong>span(구간)</strong>으로 쪼갭니다. 계획, 각 도구 호출, 검색, 서브에이전트 핸드오프… 각 span에 점수를 매기면, "정답률 60%"가 아니라 "검색 단계에서 30%가 깨진다"처럼 <strong>실패 지점</strong>이 보입니다. 운영 중에 쌓인 트레이스를 사람이 주기적으로 들여다보면 새로운 실패 유형도 발견됩니다.</p>
+
+<figure class="aev-fig"><svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="한 에이전트 trial을 계획, 도구 호출, 검색, 도구 호출, 답변 span으로 나눈 트레이스. 각 span에 합격·불합격을 매기는 트레이스 기반 평가와, 최종 상태만 보는 결과 기반 평가를 함께 보여 준다.">
+  <text x="20" y="40" font-size="13" font-weight="700" fill="var(--aev-cyan)">한 trial의 트레이스 — span 단위 채점</text>
+
+  <!-- spans -->
+  <g font-size="11.5">
+    <rect x="20" y="60" width="130" height="56" rx="9" fill="none" stroke="var(--aev-emerald)" stroke-width="2"/>
+    <text x="85" y="83" text-anchor="middle" font-weight="700" fill="var(--aev-emerald)">계획</text>
+    <text x="85" y="102" text-anchor="middle" fill="var(--aev-emerald)">✓ 합격</text>
+
+    <rect x="168" y="60" width="130" height="56" rx="9" fill="none" stroke="var(--aev-emerald)" stroke-width="2"/>
+    <text x="233" y="83" text-anchor="middle" font-weight="700" fill="var(--aev-emerald)">도구: 주문조회</text>
+    <text x="233" y="102" text-anchor="middle" fill="var(--aev-emerald)">✓ 합격</text>
+
+    <rect x="316" y="60" width="130" height="56" rx="9" fill="none" stroke="var(--aev-rose)" stroke-width="2.5"/>
+    <text x="381" y="83" text-anchor="middle" font-weight="700" fill="var(--aev-rose)">검색(RAG)</text>
+    <text x="381" y="102" text-anchor="middle" fill="var(--aev-rose)">✕ 엉뚱한 문서</text>
+
+    <rect x="464" y="60" width="130" height="56" rx="9" fill="none" stroke="var(--aev-amber)" stroke-width="2"/>
+    <text x="529" y="83" text-anchor="middle" font-weight="700" fill="var(--aev-amber)">도구: 환불실행</text>
+    <text x="529" y="102" text-anchor="middle" fill="var(--aev-amber)">△ 금액 오류</text>
+
+    <rect x="612" y="60" width="128" height="56" rx="9" fill="none" stroke="var(--aev-rose)" stroke-width="2"/>
+    <text x="676" y="83" text-anchor="middle" font-weight="700" fill="var(--aev-rose)">답변</text>
+    <text x="676" y="102" text-anchor="middle" fill="var(--aev-rose)">✕ 잘못 안내</text>
+  </g>
+  <!-- arrows between spans -->
+  <g stroke="var(--aev-slate)" stroke-width="2" fill="none" marker-end="url(#aevarrow2)">
+    <path d="M150 88 H166"/><path d="M298 88 H314"/><path d="M446 88 H462"/><path d="M594 88 H610"/>
+  </g>
+  <defs><marker id="aevarrow2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="var(--aev-slate)"/></marker></defs>
+
+  <!-- diagnosis -->
+  <rect x="20" y="150" width="720" height="56" rx="9" fill="none" stroke="var(--aev-cyan)" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <text x="38" y="174" font-size="12" font-weight="700" fill="var(--aev-cyan)">트레이스로 보면:</text>
+  <text x="38" y="194" font-size="12" fill="var(--aev-slate)">최종 답은 틀렸지만(결과 ✕), 진짜 원인은 '검색 span'이 엉뚱한 문서를 가져온 것 → 거기를 고쳐야 한다.</text>
+
+  <!-- outcome eval -->
+  <rect x="20" y="232" width="350" height="50" rx="9" fill="none" stroke="var(--aev-indigo)" stroke-width="2"/>
+  <text x="38" y="254" font-size="12" font-weight="700" fill="var(--aev-indigo)">결과 기반 평가</text>
+  <text x="38" y="272" font-size="11.5" fill="var(--aev-slate)">"환불 금액이 맞는가?" → 최종 상태만 확인(견고)</text>
+
+  <rect x="390" y="232" width="350" height="50" rx="9" fill="none" stroke="var(--aev-cyan)" stroke-width="2"/>
+  <text x="408" y="254" font-size="12" font-weight="700" fill="var(--aev-cyan)">트레이스 기반 평가</text>
+  <text x="408" y="272" font-size="11.5" fill="var(--aev-slate)">"어느 span에서 깨졌나?" → 실패 지점 진단</text>
+</svg>
+<figcaption>결과 기반 평가는 "최종이 맞는가"를, 트레이스 기반 평가는 "어느 단계에서 깨졌는가"를 본다. 둘은 경쟁이 아니라 보완 — 결과로 합격선을 긋고, 트레이스로 원인을 짚는다.</figcaption></figure>
+
+<h2 id="sec-5">5. LLM을 채점관으로 — LLM-as-judge와 보정</h2>
+
+<p>"환불됐는지"처럼 코드로 딱 떨어지는 건 코드 grader가 최고입니다. 문제는 "답변이 정중하고 정확한가", "요약이 핵심을 빠뜨리지 않았나"처럼 <strong>주관적인</strong> 판정입니다. 사람이 일일이 보긴 느리고 비싸죠. 그래서 LLM에게 채점을 맡기는 <strong>LLM-as-judge</strong>가 표준이 됐습니다.</p>
+
+<p>핵심 원칙 몇 가지만 지키면 됩니다. ① <strong>기준(rubric)을 명확히</strong> 쓴다. ② 한 번에 한 가지 차원만 채점하게 한다(정확성 따로, 어조 따로). ③ <strong>근거가 부족하면 "Unknown"</strong>을 답하게 허용해 억지 판정을 막는다. 아래는 한 차원("사실 정확성")만 보는 최소 판정기입니다.</p>
+
+{{< highlight python >}}
+import json
+from anthropic import Anthropic
+
+client = Anthropic()
+
+JUDGE_PROMPT = """당신은 엄격한 채점관입니다. 아래 답변이 '사실적으로 정확한지'만 판정하세요.
+다른 기준(어조, 길이)은 무시합니다. 근거가 부족하면 망설이지 말고 "unknown"을 고르세요.
+
+[질문]
+{question}
+
+[정답 근거]
+{reference}
+
+[채점할 답변]
+{answer}
+
+다음 JSON만 출력하세요: {{"verdict": "pass" | "fail" | "unknown", "reason": "한 문장"}}"""
+
+def judge_factuality(question, reference, answer) -> dict:
+    msg = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=300,
+        messages=[{
+            "role": "user",
+            "content": JUDGE_PROMPT.format(
+                question=question, reference=reference, answer=answer),
+        }],
+    )
+    return json.loads(msg.content[0].text)
+
+print(judge_factuality(
+    "환불 처리에 보통 며칠 걸리나요?",
+    "영업일 기준 3~5일",
+    "보통 3~5 영업일 안에 처리됩니다.",
+))
+# → {"verdict": "pass", "reason": "정답 근거의 3~5 영업일과 일치"}
+{{< /highlight >}}
+
+<p>그런데 여기 가장 흔한 함정이 있습니다. <strong>채점관 자신이 틀릴 수 있다</strong>는 겁니다. 판정기를 믿으려면, 그 판정기가 사람과 얼마나 일치하는지를 먼저 재야 합니다. 이게 <strong>보정(calibration)</strong>입니다.</p>
+
+<p>방법은 이렇습니다. 사람이 직접 라벨링한 <strong>골드셋(gold set)</strong>을 만듭니다(보통 수십~200건). 같은 데이터를 LLM 판정기에게도 채점시킵니다. 그리고 둘의 일치도를 잽니다. 이때 단순 일치율 대신 <strong>코헨의 카파(Cohen's kappa)</strong>를 쓰는 게 정석입니다. 카파는 "우연히 맞을 확률"을 빼 주기 때문에, 단순 일치율이 부풀리는 착시를 걷어 냅니다.</p>
+
+{{< highlight python >}}
+from sklearn.metrics import cohen_kappa_score
+
+# 골드셋 50건에 대한 사람 라벨 vs LLM 판정기 결과 (pass=1, fail=0)
+human = [1, 0, 1, 1, 0, 1, 0, 0, 1, 1, ...]   # 도메인 전문가가 매김
+judge = [1, 0, 1, 0, 0, 1, 0, 1, 1, 1, ...]   # judge_factuality()의 결과
+
+kappa = cohen_kappa_score(human, judge)
+print(f"Cohen's kappa = {kappa:.2f}")
+
+# 보통 0.6~0.8 이상이면 '판정기를 릴리스 게이트로 써도 된다' 수준.
+# 그 아래면 rubric을 더 명확히 하거나, 그 차원은 사람 검수로 돌린다.
+if kappa < 0.6:
+    raise SystemExit("판정기가 사람과 충분히 안 맞음 — rubric부터 손보세요")
+{{< /highlight >}}
+
+<div class="aev-note">
+  <p><strong>보정은 한 번이 아니라 계속.</strong> 모델을 바꾸거나 프롬프트를 손대면 판정기의 성향도 바뀝니다. 골드셋을 월 1회처럼 주기적으로 다시 돌려, 카파가 떨어지면 알림을 받도록 하세요. 또 점수가 한 자리 숫자(1~5점)처럼 애매하면, <strong>두 답을 비교(pairwise)</strong>시키는 게 절대 점수보다 안정적일 때가 많습니다. 단, 사실성·독성처럼 객관적 기준은 그냥 절대 채점이 낫습니다.</p>
+</div>
+
+<h2 id="sec-6">6. 실전: 작은 평가 하니스 만들기</h2>
+
+<p>부품이 다 모였으니 묶어 봅시다. 좋은 소식은, <strong>처음부터 수백 건일 필요가 없다</strong>는 겁니다. Anthropic도 "실제 실패에서 뽑은 20~50개의 단순한 task"로 시작하길 권합니다. 초기엔 효과 크기가 커서 작은 표본으로도 충분히 신호가 잡힙니다. 아래는 task마다 N번 돌려 pass^k로 합격선을 거는 최소 하니스입니다.</p>
+
+{{< highlight python >}}
+from math import comb
+
+def pass_hat_k(n, c, k):
+    return comb(c, k) / comb(n, k) if c >= k else 0.0
+
+def run_eval(tasks, run_agent, grade, n_trials=5, k=3, threshold=0.9):
+    """tasks: [{"id","input","reference"}, ...]
+       run_agent(input) -> 에이전트 출력(transcript/outcome)
+       grade(output, reference) -> True/False (코드 grader 또는 LLM-as-judge)"""
+    failed = []
+    for task in tasks:
+        c = 0
+        for _ in range(n_trials):                 # 같은 task를 여러 번(확률적이므로)
+            out = run_agent(task["input"])
+            if grade(out, task["reference"]):
+                c += 1
+        score = pass_hat_k(n_trials, c, k)        # 신뢰성으로 평가
+        status = "PASS" if score >= threshold else "FAIL"
+        print(f"[{status}] {task['id']}: {c}/{n_trials} 성공 → pass^{k}={score:.2f}")
+        if score < threshold:
+            failed.append(task["id"])
+    if failed:                                    # CI에서 빨간불 → 머지 차단
+        raise SystemExit(f"신뢰성 기준 미달: {failed}")
+    print("모든 task가 pass^k 기준 통과 ✅")
+
+# CI에 물려 두면, 프롬프트/모델을 바꿀 때마다 '신뢰성이 떨어지지 않았는지'를 자동으로 막아 준다.
+{{< /highlight >}}
+
+<p>여기서 두 가지가 핵심입니다. 첫째, <strong>task마다 여러 trial</strong>을 돌려야 확률적 흔들림이 잡힙니다(한 번만 돌리면 운에 좌우됨). 둘째, 합격 판정을 평균이 아니라 <strong>pass^k</strong>로 걸어, "이번 변경이 신뢰성을 떨어뜨렸는가"를 CI가 자동으로 막게 합니다. 이렇게 평가를 CI 게이트로 넣는 순간, 평가는 대시보드 장식이 아니라 <strong>릴리스를 지키는 인프라</strong>가 됩니다.</p>
+
+<p>그리고 이 골드셋·task는 한 번 만들고 끝이 아닙니다. <strong>프로덕션 트레이스에서 계속 길러야</strong> 합니다. 운영 중에 새로 터진 실패를 task로 추가하면, 같은 사고가 두 번 나는 걸 막는 회귀 테스트가 쌓입니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>한 번 돌려 보고 판단한다.</strong> 가장 흔한 실수입니다. 확률적이라 한 trial은 운입니다. 최소 3~5번, 신뢰성이 중요하면 더 많이 돌리세요.</li>
+  <li><strong>평균 정답률만 본다.</strong> 평균은 역량과 신뢰성을 뭉갭니다. pass@k와 pass^k를 <strong>함께</strong> 보고하세요. 둘의 간격이 곧 "운에 얼마나 기대고 있나"입니다.</li>
+  <li><strong>판정기를 보정 없이 믿는다.</strong> LLM-as-judge도 틀립니다. 골드셋으로 카파를 재기 전엔 그 점수를 릴리스 게이트로 쓰지 마세요.</li>
+  <li><strong>최종 답만 채점한다.</strong> 긴 에이전트는 어디서 깨졌는지가 중요합니다. 트레이스로 span별로 보면 고칠 곳이 보입니다.</li>
+  <li><strong>경로를 너무 깐깐하게 본다.</strong> 반대 함정입니다. 사람이 안 거치는 더 영리한 길을 막아 버립니다. 기본은 결과 채점, 진단할 때만 경로를 봅니다.</li>
+  <li><strong>합성 데이터로만 만든 평가셋.</strong> 진짜 실패는 프로덕션에서 옵니다. 실제 트레이스에서 task를 길러야 평가가 현실과 안 벌어집니다.</li>
+  <li><strong>비용을 안 본다.</strong> 평가도 공짜가 아닙니다. 한 공개 리더보드는 9개 모델 × 9개 벤치마크에 2만여 건을 돌리는 데 약 4만 달러가 들었고, <strong>지출을 9배 늘려도 정확도는 2%p밖에 안 올랐다</strong>고 보고했습니다. trial 수·모델 등급을 작업 위험도에 맞춰 조절하세요.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>역량 ≠ 신뢰성.</strong> 데모(한 번 성공)와 프로덕션(매번 성공)은 다른 질문입니다. 2026년 에이전트의 병목은 신뢰성으로 넘어왔습니다.</li>
+  <li><strong>pass@k는 역량, pass^k는 신뢰성.</strong> per-trial 0.7도 pass^3이면 0.343. 평균 한 줄에 속지 말고 둘을 함께 보세요. 임계값은 pass^k로 거세요.</li>
+  <li><strong>어휘를 맞춰라.</strong> task·trial·transcript·outcome·grader. 특히 transcript(과정)와 outcome(결과)을 구분하세요.</li>
+  <li><strong>기본은 결과 채점, 진단은 트레이스.</strong> 결과로 합격선을 긋고, 트레이스 기반 평가로 어느 span에서 깨지는지 짚으세요.</li>
+  <li><strong>LLM-as-judge는 보정하고 써라.</strong> 골드셋 + 코헨의 카파로 사람과의 일치도를 재고, 주기적으로 다시 보정하세요. 근거 없으면 "Unknown".</li>
+  <li><strong>작게 시작해 CI에 걸어라.</strong> 실제 실패에서 뽑은 20~50개 task로 충분합니다. pass^k 게이트로 묶으면 평가가 릴리스를 지키는 인프라가 됩니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener">Demystifying evals for AI agents (Anthropic Engineering)</a> — task·trial·transcript·outcome·grader 어휘, 결과 vs 경로 채점, 판정기 "Unknown" 허용·보정, 작게 시작하기, 평가를 CI로</li>
+  <li><a href="https://arxiv.org/abs/2406.12045" target="_blank" rel="noopener">τ-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains (arXiv:2406.12045)</a> — pass^k 지표를 제시한 도구-에이전트 벤치마크, 일관성(consistency) 갭의 출처</li>
+  <li><a href="https://www.philschmid.de/agents-pass-at-k-pass-power-k" target="_blank" rel="noopener">Pass@k vs Pass^k: Understanding Agent Reliability (Philipp Schmid)</a> — 역량 vs 신뢰성 관점에서의 두 지표 해설과 예시</li>
+  <li><a href="https://agentpatterns.ai/verification/pass-at-k-metrics/" target="_blank" rel="noopener">pass@k and pass^k: Capability and Consistency Metrics (AgentPatterns.ai)</a> — 두 지표의 정의·공식과 배포 임계값 설정</li>
+  <li><a href="https://www.confident-ai.com/blog/llm-agent-evaluation-complete-guide" target="_blank" rel="noopener">LLM Agent Evaluation Metrics in 2026: Tool Calling, Task Completion, Reasoning, and Trace-Based Evals (Confident AI)</a> — 트레이스 기반 평가에서 채점하는 span들</li>
+  <li><a href="https://futureagi.com/blog/llm-as-judge-best-practices-2026" target="_blank" rel="noopener">LLM-as-Judge Best Practices in 2026: Calibration, Bias, and Cost (Future AGI)</a> — 골드셋·코헨의 카파 보정, pairwise vs 절대 채점</li>
+  <li><a href="https://eugeneyan.com/writing/llm-evaluators/" target="_blank" rel="noopener">Evaluating the Effectiveness of LLM-Evaluators (Eugene Yan)</a> — LLM 판정기를 사람과 정렬·검증하는 실무 정리</li>
+  <li><a href="https://huggingface.co/blog/evaleval/eval-costs-bottleneck" target="_blank" rel="noopener">AI evals are becoming the new compute bottleneck (EvalEval Coalition, Hugging Face)</a> — Holistic Agent Leaderboard의 비용($40k/2.1만 rollouts)과 "9배 지출에 2%p" 수치</li>
+  <li><a href="https://github.com/openai/human-eval" target="_blank" rel="noopener">openai/human-eval (GitHub)</a> — pass@k 불편추정량 <code>1 − C(n−c, k)/C(n, k)</code>의 원전 구현</li>
+</ul>

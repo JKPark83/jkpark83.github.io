@@ -1,0 +1,43 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽은 데모에서 한 번 성공한 초록 체크 표시, 오른쪽은 프로덕션에서 같은 작업을 여덟 번 돌렸을 때 절반 넘게 실패하는 빨간 표시. 한 번의 성공은 신뢰성을 뜻하지 않는다.">
+  <defs>
+    <linearGradient id="aevbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#aevbg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="40" font-weight="800">한 번 성공 ≠ 믿을 수 있음</text>
+  <text x="600" y="120" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="22">에이전트 평가(evals): pass@k(역량)와 pass^k(신뢰성)</text>
+
+  <!-- divider -->
+  <line x1="600" y1="170" x2="600" y2="560" stroke="#334155" stroke-width="2" stroke-dasharray="6 8"/>
+
+  <!-- left: demo, one success -->
+  <text x="300" y="210" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="22" font-weight="700">데모 — 1번 실행</text>
+  <circle cx="300" cy="350" r="92" fill="none" stroke="#34d399" stroke-width="8"/>
+  <path d="M256 352 l30 32 l58 -72" fill="none" stroke="#34d399" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="300" y="498" text-anchor="middle" fill="#34d399" font-family="system-ui,sans-serif" font-size="26" font-weight="800">pass@1 = 통과 🎉</text>
+
+  <!-- right: production, 8 runs grid -->
+  <text x="900" y="210" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="22" font-weight="700">프로덕션 — 같은 작업 8번</text>
+  <g font-family="system-ui,sans-serif" font-size="34" font-weight="800" text-anchor="middle">
+    <!-- row 1 -->
+    <g>
+      <rect x="724" y="250" width="78" height="78" rx="12" fill="#064e3b" stroke="#34d399" stroke-width="3"/><text x="763" y="302" fill="#34d399">✓</text>
+      <rect x="816" y="250" width="78" height="78" rx="12" fill="#450a0a" stroke="#f87171" stroke-width="3"/><text x="855" y="304" fill="#f87171">✕</text>
+      <rect x="908" y="250" width="78" height="78" rx="12" fill="#064e3b" stroke="#34d399" stroke-width="3"/><text x="947" y="302" fill="#34d399">✓</text>
+      <rect x="1000" y="250" width="78" height="78" rx="12" fill="#450a0a" stroke="#f87171" stroke-width="3"/><text x="1039" y="304" fill="#f87171">✕</text>
+    </g>
+    <!-- row 2 -->
+    <g>
+      <rect x="724" y="342" width="78" height="78" rx="12" fill="#450a0a" stroke="#f87171" stroke-width="3"/><text x="763" y="396" fill="#f87171">✕</text>
+      <rect x="816" y="342" width="78" height="78" rx="12" fill="#064e3b" stroke="#34d399" stroke-width="3"/><text x="855" y="394" fill="#34d399">✓</text>
+      <rect x="908" y="342" width="78" height="78" rx="12" fill="#450a0a" stroke="#f87171" stroke-width="3"/><text x="947" y="396" fill="#f87171">✕</text>
+      <rect x="1000" y="342" width="78" height="78" rx="12" fill="#450a0a" stroke="#f87171" stroke-width="3"/><text x="1039" y="396" fill="#f87171">✕</text>
+    </g>
+  </g>
+  <text x="900" y="498" text-anchor="middle" fill="#f87171" font-family="system-ui,sans-serif" font-size="26" font-weight="800">pass^8 ≈ 3 / 8 만 전부 통과</text>
+
+  <text x="600" y="588" text-anchor="middle" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="21">데모를 통과한 에이전트가 프로덕션에서 무너지는 이유 — 그리고 그걸 숫자로 잡는 법</text>
+</svg>

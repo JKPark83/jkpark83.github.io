@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="720" height="340" fill="#0f1117"/>
+  <text x="30" y="40" fill="#e6e6e6" font-size="20" font-weight="700">오픈소스 터미널·하네스 에이전트 ★ (2026-06-28)</text>
+  <text x="30" y="62" fill="#8a93a6" font-size="13">GitHub API 기준 stargazers_count</text>
+
+  <!-- axis baseline -->
+  <line x1="180" y1="100" x2="180" y2="300" stroke="#2a3042" stroke-width="1.5"/>
+
+  <!-- gemini-cli 105599 -> max bar -->
+  <rect x="180" y="100" width="500" height="40" rx="6" fill="#3f72a0"/>
+  <text x="172" y="125" fill="#cdd6e4" font-size="14" text-anchor="end">gemini-cli</text>
+  <text x="690" y="125" fill="#fff" font-size="14" font-weight="700" text-anchor="end">105.6k ★ · TS</text>
+
+  <!-- deer-flow 75039 -> 355 -->
+  <rect x="180" y="160" width="355" height="40" rx="6" fill="#2e7d4f"/>
+  <text x="172" y="185" fill="#cdd6e4" font-size="14" text-anchor="end">deer-flow</text>
+  <text x="545" y="185" fill="#cdd6e4" font-size="14" font-weight="700">75.0k ★ · Py</text>
+
+  <!-- qwen-code 25583 -> 121 -->
+  <rect x="180" y="220" width="121" height="40" rx="6" fill="#7d4fa0"/>
+  <text x="172" y="245" fill="#cdd6e4" font-size="14" text-anchor="end">qwen-code</text>
+  <text x="311" y="245" fill="#cdd6e4" font-size="14" font-weight="700">25.6k ★ · TS</text>
+
+  <text x="30" y="315" fill="#6b7385" font-size="11">막대 길이 = 스타 수 비례 · gemini-cli=터미널 코딩, deer-flow=롱호라이즌 하네스, qwen-code=터미널 코딩</text>
+</svg>

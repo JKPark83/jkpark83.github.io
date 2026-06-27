@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 360" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="740" height="360" fill="#0f1117"/>
+  <text x="30" y="38" fill="#e6e6e6" font-size="20" font-weight="700">Claude Code 자동 모드 파괴적 명령 차단 (v2.1.187+)</text>
+
+  <!-- agent box -->
+  <rect x="30" y="70" width="160" height="60" rx="10" fill="#1b2030" stroke="#3a4a6b" stroke-width="1.5"/>
+  <text x="110" y="98" fill="#fff" font-size="14" font-weight="700" text-anchor="middle">에이전트</text>
+  <text x="110" y="118" fill="#8a93a6" font-size="12" text-anchor="middle">Bash 명령 생성</text>
+
+  <!-- arrow -->
+  <line x1="190" y1="100" x2="250" y2="100" stroke="#5a657f" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- classifier diamond -->
+  <polygon points="370,55 470,100 370,145 270,100" fill="#241a26" stroke="#7d4fa0" stroke-width="1.5"/>
+  <text x="370" y="95" fill="#c79be0" font-size="13" font-weight="700" text-anchor="middle">자동 모드</text>
+  <text x="370" y="113" fill="#c79be0" font-size="13" font-weight="700" text-anchor="middle">분류기</text>
+
+  <!-- blocked branch -->
+  <line x1="370" y1="145" x2="370" y2="195" stroke="#c0524a" stroke-width="2" marker-end="url(#r)"/>
+  <rect x="220" y="200" width="300" height="120" rx="10" fill="#2a1717" stroke="#c0524a" stroke-width="1.5"/>
+  <text x="240" y="226" fill="#e88b84" font-size="14" font-weight="700">⛔ 차단 (사용자 요청 없을 때)</text>
+  <text x="240" y="250" fill="#cdd6e4" font-size="12.5">git reset --hard · git clean -fd</text>
+  <text x="240" y="270" fill="#cdd6e4" font-size="12.5">git checkout -- . · git stash drop</text>
+  <text x="240" y="290" fill="#cdd6e4" font-size="12.5">git commit --amend (이번 세션 외)</text>
+  <text x="240" y="310" fill="#cdd6e4" font-size="12.5">terraform/pulumi/cdk destroy</text>
+
+  <!-- allowed branch -->
+  <line x1="470" y1="100" x2="560" y2="100" stroke="#2e7d4f" stroke-width="2" marker-end="url(#g)"/>
+  <rect x="560" y="70" width="160" height="60" rx="10" fill="#13261b" stroke="#2e7d4f" stroke-width="1.5"/>
+  <text x="640" y="98" fill="#5fd08a" font-size="14" font-weight="700" text-anchor="middle">✅ 실행</text>
+  <text x="640" y="118" fill="#8a93a6" font-size="12" text-anchor="middle">안전 명령 통과</text>
+
+  <text x="560" y="220" fill="#6b7385" font-size="11.5">팁: classifyAllShell로</text>
+  <text x="560" y="238" fill="#6b7385" font-size="11.5">모든 셸 명령을 분류기에</text>
+  <text x="560" y="256" fill="#6b7385" font-size="11.5">통과시킬 수 있음 (2.1.193)</text>
+
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5a657f"/></marker>
+    <marker id="r" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c0524a"/></marker>
+    <marker id="g" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2e7d4f"/></marker>
+  </defs>
+</svg>

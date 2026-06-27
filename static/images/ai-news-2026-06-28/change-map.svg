@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="420" fill="#0f1117"/>
+  <text x="380" y="38" fill="#e6e6e6" font-size="22" font-weight="700" text-anchor="middle">오늘의 AI 변화 지도 · 2026-06-28</text>
+  <text x="380" y="62" fill="#8a93a6" font-size="13" text-anchor="middle">터미널 코딩 에이전트 가속 · 하네스 안전장치 · 프로세스 규율 평가</text>
+
+  <!-- center -->
+  <ellipse cx="380" cy="230" rx="92" ry="44" fill="#1b2030" stroke="#3a4a6b" stroke-width="1.5"/>
+  <text x="380" y="226" fill="#fff" font-size="15" font-weight="700" text-anchor="middle">개발자 워크플로</text>
+  <text x="380" y="247" fill="#8a93a6" font-size="12" text-anchor="middle">에이전트 빌더</text>
+
+  <!-- node: OSS terminal agents -->
+  <rect x="40" y="100" width="210" height="86" rx="10" fill="#13261b" stroke="#2e7d4f" stroke-width="1.5"/>
+  <text x="60" y="126" fill="#5fd08a" font-size="14" font-weight="700">🛠 오픈소스 터미널 에이전트</text>
+  <text x="60" y="148" fill="#cdd6e4" font-size="12">gemini-cli 105.6k · deer-flow 75k</text>
+  <text x="60" y="166" fill="#cdd6e4" font-size="12">qwen-code 25.6k ★</text>
+  <line x1="250" y1="150" x2="300" y2="210" stroke="#2e7d4f" stroke-width="2"/>
+
+  <!-- node: harness guardrails -->
+  <rect x="510" y="100" width="210" height="86" rx="10" fill="#241a26" stroke="#7d4fa0" stroke-width="1.5"/>
+  <text x="530" y="126" fill="#c79be0" font-size="14" font-weight="700">🟦 하네스 안전장치</text>
+  <text x="530" y="148" fill="#cdd6e4" font-size="12">Claude Code 2.1.187+</text>
+  <text x="530" y="166" fill="#cdd6e4" font-size="12">파괴적 git 명령 자동 차단</text>
+  <line x1="510" y1="150" x2="460" y2="210" stroke="#7d4fa0" stroke-width="2"/>
+
+  <!-- node: MCP tool search -->
+  <rect x="40" y="280" width="210" height="86" rx="10" fill="#1a2430" stroke="#3f72a0" stroke-width="1.5"/>
+  <text x="60" y="306" fill="#7fb4e0" font-size="14" font-weight="700">🟩 Codex MCP 개선</text>
+  <text x="60" y="328" fill="#cdd6e4" font-size="12">0.142.3 stable</text>
+  <text x="60" y="346" fill="#cdd6e4" font-size="12">MCP 툴 검색 기본 활성화</text>
+  <line x1="250" y1="320" x2="300" y2="252" stroke="#3f72a0" stroke-width="2"/>
+
+  <!-- node: RigorBench -->
+  <rect x="510" y="280" width="210" height="86" rx="10" fill="#2a2417" stroke="#a08a3f" stroke-width="1.5"/>
+  <text x="530" y="306" fill="#e0cd7f" font-size="14" font-weight="700">📚 RigorBench</text>
+  <text x="530" y="328" fill="#cdd6e4" font-size="12">코딩 에이전트 '과정 규율'</text>
+  <text x="530" y="346" fill="#cdd6e4" font-size="12">5개 축 평가 · 2606.22678</text>
+  <line x1="510" y1="320" x2="460" y2="252" stroke="#a08a3f" stroke-width="2"/>
+</svg>

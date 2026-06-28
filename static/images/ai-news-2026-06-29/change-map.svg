@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" font-family="-apple-system,Segoe UI,Roboto,sans-serif" role="img" aria-label="오늘의 AI 변화 지도">
+  <rect width="760" height="420" fill="#0f1117"/>
+  <text x="24" y="36" fill="#e6e8ee" font-size="20" font-weight="700">오늘의 AI 변화 지도 — 2026-06-29</text>
+  <text x="24" y="58" fill="#8b93a7" font-size="13">터미널·개인용 에이전트 CLI 폭증 + 멀티 CLI를 관리하는 도구의 등장</text>
+
+  <rect x="300" y="180" width="160" height="56" rx="10" fill="#1d2433" stroke="#3b82f6" stroke-width="2"/>
+  <text x="380" y="205" fill="#dbeafe" font-size="14" font-weight="700" text-anchor="middle">개발자 워크플로</text>
+  <text x="380" y="224" fill="#93a4c7" font-size="11" text-anchor="middle">여러 에이전트 CLI 운용</text>
+
+  <g stroke="#39425a" stroke-width="2" fill="none">
+    <path d="M300 208 L244 114"/>
+    <path d="M300 208 L244 304"/>
+    <path d="M460 208 L516 114"/>
+    <path d="M460 208 L516 304"/>
+  </g>
+
+  <rect x="24" y="84" width="220" height="60" rx="10" fill="#13241c" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="36" y="108" fill="#bbf7d0" font-size="13" font-weight="700">OpenClaw · 380.9k★</text>
+  <text x="36" y="127" fill="#86b39a" font-size="11">개인용 AI 어시스턴트(모든 OS)</text>
+
+  <rect x="24" y="274" width="220" height="60" rx="10" fill="#241c2e" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="36" y="298" fill="#e9d5ff" font-size="13" font-weight="700">Hermes Agent · 204.9k★</text>
+  <text x="36" y="317" fill="#b59ac7" font-size="11">사용자와 함께 성장하는 에이전트</text>
+
+  <rect x="516" y="84" width="220" height="60" rx="10" fill="#2a2114" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="528" y="108" fill="#fde68a" font-size="13" font-weight="700">cc-switch · 109.9k★</text>
+  <text x="528" y="127" fill="#c7a766" font-size="11">멀티 CLI 설정 전환 데스크톱</text>
+
+  <rect x="516" y="274" width="220" height="60" rx="10" fill="#13202a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="528" y="298" fill="#bae6fd" font-size="13" font-weight="700">Codex 0.143 alpha</text>
+  <text x="528" y="317" fill="#7fb3cc" font-size="11">인덱스 웹검색·멀티에이전트 위임</text>
+
+  <text x="24" y="392" fill="#5f6b85" font-size="11">★ 수치는 GitHub API 기준 · 직접 생성 SVG</text>
+</svg>

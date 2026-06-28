@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" font-family="-apple-system,Segoe UI,Roboto,sans-serif" role="img" aria-label="저장소 스타 비교">
+  <rect width="760" height="300" fill="#0f1117"/>
+  <text x="24" y="36" fill="#e6e8ee" font-size="19" font-weight="700">오픈소스 에이전트 CLI 스타 비교</text>
+  <text x="24" y="56" fill="#8b93a7" font-size="12">GitHub API 기준 · 막대 길이는 스타 수에 비례 (최대값 = 380.9k)</text>
+
+  <!-- OpenClaw: 380857 -> width scaled to 660 max -->
+  <text x="24" y="100" fill="#cbd5e1" font-size="13">openclaw/openclaw</text>
+  <rect x="24" y="108" width="660" height="26" rx="5" fill="#1b2230"/>
+  <rect x="24" y="108" width="660" height="26" rx="5" fill="#22c55e"/>
+  <text x="694" y="126" fill="#bbf7d0" font-size="13" font-weight="700">380.9k★</text>
+
+  <!-- Hermes: 204928 -> 204928/380857*660 = 355 -->
+  <text x="24" y="162" fill="#cbd5e1" font-size="13">NousResearch/hermes-agent</text>
+  <rect x="24" y="170" width="660" height="26" rx="5" fill="#1b2230"/>
+  <rect x="24" y="170" width="355" height="26" rx="5" fill="#a855f7"/>
+  <text x="389" y="188" fill="#e9d5ff" font-size="13" font-weight="700">204.9k★</text>
+
+  <!-- cc-switch: 109932 -> 190 -->
+  <text x="24" y="224" fill="#cbd5e1" font-size="13">farion1231/cc-switch</text>
+  <rect x="24" y="232" width="660" height="26" rx="5" fill="#1b2230"/>
+  <rect x="24" y="232" width="190" height="26" rx="5" fill="#f59e0b"/>
+  <text x="224" y="250" fill="#fde68a" font-size="13" font-weight="700">109.9k★</text>
+
+  <text x="24" y="288" fill="#5f6b85" font-size="11">2026-06-29 확인값 · 직접 생성 SVG</text>
+</svg>

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="-apple-system,Segoe UI,Roboto,sans-serif" role="img" aria-label="Codex 인덱스 웹검색 모드 흐름도">
+  <rect width="760" height="360" fill="#0f1117"/>
+  <text x="24" y="34" fill="#e6e8ee" font-size="19" font-weight="700">Codex 0.143 — 인덱스 웹검색 모드</text>
+  <text x="24" y="55" fill="#8b93a7" font-size="12">라이브 검색은 허용, 직접 페이지 접근은 서버가 승인한 URL로 제한</text>
+
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0 0 L9 4.5 L0 9 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- agent -->
+  <rect x="24" y="120" width="150" height="60" rx="10" fill="#13202a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="99" y="148" fill="#bae6fd" font-size="13" font-weight="700" text-anchor="middle">에이전트</text>
+  <text x="99" y="167" fill="#7fb3cc" font-size="11" text-anchor="middle">검색 질의 생성</text>
+
+  <!-- search index -->
+  <rect x="230" y="120" width="160" height="60" rx="10" fill="#1d2433" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="310" y="148" fill="#dbeafe" font-size="13" font-weight="700" text-anchor="middle">라이브 검색</text>
+  <text x="310" y="167" fill="#93a4c7" font-size="11" text-anchor="middle">결과 목록 반환</text>
+
+  <!-- allowlist gate -->
+  <rect x="446" y="120" width="160" height="60" rx="10" fill="#2a2114" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="526" y="144" fill="#fde68a" font-size="13" font-weight="700" text-anchor="middle">URL 허용목록</text>
+  <text x="526" y="163" fill="#c7a766" font-size="11" text-anchor="middle">서버 승인 URL만 통과</text>
+
+  <!-- fetch -->
+  <rect x="630" y="120" width="106" height="60" rx="10" fill="#13241c" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="683" y="148" fill="#bbf7d0" font-size="13" font-weight="700" text-anchor="middle">페이지</text>
+  <text x="683" y="167" fill="#86b39a" font-size="11" text-anchor="middle">본문 접근</text>
+
+  <g stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arr)">
+    <path d="M174 150 L226 150"/>
+    <path d="M390 150 L442 150"/>
+    <path d="M606 150 L626 150"/>
+  </g>
+
+  <!-- blocked path -->
+  <rect x="446" y="236" width="160" height="54" rx="10" fill="#2a1414" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="526" y="260" fill="#fecaca" font-size="12" font-weight="700" text-anchor="middle">미승인 URL</text>
+  <text x="526" y="278" fill="#cc8888" font-size="11" text-anchor="middle">직접 접근 차단</text>
+  <path d="M526 180 L526 232" stroke="#ef4444" stroke-width="2" fill="none" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+
+  <text x="24" y="330" fill="#9aa3b8" font-size="12">→ 프롬프트 인젝션·임의 URL 페치 리스크를 줄이면서 최신 정보는 유지</text>
+  <text x="24" y="350" fill="#5f6b85" font-size="11">출처: OpenAI Codex 공식 changelog · 직접 생성 SVG</text>
+</svg>

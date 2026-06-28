@@ -1,0 +1,47 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="가운데 오케스트레이터(리드 에이전트)가 별도의 컨텍스트 윈도우를 가진 여러 서브에이전트에게 일을 나눠 주고, 각 서브에이전트는 응축된 요약만 돌려보낸다.">
+  <defs>
+    <linearGradient id="maobg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <marker id="maocov-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#maobg)"/>
+
+  <text x="600" y="80" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">혼자 하던 일을 팀으로</text>
+  <text x="600" y="124" text-anchor="middle" fill="#93c5fd" font-family="system-ui,sans-serif" font-size="22">멀티 에이전트 오케스트레이션 — 오케스트레이터·워커와 컨텍스트 격리</text>
+
+  <!-- orchestrator hub -->
+  <rect x="500" y="270" width="200" height="92" rx="14" fill="#1e3a8a" stroke="#60a5fa" stroke-width="3"/>
+  <text x="600" y="308" text-anchor="middle" fill="#dbeafe" font-family="system-ui,sans-serif" font-size="22" font-weight="800">오케스트레이터</text>
+  <text x="600" y="338" text-anchor="middle" fill="#93c5fd" font-family="system-ui,sans-serif" font-size="17">리드 에이전트 (계획·분배)</text>
+
+  <!-- spokes / subagents -->
+  <g font-family="system-ui,sans-serif">
+    <!-- sub 1 -->
+    <line x1="500" y1="300" x2="250" y2="210" stroke="#64748b" stroke-width="2" marker-end="url(#maocov-arr)"/>
+    <rect x="90" y="170" width="180" height="80" rx="12" fill="#0b1220" stroke="#34d399" stroke-width="2.5"/>
+    <text x="180" y="202" text-anchor="middle" fill="#a7f3d0" font-size="18" font-weight="700">서브에이전트 A</text>
+    <text x="180" y="228" text-anchor="middle" fill="#64748b" font-size="14">독립 컨텍스트 윈도우</text>
+    <!-- sub 2 -->
+    <line x1="500" y1="332" x2="250" y2="420" stroke="#64748b" stroke-width="2" marker-end="url(#maocov-arr)"/>
+    <rect x="90" y="385" width="180" height="80" rx="12" fill="#0b1220" stroke="#34d399" stroke-width="2.5"/>
+    <text x="180" y="417" text-anchor="middle" fill="#a7f3d0" font-size="18" font-weight="700">서브에이전트 B</text>
+    <text x="180" y="443" text-anchor="middle" fill="#64748b" font-size="14">독립 컨텍스트 윈도우</text>
+    <!-- sub 3 -->
+    <line x1="700" y1="300" x2="950" y2="210" stroke="#64748b" stroke-width="2" marker-end="url(#maocov-arr)"/>
+    <rect x="930" y="170" width="180" height="80" rx="12" fill="#0b1220" stroke="#34d399" stroke-width="2.5"/>
+    <text x="1020" y="202" text-anchor="middle" fill="#a7f3d0" font-size="18" font-weight="700">서브에이전트 C</text>
+    <text x="1020" y="228" text-anchor="middle" fill="#64748b" font-size="14">독립 컨텍스트 윈도우</text>
+    <!-- sub 4 -->
+    <line x1="700" y1="332" x2="950" y2="420" stroke="#64748b" stroke-width="2" marker-end="url(#maocov-arr)"/>
+    <rect x="930" y="385" width="180" height="80" rx="12" fill="#0b1220" stroke="#34d399" stroke-width="2.5"/>
+    <text x="1020" y="417" text-anchor="middle" fill="#a7f3d0" font-size="18" font-weight="700">서브에이전트 D</text>
+    <text x="1020" y="443" text-anchor="middle" fill="#64748b" font-size="14">독립 컨텍스트 윈도우</text>
+  </g>
+
+  <text x="600" y="560" text-anchor="middle" fill="#f8fafc" font-family="system-ui,sans-serif" font-size="24" font-weight="700">병렬로 토큰을 쏟아 +90.2% — 단, 비용은 15배</text>
+  <text x="600" y="596" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="17">읽기 작업엔 강하고, 쓰기 작업엔 위험하다</text>
+</svg>

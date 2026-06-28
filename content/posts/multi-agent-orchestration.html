@@ -1,0 +1,348 @@
+---
+title: "혼자 하던 일을 팀으로: AI 에이전트 멀티 에이전트 오케스트레이션, 언제 쪼개고 언제 참을까"
+date: 2026-06-29T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "멀티 에이전트", "오케스트레이션", "서브에이전트", "컨텍스트 엔지니어링", "LLM", "Multi-Agent"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트 하나에 일을 몰아주면 컨텍스트 윈도우가 금방 꽉 차고 똑똑함이 흐려집니다. 그래서 리드 에이전트(오케스트레이터)가 일을 잘게 쪼개 별도 컨텍스트를 가진 서브에이전트들에게 나눠 주는 멀티 에이전트 패턴이 화제입니다. Anthropic은 이 방식으로 단일 에이전트보다 +90.2%를 얻었지만 토큰은 15배 들었고, Cognition은 '멀티 에이전트 짓지 마라'고 경고합니다. 둘 다 맞습니다. 오케스트레이터·워커 구조, 컨텍스트 격리, 서브에이전트 계약, 그리고 읽기 vs 쓰기로 갈리는 도입 판단 기준을 코드와 그림으로 정리합니다."
+ShowToc: false
+cover:
+  image: "multi-agent-orchestration-cover.svg"
+  alt: "가운데 오케스트레이터(리드 에이전트)가 독립된 컨텍스트 윈도우를 가진 여러 서브에이전트에게 일을 나눠 주고, 각 서브에이전트는 응축된 요약만 돌려보낸다."
+  caption: "오케스트레이터·워커 패턴 — 리드 에이전트가 일을 쪼개고, 서브에이전트는 각자 독립 컨텍스트에서 일해 요약만 돌려보낸다"
+  relative: false
+---
+
+<style>
+/* ── Multi-Agent Orchestration 포스트 전용 스타일 (mao- 접두사) ── */
+.mao-fig{
+  --mao-blue:#2563eb; --mao-emerald:#10b981; --mao-amber:#d97706;
+  --mao-rose:#e11d48; --mao-cyan:#0891b2; --mao-slate:#64748b; --mao-violet:#7c3aed;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .mao-fig{
+  --mao-blue:#60a5fa; --mao-emerald:#34d399; --mao-amber:#fbbf24;
+  --mao-rose:#fb7185; --mao-cyan:#22d3ee; --mao-slate:#94a3b8; --mao-violet:#a78bfa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .mao-fig{
+    --mao-blue:#60a5fa; --mao-emerald:#34d399; --mao-amber:#fbbf24;
+    --mao-rose:#fb7185; --mao-cyan:#22d3ee; --mao-slate:#94a3b8; --mao-violet:#a78bfa;
+  }
+}
+.mao-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.mao-fig text{font-family:inherit}
+.mao-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.mao-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.mao-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.mao-toc ol{margin:0;padding-left:1.25rem}
+.mao-toc li{margin:.22rem 0;font-size:.95rem}
+.mao-toc a{text-decoration:none}
+.mao-toc a:hover{text-decoration:underline}
+.mao-pull{font-size:1.12rem;line-height:1.72}
+.mao-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.mao-note{border-left:4px solid var(--mao-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.mao-note strong{color:var(--mao-blue,#2563eb)}
+.mao-warn{border-left:4px solid var(--mao-rose,#e11d48)}
+.mao-warn strong{color:var(--mao-rose,#e11d48)}
+.mao-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.mao-tbl th,.mao-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.mao-tbl th{background:var(--entry);font-weight:700}
+.mao-tbl code{font-size:.86em}
+</style>
+
+<blockquote class="mao-pull">
+  <p>에이전트 하나에게 큰 일을 통째로 맡기면, 처음엔 잘하다가 컨텍스트가 길어질수록 점점 멍해집니다. 그래서 일을 잘게 쪼개 <strong>여러 에이전트가 각자 맡는</strong> 멀티 에이전트가 답처럼 보입니다. 그런데 누군가는 "그렇게 했더니 +90%"라고 하고, 누군가는 "절대 그렇게 짓지 마라"고 합니다.</p>
+  <footer>— 둘 다 진심이고, 사실 둘 다 맞습니다. 갈림길은 '읽기냐 쓰기냐'입니다.</footer>
+</blockquote>
+
+<p>이번 주 실무자 타임라인에는 같은 그림이 반복해서 올라왔습니다. 가운데에 <strong>오케스트레이터(orchestrator)</strong> 하나, 그 주위로 일을 나눠 받는 <strong>서브에이전트(subagent)</strong> 여럿. "이제는 프롬프트를 짜는 게 아니라 <em>오케스트라를 지휘</em>한다"는 표현이 돌아다녔고, 'From Conductor to Orchestrator' 같은 가이드와 Addy Osmani의 'The Code Agent Orchestra' 글이 함께 회자됐습니다. 한쪽에서는 Anthropic이 멀티 에이전트로 단일 에이전트를 <strong>90.2%</strong> 앞섰다는 숫자를, 다른 쪽에서는 Cognition이 <strong>"멀티 에이전트를 짓지 마라(Don't Build Multi-Agents)"</strong>는 글을 들고 나오면서 논쟁이 다시 뜨거워졌습니다.</p>
+
+<p>이 글은 그 논쟁을 정리합니다. 멀티 에이전트가 <strong>왜</strong> 필요해졌는지(컨텍스트 병목), 핵심 구조인 <strong>오케스트레이터·워커</strong>가 어떻게 도는지, 왜 통하는지(토큰을 병렬로 쏟기 때문에), 서브에이전트에게 일을 맡길 때 꼭 정해 줘야 하는 것들, 그리고 무엇보다 <strong>언제 쪼개고 언제 참아야 하는지</strong>를 코드와 그림으로 짚겠습니다. 코딩 기본기가 있는 주니어라면 그대로 따라올 수 있습니다.</p>
+
+<nav class="mao-toc">
+  <div class="mao-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 쪼개나 — 컨텍스트 윈도우라는 병목</a></li>
+    <li><a href="#sec-2">오케스트레이터·워커 패턴과 컨텍스트 격리</a></li>
+    <li><a href="#sec-3">왜 통하나 — 토큰을 병렬로 쏟는다</a></li>
+    <li><a href="#sec-4">서브에이전트 계약 — 네 가지를 못 박아라</a></li>
+    <li><a href="#sec-5">실전: 작은 오케스트레이터·워커 만들기</a></li>
+    <li><a href="#sec-6">반대편의 경고 — "멀티 에이전트 짓지 마라"</a></li>
+    <li><a href="#sec-7">그래서 언제 쪼개나 — 읽기 vs 쓰기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. 왜 쪼개나 — 컨텍스트 윈도우라는 병목</h2>
+
+<p>먼저 용어 하나. <strong>컨텍스트 윈도우(context window)</strong>는 모델이 한 번에 들여다볼 수 있는 토큰의 총량입니다. 시스템 프롬프트, 대화 기록, 도구 정의, 검색해 온 문서, 중간 추론까지 전부 여기에 욱여넣습니다. 에이전트가 일을 오래 할수록 이 창은 계속 채워집니다.</p>
+
+<p>문제는 창을 키운다고 똑똑해지지 않는다는 점입니다. 오히려 토큰이 많아질수록 정작 중요한 정보가 묻히고 답이 흐려지는 현상이 자주 보고됩니다(흔히 "context rot"이라 부릅니다). 이번 주 화제가 된 Martin Fowler 쪽 글의 한 줄 요약도 똑같습니다 — <strong>"이제 코딩 에이전트의 병목은 컨텍스트다. 창을 키운다고 저절로 나아지지 않는다."</strong></p>
+
+<p>한 에이전트에 일을 다 몰아주면 어떻게 될까요? 리포지토리 열 개를 조사하는 작업이라면, 첫 번째 리포의 잡다한 로그·코드·검색 결과가 창에 쌓이고, 그 쓰레기들이 세 번째·네 번째 리포를 볼 때까지 따라다니며 자리를 차지합니다. 정작 결론을 쓸 때쯤이면 창은 노이즈로 가득합니다.</p>
+
+<div class="mao-note">
+  <p><strong>핵심 직관.</strong> 일을 쪼개 <strong>서브에이전트</strong>에게 맡기면, 각 서브에이전트는 <em>자기만의 깨끗한 컨텍스트 윈도우</em>에서 일합니다. 리포 A를 뒤지며 5만 토큰을 쓰더라도, 리드 에이전트에게는 1~2천 토큰짜리 <strong>응축된 요약</strong>만 돌려보냅니다. 잡음은 서브에이전트의 창에 가두고, 리드의 창은 깨끗하게 유지하는 것 — 이게 멀티 에이전트의 출발점입니다.</p>
+</div>
+
+<p>즉 멀티 에이전트는 "여러 두뇌를 모은다"기보다, <strong>"하나의 거대한 작업을 여러 개의 작은 깨끗한 창으로 나눈다"</strong>에 더 가깝습니다. 이 관점을 잡고 가면 나머지가 전부 쉽게 풀립니다.</p>
+
+<h2 id="sec-2">2. 오케스트레이터·워커 패턴과 컨텍스트 격리</h2>
+
+<p>가장 널리 쓰이는 구조는 <strong>오케스트레이터·워커(orchestrator–worker)</strong>입니다. 허브 앤 스포크(hub-and-spoke)라고도 부릅니다. 가운데 허브에 <strong>리드 에이전트(오케스트레이터)</strong>가 있고, 바깥 스포크에 <strong>워커(서브에이전트)</strong>들이 달려 있습니다.</p>
+
+<ul>
+  <li><strong>리드 에이전트</strong> — 사용자 요청을 받아 <em>계획</em>을 세우고, 일을 잘게 나눠 워커에게 <em>분배</em>하고, 돌아온 요약들을 <em>종합</em>합니다. 직접 검색하거나 코드를 짜기보다 "지휘"에 집중합니다.</li>
+  <li><strong>서브에이전트</strong> — 명확히 정의된 작은 하위 작업 하나를 받아, 자기 컨텍스트 안에서 도구를 부르고 결과를 만든 뒤, <em>응축된 결과만</em> 리드에게 돌려줍니다.</li>
+</ul>
+
+<p>여기서 가장 중요한 개념이 <strong>컨텍스트 격리(context isolation)</strong>입니다. 서브에이전트는 리드의 대화 기록을 물려받지 않습니다. 각자 <strong>새 컨텍스트 윈도우</strong>에서 시작하고, 옆에 다른 서브에이전트가 있다는 사실조차 모릅니다. 받은 건 "목표 + 출력 형식 + 도구 안내 + 경계"가 적힌 자기 임무서 한 장뿐입니다.</p>
+
+<figure class="mao-fig"><svg viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="오케스트레이터·워커 패턴. 사용자 요청이 리드 에이전트로 들어가면 리드가 일을 세 개의 서브에이전트에게 나눠 준다. 각 서브에이전트는 독립된 컨텍스트 윈도우에서 큰 토큰을 쓰며 일하지만, 리드에게는 작은 요약만 돌려보내고, 리드가 이를 종합한다.">
+  <defs>
+    <marker id="mao-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--mao-slate)"/>
+    </marker>
+  </defs>
+  <!-- user -->
+  <rect x="300" y="14" width="160" height="40" rx="9" fill="none" stroke="var(--mao-slate)" stroke-width="1.8"/>
+  <text x="380" y="39" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mao-slate)">사용자 요청</text>
+  <path d="M380 54 V84" stroke="var(--mao-slate)" stroke-width="2" marker-end="url(#mao-arr)"/>
+  <!-- lead -->
+  <rect x="280" y="86" width="200" height="58" rx="11" fill="none" stroke="var(--mao-blue)" stroke-width="2.5"/>
+  <text x="380" y="111" text-anchor="middle" font-size="14" font-weight="800" fill="var(--mao-blue)">리드 에이전트</text>
+  <text x="380" y="131" text-anchor="middle" font-size="11" fill="var(--mao-slate)">계획 · 분배 · 종합</text>
+  <!-- distribute arrows -->
+  <path d="M300 144 L150 196" stroke="var(--mao-slate)" stroke-width="2" marker-end="url(#mao-arr)"/>
+  <path d="M380 146 V196" stroke="var(--mao-slate)" stroke-width="2" marker-end="url(#mao-arr)"/>
+  <path d="M460 144 L610 196" stroke="var(--mao-slate)" stroke-width="2" marker-end="url(#mao-arr)"/>
+  <!-- subagents -->
+  <g>
+    <rect x="40" y="200" width="200" height="92" rx="10" fill="none" stroke="var(--mao-emerald)" stroke-width="2"/>
+    <text x="140" y="224" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--mao-emerald)">서브에이전트 A</text>
+    <text x="140" y="244" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">독립 컨텍스트 윈도우</text>
+    <text x="140" y="262" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">도구 호출 ~5만 토큰</text>
+    <text x="140" y="282" text-anchor="middle" font-size="10.5" fill="var(--mao-amber)">→ 요약 ~1.5천 토큰</text>
+  </g>
+  <g>
+    <rect x="280" y="200" width="200" height="92" rx="10" fill="none" stroke="var(--mao-emerald)" stroke-width="2"/>
+    <text x="380" y="224" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--mao-emerald)">서브에이전트 B</text>
+    <text x="380" y="244" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">독립 컨텍스트 윈도우</text>
+    <text x="380" y="262" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">도구 호출 ~5만 토큰</text>
+    <text x="380" y="282" text-anchor="middle" font-size="10.5" fill="var(--mao-amber)">→ 요약 ~1.5천 토큰</text>
+  </g>
+  <g>
+    <rect x="520" y="200" width="200" height="92" rx="10" fill="none" stroke="var(--mao-emerald)" stroke-width="2"/>
+    <text x="620" y="224" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--mao-emerald)">서브에이전트 C</text>
+    <text x="620" y="244" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">독립 컨텍스트 윈도우</text>
+    <text x="620" y="262" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">도구 호출 ~5만 토큰</text>
+    <text x="620" y="282" text-anchor="middle" font-size="10.5" fill="var(--mao-amber)">→ 요약 ~1.5천 토큰</text>
+  </g>
+  <!-- return arrows -->
+  <path d="M140 292 L350 322" stroke="var(--mao-amber)" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#mao-arr)"/>
+  <path d="M380 292 V322" stroke="var(--mao-amber)" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#mao-arr)"/>
+  <path d="M620 292 L410 322" stroke="var(--mao-amber)" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#mao-arr)"/>
+  <rect x="300" y="322" width="160" height="32" rx="8" fill="none" stroke="var(--mao-blue)" stroke-width="1.8"/>
+  <text x="380" y="343" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--mao-blue)">리드가 요약만 종합</text>
+</svg>
+<figcaption>그림 1. 서브에이전트는 각자 큰 컨텍스트를 태우지만, 리드에게는 응축된 요약만 돌려준다. 잡음은 서브에이전트의 창에 가두고 리드의 창은 깨끗하게 유지한다.</figcaption>
+</figure>
+
+<p>실제 Anthropic의 리서치 기능이 정확히 이 구조입니다. 리드 리서처(LeadResearcher, Opus)가 계획을 세워 메모리에 저장하고, 병렬로 여러 서브에이전트(Sonnet)를 띄워 각자 조사하게 한 뒤, 마지막에 별도의 CitationAgent가 모든 주장에 출처를 다시 붙입니다. 큰 모델은 지휘에, 작은 모델은 병렬 실행에 쓰는 조합이죠.</p>
+
+<h2 id="sec-3">3. 왜 통하나 — 토큰을 병렬로 쏟는다</h2>
+
+<p>가장 인상적인 숫자부터 보겠습니다. Anthropic은 내부 리서치 평가에서 Opus를 리드로, Sonnet을 서브에이전트로 둔 멀티 에이전트가 <strong>단일 에이전트 Opus보다 90.2% 더 잘했다</strong>고 밝혔습니다. 흔히 "더 많은 두뇌라서 똑똑해졌나" 싶지만, 그들이 분석한 진짜 이유는 더 단순합니다.</p>
+
+<p>성능 변동의 원인을 분해해 보니 <strong>토큰 사용량 하나가 변동의 약 80%</strong>를 설명했습니다. 여기에 도구 호출 횟수(약 10%)와 모델 선택(약 5%)을 더하면 셋이서 약 95%를 설명합니다. 풀어 말하면 — <strong>문제를 풀 만큼 충분히 토큰을 쓰면 잘 풀린다</strong>는 겁니다. 그리고 단일 에이전트는 컨텍스트 창 하나에 토큰을 쌓는 데 한계가 있지만, 멀티 에이전트는 <strong>여러 창에 병렬로</strong> 토큰을 쏟아부을 수 있습니다. 멀티 에이전트가 통하는 본질은 바로 이 "토큰의 병렬 확장"입니다.</p>
+
+<figure class="mao-fig"><svg viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="멀티 에이전트 성능 변동을 설명하는 요인 분해 막대그래프. 토큰 사용량이 약 80%, 도구 호출 횟수가 약 10%, 모델 선택이 약 5%를 설명한다.">
+  <text x="380" y="28" text-anchor="middle" font-size="14" font-weight="800" fill="var(--mao-slate)">무엇이 성능을 만드나 — 변동 설명력 분해</text>
+  <!-- axis -->
+  <line x1="180" y1="70" x2="180" y2="230" stroke="var(--mao-slate)" stroke-width="1.5"/>
+  <!-- bar: token 80% -->
+  <rect x="182" y="80" width="440" height="36" rx="5" fill="var(--mao-blue)" opacity="0.85"/>
+  <text x="175" y="103" text-anchor="end" font-size="12.5" fill="var(--mao-slate)">토큰 사용량</text>
+  <text x="632" y="103" font-size="13" font-weight="800" fill="var(--mao-blue)">~80%</text>
+  <!-- bar: tool calls 10% -->
+  <rect x="182" y="128" width="55" height="36" rx="5" fill="var(--mao-emerald)" opacity="0.85"/>
+  <text x="175" y="151" text-anchor="end" font-size="12.5" fill="var(--mao-slate)">도구 호출 횟수</text>
+  <text x="247" y="151" font-size="13" font-weight="800" fill="var(--mao-emerald)">~10%</text>
+  <!-- bar: model 5% -->
+  <rect x="182" y="176" width="28" height="36" rx="5" fill="var(--mao-violet)" opacity="0.85"/>
+  <text x="175" y="199" text-anchor="end" font-size="12.5" fill="var(--mao-slate)">모델 선택</text>
+  <text x="220" y="199" font-size="13" font-weight="800" fill="var(--mao-violet)">~5%</text>
+  <text x="400" y="258" text-anchor="middle" font-size="11.5" fill="var(--mao-slate)">셋이서 변동의 약 95%를 설명 — 결국 "충분한 토큰을 병렬로 쏟았는가"</text>
+</svg>
+<figcaption>그림 2. Anthropic 분석: 토큰 사용량 하나가 성능 변동의 약 80%를 설명한다. 멀티 에이전트는 단일 창의 한계를 넘어 토큰을 병렬로 확장하기 때문에 강하다. (출처: Anthropic 'How we built our multi-agent research system')</figcaption>
+</figure>
+
+<div class="mao-note mao-warn">
+  <p><strong>공짜가 아닙니다.</strong> 같은 분석에서 멀티 에이전트는 일반 채팅 대비 <strong>약 15배의 토큰</strong>을 썼습니다. 90% 성능과 15배 비용을 함께 봐야 합니다. 그래서 결론은 단순합니다 — <strong>작업의 가치가 토큰 비용보다 클 때만</strong> 멀티 에이전트가 경제적으로 말이 됩니다. 깊은 리서치처럼 한 번에 큰 가치를 만드는 일에는 맞고, 자잘한 질의응답에는 과합니다.</p>
+</div>
+
+<h2 id="sec-4">4. 서브에이전트 계약 — 네 가지를 못 박아라</h2>
+
+<p>멀티 에이전트가 무너지는 가장 흔한 이유는 모델이 멍청해서가 아니라, <strong>오케스트레이터가 일을 충분히 명확하게 시키지 않아서</strong>입니다. 서브에이전트는 리드의 맥락을 모른 채 임무서 한 장만 들고 일을 시작합니다. 그 임무서에 다음 네 가지가 빠지면 서브에이전트는 엉뚱한 길로 샙니다.</p>
+
+<ol>
+  <li><strong>목표(objective)</strong> — 무엇을 알아내거나 만들어야 하는가. 한 문장으로 분명하게.</li>
+  <li><strong>출력 형식(output format)</strong> — 결과를 어떤 모양으로 돌려줘야 하는가(예: 항목별 요약 5줄, JSON 스키마). 리드가 곧장 종합할 수 있는 형태여야 합니다.</li>
+  <li><strong>도구·소스 안내(tools & sources)</strong> — 어떤 도구를 쓰고 어디를 봐야 하는가. 방치하면 엉뚱한 도구를 남발합니다.</li>
+  <li><strong>경계(boundaries)</strong> — 어디까지가 이 임무이고 어디부터는 아닌가. "이건 하지 마라"가 있어야 일이 끝나는 지점을 압니다.</li>
+</ol>
+
+<p>이 네 가지 중 하나라도 빠지면 서브에이전트가 표류합니다. "done이 무엇인지"를 모델이 스스로 정하게 두지 말고, 임무서에 박아 두는 게 핵심입니다.</p>
+
+<p>또 하나, <strong>서브에이전트를 몇 개나 띄울지</strong>도 리드가 작업 난이도에 맞춰 정해야 합니다. Anthropic은 리드 프롬프트에 아예 규칙을 넣어 둡니다 — 단순 사실 확인은 1개, 직접 비교는 2~4개, 복잡한 리서치는 10개 이상. 무턱대고 많이 띄우면 비용만 폭증합니다.</p>
+
+<h2 id="sec-5">5. 실전: 작은 오케스트레이터·워커 만들기</h2>
+
+<p>개념을 코드로 옮겨 보겠습니다. 프레임워크 없이 의사코드에 가깝게, 핵심 흐름만 담았습니다. 먼저 서브에이전트에게 줄 <strong>임무서(계약)</strong>를 구조체로 만듭니다.</p>
+
+{{< highlight python >}}
+from dataclasses import dataclass
+
+@dataclass
+class SubAgentTask:
+    objective: str        # 목표: 한 문장으로 분명하게
+    output_format: str    # 출력 형식: 리드가 곧장 종합할 수 있는 모양
+    tools: list[str]      # 쓸 수 있는 도구/소스
+    boundaries: str       # 경계: 여기까지만, 이건 하지 마라
+
+def build_prompt(task: SubAgentTask) -> str:
+    # 서브에이전트는 리드의 맥락을 모른다. 네 가지를 임무서에 못 박는다.
+    return f"""너는 독립적으로 일하는 서브에이전트다.
+[목표] {task.objective}
+[출력 형식] {task.output_format}
+[사용 도구] {", ".join(task.tools)}
+[경계] {task.boundaries}
+규칙: 위 출력 형식만 지켜서, 응축된 결과만 돌려줘라. 과정은 길게 쓰지 마라."""
+{{< /highlight >}}
+
+<p>다음은 리드가 일을 쪼개 서브에이전트들을 <strong>병렬로</strong> 띄우고, 돌아온 요약만 종합하는 부분입니다. 멀티 에이전트의 힘이 "병렬"에서 나오므로 동시에 실행하는 게 중요합니다.</p>
+
+{{< highlight python >}}
+import asyncio
+
+async def run_subagent(task: SubAgentTask) -> str:
+    prompt = build_prompt(task)
+    # 핵심: 각 서브에이전트는 '새 대화'로 시작한다 → 컨텍스트 격리
+    # llm()은 도구 호출 루프를 포함한 한 번의 독립 실행이라고 보면 된다.
+    summary = await llm(prompt, fresh_context=True)   # 5만 토큰 쓰고 1.5천 토큰만 반환
+    return summary
+
+async def orchestrate(user_request: str) -> str:
+    # 1) 리드가 계획을 세워 하위 작업으로 쪼갠다 (난이도에 맞춰 개수 결정)
+    tasks = plan_subtasks(user_request)               # 예: 비교 작업이면 2~4개
+
+    # 2) 서브에이전트를 병렬로 실행 — 토큰을 여러 창에 동시에 쏟는다
+    summaries = await asyncio.gather(*(run_subagent(t) for t in tasks))
+
+    # 3) 리드는 '요약들'만 받아 종합한다. 잡음은 서브에이전트 창에 갇혀 있다
+    return await llm(synthesize_prompt(user_request, summaries), fresh_context=True)
+{{< /highlight >}}
+
+<p>핵심은 세 가지입니다. ① <code>plan_subtasks</code>로 일을 쪼개고, ② <code>asyncio.gather</code>로 <strong>병렬 실행</strong>하고, ③ 리드는 큰 원본이 아니라 <strong>요약만</strong> 받아 종합합니다. 이 골격만 지키면 LangGraph든 직접 구현이든 본질은 같습니다.</p>
+
+<p>실전에서 빼먹기 쉬운 마무리 한 가지 — Anthropic 사례의 <strong>CitationAgent</strong>처럼, 종합한 결과의 사실·출처를 다시 검증하는 단계를 따로 두면 신뢰성이 크게 올라갑니다. 서브에이전트들이 각자 본 것을 리드가 합치는 과정에서 출처가 뒤섞이기 쉽기 때문입니다.</p>
+
+<h2 id="sec-6">6. 반대편의 경고 — "멀티 에이전트 짓지 마라"</h2>
+
+<p>여기까지 보면 "무조건 쪼개는 게 답"처럼 들립니다. 그런데 같은 시기 Cognition(코딩 에이전트 Devin을 만든 곳)의 Walden Yan은 정반대 제목의 글을 냈습니다 — <strong>"Don't Build Multi-Agents."</strong> 핵심 주장은 이렇습니다.</p>
+
+<div class="mao-note mao-warn">
+  <p><strong>맥락 공유가 안 되면 결정이 충돌한다.</strong> 서브에이전트들이 서로의 맥락을 모른 채 각자 결정을 내리면, 합칠 때 앞뒤가 안 맞는 결과가 나옵니다. 한 서브에이전트는 버튼을 파란색으로 만들고 다른 서브에이전트는 같은 버튼을 빨간색으로 만드는 식이죠. <strong>컨텍스트 격리가 장점이자 동시에 약점</strong>이라는 겁니다.</p>
+</div>
+
+<p>그래서 Cognition의 처방은 <strong>"기본은 단일 스레드(single-threaded) 에이전트"</strong>입니다. 멀티 에이전트는 아주 높은 기준을 통과할 때만 쓰라는 거죠. 이게 Anthropic의 +90.2%와 모순처럼 보이지만, 자세히 보면 <strong>두 진영이 서로 다른 종류의 일</strong>을 이야기하고 있습니다.</p>
+
+<p>실제로 Cognition도 이후 입장을 더 날카롭게 다듬었습니다 — <strong>"쓰기(write)는 단일 스레드로 유지하고, 추가되는 에이전트는 '행동'이 아니라 '지능'을 보태게 하라."</strong> 즉 여러 에이전트가 동시에 같은 결과물을 <em>고쳐 쓰게</em> 두지 말고, 조사·검토 같은 <em>읽기·판단</em>만 나눠 맡기라는 겁니다. 바로 여기서 도입 기준이 갈립니다.</p>
+
+<h2 id="sec-7">7. 그래서 언제 쪼개나 — 읽기 vs 쓰기</h2>
+
+<p>두 진영을 한 줄로 화해시키면 이렇습니다. <strong>읽기(read-heavy) 작업은 쪼개기 좋고, 쓰기(write-heavy) 작업은 쪼개기 위험하다.</strong></p>
+
+<ul>
+  <li><strong>읽기 작업</strong> — 리서치, 정보 수집, 여러 소스 비교처럼 <em>각자 따로 봐도 되는</em> 일. 서브에이전트들이 독립적으로 토큰을 쏟고 요약만 합치면 됩니다. 충돌할 결과물이 없으니 멀티 에이전트가 빛납니다(Anthropic 리서치).</li>
+  <li><strong>쓰기 작업</strong> — 하나의 코드베이스를 함께 수정하는 일처럼 <em>모두가 같은 결과물·맥락을 공유해야 하는</em> 일. 여기서 컨텍스트를 격리하면 결정이 충돌합니다. 쓰기는 단일 스레드로 묶는 게 안전합니다(Cognition).</li>
+</ul>
+
+<figure class="mao-fig"><svg viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="멀티 에이전트 도입 판단 결정 트리. 작업이 읽기 위주인지 쓰기 위주인지 먼저 묻고, 읽기면 워커끼리 소통이 필요한지에 따라 서브에이전트 또는 에이전트 팀을 쓰고, 쓰기면 단일 스레드 에이전트를 권한다.">
+  <defs>
+    <marker id="mao-arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--mao-slate)"/>
+    </marker>
+  </defs>
+  <!-- root -->
+  <rect x="280" y="14" width="200" height="46" rx="10" fill="none" stroke="var(--mao-blue)" stroke-width="2.5"/>
+  <text x="380" y="34" text-anchor="middle" font-size="13" font-weight="800" fill="var(--mao-blue)">이 작업은?</text>
+  <text x="380" y="52" text-anchor="middle" font-size="11" fill="var(--mao-slate)">읽기 위주 vs 쓰기 위주</text>
+  <!-- left branch: read -->
+  <path d="M300 60 L160 104" stroke="var(--mao-slate)" stroke-width="2" marker-end="url(#mao-arr2)"/>
+  <text x="205" y="84" font-size="11.5" font-weight="700" fill="var(--mao-emerald)">읽기</text>
+  <rect x="60" y="106" width="220" height="46" rx="9" fill="none" stroke="var(--mao-emerald)" stroke-width="2"/>
+  <text x="170" y="126" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mao-emerald)">워커끼리 소통이 필요한가?</text>
+  <text x="170" y="144" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">서로 발견을 공유·반박해야 하나</text>
+  <!-- read - no -->
+  <path d="M110 152 L80 196" stroke="var(--mao-slate)" stroke-width="2" marker-end="url(#mao-arr2)"/>
+  <text x="78" y="180" font-size="10.5" fill="var(--mao-slate)">아니오</text>
+  <rect x="20" y="198" width="150" height="58" rx="9" fill="none" stroke="var(--mao-emerald)" stroke-width="2"/>
+  <text x="95" y="222" text-anchor="middle" font-size="12" font-weight="800" fill="var(--mao-emerald)">서브에이전트</text>
+  <text x="95" y="241" text-anchor="middle" font-size="10" fill="var(--mao-slate)">빠르게 일하고 요약 반환</text>
+  <!-- read - yes -->
+  <path d="M230 152 L255 196" stroke="var(--mao-slate)" stroke-width="2" marker-end="url(#mao-arr2)"/>
+  <text x="250" y="180" font-size="10.5" fill="var(--mao-slate)">예</text>
+  <rect x="190" y="198" width="150" height="58" rx="9" fill="none" stroke="var(--mao-cyan)" stroke-width="2"/>
+  <text x="265" y="222" text-anchor="middle" font-size="12" font-weight="800" fill="var(--mao-cyan)">에이전트 팀</text>
+  <text x="265" y="241" text-anchor="middle" font-size="10" fill="var(--mao-slate)">서로 조율하는 구조</text>
+  <!-- right branch: write -->
+  <path d="M460 60 L600 104" stroke="var(--mao-slate)" stroke-width="2" marker-end="url(#mao-arr2)"/>
+  <text x="548" y="84" font-size="11.5" font-weight="700" fill="var(--mao-rose)">쓰기</text>
+  <rect x="470" y="106" width="260" height="74" rx="9" fill="none" stroke="var(--mao-rose)" stroke-width="2"/>
+  <text x="600" y="132" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--mao-rose)">단일 스레드 에이전트</text>
+  <text x="600" y="152" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">쓰기는 한 줄로 — 결정 충돌 방지</text>
+  <text x="600" y="170" text-anchor="middle" font-size="10.5" fill="var(--mao-slate)">필요하면 '지능'만 서브에이전트로</text>
+  <text x="380" y="300" text-anchor="middle" font-size="11.5" fill="var(--mao-slate)">핵심: 충돌할 결과물이 없으면 쪼개고, 모두가 같은 결과물을 만지면 묶어라</text>
+</svg>
+<figcaption>그림 3. 도입 판단 트리. 먼저 읽기인지 쓰기인지 가르고, 읽기 안에서 "워커끼리 소통이 필요한가"로 서브에이전트와 에이전트 팀을 나눈다.</figcaption>
+</figure>
+
+<p>읽기 작업 안에서도 한 번 더 갈립니다. 워커들이 <strong>서로의 발견을 공유하고 반박하며 조율해야</strong> 한다면 단순 서브에이전트로는 부족합니다. 이럴 때 쓰는 게 <strong>에이전트 팀(agent teams)</strong>입니다. 판단 기준은 한 문장 — <em>"워커끼리 소통이 필요한가?"</em> 필요 없으면 서브에이전트(빠르게 일하고 요약만 반환), 필요하면 에이전트 팀(서로 조율). 대부분의 일은 서브에이전트로 충분합니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>가치 없는 일에 멀티 에이전트.</strong> 15배 비용을 기억하세요. 간단한 질의응답이나 한 파일 수정에 오케스트레이터를 얹으면 돈과 지연만 늘어납니다. <strong>단일 에이전트로 먼저 시도</strong>하고, 막힐 때만 쪼개세요.</li>
+  <li><strong>임무서가 부실하다.</strong> 표류의 90%는 모델 탓이 아니라 목표·형식·도구·경계 중 하나가 빠진 탓입니다. 4장의 네 가지를 체크리스트로 쓰세요.</li>
+  <li><strong>쓰기를 병렬로 쪼갠다.</strong> 같은 코드베이스를 여러 서브에이전트가 동시에 고치면 결정이 충돌합니다. <strong>쓰기는 단일 스레드</strong>, 추가 에이전트는 조사·검토 같은 '지능'만 맡기세요.</li>
+  <li><strong>서브에이전트가 원본을 통째로 반환한다.</strong> 그러면 격리의 의미가 사라지고 리드의 창이 다시 터집니다. 반드시 <strong>응축된 요약</strong>만 돌려주도록 출력 형식을 강제하세요.</li>
+  <li><strong>출처가 뒤섞인다.</strong> 여러 서브에이전트의 결과를 합치면 "누가 어디서 봤는지"가 사라집니다. CitationAgent처럼 <strong>출처 재검증 단계</strong>를 따로 두세요.</li>
+  <li><strong>관측이 어렵다.</strong> 에이전트가 여럿이면 어디서 잘못됐는지 추적이 까다롭습니다. 각 서브에이전트의 입력 임무서와 반환 요약을 <strong>트레이스로 남겨</strong> 디버깅 가능하게 만드세요.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>병목은 컨텍스트다.</strong> 창을 키운다고 똑똑해지지 않는다. 일을 쪼개 <strong>각자 깨끗한 컨텍스트 윈도우</strong>에서 일하게 하는 게 멀티 에이전트의 본질이다.</li>
+  <li><strong>오케스트레이터·워커.</strong> 리드가 계획·분배·종합을 맡고, 서브에이전트는 격리된 창에서 일한 뒤 <strong>응축된 요약만</strong> 돌려준다.</li>
+  <li><strong>왜 통하나.</strong> 토큰 사용량이 성능 변동의 약 80%를 설명한다. 멀티 에이전트는 토큰을 <strong>병렬로</strong> 쏟아 단일 창의 한계를 넘는다 → 단일 Opus 대비 +90.2%. 단, 토큰은 <strong>15배</strong>.</li>
+  <li><strong>서브에이전트 계약.</strong> 목표·출력 형식·도구·경계 네 가지를 못 박아라. 빠지면 표류한다.</li>
+  <li><strong>언제 쪼개나.</strong> 읽기(리서치·비교)는 쪼개기 좋고, 쓰기(같은 코드 수정)는 단일 스레드로 묶어라. "충돌할 결과물이 없으면 쪼개고, 모두가 같은 걸 만지면 묶어라."</li>
+  <li><strong>작게 시작하라.</strong> 단일 에이전트로 먼저, 막힐 때만 쪼개라. 멀티 에이전트는 가치가 비용을 넘을 때만 경제적이다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener">Anthropic — How we built our multi-agent research system</a> (오케스트레이터·워커, +90.2%, 토큰 15배, 변동 80%)</li>
+  <li><a href="https://cognition.ai/blog/dont-build-multi-agents" target="_blank" rel="noopener">Walden Yan (Cognition) — Don't Build Multi-Agents</a> (단일 스레드 원칙, 컨텍스트 공유와 결정 충돌)</li>
+  <li><a href="https://addyosmani.com/blog/code-agent-orchestra/" target="_blank" rel="noopener">Addy Osmani — The Code Agent Orchestra</a> (멀티 에이전트 코딩이 통하는 조건)</li>
+  <li><a href="https://htdocs.dev/posts/from-conductor-to-orchestrator-a-practical-guide-to-multi-agent-coding-in-2026/" target="_blank" rel="noopener">From Conductor to Orchestrator — A Practical Guide to Multi-Agent Coding in 2026</a> (서브에이전트 vs 에이전트 팀)</li>
+  <li><a href="https://blog.bytebytego.com/p/how-anthropic-built-a-multi-agent" target="_blank" rel="noopener">ByteByteGo — How Anthropic Built a Multi-Agent Research System</a> (구조 해설)</li>
+  <li><a href="https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them" target="_blank" rel="noopener">Claude — When to use multi-agent systems (and when not to)</a> (도입 판단 기준)</li>
+</ul>

@@ -1,0 +1,385 @@
+---
+title: "\"제발 JSON으로만 답해줘\"는 그만: 구조화된 출력과 제약 디코딩 제대로 이해하기"
+date: 2026-06-30T07:30:00+09:00
+draft: false
+tags: ["AI", "구조화된 출력", "Structured Outputs", "제약 디코딩", "Constrained Decoding", "JSON Schema", "LLM", "vLLM", "함수 호출"]
+categories: ["AI 엔지니어링"]
+summary: "LLM에게 'JSON으로만 답해줘'라고 부탁하면 열에 한 번은 따옴표가 빠지고 설명이 붙어 파싱이 깨집니다. 구조화된 출력(structured outputs)은 부탁이 아니라 강제입니다. JSON 스키마를 문법으로 컴파일하고, 디코딩 단계마다 스키마에 어긋나는 토큰을 아예 못 고르게 막아 100% 유효한 JSON을 보장합니다. 최근 Anthropic이 이 기능을 정식 출시하고 XGrammar가 vLLM·SGLang의 기본 백엔드로 자리잡으면서 실무 화두가 됐습니다. 제약 디코딩이 토큰 마스크로 어떻게 동작하는지, JSON 모드와 무엇이 다른지, 그리고 '형식을 강제하면 추론이 멍청해진다'는 함정을 어떻게 피하는지 코드와 그림으로 정리합니다."
+ShowToc: false
+cover:
+  image: "structured-outputs-constrained-decoding-cover.svg"
+  alt: "JSON 스키마가 문법으로 컴파일되고, 디코딩 단계마다 문법에 어긋나는 토큰은 마스크로 막혀 항상 스키마에 맞는 JSON만 생성되는 흐름."
+  caption: "구조화된 출력 — JSON 스키마를 문법으로 바꾸고, 매 토큰마다 어긋나는 토큰을 막아 깨진 JSON을 애초에 못 만들게 한다"
+  relative: false
+---
+
+<style>
+/* ── Structured Outputs / Constrained Decoding 포스트 전용 스타일 (sod- 접두사) ── */
+.sod-fig{
+  --sod-blue:#2563eb; --sod-emerald:#10b981; --sod-amber:#d97706;
+  --sod-rose:#e11d48; --sod-cyan:#0891b2; --sod-slate:#64748b; --sod-violet:#7c3aed;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .sod-fig{
+  --sod-blue:#60a5fa; --sod-emerald:#34d399; --sod-amber:#fbbf24;
+  --sod-rose:#fb7185; --sod-cyan:#22d3ee; --sod-slate:#94a3b8; --sod-violet:#a78bfa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .sod-fig{
+    --sod-blue:#60a5fa; --sod-emerald:#34d399; --sod-amber:#fbbf24;
+    --sod-rose:#fb7185; --sod-cyan:#22d3ee; --sod-slate:#94a3b8; --sod-violet:#a78bfa;
+  }
+}
+.sod-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.sod-fig text{font-family:inherit}
+.sod-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.sod-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.sod-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.sod-toc ol{margin:0;padding-left:1.25rem}
+.sod-toc li{margin:.22rem 0;font-size:.95rem}
+.sod-toc a{text-decoration:none}
+.sod-toc a:hover{text-decoration:underline}
+.sod-pull{font-size:1.12rem;line-height:1.72}
+.sod-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.sod-note{border-left:4px solid var(--sod-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.sod-note strong{color:var(--sod-blue,#2563eb)}
+.sod-warn{border-left:4px solid var(--sod-rose,#e11d48)}
+.sod-warn strong{color:var(--sod-rose,#e11d48)}
+.sod-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.sod-tbl th,.sod-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.sod-tbl th{background:var(--entry);font-weight:700}
+.sod-tbl code{font-size:.86em}
+</style>
+
+<blockquote class="sod-pull">
+  <p>LLM에게 "이제부터 <strong>JSON으로만</strong> 답해"라고 시켜 보면, 처음 몇 번은 잘 따릅니다. 그러다 어느 순간 <code>물론이죠! 다음은 결과입니다:</code> 같은 인사말을 앞에 붙이거나, 마지막 쉼표를 빼먹거나, 따옴표 대신 작은따옴표를 씁니다.</p>
+  <footer>— 프롬프트는 <em>부탁</em>이라 가끔 거절당합니다. 구조화된 출력은 <em>강제</em>라 거절이 불가능합니다.</footer>
+</blockquote>
+
+<p>이번 주 실무자 타임라인에서 다시 부쩍 회자된 주제가 <strong>구조화된 출력(structured outputs)</strong>입니다. Anthropic이 Claude API에 이 기능을 정식(GA)으로 풀면서 "이제 정규식으로 JSON 뜯는 시대는 끝났다"는 글이 줄줄이 올라왔고, 오픈소스 쪽에서는 XGrammar가 vLLM·SGLang의 사실상 기본 백엔드로 자리잡으며 "제약 디코딩 오버헤드는 이제 무시해도 된다"는 벤치마크가 돌았습니다. 동시에 한쪽에서는 "형식을 강제하면 모델이 멍청해진다"는 2024년 논문이 다시 소환되며 논쟁이 붙었습니다.</p>
+
+<p>이 글은 그 그림을 정리합니다. LLM 출력을 자동화 파이프라인에 꽂으려면 <strong>왜</strong> 신뢰할 수 있는 형식이 필요한지, 구조화된 출력이 <strong>어떻게</strong> 100%를 보장하는지(제약 디코딩의 원리), 흔한 <code>JSON 모드</code>와는 무엇이 다른지, 그리고 무엇보다 "형식 강제가 추론을 망친다"는 함정을 어떻게 피하는지를 코드와 그림으로 짚겠습니다. 파이썬을 읽을 수 있는 주니어라면 그대로 따라올 수 있습니다.</p>
+
+<nav class="sod-toc">
+  <div class="sod-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 필요한가 — "거의 맞는 JSON"이 제일 위험하다</a></li>
+    <li><a href="#sec-2">JSON 모드 vs 구조화된 출력 — 비슷해 보이지만 다르다</a></li>
+    <li><a href="#sec-3">제약 디코딩은 어떻게 동작하나 — 토큰 마스크</a></li>
+    <li><a href="#sec-4">실전: 코드로 직접 써 보기</a></li>
+    <li><a href="#sec-5">도구 지형 — Outlines · XGrammar · Guidance</a></li>
+    <li><a href="#sec-6">함정 — "형식을 강제하면 멍청해진다"</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="sec-1">1. 왜 필요한가 — "거의 맞는 JSON"이 제일 위험하다</h2>
+
+<p>LLM을 챗봇이 아니라 <strong>시스템의 부품</strong>으로 쓰기 시작하면, 출력이 사람 눈에만 읽히는 게 아니라 <em>다음 코드로 넘어갑니다</em>. 예를 들어 고객 문의를 분류해 라우팅하는 기능이라면 모델의 답을 이렇게 받고 싶습니다.</p>
+
+{{< highlight json >}}
+{ "category": "billing", "urgency": 3, "needs_human": true }
+{{< /highlight >}}
+
+<p>그래야 <code>result["category"]</code>로 꺼내 다음 단계로 넘길 수 있습니다. 그런데 모델에게 그냥 "JSON으로 답해줘"라고 부탁하면, 대부분은 잘 되지만 가끔 이렇게 옵니다.</p>
+
+{{< highlight text >}}
+물론이죠! 분석 결과는 다음과 같습니다:
+```json
+{ "category": "billing", "urgency": "높음", "needs_human": True, }
+```
+도움이 더 필요하시면 말씀해 주세요.
+{{< /highlight >}}
+
+<p>여기엔 함정이 네 개나 숨어 있습니다. ① 앞뒤로 인사말이 붙어 통째로 <code>json.loads()</code>하면 깨집니다. ② 코드펜스(<code>```json</code>)를 벗겨내야 합니다. ③ <code>urgency</code>는 숫자여야 하는데 <code>"높음"</code>이라는 문자열이 왔습니다. ④ <code>True</code>(파이썬 표기)와 마지막 쉼표는 JSON 문법 위반입니다.</p>
+
+<p>진짜 무서운 건 완전히 깨진 출력이 아닙니다. <strong>거의 맞는 출력</strong>입니다. 1,000건 중 990건이 완벽하면 "잘 되네" 하고 배포하지만, 나머지 10건이 새벽에 파이프라인을 멈춰 세웁니다. 그래서 보통은 이런 방어 코드를 덕지덕지 붙입니다.</p>
+
+{{< highlight python >}}
+import json, re
+
+def parse_llm_json(text: str, retries: int = 3):
+    for _ in range(retries):
+        # 코드펜스 벗기고, 첫 { 부터 마지막 } 까지 정규식으로 긁어내고...
+        m = re.search(r"\{.*\}", text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group())
+            except json.JSONDecodeError:
+                pass
+        text = call_llm("아까 응답이 깨졌어. 순수 JSON만 다시 줘.")  # 재시도 = 추가 비용·지연
+    raise ValueError("끝내 유효한 JSON을 못 받음")
+{{< /highlight >}}
+
+<p>정규식으로 긁고, 실패하면 다시 물어보고, 그래도 안 되면 예외를 던집니다. 비용과 지연이 늘고, 코드는 지저분해지고, 그래도 100%는 아닙니다. <strong>구조화된 출력</strong>은 이 문제를 근본에서 없앱니다. 모델이 <em>애초에</em> 스키마에 어긋나는 토큰을 만들 수 없게 만들기 때문입니다.</p>
+
+<h2 id="sec-2">2. JSON 모드 vs 구조화된 출력 — 비슷해 보이지만 다르다</h2>
+
+<p>여기서 용어를 정확히 갈라야 합니다. 둘 다 "JSON 받기"처럼 들리지만 보장 수준이 다릅니다.</p>
+
+<ul>
+  <li><strong>JSON 모드(JSON mode)</strong> — "문법적으로 유효한 JSON"만 보장합니다. 즉 <code>json.loads()</code>는 성공합니다. 하지만 <em>어떤 모양인지</em>는 보장하지 않습니다. <code>{"답": "글쎄요"}</code>가 와도 JSON 모드 입장에선 합격입니다.</li>
+  <li><strong>구조화된 출력(structured outputs)</strong> — 개발자가 준 <strong>JSON 스키마(JSON Schema)</strong>를 100% 따르도록 보장합니다. 필드 이름, 타입, 필수 여부, enum 후보까지 전부 강제됩니다. <code>urgency</code>를 정수로 정의했으면 문자열이 올 수 없습니다.</li>
+</ul>
+
+<p>차이를 만드는 기술이 <strong>제약 디코딩(constrained decoding)</strong>입니다. "프롬프트로 잘 부탁하기"가 아니라, 모델이 토큰을 하나씩 뽑는 바로 그 순간에 스키마에 어긋나는 후보를 물리적으로 차단하는 방식입니다. Anthropic 문서의 표현을 빌리면 <em>"모델은 스키마를 위반하는 토큰을 말 그대로 만들어 낼 수 없다"</em>입니다.</p>
+
+<div class="sod-note">
+  <p><strong>한 줄 정리.</strong> JSON 모드는 "괄호는 맞춰 줄게"이고, 구조화된 출력은 "네가 그린 설계도 그대로 짓겠다"입니다. 자동화 파이프라인에 꽂을 거라면 후자가 필요합니다.</p>
+</div>
+
+<p>지원 현황도 빠르게 정리해 두면, OpenAI가 2024년 8월 <code>response_format</code> 기반 Structured Outputs를 처음 내놨고, Google Gemini도 뒤따랐습니다. Anthropic은 2025년 11월 공개 베타로 열었다가 2026년 정식(GA)으로 전환하면서 이번 주 화제가 됐습니다(Opus 4.8 등 최신 모델 지원). 로컬·셀프호스팅 쪽은 vLLM, SGLang, Ollama, llama.cpp가 모두 문법 기반 제약 디코딩으로 같은 기능을 제공합니다.</p>
+
+<h2 id="sec-3">3. 제약 디코딩은 어떻게 동작하나 — 토큰 마스크</h2>
+
+<p>원리는 생각보다 단순합니다. 먼저 LLM이 글자를 어떻게 만드는지 떠올려 봅시다. 모델은 매 단계에서 어휘 사전(vocabulary) 전체에 대한 점수(<strong>logit</strong>)를 계산하고, 그 점수를 확률로 바꿔 다음 토큰 하나를 뽑습니다. 이 과정을 토큰 수만큼 반복합니다.</p>
+
+<p>제약 디코딩은 이 루프 사이에 <strong>문지기</strong>를 한 명 끼워 넣습니다. 절차는 세 단계입니다.</p>
+
+<ol>
+  <li><strong>컴파일</strong> — 개발자의 JSON 스키마를 <strong>유한 상태 기계(FSM, finite state machine)</strong> 또는 더 복잡한 중첩을 위한 <strong>푸시다운 오토마타(PDA, pushdown automaton)</strong>로 한 번 변환합니다. 이 기계는 "지금 상태에서 다음에 올 수 있는 글자/토큰은 무엇인가"를 압니다.</li>
+  <li><strong>마스킹</strong> — 모델이 매 토큰을 뽑기 직전, 현재 상태에서 <em>합법인 토큰만</em> 1, 나머지는 0인 마스크를 만듭니다. 불법 토큰의 logit을 <code>−∞</code>로 깔아뭉개면 확률이 0이 됩니다.</li>
+  <li><strong>전이</strong> — 뽑힌 토큰에 맞춰 상태 기계를 한 칸 전진시키고, 다시 2번으로 돌아갑니다.</li>
+</ol>
+
+<p>예를 들어 <code>{ "age": ... }</code> 스키마에서 <code>age</code> 값 자리에 막 도착했다면, 그 순간 합법인 토큰은 <code>0~9</code> 숫자(와 음수 부호 정도)뿐입니다. 모델이 속으로 <code>"young"</code>이라는 글자를 아무리 강하게 원해도, <code>y</code> 토큰의 확률이 0으로 눌려 절대 나올 수 없습니다. 그래서 <strong>스키마 위반이 구조적으로 불가능</strong>합니다.</p>
+
+<figure class="sod-fig"><svg viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="제약 디코딩 한 단계. 모델이 어휘 전체에 logit을 매기면, 문법 마스크가 현재 상태에서 불법인 토큰의 점수를 마이너스 무한대로 눌러 0, 1, 따옴표 같은 합법 토큰만 남긴다. 그 중에서 샘플링한 뒤 상태 기계를 한 칸 전진시키고 반복한다.">
+  <defs>
+    <marker id="sod-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--sod-slate)"/>
+    </marker>
+  </defs>
+  <text x="380" y="26" text-anchor="middle" font-size="14" font-weight="800" fill="var(--sod-slate)">제약 디코딩 한 단계 — 상태: "age 값 자리"</text>
+
+  <!-- logits column -->
+  <text x="120" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sod-slate)">① 모델 logit (어휘 전체)</text>
+  <g font-family="ui-monospace,monospace" font-size="13">
+    <rect x="40" y="78" width="160" height="26" rx="5" fill="none" stroke="var(--sod-slate)"/><text x="52" y="96" fill="var(--sod-slate)">"4"  3.1</text>
+    <rect x="40" y="110" width="160" height="26" rx="5" fill="none" stroke="var(--sod-slate)"/><text x="52" y="128" fill="var(--sod-slate)">"young" 2.8</text>
+    <rect x="40" y="142" width="160" height="26" rx="5" fill="none" stroke="var(--sod-slate)"/><text x="52" y="160" fill="var(--sod-slate)">"7"  2.2</text>
+    <rect x="40" y="174" width="160" height="26" rx="5" fill="none" stroke="var(--sod-slate)"/><text x="52" y="192" fill="var(--sod-slate)">" 약"  1.9</text>
+  </g>
+
+  <!-- mask -->
+  <text x="380" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sod-amber)">② 문법 마스크 적용</text>
+  <g font-family="ui-monospace,monospace" font-size="13">
+    <rect x="300" y="78" width="160" height="26" rx="5" fill="none" stroke="var(--sod-emerald)" stroke-width="2"/><text x="312" y="96" fill="var(--sod-emerald)">"4"  3.1 ✓</text>
+    <rect x="300" y="110" width="160" height="26" rx="5" fill="none" stroke="var(--sod-rose)"/><text x="312" y="128" fill="var(--sod-rose)">"young" −∞ ✗</text>
+    <rect x="300" y="142" width="160" height="26" rx="5" fill="none" stroke="var(--sod-emerald)" stroke-width="2"/><text x="312" y="160" fill="var(--sod-emerald)">"7"  2.2 ✓</text>
+    <rect x="300" y="174" width="160" height="26" rx="5" fill="none" stroke="var(--sod-rose)"/><text x="312" y="192" fill="var(--sod-rose)">" 약"  −∞ ✗</text>
+  </g>
+
+  <!-- sample -->
+  <text x="630" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sod-emerald)">③ 합법 토큰만 샘플링</text>
+  <rect x="555" y="120" width="150" height="44" rx="8" fill="none" stroke="var(--sod-emerald)" stroke-width="2.4"/>
+  <text x="630" y="148" text-anchor="middle" font-family="ui-monospace,monospace" font-size="18" font-weight="700" fill="var(--sod-emerald)">"4" 선택</text>
+
+  <line x1="204" y1="140" x2="296" y2="140" stroke="var(--sod-slate)" stroke-width="1.8" marker-end="url(#sod-arr)"/>
+  <line x1="464" y1="140" x2="551" y2="140" stroke="var(--sod-slate)" stroke-width="1.8" marker-end="url(#sod-arr)"/>
+
+  <!-- loop back -->
+  <path d="M630 166 L630 250 L380 250 L380 296" fill="none" stroke="var(--sod-violet)" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#sod-arr)"/>
+  <rect x="250" y="296" width="260" height="28" rx="6" fill="none" stroke="var(--sod-violet)"/>
+  <text x="380" y="315" text-anchor="middle" font-size="12.5" fill="var(--sod-violet)">④ 상태 기계 한 칸 전진 → ①로 반복</text>
+</svg>
+<figcaption>제약 디코딩 한 단계 — 문법 마스크가 불법 토큰(<code>"young"</code>, <code>"약"</code>)의 점수를 −∞로 눌러, 모델은 합법 토큰 중에서만 고른다. 스키마 위반이 구조적으로 불가능한 이유다.</figcaption>
+</figure>
+
+<p>중첩된 객체나 배열, 따옴표 안의 임의 문자열처럼 단순 FSM으로 표현하기 어려운 문법은 PDA(스택을 가진 상태 기계)로 처리합니다. 여는 괄호를 스택에 쌓았다가 닫는 괄호에서 빼는 식으로 깊이를 추적하는 거라고 생각하면 됩니다. XGrammar가 바로 이 PDA 방식으로 중첩 JSON을 빠르게 처리합니다.</p>
+
+<h2 id="sec-4">4. 실전: 코드로 직접 써 보기</h2>
+
+<p>이론은 됐고, 실제로 어떻게 쓰는지 봅시다. 가장 깔끔한 방법은 <strong>Pydantic</strong>으로 원하는 모양을 클래스로 선언하고, 그걸 그대로 스키마로 넘기는 것입니다. 먼저 OpenAI SDK 예시입니다.</p>
+
+{{< highlight python >}}
+from pydantic import BaseModel
+from openai import OpenAI
+
+# ① 원하는 출력 모양을 '타입'으로 선언한다
+class Ticket(BaseModel):
+    category: str          # 분류
+    urgency: int           # 1~5 긴급도 (정수 보장)
+    needs_human: bool      # 사람 상담사 연결 필요 여부
+
+client = OpenAI()
+resp = client.responses.parse(
+    model="gpt-5.1",
+    input="청구서가 두 번 결제됐어요. 당장 환불해 주세요!",
+    text_format=Ticket,    # ② 스키마를 넘기면 제약 디코딩이 켜진다
+)
+
+ticket = resp.output_parsed         # ③ 이미 검증·파싱된 Ticket 객체
+print(ticket.urgency + 1)           # int라서 그냥 계산해도 안전
+{{< /highlight >}}
+
+<p>핵심은 ② 한 줄입니다. 스키마를 넘기는 순간 백엔드에서 제약 디코딩이 켜지고, 돌아온 <code>output_parsed</code>는 <em>이미 검증된</em> 파이썬 객체입니다. <code>json.loads()</code>도, 정규식도, 재시도 루프도 사라집니다.</p>
+
+<p>Anthropic Claude도 2026년 정식 출시된 구조화된 출력으로 거의 같은 모양입니다. 출력 형식을 <code>output_config</code>로 지정합니다.</p>
+
+{{< highlight python >}}
+import anthropic
+
+client = anthropic.Anthropic()
+msg = client.messages.create(
+    model="claude-opus-4-8",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "청구서가 두 번 결제됐어요!"}],
+    output_config={                 # JSON 스키마를 직접 지정
+        "format": {
+            "type": "json_schema",
+            "schema": Ticket.model_json_schema(),
+        }
+    },
+)
+# msg.content 의 텍스트는 항상 위 스키마에 맞는 JSON 문자열
+{{< /highlight >}}
+
+<p>셀프호스팅이라면 vLLM이 같은 일을 합니다. OpenAI 호환 서버를 띄운 뒤 <code>guided_json</code>(또는 <code>response_format</code>)에 스키마를 실어 보내면, 내부적으로 XGrammar 같은 백엔드가 토큰 마스크를 씌웁니다.</p>
+
+{{< highlight python >}}
+from openai import OpenAI
+
+# vLLM이 띄운 OpenAI 호환 엔드포인트에 붙는다
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="dummy")
+
+resp = client.chat.completions.create(
+    model="Qwen/Qwen3-8B",
+    messages=[{"role": "user", "content": "청구서가 두 번 결제됐어요!"}],
+    extra_body={"guided_json": Ticket.model_json_schema()},  # vLLM 전용 확장 필드
+)
+{{< /highlight >}}
+
+<p>세 코드 모두 공통점은 <strong>"스키마를 한 곳에 선언하고, 그걸 넘긴다"</strong>입니다. 어느 백엔드를 쓰든 멘탈 모델은 똑같습니다.</p>
+
+<h2 id="sec-5">5. 도구 지형 — Outlines · XGrammar · Guidance</h2>
+
+<p>셀프호스팅에서 실제로 마스크를 만드는 엔진은 따로 있습니다. 이름을 알아 두면 vLLM·SGLang 설정 문서를 읽을 때 헷갈리지 않습니다.</p>
+
+<figure class="sod-fig"><svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="구조화된 출력 계층도. 위에서부터 개발자가 선언한 JSON 스키마, 그 아래 제약 디코딩 엔진(Outlines, XGrammar, Guidance), 맨 아래 추론 서버(vLLM, SGLang, TensorRT-LLM)가 쌓여 있다.">
+  <rect x="180" y="20" width="360" height="46" rx="9" fill="none" stroke="var(--sod-blue)" stroke-width="2"/>
+  <text x="360" y="48" text-anchor="middle" font-size="14" font-weight="700" fill="var(--sod-blue)">JSON 스키마 / Pydantic (개발자가 선언)</text>
+
+  <text x="360" y="92" text-anchor="middle" font-size="12" fill="var(--sod-slate)">↓ 컴파일 (문법·오토마타)</text>
+
+  <rect x="60" y="106" width="180" height="50" rx="9" fill="none" stroke="var(--sod-emerald)" stroke-width="2"/>
+  <text x="150" y="130" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--sod-emerald)">XGrammar</text>
+  <text x="150" y="148" text-anchor="middle" font-size="11" fill="var(--sod-slate)">PDA · 마스크 캐시</text>
+
+  <rect x="270" y="106" width="180" height="50" rx="9" fill="none" stroke="var(--sod-amber)" stroke-width="2"/>
+  <text x="360" y="130" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--sod-amber)">Outlines</text>
+  <text x="360" y="148" text-anchor="middle" font-size="11" fill="var(--sod-slate)">FSM 방식의 원조</text>
+
+  <rect x="480" y="106" width="180" height="50" rx="9" fill="none" stroke="var(--sod-violet)" stroke-width="2"/>
+  <text x="570" y="130" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--sod-violet)">Guidance</text>
+  <text x="570" y="148" text-anchor="middle" font-size="11" fill="var(--sod-slate)">속도·커버리지 강점</text>
+
+  <text x="360" y="182" text-anchor="middle" font-size="12" fill="var(--sod-slate)">↓ 토큰 마스크 제공</text>
+
+  <rect x="120" y="196" width="480" height="42" rx="9" fill="none" stroke="var(--sod-slate)" stroke-width="2"/>
+  <text x="360" y="222" text-anchor="middle" font-size="13" font-weight="700" fill="var(--sod-slate)">추론 서버 — vLLM · SGLang · TensorRT-LLM</text>
+</svg>
+<figcaption>구조화된 출력 계층 — 위에서 선언한 스키마를 엔진이 문법으로 컴파일해 마스크를 만들고, 추론 서버가 매 토큰에 적용한다.</figcaption>
+</figure>
+
+<table class="sod-tbl">
+  <thead><tr><th>엔진</th><th>핵심 특징</th><th>GitHub 스타</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Outlines</strong></td><td>FSM 기반 구조화 생성의 원조. 단순 스키마엔 강하지만 복잡·재귀 스키마에서 컴파일이 느려질 수 있다.</td><td>약 14.3k</td></tr>
+    <tr><td><strong>XGrammar</strong></td><td>PDA + 마스크 캐싱으로 토큰당 오버헤드를 거의 0에 가깝게. vLLM·SGLang·TensorRT-LLM의 사실상 기본 백엔드.</td><td>약 1.8k</td></tr>
+    <tr><td><strong>Guidance</strong></td><td>JSONSchemaBench 기준 속도·커버리지에서 두루 강함. 문법을 직접 짜는 표현력도 제공.</td><td>약 21.5k</td></tr>
+  </tbody>
+</table>
+
+<p>예전엔 "제약 디코딩은 느리다"가 정설이었습니다. Outlines가 복잡한 스키마에서 처음 컴파일에 수십 초~수 분이 걸리던 시절 얘기입니다. XGrammar가 마스크를 미리 계산·캐시하면서 토큰당 오버헤드가 사실상 사라졌고, 그래서 2026년 들어 vLLM·SGLang의 기본값으로 자리잡았습니다(논문: arXiv 2411.15100). JSONSchemaBench(arXiv 2501.10868)는 약 1만 개의 실제 스키마로 엔진들을 비교했는데, 엔진마다 지원하는 스키마 기능(재귀 <code>$ref</code>, <code>pattern</code> 등) 범위와 준수율이 꽤 다르다는 점을 보여 줍니다. <strong>"내가 쓰는 스키마 기능을 이 엔진이 지원하는가"</strong>를 꼭 확인하라는 뜻입니다.</p>
+
+<h2 id="sec-6">6. 함정 — "형식을 강제하면 멍청해진다"</h2>
+
+<p>여기서 이번 주 논쟁의 핵심이자, 주니어가 꼭 알아야 할 함정이 등장합니다. 2024년 EMNLP 논문 <em>"Let Me Speak Freely?"</em>(arXiv 2408.02442)는 형식을 빡빡하게 강제할수록 <strong>추론 능력이 떨어진다</strong>고 보고했습니다. 왜 그럴까요?</p>
+
+<p>LLM은 답으로 가기 전에 중간 사고 과정(이른바 "생각하며 푸는" 단계)을 토해 내면서 정답률이 올라갑니다. 그런데 스키마가 <code>{ "answer": int }</code> 하나뿐이면, 모델은 곧장 숫자 칸으로 끌려가 <strong>생각할 공간을 빼앗깁니다</strong>. 깔끔한 형식을 얻은 대가로 추론을 잃는 셈입니다.</p>
+
+<div class="sod-warn sod-note">
+  <p><strong>핵심 함정.</strong> 구조를 강제하는 것 자체가 나쁜 게 아니라, <em>모델이 생각할 자리까지 없애 버리는</em> 구조가 나쁩니다. JSON 객체의 필드는 <strong>위에서 아래로 생성</strong>되므로, 정답 필드를 맨 앞에 두면 모델은 추론도 못 한 채 답부터 뱉어야 합니다.</p>
+</div>
+
+<p>해법은 의외로 단순합니다. <strong>스키마 안에 "생각할 필드"를 정답 필드보다 먼저</strong> 넣어 주는 것입니다. 모델이 그 칸을 자유 텍스트로 채우며 추론한 뒤, 그 다음 칸에서 결론을 내게 합니다. 필드 순서가 곧 생성 순서이기 때문에 이 배치가 중요합니다.</p>
+
+{{< highlight python >}}
+from pydantic import BaseModel, Field
+
+class Answer(BaseModel):
+    # ① 먼저 자유롭게 추론할 자리를 준다 (생성 순서상 맨 앞!)
+    reasoning: str = Field(description="결론에 이르는 단계별 사고 과정")
+    # ② 그 다음에야 구조화된 결론을 적게 한다
+    final_category: str
+    confidence: float
+{{< /highlight >}}
+
+<figure class="sod-fig"><svg viewBox="0 0 720 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="두 스키마 비교. 위쪽은 정답 필드만 있어 모델이 곧장 답을 강요당해 추론을 잃는다. 아래쪽은 reasoning 필드를 먼저 둬서 모델이 자유 텍스트로 생각한 뒤 정답을 적어 정확도를 지킨다.">
+  <rect x="30" y="24" width="300" height="80" rx="10" fill="none" stroke="var(--sod-rose)" stroke-width="2"/>
+  <text x="180" y="50" text-anchor="middle" font-size="13" font-weight="700" fill="var(--sod-rose)">✗ 정답 필드만</text>
+  <text x="180" y="74" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12.5" fill="var(--sod-slate)">{ "answer": 42 }</text>
+  <text x="180" y="94" text-anchor="middle" font-size="11.5" fill="var(--sod-rose)">생각할 자리 없음 → 추론 손실</text>
+
+  <rect x="390" y="24" width="300" height="80" rx="10" fill="none" stroke="var(--sod-emerald)" stroke-width="2"/>
+  <text x="540" y="50" text-anchor="middle" font-size="13" font-weight="700" fill="var(--sod-emerald)">✓ reasoning 먼저</text>
+  <text x="540" y="74" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11.5" fill="var(--sod-slate)">{ "reasoning": "...", "answer": 42 }</text>
+  <text x="540" y="94" text-anchor="middle" font-size="11.5" fill="var(--sod-emerald)">생각 후 결론 → 정확도 유지</text>
+
+  <text x="360" y="150" text-anchor="middle" font-size="13" font-weight="700" fill="var(--sod-slate)">생성 순서: 왼쪽 → 오른쪽 (위 → 아래)</text>
+  <line x1="120" y1="170" x2="600" y2="170" stroke="var(--sod-slate)" stroke-width="2" marker-end="url(#sod-arr2)"/>
+  <defs>
+    <marker id="sod-arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--sod-slate)"/>
+    </marker>
+  </defs>
+  <text x="360" y="200" text-anchor="middle" font-size="12" fill="var(--sod-slate)">필드 순서 = 토큰 생성 순서 → '생각할 칸'을 앞에 두자</text>
+</svg>
+<figcaption>같은 제약 디코딩이라도 필드 순서가 결과를 가른다 — 추론용 자유 텍스트 필드를 정답 필드보다 앞에 두면 형식을 지키면서도 추론을 잃지 않는다.</figcaption>
+</figure>
+
+<p>논문이 제안한 또 다른 방법은 <strong>NL-to-Format</strong>입니다. 1단계에서 자연어로 자유롭게 답하게 한 뒤, 2단계에서 그 답을 구조화 호출로 형식만 입히는 두 단계 방식입니다. 호출이 두 번이라 비용·지연은 늘지만, 추론 정확도가 특히 중요한 작업에선 안전한 선택입니다. 정리하면 <em>"제약 디코딩이 추론을 망친다"</em>가 아니라 <em>"생각할 공간을 남겨 두고 쓰면 된다"</em>가 맞습니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>모든 JSON Schema 기능이 지원되는 건 아니다.</strong> 많은 제공자가 일부 키워드만 받습니다. 예를 들어 OpenAI는 객체의 <em>모든 필드를 <code>required</code></em>로, <code>additionalProperties: false</code>로 강제하고, <code>minimum</code>/<code>maximum</code>·복잡한 <code>pattern</code> 등은 지원하지 않습니다. "선택 필드"가 필요하면 타입에 <code>null</code>을 허용하는 식으로 우회합니다.</li>
+  <li><strong>스키마 유효 ≠ 의미 정답.</strong> 제약 디코딩은 <em>모양</em>만 보장합니다. <code>category</code>가 enum 후보 중 하나인 건 보장돼도, 그게 <em>옳은</em> 분류인지는 보장하지 않습니다. 빈 문자열 <code>""</code>이나 그럴듯한 오답도 스키마는 통과합니다. 평가(eval)는 따로 해야 합니다.</li>
+  <li><strong>거부(refusal) 경로를 잊지 말자.</strong> 모델이 안전상 답을 거부하면 스키마와 무관한 거부 메시지가 올 수 있습니다. 제공자가 주는 거부 필드/플래그를 확인해 분기 처리하세요.</li>
+  <li><strong>첫 컴파일 지연.</strong> 복잡한 스키마는 문법 컴파일에 시간이 걸릴 수 있습니다. 같은 스키마를 반복 사용하면 캐시가 잘 듣는 엔진(XGrammar)을 고르고, 스키마를 매 요청마다 새로 만들지 마세요.</li>
+  <li><strong>재귀·깊은 중첩은 미리 테스트.</strong> 트리처럼 자기 자신을 참조하는 스키마는 엔진별 지원이 갈립니다. JSONSchemaBench가 보여 줬듯 준수율 차이가 크니, 프로덕션 전에 실제 스키마로 한 번 돌려 보세요.</li>
+  <li><strong>함수 호출(tool use)도 같은 기술이다.</strong> "strict tool use"는 도구 인자(arguments)에 구조화된 출력을 적용한 것입니다. 에이전트가 도구를 부를 때 인자가 깨지는 사고도 이걸로 막을 수 있습니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>프롬프트로 "JSON 줘"는 부탁</strong>이라 가끔 깨집니다. <strong>구조화된 출력</strong>은 강제라 스키마를 100% 지킵니다.</li>
+  <li><strong>JSON 모드</strong>는 "유효한 JSON"만, <strong>구조화된 출력</strong>은 "내 스키마대로"를 보장합니다. 자동화엔 후자가 필요합니다.</li>
+  <li>원리는 <strong>제약 디코딩</strong> — 스키마를 문법(FSM/PDA)으로 컴파일하고, 매 토큰마다 불법 후보의 logit을 <code>−∞</code>로 눌러 합법 토큰만 샘플링합니다. 위반이 구조적으로 불가능합니다.</li>
+  <li>실무에선 <strong>Pydantic으로 모양을 선언하고 그대로 넘기면</strong> 됩니다. OpenAI·Anthropic(2026 GA)·vLLM 모두 멘탈 모델이 같습니다.</li>
+  <li>셀프호스팅 엔진은 <strong>Outlines·XGrammar·Guidance</strong>. XGrammar가 오버헤드를 거의 없애며 vLLM·SGLang 기본 백엔드가 됐습니다.</li>
+  <li>가장 큰 함정: 형식 강제가 추론을 망칠 수 있습니다. <strong>추론용 자유 텍스트 필드를 정답 필드보다 앞에 두세요</strong>(필드 순서 = 생성 순서).</li>
+  <li>스키마 유효는 <em>모양</em>만 보장합니다. <strong>의미가 옳은지는 평가(eval)로 따로</strong> 확인하세요.</li>
+</ul>
+
+<hr>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://platform.claude.com/docs/en/build-with-claude/structured-outputs" target="_blank" rel="noopener">Structured outputs — Claude Platform Docs (Anthropic)</a></li>
+  <li><a href="https://platform.openai.com/docs/guides/structured-outputs" target="_blank" rel="noopener">Structured Outputs — OpenAI Platform Docs</a></li>
+  <li><a href="https://docs.vllm.ai/en/latest/features/structured_outputs/" target="_blank" rel="noopener">Structured Outputs — vLLM Documentation</a></li>
+  <li><a href="https://developers.redhat.com/articles/2025/06/03/structured-outputs-vllm-guiding-ai-responses" target="_blank" rel="noopener">Structured outputs in vLLM: Guiding AI responses — Red Hat Developer</a></li>
+  <li><a href="https://arxiv.org/abs/2411.15100" target="_blank" rel="noopener">XGrammar: Flexible and Efficient Structured Generation Engine (arXiv 2411.15100)</a></li>
+  <li><a href="https://github.com/mlc-ai/xgrammar" target="_blank" rel="noopener">mlc-ai/xgrammar — GitHub</a></li>
+  <li><a href="https://github.com/dottxt-ai/outlines" target="_blank" rel="noopener">dottxt-ai/outlines — GitHub</a></li>
+  <li><a href="https://github.com/guidance-ai/guidance" target="_blank" rel="noopener">guidance-ai/guidance — GitHub</a></li>
+  <li><a href="https://arxiv.org/abs/2408.02442" target="_blank" rel="noopener">Let Me Speak Freely? A Study on the Impact of Format Restrictions on Performance of LLMs (arXiv 2408.02442, EMNLP 2024)</a></li>
+  <li><a href="https://arxiv.org/abs/2501.10868" target="_blank" rel="noopener">JSONSchemaBench: A Rigorous Benchmark of Structured Outputs for Language Models (arXiv 2501.10868)</a></li>
+</ul>

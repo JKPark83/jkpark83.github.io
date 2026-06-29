@@ -1,0 +1,46 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="구조화된 출력과 제약 디코딩. JSON 스키마가 문법으로 컴파일되고, 디코딩 단계마다 문법에 어긋나는 토큰은 마스크로 막혀 항상 스키마에 맞는 JSON만 생성된다.">
+  <defs>
+    <linearGradient id="sodbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <marker id="sodcov-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#sodbg)"/>
+
+  <text x="600" y="82" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="44" font-weight="800">"JSON으로 답해줘"는 그만</text>
+  <text x="600" y="128" text-anchor="middle" fill="#a5b4fc" font-family="system-ui,sans-serif" font-size="23">구조화된 출력과 제약 디코딩 — 스키마를 100% 지키게 만드는 법</text>
+
+  <!-- schema -->
+  <rect x="70" y="250" width="240" height="130" rx="14" fill="#1e293b" stroke="#818cf8" stroke-width="2.5"/>
+  <text x="190" y="288" text-anchor="middle" fill="#c7d2fe" font-family="system-ui,sans-serif" font-size="20" font-weight="800">JSON 스키마</text>
+  <text x="190" y="322" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace,monospace" font-size="15">{ "age": number }</text>
+  <text x="190" y="352" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="15">개발자가 정의</text>
+
+  <!-- grammar -->
+  <rect x="400" y="250" width="240" height="130" rx="14" fill="#1e293b" stroke="#34d399" stroke-width="2.5"/>
+  <text x="520" y="288" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="20" font-weight="800">문법 / 오토마타</text>
+  <text x="520" y="322" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="15">컴파일 (FSM·PDA)</text>
+  <text x="520" y="352" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="15">상태별 허용 토큰</text>
+
+  <!-- decode loop -->
+  <rect x="730" y="232" width="270" height="166" rx="14" fill="#312e81" stroke="#fbbf24" stroke-width="2.5"/>
+  <text x="865" y="268" text-anchor="middle" fill="#fde68a" font-family="system-ui,sans-serif" font-size="20" font-weight="800">제약 디코딩</text>
+  <text x="865" y="300" text-anchor="middle" fill="#fef3c7" font-family="system-ui,sans-serif" font-size="15">매 토큰마다 마스크 적용</text>
+  <text x="865" y="328" text-anchor="middle" fill="#fca5a5" font-family="ui-monospace,monospace" font-size="14">불법 토큰 → logit = −∞</text>
+  <text x="865" y="356" text-anchor="middle" fill="#86efac" font-family="ui-monospace,monospace" font-size="14">합법 토큰만 샘플링</text>
+  <text x="865" y="382" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="14">상태 전이 → 반복</text>
+
+  <!-- arrows -->
+  <line x1="312" y1="315" x2="396" y2="315" stroke="#64748b" stroke-width="2.5" marker-end="url(#sodcov-arr)"/>
+  <line x1="642" y1="315" x2="726" y2="315" stroke="#64748b" stroke-width="2.5" marker-end="url(#sodcov-arr)"/>
+
+  <!-- output -->
+  <rect x="430" y="452" width="340" height="60" rx="12" fill="#064e3b" stroke="#34d399" stroke-width="2.5"/>
+  <text x="600" y="490" text-anchor="middle" fill="#a7f3d0" font-family="ui-monospace,monospace" font-size="20" font-weight="700">{ "age": 42 } ✓ 항상 유효</text>
+  <line x1="865" y1="400" x2="700" y2="450" stroke="#64748b" stroke-width="2.5" marker-end="url(#sodcov-arr)"/>
+
+  <text x="600" y="572" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="17">정규식 파싱·재시도 대신, 모델이 애초에 깨진 JSON을 만들 수 없게 만든다</text>
+</svg>

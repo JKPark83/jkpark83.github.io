@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" width="100%" height="auto" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect x="0" y="0" width="760" height="300" fill="#0f172a"/>
+  <text x="30" y="40" fill="#f8fafc" font-size="19" font-weight="700">오픈소스 능력 도구 — GitHub 스타 비교</text>
+
+  <!-- bar 1: skills 156.6k -->
+  <text x="30" y="92" fill="#e2e8f0" font-size="14" font-weight="600">anthropics/skills</text>
+  <rect x="30" y="100" width="680" height="26" rx="6" fill="#1e293b"/>
+  <rect x="30" y="100" width="680" height="26" rx="6" fill="#a78bfa"/>
+  <text x="700" y="118" text-anchor="end" fill="#0f172a" font-size="13" font-weight="700">156.6k★</text>
+
+  <!-- bar 2: browser-use 101.4k -> 680*101.4/156.6=443 -->
+  <text x="30" y="160" fill="#e2e8f0" font-size="14" font-weight="600">browser-use/browser-use</text>
+  <rect x="30" y="168" width="680" height="26" rx="6" fill="#1e293b"/>
+  <rect x="30" y="168" width="443" height="26" rx="6" fill="#fbbf24"/>
+  <text x="483" y="186" fill="#fbbf24" font-size="13" font-weight="700">101.4k★</text>
+
+  <!-- bar 3: MinerU 72.3k -> 680*72.3/156.6=314 -->
+  <text x="30" y="228" fill="#e2e8f0" font-size="14" font-weight="600">opendatalab/MinerU</text>
+  <rect x="30" y="236" width="680" height="26" rx="6" fill="#1e293b"/>
+  <rect x="30" y="236" width="314" height="26" rx="6" fill="#f472b6"/>
+  <text x="354" y="254" fill="#f472b6" font-size="13" font-weight="700">72.3k★</text>
+
+  <text x="30" y="290" fill="#64748b" font-size="11">막대 길이는 스타 수에 비례 · GitHub API 2026-06-30 기준 · 직접 생성</text>
+</svg>

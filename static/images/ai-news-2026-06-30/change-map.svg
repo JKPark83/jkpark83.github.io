@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" width="100%" height="auto" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect x="0" y="0" width="760" height="440" fill="#0f172a"/>
+  <text x="380" y="34" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">오늘의 AI 변화 지도 — 2026-06-30</text>
+  <text x="380" y="58" text-anchor="middle" fill="#94a3b8" font-size="13">"Skills(능력 패키지)"가 도구 간 공통 포맷으로 수렴</text>
+
+  <!-- center -->
+  <rect x="290" y="180" width="180" height="74" rx="12" fill="#7c3aed"/>
+  <text x="380" y="210" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">Agent Skills</text>
+  <text x="380" y="232" text-anchor="middle" fill="#ede9fe" font-size="12">SKILL.md · 동적 로드</text>
+
+  <!-- lines -->
+  <g stroke="#475569" stroke-width="2">
+    <line x1="290" y1="200" x2="170" y2="120"/>
+    <line x1="290" y1="234" x2="170" y2="330"/>
+    <line x1="470" y1="200" x2="600" y2="120"/>
+    <line x1="470" y1="234" x2="600" y2="250"/>
+    <line x1="470" y1="240" x2="600" y2="360"/>
+  </g>
+
+  <!-- Claude Code -->
+  <rect x="40" y="92" width="200" height="64" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="140" y="118" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">Claude Code</text>
+  <text x="140" y="138" text-anchor="middle" fill="#cbd5e1" font-size="11">/plugin marketplace add</text>
+
+  <!-- anthropics/skills -->
+  <rect x="40" y="302" width="200" height="64" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+  <text x="140" y="328" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="700">anthropics/skills</text>
+  <text x="140" y="348" text-anchor="middle" fill="#cbd5e1" font-size="11">156.6k★ · 표준+예제</text>
+
+  <!-- Codex -->
+  <rect x="520" y="92" width="200" height="64" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+  <text x="620" y="118" text-anchor="middle" fill="#34d399" font-size="14" font-weight="700">Codex</text>
+  <text x="620" y="138" text-anchor="middle" fill="#cbd5e1" font-size="11">docs/skills.md 지원</text>
+
+  <!-- browser-use -->
+  <rect x="520" y="222" width="200" height="56" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+  <text x="620" y="246" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="700">browser-use 101.4k★</text>
+  <text x="620" y="265" text-anchor="middle" fill="#cbd5e1" font-size="11">웹 접근 능력</text>
+
+  <!-- MinerU -->
+  <rect x="520" y="332" width="200" height="56" rx="10" fill="#1e293b" stroke="#f472b6" stroke-width="2"/>
+  <text x="620" y="356" text-anchor="middle" fill="#f472b6" font-size="13" font-weight="700">MinerU 72.3k★</text>
+  <text x="620" y="375" text-anchor="middle" fill="#cbd5e1" font-size="11">문서→LLM 입력</text>
+
+  <text x="380" y="418" text-anchor="middle" fill="#64748b" font-size="11">별 수는 GitHub API 기준 · 직접 생성</text>
+</svg>

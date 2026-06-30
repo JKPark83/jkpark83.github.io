@@ -1,0 +1,46 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="클래식 벡터 RAG와 에이전틱 검색의 대비. 왼쪽은 문서를 미리 청킹·임베딩해 벡터DB에 넣고 한 번에 top-k를 꺼내 프롬프트에 채우는 선형 파이프라인, 오른쪽은 에이전트가 도구로 직접 검색하고 결과를 보고 다시 검색하는 반복 루프.">
+  <defs>
+    <linearGradient id="arrbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#0c2a23"/>
+    </linearGradient>
+    <marker id="arrcov-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#arrbg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="44" font-weight="800">"RAG는 죽었다?"는 또 돌고</text>
+  <text x="600" y="122" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="23">클래식 벡터 RAG에서 에이전트가 직접 찾는 '에이전틱 검색'까지</text>
+
+  <!-- left: classic RAG -->
+  <text x="300" y="190" text-anchor="middle" fill="#93c5fd" font-family="system-ui,sans-serif" font-size="22" font-weight="800">클래식 벡터 RAG</text>
+  <rect x="120" y="212" width="360" height="56" rx="11" fill="#1e293b" stroke="#60a5fa" stroke-width="2"/>
+  <text x="300" y="247" text-anchor="middle" fill="#bfdbfe" font-family="system-ui,sans-serif" font-size="16">문서 → 청킹 → 임베딩 → 벡터DB</text>
+  <line x1="300" y1="270" x2="300" y2="300" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrcov-arr)"/>
+  <rect x="120" y="302" width="360" height="52" rx="11" fill="#1e293b" stroke="#60a5fa" stroke-width="2"/>
+  <text x="300" y="334" text-anchor="middle" fill="#bfdbfe" font-family="system-ui,sans-serif" font-size="16">질문 한 번 → top-k 한 번에 검색</text>
+  <line x1="300" y1="356" x2="300" y2="386" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrcov-arr)"/>
+  <rect x="120" y="388" width="360" height="52" rx="11" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
+  <text x="300" y="420" text-anchor="middle" fill="#dbeafe" font-family="system-ui,sans-serif" font-size="16">프롬프트에 채워 넣고 → LLM</text>
+  <text x="300" y="478" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="15">선형 · 미리 색인 · 한 방 검색</text>
+
+  <!-- vs -->
+  <text x="600" y="345" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="26" font-weight="800">vs</text>
+
+  <!-- right: agentic retrieval -->
+  <text x="900" y="190" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="22" font-weight="800">에이전틱 검색</text>
+  <rect x="720" y="212" width="360" height="56" rx="11" fill="#0f2e25" stroke="#34d399" stroke-width="2"/>
+  <text x="900" y="247" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="16">에이전트가 도구로 직접 검색</text>
+  <line x1="900" y1="270" x2="900" y2="300" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrcov-arr)"/>
+  <rect x="720" y="302" width="360" height="52" rx="11" fill="#0f2e25" stroke="#34d399" stroke-width="2"/>
+  <text x="900" y="334" text-anchor="middle" fill="#a7f3d0" font-family="ui-monospace,monospace" font-size="15">grep · glob · read · search()</text>
+  <line x1="900" y1="356" x2="900" y2="386" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrcov-arr)"/>
+  <rect x="720" y="388" width="360" height="52" rx="11" fill="#0f2e25" stroke="#34d399" stroke-width="2"/>
+  <text x="900" y="420" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="16">충분한가? 아니면 다시 검색 ↺</text>
+  <!-- loop arrow -->
+  <path d="M720 414 q-46 -14 -46 -60 q0 -46 46 -60" fill="none" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#arrcov-arr)"/>
+  <text x="900" y="478" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="15">반복 · just-in-time · 스스로 판단</text>
+
+  <text x="600" y="560" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="17">정답은 "둘 중 하나"가 아니라 "언제 무엇을" — 두 방식의 원리와 선택 기준을 정리한다</text>
+</svg>

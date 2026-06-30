@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 380" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="700" height="380" fill="#0f1117"/>
+  <text x="350" y="34" fill="#e6e6e6" font-size="19" font-weight="700" text-anchor="middle">SWE-bench Pro (에이전트 코딩, 높을수록 좋음)</text>
+  <text x="350" y="55" fill="#8b93a7" font-size="12" text-anchor="middle">Anthropic 공개 평가치 · 단위 %</text>
+
+  <!-- axis -->
+  <line x1="80" y1="300" x2="660" y2="300" stroke="#2d333b" stroke-width="2"/>
+  <line x1="80" y1="90" x2="80" y2="300" stroke="#2d333b" stroke-width="2"/>
+  <!-- gridlines -->
+  <line x1="80" y1="230" x2="660" y2="230" stroke="#1b2230" stroke-width="1"/>
+  <line x1="80" y1="160" x2="660" y2="160" stroke="#1b2230" stroke-width="1"/>
+  <text x="70" y="304" fill="#5b6478" font-size="11" text-anchor="end">0</text>
+  <text x="70" y="234" fill="#5b6478" font-size="11" text-anchor="end">30</text>
+  <text x="70" y="164" fill="#5b6478" font-size="11" text-anchor="end">60</text>
+
+  <!-- bars: scale 3px per % from y=300 -->
+  <!-- Sonnet 4.6 = 58.1 -> h=174.3 -->
+  <rect x="150" y="125.7" width="100" height="174.3" rx="6" fill="#4b5263"/>
+  <text x="200" y="116" fill="#e6e6e6" font-size="16" font-weight="700" text-anchor="middle">58.1</text>
+  <text x="200" y="322" fill="#8b93a7" font-size="13" text-anchor="middle">Sonnet 4.6</text>
+
+  <!-- Sonnet 5 = 63.2 -> h=189.6 -->
+  <rect x="300" y="110.4" width="100" height="189.6" rx="6" fill="#1f6feb"/>
+  <text x="350" y="100" fill="#cfe0ff" font-size="16" font-weight="700" text-anchor="middle">63.2</text>
+  <text x="350" y="322" fill="#cfe0ff" font-size="13" font-weight="700" text-anchor="middle">Sonnet 5</text>
+
+  <!-- Opus 4.8 = 69.2 -> h=207.6 -->
+  <rect x="450" y="92.4" width="100" height="207.6" rx="6" fill="#3fb950"/>
+  <text x="500" y="82" fill="#e6e6e6" font-size="16" font-weight="700" text-anchor="middle">69.2</text>
+  <text x="500" y="322" fill="#8b93a7" font-size="13" text-anchor="middle">Opus 4.8</text>
+
+  <text x="350" y="362" fill="#5b6478" font-size="11" text-anchor="middle">출처: TechCrunch (2026-06-30), Anthropic 공개 수치 (직접 생성)</text>
+</svg>

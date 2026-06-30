@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="760" height="420" fill="#0f1117"/>
+  <text x="380" y="34" fill="#e6e6e6" font-size="20" font-weight="700" text-anchor="middle">오늘의 AI 변화 지도 · 2026-07-01</text>
+  <text x="380" y="56" fill="#8b93a7" font-size="13" text-anchor="middle">싼 에이전트 토큰이 중심 — 모델 교체 → 게이트웨이 → 관측/평가</text>
+
+  <!-- center node -->
+  <rect x="290" y="170" width="180" height="74" rx="14" fill="#1f6feb"/>
+  <text x="380" y="200" fill="#fff" font-size="17" font-weight="700" text-anchor="middle">Claude Sonnet 5</text>
+  <text x="380" y="222" fill="#cfe0ff" font-size="12" text-anchor="middle">1M 컨텍스트 · $2/$10 (프로모)</text>
+
+  <!-- edges -->
+  <line x1="290" y1="190" x2="150" y2="120" stroke="#39406b" stroke-width="2"/>
+  <line x1="290" y1="225" x2="150" y2="300" stroke="#39406b" stroke-width="2"/>
+  <line x1="470" y1="190" x2="610" y2="120" stroke="#39406b" stroke-width="2"/>
+  <line x1="470" y1="225" x2="610" y2="300" stroke="#39406b" stroke-width="2"/>
+
+  <!-- node: claude code -->
+  <rect x="40" y="86" width="210" height="64" rx="12" fill="#161b22" stroke="#2d333b"/>
+  <text x="145" y="112" fill="#e6e6e6" font-size="14" font-weight="700" text-anchor="middle">Claude Code v2.1.197</text>
+  <text x="145" y="132" fill="#8b93a7" font-size="12" text-anchor="middle">Sonnet 5가 기본 모델로</text>
+
+  <!-- node: gateway -->
+  <rect x="40" y="268" width="210" height="64" rx="12" fill="#161b22" stroke="#2d333b"/>
+  <text x="145" y="294" fill="#e6e6e6" font-size="14" font-weight="700" text-anchor="middle">LiteLLM 게이트웨이</text>
+  <text x="145" y="314" fill="#8b93a7" font-size="12" text-anchor="middle">100+ 모델 라우팅·비용 제어</text>
+
+  <!-- node: eval -->
+  <rect x="510" y="86" width="210" height="64" rx="12" fill="#161b22" stroke="#2d333b"/>
+  <text x="615" y="112" fill="#e6e6e6" font-size="14" font-weight="700" text-anchor="middle">Langfuse / Opik</text>
+  <text x="615" y="132" fill="#8b93a7" font-size="12" text-anchor="middle">트레이스·평가·관측</text>
+
+  <!-- node: codex -->
+  <rect x="510" y="268" width="210" height="64" rx="12" fill="#161b22" stroke="#2d333b"/>
+  <text x="615" y="294" fill="#e6e6e6" font-size="14" font-weight="700" text-anchor="middle">Codex 0.142.4 (stable)</text>
+  <text x="615" y="314" fill="#8b93a7" font-size="12" text-anchor="middle">0.143은 alpha — CI는 핀 고정</text>
+
+  <text x="380" y="404" fill="#5b6478" font-size="11" text-anchor="middle">출처: Anthropic 릴리스 노트 · GitHub API (직접 생성)</text>
+</svg>

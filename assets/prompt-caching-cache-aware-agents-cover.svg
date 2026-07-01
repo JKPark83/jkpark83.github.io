@@ -1,0 +1,39 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="프롬프트 캐싱의 핵심. 시스템 프롬프트와 도구 정의처럼 매 요청 똑같이 반복되는 프리픽스를 KV 캐시로 재사용하면, 두 번째 요청부터는 그 부분을 다시 계산하지 않고 90퍼센트 싼값에 읽어 온다. 왼쪽은 캐시를 깨는 나쁜 순서, 오른쪽은 캐시를 지키는 좋은 순서를 대비한다.">
+  <defs>
+    <linearGradient id="pcbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#pcbg)"/>
+
+  <text x="600" y="80" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="46" font-weight="800">같은 프리픽스를 또 계산하지 마라</text>
+  <text x="600" y="124" text-anchor="middle" fill="#a5b4fc" font-family="system-ui,sans-serif" font-size="23">프롬프트 캐싱 — 비용 최대 90%↓, 캐시를 의식한 에이전트 설계</text>
+
+  <!-- 왼쪽: 캐시를 깨는 순서 -->
+  <text x="300" y="192" text-anchor="middle" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="22" font-weight="800">✗ 캐시를 깨는 순서</text>
+  <rect x="120" y="214" width="360" height="46" rx="8" fill="#7f1d1d" stroke="#f87171" stroke-width="2"/>
+  <text x="300" y="243" text-anchor="middle" fill="#fecaca" font-family="ui-monospace,monospace" font-size="16">오늘 날짜: 2026-07-02 …</text>
+  <rect x="120" y="270" width="360" height="46" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="300" y="299" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="16">시스템 프롬프트 (고정)</text>
+  <rect x="120" y="326" width="360" height="46" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="300" y="355" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="16">도구 정의 (고정)</text>
+  <text x="300" y="418" text-anchor="middle" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="16">맨 앞이 매번 바뀌면 →</text>
+  <text x="300" y="444" text-anchor="middle" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="16">뒤가 다 캐시 미스</text>
+
+  <text x="600" y="330" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="30" font-weight="800">vs</text>
+
+  <!-- 오른쪽: 캐시를 지키는 순서 -->
+  <text x="900" y="192" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="22" font-weight="800">✓ 캐시를 지키는 순서</text>
+  <rect x="720" y="214" width="360" height="46" rx="8" fill="#064e3b" stroke="#34d399" stroke-width="2.5"/>
+  <text x="900" y="243" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="16">도구 정의 (고정) · 캐시</text>
+  <rect x="720" y="270" width="360" height="46" rx="8" fill="#064e3b" stroke="#34d399" stroke-width="2.5"/>
+  <text x="900" y="299" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="16">시스템 프롬프트 (고정) · 캐시</text>
+  <rect x="720" y="326" width="360" height="46" rx="8" fill="#78350f" stroke="#fbbf24" stroke-width="2"/>
+  <text x="900" y="355" text-anchor="middle" fill="#fde68a" font-family="ui-monospace,monospace" font-size="16">사용자 질문 · 날짜 (변동)</text>
+  <text x="900" y="418" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="16">고정을 앞, 변동을 뒤로 →</text>
+  <text x="900" y="444" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="16">프리픽스가 캐시 히트</text>
+
+  <text x="600" y="522" text-anchor="middle" fill="#c7d2fe" font-family="system-ui,sans-serif" font-size="18" font-weight="700">캐시 읽기는 입력 토큰값의 1/10 — 반복되는 부분을 앞에 모아 두는 게 전부다</text>
+  <text x="600" y="560" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="16">동작 원리 · Anthropic/OpenAI/Gemini 비교 · 캐시를 의식한 에이전트 루프까지</text>
+</svg>

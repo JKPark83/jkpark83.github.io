@@ -1,0 +1,37 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="컨텍스트 compaction의 핵심. 긴 에이전트 세션에서 컨텍스트 창이 거의 꽉 차면, 오래된 대화 앞부분을 하나의 요약 블록으로 갈아 끼워 자리를 비운다. 왼쪽은 임계값에 다다라 터지기 직전인 꽉 찬 창, 오른쪽은 앞부분을 요약으로 압축해 다시 여유가 생긴 창을 대비한다.">
+  <defs>
+    <linearGradient id="ccbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#0f2a2a"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#ccbg)"/>
+
+  <text x="600" y="82" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="46" font-weight="800">창이 꽉 차도 멈추지 않는 에이전트</text>
+  <text x="600" y="126" text-anchor="middle" fill="#5eead4" font-family="system-ui,sans-serif" font-size="23">컨텍스트 compaction — 앞부분을 요약으로 갈아 끼워 긴 작업을 살린다</text>
+
+  <!-- 왼쪽: 꽉 찬 창 -->
+  <text x="300" y="196" text-anchor="middle" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="22" font-weight="800">✗ 임계값 직전 — 꽉 찬 창</text>
+  <rect x="150" y="220" width="300" height="300" rx="12" fill="#0b1120" stroke="#f87171" stroke-width="2.5"/>
+  <rect x="162" y="232" width="276" height="276" rx="6" fill="#7f1d1d" opacity="0.55"/>
+  <text x="300" y="360" text-anchor="middle" fill="#fecaca" font-family="ui-monospace,monospace" font-size="20">msg 1 … msg 812</text>
+  <text x="300" y="392" text-anchor="middle" fill="#fecaca" font-family="ui-monospace,monospace" font-size="20">150K / 150K tokens</text>
+  <text x="300" y="486" text-anchor="middle" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="17">다음 턴이면 넘친다</text>
+
+  <!-- 화살표 -->
+  <text x="600" y="360" text-anchor="middle" fill="#5eead4" font-family="system-ui,sans-serif" font-size="52" font-weight="800">→</text>
+  <text x="600" y="398" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace,monospace" font-size="18">compact</text>
+
+  <!-- 오른쪽: compaction 후 -->
+  <text x="900" y="196" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="22" font-weight="800">✓ compaction 후 — 다시 여유</text>
+  <rect x="750" y="220" width="300" height="300" rx="12" fill="#0b1120" stroke="#34d399" stroke-width="2.5"/>
+  <rect x="762" y="232" width="276" height="74" rx="6" fill="#065f46" opacity="0.7"/>
+  <text x="900" y="266" text-anchor="middle" fill="#a7f3d0" font-family="ui-monospace,monospace" font-size="18">📄 요약 블록</text>
+  <text x="900" y="292" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="15">과제·결정·다음 할 일</text>
+  <rect x="762" y="316" width="276" height="30" rx="5" fill="#0f766e" opacity="0.55"/>
+  <text x="900" y="337" text-anchor="middle" fill="#99f6e4" font-family="ui-monospace,monospace" font-size="15">최근 메시지</text>
+  <text x="900" y="470" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="16">빈 공간 = 계속 일할 여유</text>
+  <text x="900" y="498" text-anchor="middle" fill="#6ee7b7" font-family="ui-monospace,monospace" font-size="17">≈ 30K / 150K tokens</text>
+
+  <text x="600" y="588" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="18">AI 엔지니어링 · 긴 세션을 견디는 컨텍스트 관리</text>
+</svg>

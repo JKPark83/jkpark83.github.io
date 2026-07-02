@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" width="100%" role="img" aria-label="에이전트 메모리 파이프라인과 A/B 실측 게이트">
+  <rect width="760" height="360" rx="16" fill="#0f1620"/>
+  <text x="28" y="40" fill="#e5eef7" font-size="20" font-weight="700">🧩 Agent Builder 시사점 — 메모리 파이프라인</text>
+  <text x="28" y="62" fill="#93a4b5" font-size="12">저장만 하지 말고, "주입한 기억이 성능을 올렸는가"를 게이트로 검증하라.</text>
+
+  <!-- pipeline boxes -->
+  <g font-size="12.5" font-weight="600">
+    <rect x="28" y="92" width="120" height="58" rx="10" fill="#1b2735" stroke="#4a9eff" stroke-width="1.3"/>
+    <text x="88" y="118" fill="#e5eef7" font-size="12.5" text-anchor="middle">① 세션/대화</text>
+    <text x="88" y="136" fill="#93a4b5" font-size="10.5" text-anchor="middle">원천 컨텍스트</text>
+
+    <rect x="176" y="92" width="120" height="58" rx="10" fill="#1b2735" stroke="#4a9eff" stroke-width="1.3"/>
+    <text x="236" y="118" fill="#e5eef7" text-anchor="middle">② 추출</text>
+    <text x="236" y="136" fill="#93a4b5" font-size="10.5" text-anchor="middle">선호·규칙·함정</text>
+
+    <rect x="324" y="92" width="120" height="58" rx="10" fill="#2a2140" stroke="#a78bfa" stroke-width="1.3"/>
+    <text x="384" y="118" fill="#e5eef7" text-anchor="middle">③ 저장</text>
+    <text x="384" y="136" fill="#c9b8f5" font-size="10.5" text-anchor="middle">mem0 / letta</text>
+
+    <rect x="472" y="92" width="120" height="58" rx="10" fill="#1b2735" stroke="#4a9eff" stroke-width="1.3"/>
+    <text x="532" y="118" fill="#e5eef7" text-anchor="middle">④ 검색</text>
+    <text x="532" y="136" fill="#93a4b5" font-size="10.5" text-anchor="middle">관련 조각만</text>
+
+    <rect x="620" y="92" width="120" height="58" rx="10" fill="#1b2735" stroke="#4a9eff" stroke-width="1.3"/>
+    <text x="680" y="118" fill="#e5eef7" text-anchor="middle">⑤ 주입</text>
+    <text x="680" y="136" fill="#93a4b5" font-size="10.5" text-anchor="middle">프롬프트에</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="#4a9eff" stroke-width="2" fill="none" marker-end="url(#ar)">
+    <line x1="148" y1="121" x2="174" y2="121"/>
+    <line x1="296" y1="121" x2="322" y2="121"/>
+    <line x1="444" y1="121" x2="470" y2="121"/>
+    <line x1="592" y1="121" x2="618" y2="121"/>
+  </g>
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#4a9eff"/>
+    </marker>
+    <marker id="ag" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#fbbf24"/>
+    </marker>
+  </defs>
+
+  <!-- down to gate -->
+  <line x1="680" y1="150" x2="680" y2="212" stroke="#fbbf24" stroke-width="2" fill="none" marker-end="url(#ag)"/>
+
+  <!-- A/B gate -->
+  <rect x="360" y="214" width="372" height="118" rx="12" fill="#241c07" stroke="#fbbf24" stroke-width="1.6"/>
+  <text x="380" y="240" fill="#fbbf24" font-size="14" font-weight="700">📏 A/B 게이트 (SkillsBench 3-조건)</text>
+  <g font-size="12">
+    <text x="380" y="266" fill="#c7d3de">· 조건 A: 메모리/스킬 없음 (베이스라인)</text>
+    <text x="380" y="288" fill="#c7d3de">· 조건 B: 큐레이션된 기억 주입</text>
+    <text x="380" y="310" fill="#c7d3de">· 조건 C: 자기생성 기억 주입</text>
+  </g>
+  <text x="380" y="328" fill="#fbbf24" font-size="11.5" font-weight="600">→ Δ정확도·툴콜·토큰이 (+)일 때만 프로덕션 승격</text>
+
+  <!-- left note -->
+  <rect x="28" y="214" width="312" height="118" rx="12" fill="#12202d" stroke="#33475b" stroke-width="1.2"/>
+  <text x="46" y="240" fill="#e5eef7" font-size="13" font-weight="700">함정</text>
+  <g font-size="11.5">
+    <text x="46" y="264" fill="#93a4b5">· 무한 저장 → 검색 노이즈·토큰 폭증</text>
+    <text x="46" y="286" fill="#93a4b5">· "기억 있으니 좋겠지" 가정 = 미검증</text>
+    <text x="46" y="308" fill="#93a4b5">· 개인정보/민감정보 저장 정책 필요</text>
+  </g>
+</svg>

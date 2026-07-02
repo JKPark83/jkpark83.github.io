@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" width="100%" role="img" aria-label="에이전트 메모리·오케스트레이션 리포 스타 비교">
+  <rect width="720" height="340" rx="16" fill="#0f1620"/>
+  <text x="28" y="40" fill="#e5eef7" font-size="20" font-weight="700">⭐ 에이전트 메모리 리포 — GitHub Star</text>
+  <text x="28" y="62" fill="#93a4b5" font-size="12">2026-07-03 GitHub 페이지 기준(근사치). 회색 막대는 오케스트레이션 참고용.</text>
+
+  <!-- axis baseline -->
+  <line x1="150" y1="90" x2="150" y2="288" stroke="#33475b" stroke-width="1"/>
+
+  <!-- mem0 60.0k -> scale: 600px = 60k => 10px/k -->
+  <g>
+    <text x="140" y="128" fill="#c7d3de" font-size="14" text-anchor="end" font-weight="600">mem0</text>
+    <rect x="150" y="112" width="540" height="26" rx="5" fill="#a78bfa"/>
+    <text x="682" y="130" fill="#0f1620" font-size="13" text-anchor="end" font-weight="700">~60.0k · Python · 메모리 레이어</text>
+  </g>
+
+  <!-- crewAI 54.8k (reference, orchestration) -->
+  <g>
+    <text x="140" y="186" fill="#c7d3de" font-size="14" text-anchor="end" font-weight="600">crewAI</text>
+    <rect x="150" y="170" width="493" height="26" rx="5" fill="#43566b"/>
+    <text x="635" y="188" fill="#e5eef7" font-size="13" text-anchor="end" font-weight="700">~54.8k · Python · (오케스트레이션 참고)</text>
+  </g>
+
+  <!-- letta 23.6k -->
+  <g>
+    <text x="140" y="244" fill="#c7d3de" font-size="14" text-anchor="end" font-weight="600">letta</text>
+    <rect x="150" y="228" width="212" height="26" rx="5" fill="#4a9eff"/>
+    <text x="372" y="246" fill="#c7d3de" font-size="13" font-weight="700">~23.6k · Python · 상태유지 런타임</text>
+  </g>
+
+  <!-- gridlines -->
+  <g stroke="#22303f" stroke-width="1" font-size="10" fill="#5f7386">
+    <line x1="350" y1="90" x2="350" y2="288"/><text x="345" y="304">20k</text>
+    <line x1="550" y1="90" x2="550" y2="288"/><text x="545" y="304">40k</text>
+    <line x1="690" y1="90" x2="690" y2="288"/><text x="678" y="304">60k</text>
+  </g>
+  <text x="28" y="326" fill="#5f7386" font-size="11">mem0 = 붙이는 메모리 · letta = 통째 상태유지 에이전트. 목적이 다르니 스타 수보다 통합 방식으로 고르세요.</text>
+</svg>

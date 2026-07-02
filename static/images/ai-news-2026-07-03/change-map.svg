@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" width="100%" role="img" aria-label="오늘의 AI 변화 지도: 에이전트 메모리 중심">
+  <rect width="760" height="470" rx="16" fill="#0f1620"/>
+  <text x="30" y="42" fill="#e5eef7" font-size="22" font-weight="700">🗺️ 오늘의 AI 변화 지도 — "에이전트 기억"</text>
+  <text x="30" y="66" fill="#93a4b5" font-size="13">만들고(mem0·letta) · 켜고(Codex Memories·CC 알림훅) · 실측하라(SkillsBench)</text>
+
+  <!-- edges -->
+  <g stroke="#33475b" stroke-width="2">
+    <line x1="380" y1="245" x2="180" y2="150"/>
+    <line x1="380" y1="245" x2="580" y2="150"/>
+    <line x1="380" y1="245" x2="150" y2="330"/>
+    <line x1="380" y1="245" x2="610" y2="330"/>
+    <line x1="380" y1="245" x2="380" y2="410"/>
+  </g>
+
+  <!-- center -->
+  <circle cx="380" cy="245" r="66" fill="#1e3a5f" stroke="#4a9eff" stroke-width="2"/>
+  <text x="380" y="240" fill="#e5eef7" font-size="16" font-weight="700" text-anchor="middle">에이전트</text>
+  <text x="380" y="262" fill="#e5eef7" font-size="16" font-weight="700" text-anchor="middle">기억(Memory)</text>
+
+  <!-- node: Claude Code -->
+  <g>
+    <rect x="70" y="112" width="220" height="70" rx="12" fill="#1b2735" stroke="#4a9eff" stroke-width="1.5"/>
+    <text x="86" y="138" fill="#4a9eff" font-size="14" font-weight="700">🟦 Claude Code 2.1.198</text>
+    <text x="86" y="158" fill="#c7d3de" font-size="12">백그라운드 에이전트 알림 훅</text>
+    <text x="86" y="174" fill="#93a4b5" font-size="11">agent_needs_input / agent_completed</text>
+  </g>
+
+  <!-- node: Codex -->
+  <g>
+    <rect x="472" y="112" width="218" height="70" rx="12" fill="#1b2735" stroke="#34d399" stroke-width="1.5"/>
+    <text x="488" y="138" fill="#34d399" font-size="14" font-weight="700">🟩 Codex Memories</text>
+    <text x="488" y="158" fill="#c7d3de" font-size="12">[features] memories = true</text>
+    <text x="488" y="174" fill="#93a4b5" font-size="11">~/.codex/memories/ 스레드 간 유지</text>
+  </g>
+
+  <!-- node: mem0 -->
+  <g>
+    <rect x="48" y="300" width="200" height="66" rx="12" fill="#1b2735" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="64" y="326" fill="#a78bfa" font-size="14" font-weight="700">🟣 mem0 · ~60.0k★</text>
+    <text x="64" y="346" fill="#c7d3de" font-size="12">범용 메모리 레이어(API)</text>
+    <text x="64" y="361" fill="#93a4b5" font-size="11">기존 에이전트에 부착</text>
+  </g>
+
+  <!-- node: letta -->
+  <g>
+    <rect x="512" y="300" width="204" height="66" rx="12" fill="#1b2735" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="528" y="326" fill="#a78bfa" font-size="14" font-weight="700">🟣 letta · ~23.6k★</text>
+    <text x="528" y="346" fill="#c7d3de" font-size="12">상태유지 에이전트 런타임</text>
+    <text x="528" y="361" fill="#93a4b5" font-size="11">MemGPT 계보</text>
+  </g>
+
+  <!-- node: SkillsBench -->
+  <g>
+    <rect x="248" y="404" width="264" height="52" rx="12" fill="#1b2735" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="264" y="427" fill="#fbbf24" font-size="14" font-weight="700">📏 SkillsBench / SWE-Skills-Bench</text>
+    <text x="264" y="446" fill="#93a4b5" font-size="11">스킬·메모리가 정말 도움? — A/B 실측</text>
+  </g>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" font-family="'Segoe UI','Apple SD Gothic Neo',sans-serif">
+  <rect width="760" height="400" fill="#ffffff"/>
+  <text x="380" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#111">LongCat-2.0 코딩 벤치마크 (벤더 발표치)</text>
+  <text x="380" y="56" text-anchor="middle" font-size="12.5" fill="#666">SWE-bench Pro에서 GPT-5.5(58.6)를 근소하게 상회 · 오픈웨이트</text>
+
+  <!-- axis -->
+  <line x1="200" y1="90" x2="200" y2="340" stroke="#ccc"/>
+  <line x1="200" y1="340" x2="720" y2="340" stroke="#ccc"/>
+  <!-- gridlines 0..80 -->
+  <g font-size="10.5" fill="#999">
+    <line x1="200" y1="340" x2="720" y2="340" stroke="#eee"/>
+    <line x1="330" y1="90" x2="330" y2="340" stroke="#f0f0f0"/><text x="330" y="356" text-anchor="middle">20</text>
+    <line x1="460" y1="90" x2="460" y2="340" stroke="#f0f0f0"/><text x="460" y="356" text-anchor="middle">40</text>
+    <line x1="590" y1="90" x2="590" y2="340" stroke="#f0f0f0"/><text x="590" y="356" text-anchor="middle">60</text>
+    <line x1="720" y1="90" x2="720" y2="340" stroke="#f0f0f0"/><text x="720" y="356" text-anchor="middle">80</text>
+    <text x="200" y="356" text-anchor="middle">0</text>
+  </g>
+
+  <!-- scale: value * 6.5 px per point, x0=200 -->
+  <!-- Bar 1: SWE-bench Pro 59.5 -->
+  <text x="192" y="122" text-anchor="end" font-size="12.5" fill="#333">SWE-bench Pro</text>
+  <rect x="200" y="106" width="386.75" height="26" rx="4" fill="#2e7d46"/>
+  <text x="596" y="124" font-size="12.5" font-weight="700" fill="#2e7d46">59.5</text>
+  <!-- GPT-5.5 ref 58.6 -->
+  <text x="192" y="160" text-anchor="end" font-size="11.5" fill="#888">GPT-5.5 (참고)</text>
+  <rect x="200" y="146" width="380.9" height="20" rx="4" fill="#bdbdbd"/>
+  <text x="590" y="161" font-size="11.5" fill="#888">58.6</text>
+
+  <!-- Bar 3: Terminal-Bench 2.1 70.8 -->
+  <text x="192" y="204" text-anchor="end" font-size="12.5" fill="#333">Terminal-Bench 2.1</text>
+  <rect x="200" y="188" width="460.2" height="26" rx="4" fill="#2e7d46"/>
+  <text x="669" y="206" font-size="12.5" font-weight="700" fill="#2e7d46">70.8</text>
+
+  <!-- Bar 4: SWE-bench Multilingual 77.3 -->
+  <text x="192" y="248" text-anchor="end" font-size="12.5" fill="#333">SWE-bench 다국어</text>
+  <rect x="200" y="232" width="502.45" height="26" rx="4" fill="#2e7d46"/>
+  <text x="711" y="250" font-size="12.5" font-weight="700" fill="#2e7d46">77.3</text>
+
+  <!-- note box -->
+  <rect x="200" y="290" width="520" height="40" rx="8" fill="#f6f9f6" stroke="#d6e6dc"/>
+  <text x="216" y="308" font-size="11.5" fill="#555">※ 벤더(Meituan) 자체 발표 수치. 프로덕션 승격 전 반드시 내 워크로드로 재현·검증할 것.</text>
+  <text x="216" y="324" font-size="11.5" fill="#555">   같은 태스크에서 정확도뿐 아니라 툴콜 수·토큰·비용 Δ를 함께 기록.</text>
+</svg>

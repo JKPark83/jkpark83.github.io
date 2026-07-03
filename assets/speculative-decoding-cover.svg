@@ -1,0 +1,45 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="투기적 디코딩의 핵심. 일반 디코딩은 큰 모델이 한 번의 forward pass로 토큰을 딱 하나씩만 만들어 여러 스텝이 필요하다. 투기적 디코딩은 작고 빠른 draft 모델이 여러 토큰을 미리 초안으로 제안하고, 큰 target 모델이 그 초안을 단 한 번의 forward pass로 한꺼번에 검증해 맞은 앞부분을 통째로 받아들인다. 그래서 출력은 똑같고 속도만 2~3배 빨라진다.">
+  <defs>
+    <linearGradient id="sdbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#0e2a2a"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#sdbg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="45" font-weight="800">초안을 쓰고, 한 번에 검사한다</text>
+  <text x="600" y="120" text-anchor="middle" fill="#5eead4" font-family="system-ui,sans-serif" font-size="23">투기적 디코딩(speculative decoding) — 출력 그대로, 속도만 2~3배</text>
+
+  <!-- 위: 일반 디코딩 -->
+  <text x="130" y="196" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="21" font-weight="800">일반 디코딩 — 큰 모델이 한 스텝에 한 토큰</text>
+  <g font-family="ui-monospace,monospace" font-size="19">
+    <rect x="130" y="214" width="86" height="52" rx="9" fill="#334155" stroke="#f87171" stroke-width="2"/><text x="173" y="247" text-anchor="middle" fill="#fecaca">고양이</text>
+    <rect x="228" y="214" width="72" height="52" rx="9" fill="#334155" stroke="#f87171" stroke-width="2"/><text x="264" y="247" text-anchor="middle" fill="#fecaca">가</text>
+    <rect x="312" y="214" width="86" height="52" rx="9" fill="#334155" stroke="#f87171" stroke-width="2"/><text x="355" y="247" text-anchor="middle" fill="#fecaca">담장</text>
+    <rect x="410" y="214" width="72" height="52" rx="9" fill="#334155" stroke="#f87171" stroke-width="2"/><text x="446" y="247" text-anchor="middle" fill="#fecaca">위</text>
+    <rect x="494" y="214" width="72" height="52" rx="9" fill="#334155" stroke="#f87171" stroke-width="2"/><text x="530" y="247" text-anchor="middle" fill="#fecaca">에</text>
+  </g>
+  <text x="130" y="300" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="17">큰 모델 forward pass 5번 → 토큰 5개 (느림)</text>
+
+  <line x1="130" y1="336" x2="1070" y2="336" stroke="#334155" stroke-width="1.5" stroke-dasharray="6 6"/>
+
+  <!-- 아래: 투기적 디코딩 -->
+  <text x="130" y="392" fill="#5eead4" font-family="system-ui,sans-serif" font-size="21" font-weight="800">투기적 디코딩 — 작은 모델이 초안, 큰 모델이 한 번에 검증</text>
+
+  <text x="130" y="430" fill="#93c5fd" font-family="system-ui,sans-serif" font-size="16">① draft 모델이 4토큰 초안 (빠름)</text>
+  <g font-family="ui-monospace,monospace" font-size="19">
+    <rect x="130" y="442" width="86" height="52" rx="9" fill="#1e3a5f" stroke="#60a5fa" stroke-width="2"/><text x="173" y="475" text-anchor="middle" fill="#bfdbfe">고양이</text>
+    <rect x="228" y="442" width="72" height="52" rx="9" fill="#1e3a5f" stroke="#60a5fa" stroke-width="2"/><text x="264" y="475" text-anchor="middle" fill="#bfdbfe">가</text>
+    <rect x="312" y="442" width="86" height="52" rx="9" fill="#1e3a5f" stroke="#60a5fa" stroke-width="2"/><text x="355" y="475" text-anchor="middle" fill="#bfdbfe">담장</text>
+    <rect x="410" y="442" width="86" height="52" rx="9" fill="#3f1d1d" stroke="#f87171" stroke-width="2" stroke-dasharray="5 4"/><text x="453" y="475" text-anchor="middle" fill="#fca5a5">지붕</text>
+  </g>
+
+  <text x="560" y="430" fill="#86efac" font-family="system-ui,sans-serif" font-size="16">② target 모델이 forward pass 딱 1번으로 전부 검증</text>
+  <g font-family="ui-monospace,monospace" font-size="19">
+    <rect x="560" y="442" width="86" height="52" rx="9" fill="#14432a" stroke="#34d399" stroke-width="2.5"/><text x="603" y="475" text-anchor="middle" fill="#bbf7d0">고양이 ✓</text>
+    <rect x="658" y="442" width="72" height="52" rx="9" fill="#14432a" stroke="#34d399" stroke-width="2.5"/><text x="694" y="475" text-anchor="middle" fill="#bbf7d0">가 ✓</text>
+    <rect x="742" y="442" width="86" height="52" rx="9" fill="#14432a" stroke="#34d399" stroke-width="2.5"/><text x="785" y="475" text-anchor="middle" fill="#bbf7d0">담장 ✓</text>
+    <rect x="840" y="442" width="120" height="52" rx="9" fill="#3f2d0d" stroke="#fbbf24" stroke-width="2.5"/><text x="900" y="475" text-anchor="middle" fill="#fde68a">위 (교정)</text>
+  </g>
+  <text x="130" y="548" fill="#5eead4" font-family="system-ui,sans-serif" font-size="17">앞 3개는 그대로 채택 + 보너스 1개 → 한 번에 4토큰 확정. 출력은 일반 디코딩과 완전히 동일.</text>
+</svg>

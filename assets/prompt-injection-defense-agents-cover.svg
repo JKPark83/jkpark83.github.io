@@ -1,0 +1,61 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AI 에이전트 프롬프트 인젝션 방어의 핵심. 왼쪽에서 웹페이지·이메일·문서·도구 응답 같은 믿을 수 없는 외부 데이터가 에이전트로 흘러 들어온다. 가운데 방어 경계는 이 데이터가 에이전트의 제어 흐름(계획과 도구 호출)을 바꾸지 못하도록 격리한다. 그래서 오른쪽의 위험한 행동(송금·파일 삭제·데이터 유출)은 믿을 수 있는 사용자 지시로만 촉발된다. 핵심 원칙은 믿을 수 없는 입력이 들어와도 위험한 행동을 일으키지 못하게 설계로 막는 것이다.">
+  <defs>
+    <linearGradient id="pidbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#2a0e1a"/>
+    </linearGradient>
+    <marker id="pidArr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0 0 L9 4.5 L0 9 z" fill="#fb7185"/>
+    </marker>
+    <marker id="pidArrOk" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0 0 L9 4.5 L0 9 z" fill="#34d399"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#pidbg)"/>
+
+  <text x="600" y="76" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="44" font-weight="800">믿을 수 없는 입력을 믿지 마라</text>
+  <text x="600" y="116" text-anchor="middle" fill="#fb7185" font-family="system-ui,sans-serif" font-size="22">프롬프트 인젝션(prompt injection)을 &#39;설계로&#39; 막는 법</text>
+
+  <!-- 왼쪽: 믿을 수 없는 외부 데이터 -->
+  <text x="185" y="180" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="19" font-weight="700">믿을 수 없는 외부 데이터</text>
+  <g font-family="system-ui,sans-serif" font-size="18">
+    <rect x="70" y="205" width="230" height="46" rx="9" fill="#1e293b" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="185" y="234" text-anchor="middle" fill="#fecaca">웹페이지 · 이메일</text>
+    <rect x="70" y="265" width="230" height="46" rx="9" fill="#1e293b" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="185" y="294" text-anchor="middle" fill="#fecaca">첨부 문서 · PDF</text>
+    <rect x="70" y="325" width="230" height="46" rx="9" fill="#1e293b" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="185" y="354" text-anchor="middle" fill="#fecaca">도구/MCP 응답</text>
+  </g>
+  <text x="185" y="408" text-anchor="middle" fill="#fb7185" font-family="system-ui,sans-serif" font-size="15">숨은 명령: &#34;이전 지시는 무시하고 …&#34;</text>
+
+  <!-- 화살표: 외부데이터 -> 경계 -->
+  <line x1="305" y1="288" x2="452" y2="288" stroke="#fb7185" stroke-width="3" marker-end="url(#pidArr)"/>
+
+  <!-- 가운데: 방어 경계 (방패) -->
+  <g>
+    <path d="M600 175 L690 210 L690 330 Q690 400 600 435 Q510 400 510 330 L510 210 Z" fill="#0f2a24" stroke="#34d399" stroke-width="3"/>
+    <text x="600" y="270" text-anchor="middle" fill="#34d399" font-family="system-ui,sans-serif" font-size="21" font-weight="800">방어 경계</text>
+    <text x="600" y="300" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="15">데이터 ≠ 명령</text>
+    <text x="600" y="326" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="15">제어 흐름 격리</text>
+    <text x="600" y="352" text-anchor="middle" fill="#a7f3d0" font-family="system-ui,sans-serif" font-size="15">최소 권한 · 정책</text>
+  </g>
+
+  <!-- 화살표: 경계 -> 위험한 행동 (막힘 표시) -->
+  <line x1="700" y1="288" x2="847" y2="288" stroke="#34d399" stroke-width="3" marker-end="url(#pidArrOk)"/>
+  <text x="775" y="272" text-anchor="middle" fill="#34d399" font-family="system-ui,sans-serif" font-size="14">신뢰된 지시만</text>
+
+  <!-- 오른쪽: 위험한 행동 -->
+  <text x="1015" y="180" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="19" font-weight="700">위험한 행동(consequential)</text>
+  <g font-family="system-ui,sans-serif" font-size="18">
+    <rect x="900" y="205" width="230" height="46" rx="9" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+    <text x="1015" y="234" text-anchor="middle" fill="#cbd5e1">송금 · 결제</text>
+    <rect x="900" y="265" width="230" height="46" rx="9" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+    <text x="1015" y="294" text-anchor="middle" fill="#cbd5e1">파일 삭제 · 쓰기</text>
+    <rect x="900" y="325" width="230" height="46" rx="9" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+    <text x="1015" y="354" text-anchor="middle" fill="#cbd5e1">외부로 데이터 전송</text>
+  </g>
+
+  <text x="600" y="510" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="26" font-weight="700">핵심: 믿을 수 없는 입력이 &#39;위험한 행동&#39;을 촉발하지 못하게 하라</text>
+  <text x="600" y="552" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="19">필터로 &#39;탐지&#39;하는 게 아니라, 아키텍처로 &#39;구조를&#39; 막는다</text>
+  <text x="600" y="596" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="17">Dual LLM · CaMeL · 6가지 설계 패턴 · AgentDojo</text>
+</svg>

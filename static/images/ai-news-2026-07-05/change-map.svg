@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 470" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect width="820" height="470" rx="16" fill="#0f172a"/>
+  <text x="410" y="40" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="700">오늘의 AI 변화 지도 · 2026-07-05</text>
+  <text x="410" y="66" text-anchor="middle" fill="#94a3b8" font-size="13">게이트가 열렸다 → 안전 기본값이 바뀌었다 → 스택을 소유하라</text>
+
+  <!-- Col 1: Models -->
+  <rect x="30" y="92" width="240" height="290" rx="12" fill="#1e293b" stroke="#334155"/>
+  <text x="150" y="118" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">모델</text>
+  <rect x="48" y="132" width="204" height="66" rx="8" fill="#064e3b" stroke="#10b981"/>
+  <text x="60" y="154" fill="#d1fae5" font-size="13" font-weight="700">Claude Fable 5 ✅ 복귀</text>
+  <text x="60" y="173" fill="#a7f3d0" font-size="11">7/1 재배포 · Claude Code 포함</text>
+  <text x="60" y="189" fill="#a7f3d0" font-size="11">무료 포함은 ~7/7까지</text>
+  <rect x="48" y="208" width="204" height="52" rx="8" fill="#3f1d1d" stroke="#ef4444"/>
+  <text x="60" y="230" fill="#fecaca" font-size="13" font-weight="700">GPT-5.6 Sol 🔒 게이트</text>
+  <text x="60" y="248" fill="#fca5a5" font-size="11">美 승인 ~20곳 한정</text>
+  <rect x="48" y="270" width="204" height="52" rx="8" fill="#3b3111" stroke="#f59e0b"/>
+  <text x="60" y="292" fill="#fde68a" font-size="13" font-weight="700">Gemini 3.5 Pro ⏳</text>
+  <text x="60" y="310" fill="#fcd34d" font-size="11">7월 GA 예고(미확정)</text>
+  <text x="150" y="352" text-anchor="middle" fill="#64748b" font-size="11">→ 열린 건 Fable 5뿐</text>
+
+  <!-- Col 2: Tooling -->
+  <rect x="290" y="92" width="240" height="290" rx="12" fill="#1e293b" stroke="#334155"/>
+  <text x="410" y="118" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="700">툴링 · 안전 기본값</text>
+  <rect x="308" y="132" width="204" height="86" rx="8" fill="#312e81" stroke="#6366f1"/>
+  <text x="320" y="154" fill="#e0e7ff" font-size="13" font-weight="700">Claude Code 2.1.200</text>
+  <text x="320" y="173" fill="#c7d2fe" font-size="11">기본 모드 default → Manual</text>
+  <text x="320" y="190" fill="#c7d2fe" font-size="11">AskUserQuestion 자동진행 OFF</text>
+  <text x="320" y="207" fill="#c7d2fe" font-size="11">= 기본적으로 더 조심</text>
+  <rect x="308" y="228" width="204" height="66" rx="8" fill="#312e81" stroke="#6366f1"/>
+  <text x="320" y="250" fill="#e0e7ff" font-size="13" font-weight="700">CC 2.1.199</text>
+  <text x="320" y="269" fill="#c7d2fe" font-size="11">슬래시 스킬 스태킹</text>
+  <text x="320" y="286" fill="#c7d2fe" font-size="11">/a /b … 최대 5개 로드</text>
+  <text x="410" y="330" text-anchor="middle" fill="#64748b" font-size="11">→ config를 새 기본값에</text>
+  <text x="410" y="348" text-anchor="middle" fill="#64748b" font-size="11">맞춰 점검</text>
+
+  <!-- Col 3: Own the stack -->
+  <rect x="550" y="92" width="240" height="290" rx="12" fill="#1e293b" stroke="#334155"/>
+  <text x="670" y="118" text-anchor="middle" fill="#fbbf24" font-size="14" font-weight="700">스택 소유 (OSS)</text>
+  <rect x="568" y="132" width="204" height="66" rx="8" fill="#422006" stroke="#f59e0b"/>
+  <text x="580" y="154" fill="#fde68a" font-size="13" font-weight="700">OpenClaw 🦞 382k★</text>
+  <text x="580" y="173" fill="#fcd34d" font-size="11">자기호스팅 개인 에이전트</text>
+  <text x="580" y="189" fill="#fcd34d" font-size="11">TypeScript · MIT</text>
+  <rect x="568" y="208" width="204" height="66" rx="8" fill="#422006" stroke="#f59e0b"/>
+  <text x="580" y="230" fill="#fde68a" font-size="13" font-weight="700">Ollama 175k★</text>
+  <text x="580" y="249" fill="#fcd34d" font-size="11">로컬 모델 런타임</text>
+  <text x="580" y="265" fill="#fcd34d" font-size="11">Go · MIT</text>
+  <text x="670" y="304" text-anchor="middle" fill="#64748b" font-size="11">→ 게이트 의존을 줄이는</text>
+  <text x="670" y="322" text-anchor="middle" fill="#64748b" font-size="11">완전 자기호스팅 조합</text>
+
+  <!-- flow arrows -->
+  <text x="280" y="240" text-anchor="middle" fill="#475569" font-size="20">→</text>
+  <text x="540" y="240" text-anchor="middle" fill="#475569" font-size="20">→</text>
+  <text x="410" y="410" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="700">오늘 할 일: 7/7 전 Fable 5로 A/B · config 점검 · 자기호스팅 검토</text>
+</svg>

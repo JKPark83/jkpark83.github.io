@@ -1,0 +1,42 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="에이전트 RL의 핵심. 왼쪽 정책(policy) 모델이 행동을 내면 오른쪽 환경(environment)이 그 행동을 실행하고 검증 가능한 보상(reward)을 돌려준다. 이 롤아웃을 여러 번 반복해 보상이 높았던 행동을 강화한다. 아래에는 모델은 다들 비슷해졌지만 환경이 새 병목이라는 메시지가 있다.">
+  <defs>
+    <linearGradient id="rlebg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#141033"/>
+    </linearGradient>
+    <marker id="rlearrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#a78bfa"/>
+    </marker>
+    <marker id="rlearrowg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#34d399"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#rlebg)"/>
+
+  <text x="600" y="82" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="46" font-weight="800">모델이 아니라 '환경'이 병목이다</text>
+  <text x="600" y="126" text-anchor="middle" fill="#a78bfa" font-family="system-ui,sans-serif" font-size="24">에이전트를 RL로 훈련시키는 법 — RLVR · GRPO · RL 환경</text>
+
+  <!-- 정책 모델 -->
+  <rect x="120" y="230" width="300" height="170" rx="18" fill="#1e1b4b" stroke="#a78bfa" stroke-width="2.5"/>
+  <text x="270" y="292" text-anchor="middle" fill="#c4b5fd" font-family="system-ui,sans-serif" font-size="25" font-weight="800">정책(policy) 모델</text>
+  <text x="270" y="330" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="19">지금 훈련 중인 에이전트</text>
+  <text x="270" y="362" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace,monospace" font-size="18">Qwen3 · Llama · …</text>
+
+  <!-- 환경 -->
+  <rect x="780" y="230" width="300" height="170" rx="18" fill="#052e2b" stroke="#34d399" stroke-width="2.5"/>
+  <text x="930" y="292" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="25" font-weight="800">환경(environment)</text>
+  <text x="930" y="330" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="19">터미널 · 브라우저 · 코드</text>
+  <text x="930" y="362" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace,monospace" font-size="18">reset · step · state</text>
+
+  <!-- 행동 화살표 -->
+  <path d="M430 285 L770 285" stroke="#a78bfa" stroke-width="3.5" fill="none" marker-end="url(#rlearrow)"/>
+  <text x="600" y="272" text-anchor="middle" fill="#c4b5fd" font-family="system-ui,sans-serif" font-size="20" font-weight="700">행동(action) — 도구 호출</text>
+
+  <!-- 보상 화살표 -->
+  <path d="M770 350 L430 350" stroke="#34d399" stroke-width="3.5" fill="none" marker-end="url(#rlearrowg)"/>
+  <text x="600" y="382" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="20" font-weight="700">보상(reward) — 성공하면 +1</text>
+
+  <!-- 하단 메시지 -->
+  <text x="600" y="486" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="22">이 롤아웃(rollout)을 수천 번 반복 → 보상이 높았던 행동을 강화</text>
+  <text x="600" y="540" text-anchor="middle" fill="#fbbf24" font-family="system-ui,sans-serif" font-size="21" font-weight="700">모델은 다들 비슷해졌다. 이제 승부는 '좋은 환경'에서 난다.</text>
+</svg>

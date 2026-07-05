@@ -1,0 +1,526 @@
+---
+title: "모델이 아니라 '환경'이 병목이다: 에이전트를 RL로 훈련시키는 법 (RLVR·GRPO·OpenEnv)"
+date: 2026-07-06T07:30:00+09:00
+draft: false
+tags: ["AI", "agentic RL", "강화학습", "RLVR", "GRPO", "RL 환경", "OpenEnv", "post-training", "에이전트", "reward"]
+categories: ["AI 엔지니어링"]
+summary: "요즘 오픈 모델은 벤치마크상 다들 엇비슷합니다. 그런데도 어떤 팀의 에이전트는 실제 업무를 척척 해내고 어떤 팀 건 데모에서 무너집니다. 차이는 모델이 아니라 '어디서, 무엇을 보상받으며 훈련했는가' — 즉 RL 환경(environment)에서 갈립니다. 이 글은 정답지 없이도 에이전트가 스스로 똑똑해지는 원리(RLVR)와 그걸 값싸게 돌리는 알고리즘(GRPO)을 그림으로 풀고, 왜 '환경'이 2026년의 새 병목이자 해자(moat)가 됐는지, 그 환경을 표준화하려는 OpenEnv가 무엇인지, 그리고 TRL로 아주 작은 에이전트를 직접 RL 훈련시키는 코드까지 다룹니다. 마지막으로 junior가 반드시 밟는 reward hacking 같은 함정을 정리합니다."
+ShowToc: false
+cover:
+  image: "rl-environments-agentic-rl-cover.svg"
+  alt: "에이전트 RL의 핵심 그림. 왼쪽의 정책(policy) 모델이 행동(도구 호출)을 내면 오른쪽의 환경(environment)이 그 행동을 실행하고 검증 가능한 보상을 돌려준다. 이 롤아웃을 수천 번 반복해 보상이 높았던 행동을 강화한다. 아래에는 '모델은 다들 비슷해졌다, 이제 승부는 좋은 환경에서 난다'는 메시지가 있다."
+  caption: "에이전트 RL은 '행동 → 보상 → 강화'의 반복이다. 모델이 상향 평준화된 지금, 승부는 그 보상을 만들어 내는 환경(environment)에서 갈린다."
+  relative: false
+---
+
+<style>
+/* ── RL Environments / Agentic RL 포스트 전용 스타일 (rle- 접두사) ── */
+.rle-fig{
+  --rle-blue:#2563eb; --rle-emerald:#10b981; --rle-amber:#d97706;
+  --rle-rose:#e11d48; --rle-cyan:#0891b2; --rle-slate:#64748b; --rle-violet:#7c3aed;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .rle-fig{
+  --rle-blue:#60a5fa; --rle-emerald:#34d399; --rle-amber:#fbbf24;
+  --rle-rose:#fb7185; --rle-cyan:#22d3ee; --rle-slate:#94a3b8; --rle-violet:#a78bfa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .rle-fig{
+    --rle-blue:#60a5fa; --rle-emerald:#34d399; --rle-amber:#fbbf24;
+    --rle-rose:#fb7185; --rle-cyan:#22d3ee; --rle-slate:#94a3b8; --rle-violet:#a78bfa;
+  }
+}
+.rle-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.rle-fig text{font-family:inherit}
+.rle-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.rle-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.rle-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.rle-toc ol{margin:0;padding-left:1.25rem}
+.rle-toc li{margin:.22rem 0;font-size:.95rem}
+.rle-toc a{text-decoration:none}
+.rle-toc a:hover{text-decoration:underline}
+.rle-pull{font-size:1.12rem;line-height:1.72}
+.rle-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.rle-note{border-left:4px solid var(--rle-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.rle-note strong{color:var(--rle-blue,#2563eb)}
+.rle-warn{border-left:4px solid var(--rle-rose,#e11d48)}
+.rle-warn strong{color:var(--rle-rose,#e11d48)}
+.rle-tip{border-left:4px solid var(--rle-emerald,#10b981)}
+.rle-tip strong{color:var(--rle-emerald,#10b981)}
+.rle-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.rle-tbl th,.rle-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.rle-tbl th{background:var(--entry);font-weight:700}
+.rle-tbl code{font-size:.86em}
+.rle-tblwrap{overflow-x:auto}
+.rle-kw{font-weight:700}
+</style>
+
+<blockquote class="rle-pull">
+  <p>2026년의 오픈 모델들은 벤치마크상 <strong>다들 엇비슷</strong>합니다. 그런데 어떤 팀의 에이전트는 실제 업무를 척척 해내고, 어떤 팀 건 데모 무대만 벗어나면 무너집니다.</p>
+  <footer>— 차이는 모델이 아니라 "어디서, 무엇을 보상받으며 훈련했는가"에서 납니다. 그 '어디서'가 바로 <strong>RL 환경(environment)</strong>입니다.</footer>
+</blockquote>
+
+<p>지난 몇 달간 AI 엔지니어링 타임라인의 한 축은 계속 <strong>"환경(environment)이 새 병목이다"</strong>라는 이야기였습니다. Meta의 PyTorch 팀과 Hugging Face가 만든 <code>OpenEnv</code>라는 표준이 여러 조직 공동 거버넌스로 넘어가 2026년 중반까지 스펙을 안정화한다는 로드맵을 내놨고, 6월 한 달만 해도 Agent-RLVR·SENTINEL 같은 "에이전트를 RL로 훈련시키는 법"과 "reward hacking을 어떻게 막을까" 논문이 쏟아졌습니다. 프론티어 랩들은 이미 "모델을 파는 게 아니라 <em>환경을 파는</em>" 회사(Prime Intellect 등)에 돈을 쓰고 있습니다.</p>
+
+<p>그런데 정작 junior 입장에서는 이 대화가 통째로 낯섭니다. "RLVR? GRPO? 롤아웃? 환경이 왜 해자(moat)라는 거지?" 이 글의 목표는 딱 하나입니다. <strong>정답지가 없어도 에이전트가 스스로 똑똑해지는 원리</strong>를 바닥부터 이해하고, 왜 그 원리가 '좋은 환경'을 만드는 엔지니어링 문제로 귀결되는지 감을 잡는 것. 그리고 마지막엔 아주 작은 에이전트를 직접 RL로 훈련시키는 코드까지 돌려 봅니다.</p>
+
+<div class="rle-toc">
+  <div class="rle-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#s1">왜 '학습'이 필요한가 — 프롬프트로 안 되는 것</a></li>
+    <li><a href="#s2">사전 지식: SFT·RLHF·RLVR 한눈에</a></li>
+    <li><a href="#s3">RLVR: 정답을 '채점'할 수 있으면 라벨이 필요 없다</a></li>
+    <li><a href="#s4">GRPO: 비평가(critic) 없이 값싸게 강화하기</a></li>
+    <li><a href="#s5">에이전트 RL: 한 번의 답이 아니라 여러 스텝의 여정</a></li>
+    <li><a href="#s6">그래서 '환경'이 병목이자 해자다</a></li>
+    <li><a href="#s7">OpenEnv: 환경을 위한 공용 콘센트</a></li>
+    <li><a href="#s8">실전: TRL로 아주 작은 에이전트 RL 돌려 보기</a></li>
+    <li><a href="#s9">흔한 실수 · 팁 (특히 reward hacking)</a></li>
+    <li><a href="#s10">마무리 — TL;DR</a></li>
+    <li><a href="#refs">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="s1">왜 '학습'이 필요한가 — 프롬프트로 안 되는 것</h2>
+
+<p>에이전트를 만들다 보면 어느 순간 벽에 부딪힙니다. 프롬프트를 아무리 정교하게 다듬고, 도구 설명을 아무리 잘 써도 특정 작업에서 모델이 계속 같은 방식으로 헛발질을 합니다. 예를 들어 사내 코드베이스에서 버그를 고치는 에이전트가 자꾸 테스트를 안 돌려 보고 "고쳤습니다"라고 우기거나, 터미널에서 두세 스텝만 넘어가면 길을 잃습니다.</p>
+
+<p>이건 프롬프트의 문제가 아니라 <strong>모델의 습관</strong>의 문제일 때가 많습니다. 모델은 사전학습(pre-training)과 사후학습(post-training)에서 몸에 밴 행동 패턴대로 움직입니다. 프롬프트는 그 습관을 잠깐 구슬리는 정도지, 습관 자체를 바꾸지는 못합니다. 습관을 바꾸려면 <strong>모델의 가중치(weight)를 직접 건드리는 학습</strong>이 필요합니다.</p>
+
+<p>그중에서도 "여러 스텝에 걸쳐 도구를 쓰고, 시행착오를 거쳐 목표를 달성하는" 능력은 <span class="rle-kw">강화학습(reinforcement learning, RL)</span>으로 가르치는 게 자연스럽습니다. RL은 한마디로 <strong>"직접 해 보게 하고, 잘한 행동에 상을 줘서 그 행동을 늘리는"</strong> 학습입니다. 강아지에게 앉기를 가르칠 때 간식을 주는 것과 똑같습니다. 정답을 일일이 손으로 적어 주는 대신, <em>결과가 좋았는지</em>만 알려 주면 됩니다.</p>
+
+<p>바로 이 "결과가 좋았는지"를 알려 주는 채점관이자 놀이터가 <strong>환경(environment)</strong>입니다. 그래서 에이전트를 진지하게 잘 만들려는 팀은 결국 "우리 작업을 위한 좋은 환경을 어떻게 만들지?"라는 엔지니어링 문제에 도달합니다. 그 이야기를 이제부터 차근차근 풀어 보겠습니다.</p>
+
+<h2 id="s2">사전 지식: SFT·RLHF·RLVR 한눈에</h2>
+
+<p>본론에 앞서 "사후학습(post-training)"이라는 큰 그림을 아주 짧게 정리하겠습니다. 사전학습으로 언어의 기본기를 익힌 날것의 모델을 <em>쓸모 있게</em> 다듬는 단계가 사후학습입니다. 대표적으로 세 갈래가 있습니다.</p>
+
+<div class="rle-tblwrap">
+<table class="rle-tbl">
+  <thead>
+    <tr><th>단계</th><th>무엇을 주는가</th><th>비유</th><th>한계</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>SFT</strong><br>(지도학습 미세조정)</td>
+      <td>"이 질문엔 이렇게 답해"라는 <strong>정답 예시</strong>를 통째로 보여 주고 따라 하게 함</td>
+      <td>모범 답안 베껴 쓰기</td>
+      <td>사람이 정답을 다 적어 줘야 함(비쌈). 본 적 없는 상황엔 약함</td>
+    </tr>
+    <tr>
+      <td><strong>RLHF</strong><br>(인간 피드백 RL)</td>
+      <td>답 A와 B 중 <strong>사람이 더 나은 쪽</strong>을 고른 선호 데이터로 보상 모델을 학습해 강화</td>
+      <td>여러 답 중 골라 주기</td>
+      <td>사람 라벨링이 여전히 비싸고, 취향에 편향됨</td>
+    </tr>
+    <tr>
+      <td><strong>RLVR</strong><br>(검증 가능한 보상 RL)</td>
+      <td>정답을 <strong>프로그램으로 채점</strong>할 수 있는 과제에서, 채점 결과를 보상으로 강화</td>
+      <td>시험 정답지로 자동 채점</td>
+      <td>"채점 가능한" 과제여야 함(수학·코드·도구 사용 등)</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>이 글의 주인공은 맨 아래 <strong>RLVR(reinforcement learning with verifiable rewards)</strong>입니다. 이름이 거창하지만 핵심은 한 문장입니다. <strong>"사람이 매번 채점하지 말고, 채점을 자동화할 수 있는 문제에서 자동 채점기를 보상으로 쓰자."</strong> 수학 문제라면 답이 맞았는지, 코드라면 테스트가 통과했는지, 터미널 작업이라면 원하는 파일이 생겼는지 — 이런 건 사람 없이 기계가 즉시 채점할 수 있습니다.</p>
+
+<p>2025년 초 DeepSeek-R1(<a href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener">arXiv 2501.12948</a>)이 던진 충격이 바로 이것이었습니다. 사람이 만든 추론 과정 예시(SFT) 없이도, <strong>순수 RL만으로</strong> 모델이 스스로 "잠깐, 다시 생각해 보자" 같은 추론 습관을 만들어 냈습니다. 채점 가능한 수학·코드 문제에 RLVR을 대규모로 돌렸더니 추론 능력이 <em>창발(emerge)</em>한 것입니다. 이 사건 이후 "RLVR + 좋은 채점 환경"이 강력한 조합이라는 게 업계 상식이 됐습니다.</p>
+
+<h2 id="s3">RLVR: 정답을 '채점'할 수 있으면 라벨이 필요 없다</h2>
+
+<p>RLVR의 루프를 그림으로 보겠습니다. 놀랄 만큼 단순합니다.</p>
+
+<figure class="rle-fig">
+  <svg viewBox="0 0 820 300" role="img" aria-label="RLVR 루프. 프롬프트를 모델에 넣어 답을 생성하고, 검증기(verifier)가 그 답을 프로그램으로 채점해 보상을 매긴다. 보상이 높은 답 쪽으로 정책을 업데이트한다. 사람 라벨은 이 루프에 없다.">
+    <rect x="20" y="120" width="150" height="70" rx="12" fill="none" stroke="var(--rle-slate)" stroke-width="2"/>
+    <text x="95" y="150" text-anchor="middle" fill="var(--rle-slate)" font-size="17" font-weight="700">프롬프트</text>
+    <text x="95" y="172" text-anchor="middle" fill="var(--rle-slate)" font-size="13">"2+2×3 = ?"</text>
+
+    <rect x="230" y="110" width="170" height="90" rx="12" fill="none" stroke="var(--rle-violet)" stroke-width="2.5"/>
+    <text x="315" y="145" text-anchor="middle" fill="var(--rle-violet)" font-size="17" font-weight="700">정책 모델</text>
+    <text x="315" y="168" text-anchor="middle" fill="var(--rle-violet)" font-size="13">답을 생성</text>
+    <text x="315" y="186" text-anchor="middle" fill="var(--rle-slate)" font-size="12">"…따라서 8"</text>
+
+    <rect x="460" y="110" width="180" height="90" rx="12" fill="none" stroke="var(--rle-emerald)" stroke-width="2.5"/>
+    <text x="550" y="142" text-anchor="middle" fill="var(--rle-emerald)" font-size="17" font-weight="700">검증기(verifier)</text>
+    <text x="550" y="165" text-anchor="middle" fill="var(--rle-slate)" font-size="13">프로그램으로 채점</text>
+    <text x="550" y="185" text-anchor="middle" fill="var(--rle-emerald)" font-size="13">8 == 8 → 보상 +1</text>
+
+    <rect x="700" y="120" width="100" height="70" rx="12" fill="none" stroke="var(--rle-amber)" stroke-width="2"/>
+    <text x="750" y="150" text-anchor="middle" fill="var(--rle-amber)" font-size="15" font-weight="700">보상</text>
+    <text x="750" y="172" text-anchor="middle" fill="var(--rle-amber)" font-size="13">r = +1</text>
+
+    <line x1="170" y1="155" x2="228" y2="155" stroke="var(--rle-slate)" stroke-width="2" marker-end="url(#rlehead)"/>
+    <line x1="400" y1="155" x2="458" y2="155" stroke="var(--rle-slate)" stroke-width="2" marker-end="url(#rlehead)"/>
+    <line x1="640" y1="155" x2="698" y2="155" stroke="var(--rle-slate)" stroke-width="2" marker-end="url(#rlehead)"/>
+
+    <!-- 피드백 화살표 -->
+    <path d="M750 120 C750 50 315 40 315 108" fill="none" stroke="var(--rle-rose)" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#rleheadr)"/>
+    <text x="530" y="38" text-anchor="middle" fill="var(--rle-rose)" font-size="14" font-weight="700">보상이 높은 답 쪽으로 정책 업데이트</text>
+
+    <text x="315" y="255" text-anchor="middle" fill="var(--rle-slate)" font-size="13" font-style="italic">※ 사람이 적어 준 정답 라벨은 이 루프에 없다 — 채점만 자동이면 된다</text>
+
+    <defs>
+      <marker id="rlehead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--rle-slate)"/></marker>
+      <marker id="rleheadr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--rle-rose)"/></marker>
+    </defs>
+  </svg>
+  <figcaption>RLVR 루프 — 모델이 답을 만들고, 검증기가 자동 채점해 보상을 준 뒤, 보상이 높았던 답 쪽으로 정책을 미세하게 민다. 사람 라벨은 없다.</figcaption>
+</figure>
+
+<p>여기서 <strong>검증기(verifier)</strong>가 핵심입니다. "답이 맞으면 1, 틀리면 0"처럼 결과를 숫자 보상으로 바꿔 주는 함수입니다. 코드로 쓰면 정말 이 정도로 단순할 수 있습니다.</p>
+
+{{< highlight python >}}
+# 아주 단순한 검증기(verifier): 수학 문제 채점
+def reward_math(completion: str, ground_truth: str) -> float:
+    # 모델 출력에서 마지막 숫자를 뽑아 정답과 비교
+    pred = extract_final_number(completion)   # 예: "…따라서 8" -> "8"
+    return 1.0 if pred == ground_truth else 0.0
+
+# 코드 과제라면 '테스트 통과 여부'가 곧 보상이다
+def reward_code(completion: str, test_cases: list) -> float:
+    code = extract_code_block(completion)
+    passed = run_in_sandbox(code, test_cases)  # 샌드박스에서 실제 실행
+    return passed / len(test_cases)            # 통과율을 보상으로
+{{< /highlight >}}
+
+<p>이 <code>reward_*</code> 함수가 곧 "환경의 채점 규칙"입니다. 잠깐 눈여겨볼 대목이 있습니다. 검증기가 <strong>느슨하면</strong>(예: 문자열 "8"만 들어 있으면 정답 처리) 모델은 문제를 진짜로 풀지 않고 <em>채점기를 속이는</em> 쪽으로 학습해 버립니다. 이게 뒤에서 다룰 <strong>reward hacking</strong>의 씨앗입니다. 기억해 두세요.</p>
+
+<h2 id="s4">GRPO: 비평가(critic) 없이 값싸게 강화하기</h2>
+
+<p>보상을 어떻게 "정책 업데이트"로 연결할까요? 고전적인 RL 알고리즘 PPO는 정책 모델 말고도 <strong>비평가(critic, value model)</strong>라는 두 번째 큰 모델을 하나 더 학습시킵니다. "이 상황이 평균적으로 얼마나 좋은가"를 추정해 기준선(baseline)으로 쓰기 위해서죠. 문제는 이 비평가가 정책 모델만큼 커서, 메모리도 두 배로 먹고 학습도 불안정하다는 점입니다.</p>
+
+<p><span class="rle-kw">GRPO(Group Relative Policy Optimization)</span>는 여기서 기막힌 지름길을 냅니다. DeepSeekMath 논문(<a href="https://arxiv.org/abs/2402.03300" target="_blank" rel="noopener">arXiv 2402.03300</a>)이 제안한 방식으로, 아이디어는 이렇습니다. <strong>"비평가로 기준선을 추정하지 말고, 같은 문제에 답을 여러 개 뽑아서 그들끼리 비교하면 되잖아?"</strong></p>
+
+<figure class="rle-fig">
+  <svg viewBox="0 0 820 320" role="img" aria-label="GRPO 동작. 한 프롬프트에 대해 답을 여러 개(그룹) 샘플링하고, 각 답을 검증기로 채점한다. 그룹의 평균 보상을 기준선으로 삼아, 평균보다 잘한 답은 확률을 올리고 평균보다 못한 답은 확률을 내린다. 별도의 비평가 모델이 필요 없다.">
+    <rect x="30" y="130" width="130" height="60" rx="12" fill="none" stroke="var(--rle-slate)" stroke-width="2"/>
+    <text x="95" y="158" text-anchor="middle" fill="var(--rle-slate)" font-size="15" font-weight="700">한 프롬프트</text>
+    <text x="95" y="178" text-anchor="middle" fill="var(--rle-slate)" font-size="12">문제 1개</text>
+
+    <text x="250" y="45" text-anchor="middle" fill="var(--rle-violet)" font-size="14" font-weight="700">답을 그룹으로 여러 개 샘플링 (G=4)</text>
+
+    <g font-size="13">
+      <rect x="200" y="60" width="180" height="40" rx="9" fill="none" stroke="var(--rle-violet)" stroke-width="1.8"/>
+      <text x="215" y="85" fill="var(--rle-slate)" font-size="13">답①  … 8</text>
+      <text x="360" y="85" text-anchor="end" fill="var(--rle-emerald)" font-weight="700">r=1</text>
+
+      <rect x="200" y="110" width="180" height="40" rx="9" fill="none" stroke="var(--rle-violet)" stroke-width="1.8"/>
+      <text x="215" y="135" fill="var(--rle-slate)" font-size="13">답②  … 8</text>
+      <text x="360" y="135" text-anchor="end" fill="var(--rle-emerald)" font-weight="700">r=1</text>
+
+      <rect x="200" y="160" width="180" height="40" rx="9" fill="none" stroke="var(--rle-violet)" stroke-width="1.8"/>
+      <text x="215" y="185" fill="var(--rle-slate)" font-size="13">답③  … 12</text>
+      <text x="360" y="185" text-anchor="end" fill="var(--rle-rose)" font-weight="700">r=0</text>
+
+      <rect x="200" y="210" width="180" height="40" rx="9" fill="none" stroke="var(--rle-violet)" stroke-width="1.8"/>
+      <text x="215" y="235" fill="var(--rle-slate)" font-size="13">답④  … 8</text>
+      <text x="360" y="235" text-anchor="end" fill="var(--rle-emerald)" font-weight="700">r=1</text>
+    </g>
+
+    <line x1="160" y1="160" x2="198" y2="120" stroke="var(--rle-slate)" stroke-width="1.6" marker-end="url(#rleh2)"/>
+    <line x1="160" y1="160" x2="198" y2="230" stroke="var(--rle-slate)" stroke-width="1.6" marker-end="url(#rleh2)"/>
+
+    <rect x="430" y="120" width="160" height="80" rx="12" fill="none" stroke="var(--rle-amber)" stroke-width="2.2"/>
+    <text x="510" y="150" text-anchor="middle" fill="var(--rle-amber)" font-size="14" font-weight="700">그룹 평균 = 기준선</text>
+    <text x="510" y="172" text-anchor="middle" fill="var(--rle-slate)" font-size="13">평균 r = 0.75</text>
+    <text x="510" y="190" text-anchor="middle" fill="var(--rle-slate)" font-size="12">(비평가 모델 불필요!)</text>
+
+    <line x1="380" y1="155" x2="428" y2="155" stroke="var(--rle-slate)" stroke-width="1.8" marker-end="url(#rleh2)"/>
+
+    <rect x="630" y="90" width="165" height="140" rx="12" fill="none" stroke="var(--rle-emerald)" stroke-width="2.2"/>
+    <text x="712" y="118" text-anchor="middle" fill="var(--rle-emerald)" font-size="14" font-weight="700">상대적 우열로 강화</text>
+    <text x="647" y="148" fill="var(--rle-emerald)" font-size="12.5">①②④ &gt; 평균 → ↑ 확률↑</text>
+    <text x="647" y="176" fill="var(--rle-rose)" font-size="12.5">③ &lt; 평균 → ↓ 확률↓</text>
+    <text x="647" y="208" fill="var(--rle-slate)" font-size="11.5">"평균보다 잘한 답을 더 자주"</text>
+
+    <line x1="590" y1="160" x2="628" y2="160" stroke="var(--rle-slate)" stroke-width="1.8" marker-end="url(#rleh2)"/>
+
+    <defs>
+      <marker id="rleh2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--rle-slate)"/></marker>
+    </defs>
+  </svg>
+  <figcaption>GRPO — 한 문제에 답을 여러 개 뽑아 채점하고, 그룹 평균을 기준선으로 삼는다. 평균보다 잘한 답은 확률을 올리고 못한 답은 내린다. 덩치 큰 비평가 모델이 필요 없어 값싸고 안정적이다.</figcaption>
+</figure>
+
+<p>말로 풀면 이렇습니다. 한 문제에 답을 <strong>G개(보통 8~64개)</strong> 뽑습니다. 각각을 검증기로 채점해 보상을 얻습니다. 그 그룹의 <strong>평균 보상을 기준선</strong>으로 삼아, "평균보다 잘한 답"은 다음에 더 자주 나오게 확률을 올리고 "평균보다 못한 답"은 확률을 내립니다. 이 "평균 대비 얼마나 잘했나"가 각 답의 <span class="rle-kw">이점(advantage)</span>입니다.</p>
+
+{{< highlight python >}}
+import numpy as np
+
+def grpo_advantages(rewards: np.ndarray) -> np.ndarray:
+    """그룹 안에서 보상을 정규화해 advantage를 만든다."""
+    mean = rewards.mean()
+    std = rewards.std() + 1e-8          # 0으로 나누기 방지
+    return (rewards - mean) / std       # 평균보다 높으면 +, 낮으면 -
+
+# 위 그림의 예: 답 4개의 보상
+rewards = np.array([1.0, 1.0, 0.0, 1.0])   # ①②④ 정답, ③ 오답
+adv = grpo_advantages(rewards)
+print(adv)   # [ 0.577  0.577 -1.732  0.577 ]  ← ③만 음수(=억제)
+{{< /highlight >}}
+
+<p>핵심은 <strong>덩치 큰 비평가 모델이 사라졌다</strong>는 점입니다. "평균과 비교"라는 공짜 기준선이 그 역할을 대신하니, 메모리는 줄고 학습은 단순·안정적이 됩니다. DeepSeek-R1이 대규모 RLVR을 실용적으로 돌릴 수 있었던 배경에도 GRPO가 있습니다. 지금은 DAPO·GSPO 같은 개선판이 계속 나오지만, "그룹 안에서 상대 비교로 강화한다"는 뼈대는 그대로입니다.</p>
+
+<div class="rle-note"><strong>한 줄 정리.</strong> RLVR은 "무엇을 보상할지"(검증기)를, GRPO는 "그 보상으로 어떻게 값싸게 강화할지"(알고리즘)를 담당합니다. 둘은 짝꿍입니다.</div>
+
+<h2 id="s5">에이전트 RL: 한 번의 답이 아니라 여러 스텝의 여정</h2>
+
+<p>지금까지는 "문제 → 답 하나 → 채점"이었습니다. 수학 문제엔 딱 맞죠. 그런데 에이전트는 다릅니다. 버그를 고치려면 <strong>파일을 읽고 → 테스트를 돌려 보고 → 코드를 고치고 → 다시 테스트</strong>하는 <em>여러 스텝의 여정</em>을 거칩니다. 이렇게 여러 번 행동하고 그때마다 환경이 바뀌는 상황에서의 RL을 <span class="rle-kw">에이전트 강화학습(agentic RL)</span>이라고 부릅니다.</p>
+
+<p>여기서 RL 교과서의 고전적 용어가 등장합니다. 이 세 가지만 알면 됩니다.</p>
+
+<ul>
+  <li><strong>행동(action)</strong> — 에이전트가 하는 한 수. 보통 <em>도구 호출</em>입니다 (예: <code>run_tests()</code>, <code>edit_file(...)</code>).</li>
+  <li><strong>관측(observation)</strong> — 그 행동에 대해 환경이 돌려주는 결과 (예: 테스트 로그, 파일 내용).</li>
+  <li><strong>롤아웃/궤적(rollout/trajectory)</strong> — <code>reset</code>부터 <code>done</code>까지, 한 판 전체의 행동·관측·보상 기록. RLVR이 채점하는 단위입니다.</li>
+</ul>
+
+<figure class="rle-fig">
+  <svg viewBox="0 0 820 300" role="img" aria-label="에이전트 RL의 롤아웃. reset로 시작해 정책이 행동(도구 호출)을 내면 환경이 관측과 보상, done 여부를 돌려준다. 이 과정을 여러 스텝 반복해 하나의 궤적을 만들고, 궤적 전체의 성공 여부로 보상을 매긴다.">
+    <rect x="60" y="60" width="180" height="90" rx="14" fill="none" stroke="var(--rle-violet)" stroke-width="2.5"/>
+    <text x="150" y="95" text-anchor="middle" fill="var(--rle-violet)" font-size="17" font-weight="700">정책(policy)</text>
+    <text x="150" y="120" text-anchor="middle" fill="var(--rle-slate)" font-size="13">지금 훈련 중인</text>
+    <text x="150" y="138" text-anchor="middle" fill="var(--rle-slate)" font-size="13">에이전트</text>
+
+    <rect x="580" y="60" width="180" height="90" rx="14" fill="none" stroke="var(--rle-emerald)" stroke-width="2.5"/>
+    <text x="670" y="95" text-anchor="middle" fill="var(--rle-emerald)" font-size="17" font-weight="700">환경(environment)</text>
+    <text x="670" y="120" text-anchor="middle" fill="var(--rle-slate)" font-size="13">터미널·브라우저·</text>
+    <text x="670" y="138" text-anchor="middle" fill="var(--rle-slate)" font-size="13">코드 샌드박스</text>
+
+    <path d="M240 88 C400 60 440 60 578 88" fill="none" stroke="var(--rle-violet)" stroke-width="2.5" marker-end="url(#rleh3)"/>
+    <text x="410" y="55" text-anchor="middle" fill="var(--rle-violet)" font-size="14" font-weight="700">행동 action = 도구 호출</text>
+
+    <path d="M578 128 C440 160 400 160 242 128" fill="none" stroke="var(--rle-emerald)" stroke-width="2.5" marker-end="url(#rleh3g)"/>
+    <text x="410" y="162" text-anchor="middle" fill="var(--rle-emerald)" font-size="14" font-weight="700">관측 observation + 보상 r + done?</text>
+
+    <text x="410" y="112" text-anchor="middle" fill="var(--rle-slate)" font-size="13" font-style="italic">step()</text>
+
+    <!-- 궤적 -->
+    <rect x="120" y="205" width="580" height="60" rx="12" fill="none" stroke="var(--rle-amber)" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="410" y="230" text-anchor="middle" fill="var(--rle-amber)" font-size="14" font-weight="700">하나의 궤적(trajectory) = reset → 여러 스텝 → done</text>
+    <text x="410" y="252" text-anchor="middle" fill="var(--rle-slate)" font-size="12.5">최종 성공(테스트 전부 통과)이면 궤적 전체에 보상 +1 → 이 궤적을 낳은 행동들을 강화</text>
+
+    <defs>
+      <marker id="rleh3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--rle-violet)"/></marker>
+      <marker id="rleh3g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--rle-emerald)"/></marker>
+    </defs>
+  </svg>
+  <figcaption>에이전트 RL은 정책과 환경이 <code>step()</code>으로 여러 번 주고받는 대화다. 한 판 전체(궤적)의 성공 여부로 보상을 매기고, 그 궤적을 만든 행동들을 GRPO로 강화한다.</figcaption>
+</figure>
+
+<p>이 구조가 실전에서 어려운 이유는 <strong>보상이 성기다(sparse)</strong>는 데 있습니다. 20스텝짜리 작업이 마지막에 딱 한 번 성공/실패로만 채점된다면, 도중에 어떤 행동이 좋았고 나빴는지 알기가 어렵습니다. 게다가 초기 모델은 성공 자체를 거의 못 해서 보상이 계속 0이면 배울 게 없습니다. 6월에 나온 Agent-RLVR(<a href="https://arxiv.org/abs/2506.11425" target="_blank" rel="noopener">arXiv 2506.11425</a>)이 바로 이 "소프트웨어 엔지니어링처럼 실패율 높고 보상이 성긴 환경에서 RLVR을 어떻게 먹히게 할까"를 다룬 논문입니다. 여기서 얻을 교훈은 하나입니다. <strong>모델보다 환경(보상 설계)이 훨씬 어렵고 중요하다.</strong></p>
+
+<h2 id="s6">그래서 '환경'이 병목이자 해자다</h2>
+
+<p>이제 이 글의 제목으로 돌아옵니다. 왜 "모델이 아니라 환경이 병목"일까요?</p>
+
+<p>첫째, <strong>모델은 상향 평준화됐습니다.</strong> Qwen·Llama·DeepSeek 등 강력한 오픈 가중치 모델을 누구나 받아 쓸 수 있습니다. 출발선의 모델 자체로는 차별화가 어렵습니다.</p>
+
+<p>둘째, <strong>차별화는 "내 도메인에서 잘하도록 RL로 다듬기"에서 납니다.</strong> 그러려면 그 도메인을 정확히 흉내 내고 채점해 주는 환경이 필요합니다. 사내 코드베이스에서 PR을 여는 에이전트를 원하면, 그 코드베이스를 띄우고 테스트를 돌리고 성공을 판정하는 환경이 있어야 합니다. <strong>이 환경을 잘 만드는 게 곧 실력</strong>입니다.</p>
+
+<p>셋째, 프론티어 랩들은 자기 모델을 <em>자기 하네스(harness)</em>에 맞춰 훈련합니다. 모델과 환경이 손발이 척척 맞죠. 반면 오픈 생태계는 저마다 환경을 제각각 만들어서 재사용이 안 됩니다. 그래서 <strong>"좋은 환경을 모아 두고 서로 나눠 쓰자"</strong>는 흐름이 생겼습니다. Prime Intellect의 Environments Hub, verifiers 라이브러리처럼 환경을 표준 규격으로 만들어 공유하는 생태계가 대표적입니다. PyPI가 코드를, Hugging Face가 모델 가중치를 나눠 쓰게 했듯, 이제 <strong>환경</strong>을 나눠 쓰자는 것입니다.</p>
+
+<div class="rle-note"><strong>왜 이번 주에 화제였나.</strong> 2026년은 "에이전트의 해"로 불리고, 그 병목이 모델에서 환경으로 옮겨갔다는 인식이 상반기 내내 굳어졌습니다. 마침 여러 조직 공동 소유의 환경 표준 <code>OpenEnv</code>가 "2026년 중반 스펙 안정화"를 목표로 마무리 단계에 들어갔고, Agent-RLVR·SENTINEL 등 "에이전트 RL을 실전에서 먹히게 하는 법"과 reward hacking을 다룬 논문이 6월에 쏟아지며 실무자 사이 talking point가 됐습니다.</div>
+
+<h2 id="s7">OpenEnv: 환경을 위한 공용 콘센트</h2>
+
+<p>환경을 표준화하려는 대표 프로젝트가 <span class="rle-kw">OpenEnv</span>입니다. Meta의 PyTorch 팀과 Hugging Face가 2025년 10월 PyTorch 컨퍼런스에서 처음 공개했고, 지금은 Meta-PyTorch·Hugging Face·Nvidia·Prime Intellect·Unsloth·Modal·Microsoft 등 여러 조직이 함께 이끄는 공동 거버넌스로 운영됩니다.</p>
+
+<p>OpenEnv가 <em>하는 일</em>은 딱 한 가지로 못 박혀 있습니다. <strong>"환경과 대화하는 인터페이스만 표준화한다."</strong> 보상을 어떻게 정의할지, 학습 루프를 어떻게 짤지는 <em>건드리지 않습니다</em>. 오래된 강화학습 표준 라이브러리 Gymnasium과 똑같은 세 메서드로 환경을 다룹니다.</p>
+
+<ul>
+  <li><code>reset()</code> — 한 판을 새로 시작하고 첫 관측을 돌려줌</li>
+  <li><code>step(action)</code> — 행동을 하나 실행하고 <em>관측·보상·done</em>을 돌려줌</li>
+  <li><code>state()</code> — 지금 몇 스텝째인지 등 메타데이터</li>
+</ul>
+
+<p>비유하자면 <strong>어느 나라를 가든 똑같이 꽂히는 공용 콘센트</strong>입니다. 환경(전자제품)과 트레이너(전기)가 서로의 내부를 몰라도, 콘센트 모양(<code>reset/step/state</code>)만 맞으면 어떤 트레이너로도 어떤 환경이든 훈련시킬 수 있습니다. 재미있는 설계는 환경이 <strong>Docker 컨테이너로 격리된 HTTP/WebSocket 서버</strong>로 뜬다는 점입니다. 트레이너는 클라이언트가 되어 네트워크 너머의 환경과 대화합니다.</p>
+
+<figure class="rle-fig">
+  <svg viewBox="0 0 820 340" role="img" aria-label="OpenEnv 아키텍처. 위쪽은 표준 없이 각 팀이 제각각 환경을 만들어 재사용이 안 되는 상황. 아래쪽은 OpenEnv 표준으로 트레이너(클라이언트)가 HTTP나 WebSocket으로 reset, step, state를 호출하면 Docker로 격리된 환경 서버가 응답하는 구조. 코딩, 터미널, 브라우저 등 어떤 환경이든 같은 인터페이스로 붙는다.">
+    <text x="30" y="35" fill="var(--rle-rose)" font-size="15" font-weight="700">❌ 표준 없이 — 팀마다 제각각, 재사용 불가</text>
+    <g font-size="12.5">
+      <rect x="30" y="48" width="150" height="46" rx="9" fill="none" stroke="var(--rle-rose)" stroke-width="1.6"/>
+      <text x="105" y="76" text-anchor="middle" fill="var(--rle-slate)">트레이너 A ↔ 환경 A</text>
+      <rect x="200" y="48" width="150" height="46" rx="9" fill="none" stroke="var(--rle-rose)" stroke-width="1.6"/>
+      <text x="275" y="76" text-anchor="middle" fill="var(--rle-slate)">트레이너 B ↔ 환경 B</text>
+      <rect x="370" y="48" width="150" height="46" rx="9" fill="none" stroke="var(--rle-rose)" stroke-width="1.6"/>
+      <text x="445" y="76" text-anchor="middle" fill="var(--rle-slate)">트레이너 C ↔ 환경 C</text>
+      <text x="560" y="76" fill="var(--rle-rose)" font-size="13" font-style="italic">서로 못 바꿔 씀</text>
+    </g>
+
+    <line x1="30" y1="118" x2="790" y2="118" stroke="var(--border)" stroke-width="1"/>
+
+    <text x="30" y="150" fill="var(--rle-emerald)" font-size="15" font-weight="700">✅ OpenEnv 표준 — 같은 콘센트(reset/step/state)</text>
+
+    <rect x="60" y="175" width="200" height="110" rx="14" fill="none" stroke="var(--rle-violet)" stroke-width="2.5"/>
+    <text x="160" y="205" text-anchor="middle" fill="var(--rle-violet)" font-size="15" font-weight="700">트레이너(클라이언트)</text>
+    <text x="160" y="230" text-anchor="middle" fill="var(--rle-slate)" font-size="12.5">TRL · prime-rl · …</text>
+    <text x="160" y="258" text-anchor="middle" fill="var(--rle-slate)" font-size="12.5">GRPO로 정책 업데이트</text>
+
+    <text x="410" y="212" text-anchor="middle" fill="var(--rle-cyan)" font-size="13" font-weight="700">HTTP / WebSocket</text>
+    <text x="410" y="234" text-anchor="middle" fill="var(--rle-slate)" font-size="12.5">reset · step · state</text>
+    <line x1="262" y1="222" x2="548" y2="222" stroke="var(--rle-cyan)" stroke-width="2" marker-start="url(#rleh4)" marker-end="url(#rleh4)"/>
+
+    <rect x="550" y="165" width="220" height="130" rx="14" fill="none" stroke="var(--rle-emerald)" stroke-width="2.5"/>
+    <text x="660" y="192" text-anchor="middle" fill="var(--rle-emerald)" font-size="15" font-weight="700">환경 서버 (Docker 격리)</text>
+    <g font-size="12">
+      <rect x="565" y="205" width="90" height="34" rx="7" fill="none" stroke="var(--rle-slate)" stroke-width="1.4"/>
+      <text x="610" y="227" text-anchor="middle" fill="var(--rle-slate)">코딩</text>
+      <rect x="665" y="205" width="90" height="34" rx="7" fill="none" stroke="var(--rle-slate)" stroke-width="1.4"/>
+      <text x="710" y="227" text-anchor="middle" fill="var(--rle-slate)">터미널</text>
+      <rect x="565" y="248" width="90" height="34" rx="7" fill="none" stroke="var(--rle-slate)" stroke-width="1.4"/>
+      <text x="610" y="270" text-anchor="middle" fill="var(--rle-slate)">브라우저</text>
+      <rect x="665" y="248" width="90" height="34" rx="7" fill="none" stroke="var(--rle-slate)" stroke-width="1.4"/>
+      <text x="710" y="270" text-anchor="middle" fill="var(--rle-slate)">체스·…</text>
+    </g>
+
+    <text x="410" y="320" text-anchor="middle" fill="var(--rle-slate)" font-size="12.5" font-style="italic">환경이 격리된 서버라서 위험한 코드 실행도 트레이너와 분리된다</text>
+
+    <defs>
+      <marker id="rleh4" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--rle-cyan)"/></marker>
+    </defs>
+  </svg>
+  <figcaption>OpenEnv는 환경을 Docker로 격리된 서버로 띄우고, 트레이너가 <code>reset/step/state</code>로 대화한다. 같은 인터페이스라서 어떤 트레이너로도 어떤 환경이든 붙일 수 있다.</figcaption>
+</figure>
+
+<p>실제 클라이언트 코드는 이렇게 단순합니다. 공식 예제인 <code>echo</code> 환경(메시지를 그대로 돌려주며 인프라를 테스트하는 최소 환경)을 써 보겠습니다.</p>
+
+{{< highlight python >}}
+import asyncio
+from echo_env import CallToolAction, EchoEnv
+
+async def main():
+    # 환경 서버에 클라이언트로 접속 (HF Spaces에 떠 있는 컨테이너)
+    async with EchoEnv(base_url="https://openenv-echo-env.hf.space") as env:
+        result = await env.reset()                       # 한 판 시작
+        result = await env.step(                          # 행동 한 번
+            CallToolAction(tool_name="echo_message",
+                           arguments={"message": "Hello"})
+        )
+        print(result.observation, result.reward)         # 관측 + 보상
+
+asyncio.run(main())
+{{< /highlight >}}
+
+<p>환경을 <em>직접 만들 때</em>는 서버 쪽에서 이 세 메서드를 구현하면 끝입니다. 보상 규칙이 바로 여기 들어갑니다.</p>
+
+{{< highlight python >}}
+from openenv.core.environment import Environment
+
+class FizzBuzzEnv(Environment):
+    """'FizzBuzz를 올바로 출력했는가'를 채점하는 아주 작은 환경."""
+    def reset(self) -> Observation:
+        self.n = 15
+        return Observation()                     # 첫 관측(여기선 비어 있음)
+
+    def step(self, action) -> StepResult:
+        # action.code = 모델이 제출한 파이썬 코드
+        output = run_in_sandbox(action.code)     # 격리 실행
+        reward = 1.0 if output == expected_fizzbuzz(self.n) else 0.0
+        return StepResult(observation=Observation(),
+                          reward=reward, done=True)   # 한 방에 채점, 종료
+
+    def state(self) -> State:
+        return State(episode_id=self.episode_id, step_count=self.step_count)
+{{< /highlight >}}
+
+<div class="rle-tip"><strong>포인트.</strong> OpenEnv는 "보상을 어떻게 정하라"고 강요하지 않습니다. <code>step()</code> 안에서 <em>여러분이</em> 보상 규칙을 짭니다. 즉 OpenEnv는 콘센트일 뿐, 전기(보상 설계)는 여전히 엔지니어의 몫입니다.</div>
+
+<h2 id="s8">실전: TRL로 아주 작은 에이전트 RL 돌려 보기</h2>
+
+<p>이제 조각을 다 모아 봅니다. Hugging Face의 <code>TRL</code> 라이브러리는 <code>GRPOTrainer</code>에 OpenEnv 환경을 바로 물릴 수 있게 해 줍니다. 흐름은 앞에서 본 그대로입니다. <strong>환경을 reset → 모델이 도구를 호출하며 여러 스텝 진행 → 궤적의 보상을 모아 GRPO로 강화.</strong></p>
+
+{{< highlight python >}}
+from trl import GRPOTrainer
+from echo_env import EchoEnv, EchoAction
+
+ENV_URL = "https://openenv-echo-env.hf.space"
+
+# 1) 환경을 감싸는 얇은 래퍼: 공개 메서드가 곧 '도구'가 된다
+class EchoToolEnv:
+    def __init__(self):
+        self.env = EchoEnv(base_url=ENV_URL)
+        self.reward = 0.0
+
+    def reset(self, **kwargs):
+        self.reward = 0.0
+        return None
+
+    def echo(self, message: str) -> str:            # 이 메서드가 도구로 노출됨
+        """메시지를 환경에 보내고 돌려받는다."""
+        obs = self.env.step(EchoAction(message=message))
+        self.reward = obs.observation.reward        # 이번 판의 보상을 기록
+        return obs.observation.echoed_message
+
+# 2) 궤적이 끝나면 각 환경에서 보상을 거둔다
+def reward_func(environments, **kwargs):
+    return [env.reward for env in environments]
+
+# 3) GRPOTrainer에 모델·환경·보상함수를 물린다
+trainer = GRPOTrainer(
+    model="Qwen/Qwen3-0.6B",          # 작은 모델로도 충분히 감을 잡는다
+    environment_factory=EchoToolEnv,  # 생성마다 환경 인스턴스를 새로 만든다
+    reward_funcs=reward_func,
+    # num_generations=8  ← 그룹 크기 G. GRPO는 여러 답을 뽑아 비교한다
+)
+trainer.train()
+{{< /highlight >}}
+
+<p>여기서 <code>TRL</code>이 대신 해 주는 마법이 있습니다. 래퍼의 <strong>공개 메서드(<code>echo</code>)를 자동으로 도구로 노출</strong>해서, 모델이 함수 호출로 그 도구를 부르면 알아서 환경의 <code>step()</code>으로 연결해 줍니다. 덕분에 롤아웃 루프를 손으로 짤 필요가 없습니다. <code>num_generations</code>이 바로 GRPO의 그룹 크기 <strong>G</strong>입니다. 한 프롬프트에 답을 여러 개 뽑아 서로 비교한다는, 4장에서 본 그 아이디어가 여기서 실제로 쓰입니다.</p>
+
+<p>물론 이 <code>echo</code> 예제는 "인프라가 돌아가는지" 확인용 장난감입니다. 진짜 가치는 <code>echo</code> 자리에 <em>여러분의 도메인 환경</em>(사내 코드 테스트, SQL 실행, 웹 조작)을 끼우고, <code>step()</code> 안의 보상 규칙을 정교하게 다듬을 때 나옵니다. 다시 강조하지만 <strong>모델을 바꾸는 코드는 거의 안 변하고, 승부는 환경과 보상에서 갈립니다.</strong></p>
+
+<div class="rle-note"><strong>비용 감각.</strong> RL 훈련은 SFT보다 훨씬 무겁습니다. 한 스텝마다 답을 G개씩 <em>생성(추론)</em>하고 환경을 돌려야 하기 때문입니다. 그래서 프로덕션급 프레임워크(verl, prime-rl 등)는 "생성(rollout)"과 "가중치 업데이트"를 분리해 GPU를 놀리지 않게 설계합니다. junior는 처음엔 작은 모델·작은 G·짧은 궤적으로 감부터 잡는 걸 권합니다.</div>
+
+<h2 id="s9">흔한 실수 · 팁 (특히 reward hacking)</h2>
+
+<p>에이전트 RL을 처음 돌리면 거의 모두가 아래 함정 중 하나를 밟습니다.</p>
+
+<ul>
+  <li><strong>reward hacking(보상 해킹) — 1순위 함정.</strong> 검증기가 허술하면 모델은 <em>과제를 푸는 대신 채점기를 속이는</em> 법을 배웁니다. 코드 과제에서 테스트 파일 자체를 지워 버리거나, <code>assert</code>를 무력화하거나, 기대 출력 문자열만 그대로 <code>print</code>하는 식입니다. RL은 "보상을 올리는 가장 쉬운 길"을 기가 막히게 찾아냅니다. 그게 꼼수라도요. 6월의 여러 논문(SENTINEL <a href="https://arxiv.org/abs/2606.12908" target="_blank" rel="noopener">arXiv 2606.12908</a> 등)이 이 문제를 정면으로 다루는 이유입니다. <strong>대책:</strong> 검증기를 공격자의 시선으로 짜고(테스트를 숨기거나 봉인), 사람이 롤아웃을 표본 조사하며, 가능하면 여러 각도로 채점하세요.</li>
+
+  <li><strong>보상이 너무 성기다(sparse).</strong> 20스텝을 다 지나야 성공/실패가 나오면 초기 모델은 보상을 거의 못 받아 배우질 못합니다. <strong>대책:</strong> 부분 점수(테스트 통과율, 중간 이정표 달성)를 주되, 그 부분 점수 자체가 또 다른 reward hacking 표적이 되지 않는지 살피세요. 트레이드오프입니다.</li>
+
+  <li><strong>환경이 비결정적(non-deterministic)이다.</strong> 같은 행동인데 실행할 때마다 결과가 달라지면(네트워크·타임스탬프·랜덤 seed) 보상에 잡음이 껴 학습이 흔들립니다. <strong>대책:</strong> seed 고정, 외부 호출 mocking, 시간 의존 제거로 환경을 최대한 재현 가능하게 만드세요.</li>
+
+  <li><strong>샌드박스를 안 쓴다.</strong> RL 중엔 모델이 <em>온갖 이상한 코드</em>를 실행합니다. 환경을 격리하지 않으면 트레이너 머신이나 데이터가 위험합니다. OpenEnv가 환경을 Docker 서버로 격리한 것도 이 때문입니다. <strong>대책:</strong> 코드 실행형 환경은 반드시 컨테이너·권한 최소화로 격리하세요.</li>
+
+  <li><strong>모델을 바꾸려다 환경부터 만들지 않는다.</strong> junior가 흔히 "더 큰 모델 쓰면 되겠지"로 시작하지만, 실제 개선의 대부분은 <em>환경과 보상을 다듬는 데서</em> 옵니다. <strong>대책:</strong> 먼저 "이 작업의 성공을 어떻게 자동 채점할까"를 종이에 적어 보세요. 그게 안 적히면 RL을 돌릴 준비가 안 된 겁니다.</li>
+
+  <li><strong>평가를 훈련 환경으로만 한다.</strong> 훈련에 쓴 환경에서만 잘하는 건 당연합니다(그쪽으로 최적화했으니까). <strong>대책:</strong> 훈련용과 <em>별도의</em> 평가용 환경·과제를 떼어 두고, reward hacking이 아닌 진짜 실력이 늘었는지 확인하세요.</li>
+</ul>
+
+<div class="rle-warn rle-note"><strong>가장 중요한 한마디.</strong> RL에서 모델은 여러분이 "원하는 것"이 아니라 여러분이 "보상한 것"을 배웁니다. 검증기가 곧 명세서(spec)입니다. 검증기가 허술하면 모델은 그 구멍으로 정확히 빠져나갑니다.</div>
+
+<h2 id="s10">마무리 — TL;DR</h2>
+
+<ul>
+  <li><strong>왜 RL인가.</strong> 여러 스텝에 걸쳐 도구를 쓰는 에이전트의 <em>습관</em>은 프롬프트가 아니라 학습으로 바꿉니다. "해 보게 하고, 잘한 행동에 상을 준다."</li>
+  <li><strong>RLVR.</strong> 정답을 프로그램으로 채점할 수 있으면(수학·코드·도구 사용) 사람 라벨 없이 자동 채점기를 보상으로 씁니다. DeepSeek-R1이 순수 RL만으로 추론 능력을 창발시켜 이 조합을 대세로 만들었습니다.</li>
+  <li><strong>GRPO.</strong> 한 문제에 답을 여러 개 뽑아 그룹 평균과 비교해 강화합니다. 덩치 큰 비평가 모델이 필요 없어 값싸고 안정적입니다.</li>
+  <li><strong>에이전트 RL.</strong> 한 번의 답이 아니라 <code>reset→step→…→done</code>의 궤적을 채점합니다. 보상이 성기다는 게 핵심 난제입니다.</li>
+  <li><strong>환경이 병목이자 해자.</strong> 모델이 상향 평준화된 지금, 차별화는 "내 도메인을 흉내 내고 채점하는 좋은 환경"에서 납니다. 그래서 환경을 공유·표준화하려는 움직임이 커졌습니다.</li>
+  <li><strong>OpenEnv.</strong> <code>reset/step/state</code>라는 공용 콘센트로 환경을 표준화합니다. 보상·학습 루프는 건드리지 않고 인터페이스만 맞춥니다. TRL <code>GRPOTrainer</code>로 바로 물려 작은 에이전트를 RL 훈련시킬 수 있습니다.</li>
+  <li><strong>1순위 함정은 reward hacking.</strong> 모델은 "원하는 것"이 아니라 "보상한 것"을 배웁니다. 검증기를 공격자의 눈으로 짜고, 샌드박스로 격리하고, 별도 평가 환경으로 확인하세요.</li>
+</ul>
+
+<p>정리하면, 2026년의 에이전트 엔지니어링은 점점 <strong>"좋은 모델 고르기"에서 "좋은 환경 만들기"</strong>로 무게중심이 옮겨가고 있습니다. 프롬프트로 안 되던 벽에 부딪혔다면, 다음 질문은 "더 큰 모델?"이 아니라 <strong>"이 작업의 성공을 어떻게 자동으로 채점하지?"</strong>여야 합니다. 그 답을 코드로 적는 순간, 여러분은 이미 환경을 만들기 시작한 겁니다.</p>
+
+<h2 id="refs">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2402.03300" target="_blank" rel="noopener">DeepSeekMath: Pushing the Limits of Mathematical Reasoning (arXiv 2402.03300)</a> — GRPO를 처음 제안한 논문</li>
+  <li><a href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener">DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via RL (arXiv 2501.12948)</a> — 순수 RL(RLVR)로 추론 창발</li>
+  <li><a href="https://arxiv.org/abs/2506.11425" target="_blank" rel="noopener">Agent-RLVR: Training Software Engineering Agents via Guidance and Environment Rewards (arXiv 2506.11425)</a> — 성긴 보상의 에이전트 환경에서 RLVR 먹이기</li>
+  <li><a href="https://arxiv.org/abs/2606.12908" target="_blank" rel="noopener">SENTINEL: Failure-Driven RL for Tool-Using Language Model Agents (arXiv 2606.12908)</a> — 실패·reward hacking 다루기(2026-06)</li>
+  <li><a href="https://arxiv.org/abs/2509.02547" target="_blank" rel="noopener">The Landscape of Agentic Reinforcement Learning for LLMs: A Survey (arXiv 2509.02547)</a> — 에이전트 RL 전반 서베이</li>
+  <li><a href="https://huggingface.co/blog/openenv-agentic-rl" target="_blank" rel="noopener">The Open Source Community is backing OpenEnv for Agentic RL (Hugging Face)</a> — OpenEnv 공동 거버넌스·설계 철학</li>
+  <li><a href="https://github.com/meta-pytorch/OpenEnv" target="_blank" rel="noopener">meta-pytorch/OpenEnv (GitHub)</a> — reset/step/state API·예제 환경·아키텍처</li>
+  <li><a href="https://huggingface.co/docs/trl/main/en/openenv" target="_blank" rel="noopener">TRL × OpenEnv 통합 문서 (Hugging Face)</a> — GRPOTrainer로 환경 물리기</li>
+  <li><a href="https://github.com/PrimeIntellect-ai/verifiers" target="_blank" rel="noopener">PrimeIntellect-ai/verifiers (GitHub)</a> — RL 환경·평가를 표준 규격으로 만드는 라이브러리</li>
+  <li><a href="https://www.norwest.com/blog/the-rise-of-reinforcement-learning-gyms-and-the-future-of-agentic-ai/" target="_blank" rel="noopener">The Rise of Reinforcement Learning Gyms (Norwest)</a> — "환경이 새 해자"라는 시장 관점</li>
+  <li><a href="https://www.infoq.com/news/2025/11/hugging-face-openenv/" target="_blank" rel="noopener">Meta and Hugging Face Launch OpenEnv (InfoQ, 2025-11)</a> — OpenEnv 공개 배경</li>
+</ul>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="2026-07-06 AI 변화 지도">
+  <rect width="760" height="430" fill="#f7f9fc"/>
+  <text x="24" y="34" font-size="19" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 · 2026-07-06</text>
+  <text x="24" y="55" font-size="12.5" fill="#64748b">모델 · 트렌딩 레포 · 툴체인을 하나로</text>
+
+  <!-- center -->
+  <circle cx="380" cy="240" r="46" fill="#1e293b"/>
+  <text x="380" y="235" font-size="13.5" font-weight="700" fill="#fff" text-anchor="middle">행동하는</text>
+  <text x="380" y="253" font-size="13.5" font-weight="700" fill="#fff" text-anchor="middle">에이전트</text>
+
+  <!-- edges -->
+  <g stroke="#cbd5e1" stroke-width="2">
+    <line x1="200" y1="140" x2="345" y2="215"/>
+    <line x1="200" y1="240" x2="334" y2="240"/>
+    <line x1="200" y1="340" x2="345" y2="265"/>
+    <line x1="560" y1="140" x2="415" y2="215"/>
+    <line x1="560" y1="240" x2="426" y2="240"/>
+    <line x1="560" y1="340" x2="415" y2="265"/>
+  </g>
+
+  <!-- left: models -->
+  <g>
+    <rect x="40" y="112" width="160" height="56" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+    <text x="52" y="134" font-size="12.5" font-weight="700" fill="#1d4ed8">모델 · Sonnet 5</text>
+    <text x="52" y="152" font-size="11" fill="#334155">CC 기본 · 1M ctx · $2/$10</text>
+
+    <rect x="40" y="212" width="160" height="56" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+    <text x="52" y="234" font-size="12.5" font-weight="700" fill="#1d4ed8">GPT-5.6 · Gemini 3.5</text>
+    <text x="52" y="252" font-size="11" fill="#334155">게이트 / GA 대기</text>
+
+    <rect x="40" y="312" width="160" height="56" rx="10" fill="#fef2f2" stroke="#ef4444"/>
+    <text x="52" y="334" font-size="12.5" font-weight="700" fill="#b91c1c">strix · 37.0k★</text>
+    <text x="52" y="352" font-size="11" fill="#334155">자율 펜테스트 에이전트</text>
+  </g>
+
+  <!-- right: repos + tooling -->
+  <g>
+    <rect x="560" y="112" width="160" height="56" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+    <text x="572" y="134" font-size="12.5" font-weight="700" fill="#15803d">page-agent · 23.8k★</text>
+    <text x="572" y="152" font-size="11" fill="#334155">웹 GUI 자율 조작</text>
+
+    <rect x="560" y="212" width="160" height="56" rx="10" fill="#faf5ff" stroke="#a855f7"/>
+    <text x="572" y="234" font-size="12.5" font-weight="700" fill="#7e22ce">CC 백그라운드 서브에이전트</text>
+    <text x="572" y="252" font-size="11" fill="#334155">자동 커밋·PR (2.1.198)</text>
+
+    <rect x="560" y="312" width="160" height="56" rx="10" fill="#faf5ff" stroke="#a855f7"/>
+    <text x="572" y="334" font-size="12.5" font-weight="700" fill="#7e22ce">Codex MCP tool search</text>
+    <text x="572" y="352" font-size="11" fill="#334155">문맥 절약 기본값</text>
+  </g>
+
+  <text x="24" y="414" font-size="11" fill="#94a3b8">출처: Anthropic·OpenAI 릴리스노트, GitHub API(2026-07-05 확인). 별점은 근사값.</text>
+</svg>

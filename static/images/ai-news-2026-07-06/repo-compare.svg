@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 350" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="strix vs page-agent 비교">
+  <rect width="760" height="350" fill="#f7f9fc"/>
+  <text x="24" y="34" font-size="18" font-weight="700" fill="#0f172a">트렌딩 '행동형' 에이전트 2종</text>
+  <text x="24" y="55" font-size="12" fill="#64748b">GitHub star 근사값 · 2026-07-05 API 확인</text>
+
+  <!-- axis baseline -->
+  <line x1="210" y1="120" x2="210" y2="250" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- strix bar -->
+  <text x="24" y="112" font-size="13" font-weight="700" fill="#b91c1c">usestrix / strix</text>
+  <text x="24" y="130" font-size="11" fill="#64748b">Python · 자율 펜테스트</text>
+  <rect x="210" y="100" width="470" height="34" rx="6" fill="#ef4444"/>
+  <text x="672" y="122" font-size="13" font-weight="700" fill="#fff" text-anchor="end">37,008★</text>
+
+  <!-- page-agent bar -->
+  <text x="24" y="200" font-size="13" font-weight="700" fill="#15803d">alibaba / page-agent</text>
+  <text x="24" y="218" font-size="11" fill="#64748b">TypeScript · 웹 GUI 조작</text>
+  <rect x="210" y="188" width="302" height="34" rx="6" fill="#22c55e"/>
+  <text x="504" y="210" font-size="13" font-weight="700" fill="#fff" text-anchor="end">23,795★</text>
+
+  <!-- action surface note -->
+  <rect x="24" y="262" width="712" height="66" rx="10" fill="#fff" stroke="#e2e8f0"/>
+  <text x="40" y="286" font-size="12.5" font-weight="700" fill="#0f172a">공통점: LLM이 '읽기'를 넘어 '실행'한다</text>
+  <text x="40" y="306" font-size="11.5" fill="#334155">strix = HTTP 프록시·브라우저·셸로 취약점 PoC 실증 / page-agent = DOM을 직접 클릭·입력</text>
+  <text x="40" y="322" font-size="11.5" fill="#334155">→ 에이전트에 붙일 땐 실행 권한 게이팅(승인·샌드박스)이 사실상 필수</text>
+</svg>

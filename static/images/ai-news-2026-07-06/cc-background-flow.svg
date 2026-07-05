@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="Claude Code 백그라운드 서브에이전트 흐름">
+  <rect width="760" height="300" fill="#f7f9fc"/>
+  <text x="24" y="34" font-size="18" font-weight="700" fill="#0f172a">CC 2.1.198 · 백그라운드 서브에이전트 PR 흐름</text>
+  <text x="24" y="55" font-size="12" fill="#64748b">서브에이전트는 이제 기본 백그라운드 실행 → 끝나면 Notification 훅 발화</text>
+
+  <g font-size="12" font-weight="600">
+    <!-- step boxes -->
+    <rect x="24" y="90" width="150" height="72" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+    <text x="99" y="120" fill="#1d4ed8" text-anchor="middle">1. delegate</text>
+    <text x="99" y="140" font-size="10.5" font-weight="400" fill="#334155" text-anchor="middle">worktree에서</text>
+    <text x="99" y="153" font-size="10.5" font-weight="400" fill="#334155" text-anchor="middle">서브에이전트 spawn</text>
+
+    <rect x="204" y="90" width="150" height="72" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+    <text x="279" y="120" fill="#15803d" text-anchor="middle">2. 병렬 작업</text>
+    <text x="279" y="140" font-size="10.5" font-weight="400" fill="#334155" text-anchor="middle">메인 세션은</text>
+    <text x="279" y="153" font-size="10.5" font-weight="400" fill="#334155" text-anchor="middle">계속 진행</text>
+
+    <rect x="384" y="90" width="150" height="72" rx="10" fill="#faf5ff" stroke="#a855f7"/>
+    <text x="459" y="114" fill="#7e22ce" text-anchor="middle">3. 자동 마감</text>
+    <text x="459" y="133" font-size="10.5" font-weight="400" fill="#334155" text-anchor="middle">commit · push</text>
+    <text x="459" y="147" font-size="10.5" font-weight="400" fill="#334155" text-anchor="middle">draft PR 오픈</text>
+
+    <rect x="564" y="90" width="172" height="72" rx="10" fill="#fff7ed" stroke="#f97316"/>
+    <text x="650" y="114" fill="#c2410c" text-anchor="middle">4. Notification 훅</text>
+    <text x="650" y="133" font-size="10.5" font-weight="400" fill="#334155" text-anchor="middle">agent_completed /</text>
+    <text x="650" y="147" font-size="10.5" font-weight="400" fill="#334155" text-anchor="middle">agent_needs_input</text>
+  </g>
+
+  <g stroke="#94a3b8" stroke-width="2" fill="none">
+    <path d="M174 126 L204 126" marker-end="url(#a)"/>
+    <path d="M354 126 L384 126" marker-end="url(#a)"/>
+    <path d="M534 126 L564 126" marker-end="url(#a)"/>
+  </g>
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0 0 L6 3 L0 6 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect x="24" y="196" width="712" height="72" rx="10" fill="#fff" stroke="#e2e8f0"/>
+  <text x="40" y="222" font-size="12.5" font-weight="700" fill="#0f172a">실전 포인트</text>
+  <text x="40" y="242" font-size="11.5" fill="#334155">· 긴 작업(테스트·리팩터)은 서브에이전트에 던지고 메인은 리뷰·설계 계속</text>
+  <text x="40" y="260" font-size="11.5" fill="#334155">· Notification 훅으로 완료 알림 자동화 → 폴링 대신 이벤트로 대기</text>
+</svg>

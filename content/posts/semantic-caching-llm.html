@@ -1,0 +1,364 @@
+---
+title: "질문이 조금만 달라도 캐시가 안 먹힌다면: '비슷한 질문'까지 잡아내는 시맨틱 캐시(semantic cache)"
+date: 2026-07-07T07:30:00+09:00
+draft: false
+tags: ["AI", "시맨틱 캐시", "semantic cache", "LLM 캐싱", "비용 최적화", "지연시간", "임베딩", "벡터 검색", "GPTCache", "에이전트"]
+categories: ["AI 엔지니어링"]
+summary: "프롬프트 캐시(prompt cache)는 '글자 하나까지 똑같은 프리픽스'만 재사용합니다. 그런데 '오늘 날씨 어때?'와 '지금 날씨 어떤가요?'는 뜻이 거의 같은데도 글자가 달라서 캐시가 전혀 안 먹힙니다. 시맨틱 캐시(semantic cache)는 질문을 임베딩으로 바꿔 '의미가 비슷하면' 저장된 답을 그대로 돌려주는 캐시입니다. 잘 맞으면 LLM 호출을 아예 건너뛰어 비용을 0으로, 응답을 수 밀리초로 줄입니다. 하지만 '비슷함'을 잘못 판단하면 엉뚱한 답을 자신 있게 내놓는 무서운 캐시이기도 하죠. 이 글은 KV·프롬프트·시맨틱 세 캐시의 차이부터, 임베딩·코사인 유사도·임계값의 원리, 60줄짜리 미니 구현, 임계값 손잡이를 돌리는 법, 그리고 junior가 자주 밟는 함정까지 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "semantic-caching-llm-cover.svg"
+  alt: "시맨틱 캐시의 핵심을 나타낸 그림. 왼쪽에 표현이 다른 두 질문 '오늘 날씨 어때?'와 '지금 날씨 어떤가요?'가 있고, 가운데 시맨틱 캐시가 둘을 임베딩으로 바꿔 의미가 거의 같다고 판단해 저장된 같은 답을 곧바로 돌려준다. 그래서 오른쪽의 크고 느린 LLM은 호출되지 않고 건너뛴다."
+  caption: "시맨틱 캐시는 '똑같이'가 아니라 '비슷하게'만 물어도 캐시에서 꺼내 쓴다 — 질문을 임베딩으로 바꿔 의미가 가까우면 저장된 답을 즉시 반환하고, LLM 호출 자체를 건너뛴다."
+  relative: false
+---
+
+<style>
+/* ── Semantic Cache 포스트 전용 스타일 (sc- 접두사) ── */
+.sc-fig{
+  --sc-blue:#2563eb; --sc-emerald:#0d9488; --sc-amber:#d97706;
+  --sc-rose:#e11d48; --sc-cyan:#0891b2; --sc-slate:#64748b; --sc-violet:#7c3aed;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .sc-fig{
+  --sc-blue:#60a5fa; --sc-emerald:#2dd4bf; --sc-amber:#fbbf24;
+  --sc-rose:#fb7185; --sc-cyan:#22d3ee; --sc-slate:#94a3b8; --sc-violet:#a78bfa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .sc-fig{
+    --sc-blue:#60a5fa; --sc-emerald:#2dd4bf; --sc-amber:#fbbf24;
+    --sc-rose:#fb7185; --sc-cyan:#22d3ee; --sc-slate:#94a3b8; --sc-violet:#a78bfa;
+  }
+}
+.sc-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.sc-fig text{font-family:inherit}
+.sc-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.sc-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.sc-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.sc-toc ol{margin:0;padding-left:1.25rem}
+.sc-toc li{margin:.22rem 0;font-size:.95rem}
+.sc-toc a{text-decoration:none}
+.sc-toc a:hover{text-decoration:underline}
+.sc-pull{font-size:1.12rem;line-height:1.72}
+.sc-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.sc-note{border-left:4px solid var(--sc-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.sc-note strong{color:var(--sc-blue,#2563eb)}
+.sc-warn{border-left:4px solid var(--sc-rose,#e11d48)}
+.sc-warn strong{color:var(--sc-rose,#e11d48)}
+.sc-good{border-left:4px solid var(--sc-emerald,#0d9488)}
+.sc-good strong{color:var(--sc-emerald,#0d9488)}
+.sc-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.sc-tbl th,.sc-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.sc-tbl th{background:var(--entry);font-weight:700}
+.sc-tbl code{font-size:.86em}
+.sc-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="sc-pull">
+  <p>프롬프트 캐시는 <strong>글자 하나까지 똑같은</strong> 질문만 알아봅니다. 그런데 사람은 같은 걸 물어도 매번 조금씩 다르게 묻죠. "환불 어떻게 해요?"와 "환불은 어떤 절차인가요?"는 답이 같은데, 프리픽스가 달라 캐시가 전혀 안 먹힙니다.</p>
+  <footer>— 시맨틱 캐시는 이 벽을 넘습니다. 글자가 아니라 <em>뜻</em>을 보고, 비슷하면 저장된 답을 곧바로 꺼내 줍니다.</footer>
+</blockquote>
+
+<p>챗봇이나 에이전트를 조금만 키워 운영해 보면 두 가지가 동시에 무섭게 늘어납니다. <strong>돈</strong>과 <strong>기다림</strong>입니다. 에이전트는 사용자의 요청 한 건을 처리하면서 LLM을 8번, 20번씩 부릅니다. 그런데 실제 트래픽을 들여다보면 사람들이 묻는 건 생각보다 몇 가지로 뻔합니다. "배송 언제 와요?", "환불 어떻게 해요?", "이거 무슨 뜻이에요?" — 같은 질문이 표현만 바뀌어 하루에도 수천 번씩 들어옵니다.</p>
+
+<p>여기서 자연스러운 생각. <em>같은 답을 또 만들 거면, 저번에 만든 답을 그냥 다시 쓰면 안 되나?</em> 이게 바로 캐싱의 아이디어입니다. 문제는 LLM 세계의 캐시가 대부분 <strong>"완전히 똑같을 때만"</strong> 작동한다는 점입니다. 프롬프트 캐시(prompt cache)는 요청 앞부분(프리픽스)이 <strong>토큰 하나까지 동일</strong>해야 재사용합니다. 지난 글에서 다룬 <a href="/posts/prompt-caching-cache-aware-agents/" target="_blank" rel="noopener">프롬프트 캐싱</a>이 바로 그것이죠. 훌륭하지만, 사람의 말은 매번 조금씩 다릅니다. "오늘 날씨 어때?"와 "지금 날씨 어떤가요?"는 뜻이 사실상 같은데, 글자가 달라서 프롬프트 캐시 입장에선 완전히 다른 요청입니다.</p>
+
+<p><strong>시맨틱 캐시(semantic cache)</strong>는 이 틈을 메웁니다. 핵심은 한 줄입니다. <em>질문을 임베딩(embedding, 문장을 숫자 벡터로 바꾼 것)으로 변환해서, 예전 질문들과 "의미가 얼마나 가까운지" 재고, 충분히 가까우면 그때 저장해 둔 답을 그대로 돌려준다.</em> 글자가 아니라 뜻을 기준으로 삼는 겁니다. 잘 맞으면 LLM 호출을 <strong>아예 건너뛰어</strong> 비용을 0으로, 응답 시간을 수 초에서 수 밀리초로 줄입니다.</p>
+
+<p>이 주제가 요즘 다시 화제입니다. 2026년 내내 "토큰을 많이 태우자(tokenmaxxing)"에서 "토큰을 아껴 쓰자(token discipline)"로 무게중심이 옮겨 오면서, 비용·지연을 어떻게든 깎으려는 실무자들이 프롬프트 캐시 다음 카드로 시맨틱 캐시를 꺼내 들었습니다. TrueFoundry는 아예 <em>"Beyond Prefix Caching(프리픽스 캐싱 그 너머)"</em>이라는 제목으로 이 흐름을 정리했고, Bifrost·Gravitee·Portkey 같은 게이트웨이들이 앞다퉈 시맨틱 캐시 기능을 기본 탑재했습니다. 학계에서도 2026년 <em>"From Exact Hits to Close Enough"</em>(arXiv 2603.03301)처럼 '정확 일치에서 근사 일치로'를 정면으로 다룬 연구가 나왔고요.</p>
+
+<p>그런데 이 캐시는 양날의 검입니다. "비슷함"을 <strong>잘못</strong> 판단하는 순간, 엉뚱한 답을 그것도 아주 <strong>자신 있게</strong> 내놓거든요. 이 글은 junior 개발자가 시맨틱 캐시를 원리부터 이해하고, 직접 만들어 보고, 위험한 함정을 피할 수 있도록 쉽고 자세하게 정리합니다.</p>
+
+<nav class="sc-toc">
+  <div class="sc-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">LLM 캐시 3형제 — KV · 프롬프트 · 시맨틱</a></li>
+    <li><a href="#sec-2">시맨틱 캐시는 어떻게 '비슷함'을 재는가</a></li>
+    <li><a href="#sec-3">읽기 경로 한 바퀴 — 히트와 미스</a></li>
+    <li><a href="#sec-4">실전 — 60줄로 만드는 시맨틱 캐시</a></li>
+    <li><a href="#sec-5">임계값이라는 손잡이 — 히트율 vs 오답률</a></li>
+    <li><a href="#sec-6">언제 켜고, 언제 절대 켜지 말아야 하나</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. LLM 캐시 3형제 — KV · 프롬프트 · 시맨틱</h2>
+
+<p>"캐시"라는 한 단어에 서로 다른 세 가지가 섞여 있어서 처음엔 헷갈립니다. 먼저 이 셋을 갈라 놓아야 시맨틱 캐시가 <strong>어디에</strong> 있고 <strong>무엇을</strong> 재사용하는지 또렷해집니다.</p>
+
+<ul>
+  <li><strong>KV 캐시(KV cache)</strong> — 모델 <em>안쪽</em>에 있습니다. LLM이 토큰을 하나씩 만들 때, 앞 토큰들을 처리하며 계산해 둔 어텐션의 Key·Value를 다시 안 계산하려고 GPU 메모리에 들고 있는 것입니다. 한 번의 생성 안에서만 쓰이고, 요청이 끝나면 보통 사라집니다.</li>
+  <li><strong>프롬프트 캐시 / 프리픽스 캐시(prompt cache)</strong> — 서빙 엔진 <em>앞</em>에 있습니다. 여러 요청이 <strong>똑같은 프리픽스</strong>(예: 긴 시스템 프롬프트)를 공유하면, 그 부분의 KV 계산을 요청 사이에 재사용합니다. 정확 일치라서 <strong>무손실</strong>이고, 출력이 한 글자도 안 바뀝니다. 하지만 <strong>모델은 여전히 호출</strong>됩니다 — 앞부분 계산만 아낄 뿐이죠.</li>
+  <li><strong>시맨틱 캐시(semantic cache)</strong> — 모델보다 훨씬 <em>바깥</em>, 애플리케이션 맨 앞에 있습니다. 새 질문이 예전 질문과 <strong>의미가 비슷하면</strong>, 저장된 답을 통째로 돌려주고 <strong>모델 호출 자체를 건너뜁니다</strong>. 정확 일치가 아니라 <strong>근사 일치</strong>라서, 잘 맞으면 가장 크게 절약하지만 <strong>틀릴 수도</strong> 있습니다.</li>
+</ul>
+
+<p>한 문장으로 요약하면 이렇습니다. KV 캐시는 <em>한 답 안에서</em> 아끼고, 프롬프트 캐시는 <em>계산을</em> 아끼고, 시맨틱 캐시는 <em>호출 자체를</em> 아낍니다. 셋은 경쟁 관계가 아니라 <strong>같이 쓰는</strong> 층입니다.</p>
+
+<figure class="sc-fig"><svg viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LLM 캐시 3형제가 파이프라인의 어디에 있는지 보여 준다. 사용자 요청이 왼쪽에서 들어오면 가장 바깥의 시맨틱 캐시를 먼저 만난다. 여기서 의미가 비슷한 예전 질문이 있으면 저장된 답을 바로 돌려주고 모델을 건너뛴다. 통과하면 서빙 엔진 앞의 프롬프트 캐시가 똑같은 프리픽스의 계산을 재사용하고, 그래도 모델은 호출된다. 모델 안쪽에서는 KV 캐시가 한 번의 생성 동안 앞 토큰의 어텐션 계산을 재사용한다. 바깥에서 안쪽으로 갈수록 아끼는 양은 줄지만 항상 정확하다.">
+  <rect x="12" y="150" width="90" height="52" rx="9" fill="var(--sc-slate)" opacity="0.22" stroke="var(--sc-slate)"/>
+  <text x="57" y="172" text-anchor="middle" font-size="14" fill="currentColor">사용자</text>
+  <text x="57" y="190" text-anchor="middle" font-size="14" fill="currentColor">질문</text>
+  <path d="M104 176 H150" stroke="var(--sc-slate)" stroke-width="2.5" fill="none" marker-end="url(#scar)"/>
+  <defs><marker id="scar" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--sc-slate)"/></marker></defs>
+
+  <!-- 시맨틱 캐시 -->
+  <rect x="152" y="40" width="182" height="272" rx="16" fill="var(--sc-emerald)" opacity="0.13" stroke="var(--sc-emerald)" stroke-width="2"/>
+  <text x="243" y="66" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sc-emerald)">① 시맨틱 캐시</text>
+  <text x="243" y="90" text-anchor="middle" font-size="12.5" fill="currentColor">모델 바깥 · 애플리케이션</text>
+  <text x="243" y="112" text-anchor="middle" font-size="12.5" fill="currentColor">뜻이 비슷하면 답 반환</text>
+  <text x="243" y="134" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--sc-emerald)">→ 호출 자체를 건너뜀</text>
+  <text x="243" y="160" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.75">근사 일치 · 가장 크게 절약</text>
+  <text x="243" y="176" text-anchor="middle" font-size="11.5" fill="var(--sc-rose)" opacity="0.9">틀릴 수 있음 ⚠</text>
+
+  <!-- 프롬프트 캐시 -->
+  <rect x="346" y="70" width="176" height="212" rx="14" fill="var(--sc-blue)" opacity="0.13" stroke="var(--sc-blue)" stroke-width="2"/>
+  <text x="434" y="96" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sc-blue)">② 프롬프트 캐시</text>
+  <text x="434" y="120" text-anchor="middle" font-size="12.5" fill="currentColor">서빙 엔진 앞</text>
+  <text x="434" y="142" text-anchor="middle" font-size="12.5" fill="currentColor">같은 프리픽스 계산 재사용</text>
+  <text x="434" y="164" text-anchor="middle" font-size="12.5" fill="currentColor">모델은 호출됨</text>
+  <text x="434" y="190" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.75">정확 일치 · 무손실</text>
+
+  <!-- KV 캐시 -->
+  <rect x="534" y="100" width="150" height="152" rx="12" fill="var(--sc-violet)" opacity="0.14" stroke="var(--sc-violet)" stroke-width="2"/>
+  <text x="609" y="126" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sc-violet)">③ KV 캐시</text>
+  <text x="609" y="150" text-anchor="middle" font-size="12.5" fill="currentColor">모델 안쪽</text>
+  <text x="609" y="172" text-anchor="middle" font-size="12.5" fill="currentColor">한 생성 동안</text>
+  <text x="609" y="192" text-anchor="middle" font-size="12.5" fill="currentColor">어텐션 K·V 재사용</text>
+  <text x="609" y="218" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.75">항상 켜짐</text>
+
+  <text x="380" y="326" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.7">바깥 → 안쪽 : 아끼는 양은 줄지만, 안쪽일수록 항상 정확하다</text>
+</svg><figcaption>세 캐시는 파이프라인의 서로 다른 층에 산다. 시맨틱 캐시만이 유일하게 "모델 호출 자체"를 건너뛴다 — 그만큼 크게 절약하지만, 유일하게 틀릴 수도 있는 캐시다.</figcaption></figure>
+
+<div class="sc-note"><strong>헷갈리지 말기.</strong> "프롬프트 캐시로 90% 아꼈다"와 "시맨틱 캐시로 호출을 건너뛴다"는 완전히 다른 얘기입니다. 앞은 <em>같은 프리픽스의 계산</em>을 아끼는 것(모델은 돈다)이고, 뒤는 <em>같은 뜻의 질문에 모델을 아예 안 부르는</em> 것입니다. 둘은 함께 켜면 서로를 방해하지 않고 곱해집니다.</div>
+
+<h2 id="sec-2">2. 시맨틱 캐시는 어떻게 '비슷함'을 재는가</h2>
+
+<p>"의미가 비슷하다"를 컴퓨터가 어떻게 알까요? 핵심 도구가 <strong>임베딩(embedding)</strong>입니다. 임베딩 모델은 문장을 받아 수백~수천 개의 숫자로 이뤄진 벡터 하나로 바꿉니다. 이 벡터 공간에는 마법 같은 성질이 있습니다. <strong>뜻이 비슷한 문장은 벡터도 서로 가깝게</strong> 놓인다는 것이죠. "환불 어떻게 해요?"와 "환불 절차가 뭔가요?"는 글자는 달라도 벡터로는 거의 겹칩니다.</p>
+
+<p>두 벡터가 얼마나 가까운지는 보통 <strong>코사인 유사도(cosine similarity)</strong>로 잽니다. 두 벡터가 이루는 각도를 보고, 완전히 같은 방향이면 1.0, 무관하면 0에 가깝습니다. 시맨틱 캐시는 이 값이 미리 정한 <strong>임계값(threshold)</strong>, 예컨대 0.95를 넘으면 "충분히 비슷하다 = 캐시 히트"로 판정합니다.</p>
+
+<div class="sc-note"><strong>비유.</strong> 임베딩은 모든 문장에 "뜻 좌표"를 찍는 일입니다. 도서관에서 비슷한 주제의 책을 가까운 서가에 꽂아 두는 것과 같죠. 새 질문이 들어오면 그 좌표 근처에 예전 질문(과 그 답)이 있는지 둘러보고, 코앞에 있으면 "아, 저번에 답한 그거네" 하고 그 답을 꺼내 옵니다. 임계값은 "얼마나 코앞이어야 같은 걸로 쳐 줄까"를 정하는 자입니다.</div>
+
+<p>여기서 중요한 감각 하나. 코사인 유사도 0.95는 "95% 정답"이라는 뜻이 <strong>절대 아닙니다</strong>. 그냥 두 문장의 임베딩이 가리키는 방향이 그만큼 비슷하다는 기하학적 수치일 뿐입니다. 방향이 비슷해도 <strong>결정적인 한 단어</strong>가 다르면 답은 완전히 달라질 수 있습니다. "서울 날씨"와 "부산 날씨"는 임베딩이 꽤 가깝지만 답은 전혀 다르죠. 이 간극이 나중에 다룰 모든 함정의 뿌리입니다.</p>
+
+<h2 id="sec-3">3. 읽기 경로 한 바퀴 — 히트와 미스</h2>
+
+<p>동작을 한 바퀴 따라가 봅시다. 시맨틱 캐시에는 두 개의 길이 있습니다. 질문이 들어올 때의 <strong>읽기(read)</strong> 길과, 새 답을 만들었을 때의 <strong>쓰기(write)</strong> 길입니다.</p>
+
+<figure class="sc-fig"><svg viewBox="0 0 760 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="시맨틱 캐시의 읽기와 쓰기 경로를 보여 준다. 새 질문이 들어오면 먼저 임베딩 모델로 벡터를 만든다. 그 벡터로 벡터 저장소에서 가장 가까운 예전 질문을 검색해 최고 유사도를 얻는다. 유사도가 임계값보다 크면 캐시 히트로, 저장된 답을 수 밀리초 만에 반환한다. 임계값보다 작으면 캐시 미스로, 큰 LLM을 실제로 호출해 답을 만들고, 그 질문 벡터와 답을 캐시에 새로 저장한 뒤 사용자에게 돌려준다. 다음에 비슷한 질문이 오면 이 저장분이 히트가 된다.">
+  <rect x="18" y="30" width="120" height="48" rx="10" fill="var(--sc-slate)" opacity="0.2" stroke="var(--sc-slate)"/>
+  <text x="78" y="52" text-anchor="middle" font-size="13" fill="currentColor">새 질문</text>
+  <text x="78" y="69" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">“환불 절차?”</text>
+
+  <path d="M140 54 H188" stroke="var(--sc-slate)" stroke-width="2.4" fill="none" marker-end="url(#scar3)"/>
+  <defs><marker id="scar3" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--sc-slate)"/></marker></defs>
+
+  <rect x="190" y="30" width="130" height="48" rx="10" fill="var(--sc-cyan)" opacity="0.18" stroke="var(--sc-cyan)"/>
+  <text x="255" y="50" text-anchor="middle" font-size="13" font-weight="700" fill="var(--sc-cyan)">임베딩</text>
+  <text x="255" y="68" text-anchor="middle" font-size="11.5" fill="currentColor">문장 → 벡터</text>
+
+  <path d="M255 80 V116" stroke="var(--sc-slate)" stroke-width="2.4" fill="none" marker-end="url(#scar3)"/>
+
+  <rect x="180" y="118" width="150" height="58" rx="10" fill="var(--sc-blue)" opacity="0.16" stroke="var(--sc-blue)"/>
+  <text x="255" y="140" text-anchor="middle" font-size="13" font-weight="700" fill="var(--sc-blue)">벡터 저장소 검색</text>
+  <text x="255" y="160" text-anchor="middle" font-size="11.5" fill="currentColor">가장 가까운 예전 질문</text>
+
+  <path d="M255 178 V212" stroke="var(--sc-slate)" stroke-width="2.4" fill="none" marker-end="url(#scar3)"/>
+
+  <!-- 판정 다이아몬드 -->
+  <path d="M255 214 L330 250 L255 286 L180 250 Z" fill="var(--sc-amber)" opacity="0.16" stroke="var(--sc-amber)" stroke-width="2"/>
+  <text x="255" y="246" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--sc-amber)">유사도 ≥ 임계값?</text>
+  <text x="255" y="264" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">예: 0.97 ≥ 0.95</text>
+
+  <!-- 히트 -->
+  <path d="M330 250 H430" stroke="var(--sc-emerald)" stroke-width="2.6" fill="none" marker-end="url(#scar3h)"/>
+  <defs><marker id="scar3h" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--sc-emerald)"/></marker></defs>
+  <text x="380" y="242" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sc-emerald)">히트 ✓</text>
+  <rect x="432" y="222" width="150" height="56" rx="10" fill="var(--sc-emerald)" opacity="0.16" stroke="var(--sc-emerald)"/>
+  <text x="507" y="244" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--sc-emerald)">저장된 답 반환</text>
+  <text x="507" y="264" text-anchor="middle" font-size="11.5" fill="currentColor">수 ms · 토큰 0</text>
+
+  <!-- 미스 -->
+  <path d="M255 286 V320" stroke="var(--sc-rose)" stroke-width="2.6" fill="none" marker-end="url(#scar3m)"/>
+  <defs><marker id="scar3m" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--sc-rose)"/></marker></defs>
+  <text x="292" y="308" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sc-rose)">미스 ✗</text>
+  <rect x="150" y="322" width="150" height="46" rx="10" fill="var(--sc-rose)" opacity="0.13" stroke="var(--sc-rose)"/>
+  <text x="225" y="343" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--sc-rose)">LLM 실제 호출</text>
+  <text x="225" y="360" text-anchor="middle" font-size="11" fill="currentColor">답 생성 (수 초)</text>
+
+  <!-- 쓰기 -->
+  <path d="M302 345 H430" stroke="var(--sc-violet)" stroke-width="2.4" fill="none" stroke-dasharray="6 5" marker-end="url(#scar3w)"/>
+  <defs><marker id="scar3w" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--sc-violet)"/></marker></defs>
+  <rect x="432" y="322" width="150" height="46" rx="10" fill="var(--sc-violet)" opacity="0.14" stroke="var(--sc-violet)"/>
+  <text x="507" y="343" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sc-violet)">캐시에 저장(쓰기)</text>
+  <text x="507" y="360" text-anchor="middle" font-size="10.5" fill="currentColor">질문 벡터 + 답</text>
+  <path d="M600 345 C 680 345, 680 250, 585 250" stroke="var(--sc-violet)" stroke-width="1.8" fill="none" stroke-dasharray="5 5"/>
+  <text x="662" y="300" text-anchor="middle" font-size="10.5" fill="var(--sc-violet)">다음엔 히트</text>
+</svg><figcaption>읽기 길: 질문 → 임베딩 → 유사도 검색 → 임계값 판정. 히트면 저장된 답을 즉시, 미스면 LLM을 부르고 그 답을 캐시에 써 둔다(쓰기 길). 그래서 처음 보는 질문은 느리지만, 비슷한 다음 질문부터 빨라진다.</figcaption></figure>
+
+<p>여기서 눈여겨볼 점. 미스가 났을 때 LLM을 부르고 <strong>그 결과를 반드시 캐시에 저장</strong>해야 다음번 비슷한 질문이 히트가 됩니다. 즉 첫 질문은 언제나 느리고, 그 뒤 "따라 들어오는" 유사 질문들이 이득을 봅니다. 캐시가 데워지는(warm-up) 시간이 필요하다는 뜻이죠.</p>
+
+<h2 id="sec-4">4. 실전 — 60줄로 만드는 시맨틱 캐시</h2>
+
+<p>원리를 손으로 만져 보면 확실해집니다. 외부 라이브러리의 마법 없이, 임베딩과 코사인 유사도만으로 동작하는 <strong>가장 작은 시맨틱 캐시</strong>를 짜 봅시다. (설명용이라 저장소는 그냥 파이썬 리스트입니다.)</p>
+
+{{< highlight python >}}
+import numpy as np
+from openai import OpenAI
+
+client = OpenAI()
+
+def embed(text: str) -> np.ndarray:
+    # 문장을 하나의 벡터로 바꾼다 (임베딩 모델 호출)
+    v = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    ).data[0].embedding
+    return np.array(v)
+
+def cosine(a: np.ndarray, b: np.ndarray) -> float:
+    # 두 벡터가 이루는 각도의 코사인 = 방향이 얼마나 같은가 (1.0이 최대)
+    return float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+class SemanticCache:
+    def __init__(self, threshold: float = 0.95):
+        self.threshold = threshold        # 이 값 이상이면 '같은 질문'으로 인정
+        self.store: list[tuple[np.ndarray, str, str]] = []  # (질문벡터, 질문, 답)
+
+    def get(self, question: str):
+        qv = embed(question)
+        best_sim, best_ans = 0.0, None
+        for vec, _q, ans in self.store:       # 저장된 예전 질문들과 비교
+            sim = cosine(qv, vec)
+            if sim > best_sim:
+                best_sim, best_ans = sim, ans
+        if best_sim >= self.threshold:        # 임계값 통과 → 캐시 히트
+            return best_ans, best_sim
+        return None, best_sim                 # 미스
+
+    def put(self, question: str, answer: str):
+        self.store.append((embed(question), question, answer))
+{{< /highlight >}}
+
+<p>이제 이 캐시를 LLM 호출 <strong>앞에</strong> 끼워 넣습니다. 히트면 모델을 건너뛰고, 미스면 모델을 부른 뒤 결과를 저장합니다.</p>
+
+{{< highlight python >}}
+cache = SemanticCache(threshold=0.95)
+
+def ask(question: str) -> str:
+    answer, sim = cache.get(question)
+    if answer is not None:
+        print(f"[캐시 히트 sim={sim:.3f}] 모델 호출 안 함")
+        return answer
+    # 미스 → 진짜 LLM 호출
+    answer = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": question}],
+    ).choices[0].message.content
+    cache.put(question, answer)               # 다음을 위해 반드시 저장
+    return answer
+
+ask("환불은 어떻게 하나요?")     # 미스 → 모델 호출, 저장
+ask("환불 절차가 어떻게 되죠?")  # 히트! 뜻이 같아 저장된 답을 즉시 반환
+{{< /highlight >}}
+
+<p>두 번째 질문은 글자가 완전히 다른데도 캐시 히트가 납니다. 프롬프트 캐시라면 절대 못 잡을 상황이죠. 이게 시맨틱 캐시의 힘입니다.</p>
+
+<div class="sc-note"><strong>실무에서는 직접 짜지 마세요.</strong> 위 코드는 원리를 보여 주려는 것이고, 실제로는 검증된 도구를 씁니다. <a href="https://github.com/zilliztech/GPTCache" target="_blank" rel="noopener">GPTCache</a>는 임베딩·벡터 저장소(FAISS/Milvus)·스칼라 저장소(SQLite/MySQL)를 조립해 주고 LangChain·llama_index와 바로 붙습니다. LangChain의 <code>RedisSemanticCache</code>나 <code>RedisVL</code>도 흔한 선택지고, Bifrost·Gravitee·Portkey 같은 게이트웨이는 코드 한 줄 없이 프록시 단에서 시맨틱 캐시를 켜 줍니다. 선형 탐색 대신 벡터 인덱스(ANN)를 써서 수백만 건에서도 빠르게 검색한다는 점이 미니 구현과의 결정적 차이입니다.</div>
+
+<h2 id="sec-5">5. 임계값이라는 손잡이 — 히트율 vs 오답률</h2>
+
+<p>시맨틱 캐시에는 딱 하나의 중요한 손잡이가 있습니다. <strong>유사도 임계값</strong>입니다. 이 손잡이를 돌리면 두 지표가 <strong>서로 반대로</strong> 움직입니다.</p>
+
+<ul>
+  <li><strong>임계값을 낮추면</strong>(예: 0.85) — 웬만큼 비슷해도 히트로 쳐 줍니다. 히트율(hit rate)이 올라가 비용은 더 아끼지만, 사실은 다른 질문을 같다고 착각하는 <strong>거짓 양성(false positive)</strong>이 늘어 <strong>엉뚱한 답</strong>을 줄 위험이 커집니다.</li>
+  <li><strong>임계값을 높이면</strong>(예: 0.98) — 거의 판박이일 때만 히트로 인정합니다. 오답 위험은 뚝 떨어지지만, 히트율이 낮아져 절약 효과가 줄어듭니다.</li>
+</ul>
+
+<figure class="sc-fig"><svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="유사도 임계값을 가로축으로 두고 두 곡선을 겹쳐 보여 준다. 임계값이 낮을수록(왼쪽) 캐시 히트율은 높지만 거짓 양성으로 인한 오답 위험도 함께 높다. 임계값이 높을수록(오른쪽) 오답 위험은 낮아지지만 히트율도 낮아 절약 효과가 준다. 가운데의 초록 띠가 두 가지가 균형을 이루는 실용적인 영역으로, 대략 0.92에서 0.97 사이다. 실무는 여기서 보수적으로 높게 시작한 뒤 오답률을 지켜보며 조금씩 내린다.">
+  <line x1="70" y1="235" x2="710" y2="235" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+  <line x1="70" y1="40" x2="70" y2="235" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+  <text x="390" y="278" text-anchor="middle" font-size="13" fill="currentColor">유사도 임계값 (낮음 ← → 높음)</text>
+  <text x="88" y="94" text-anchor="middle" font-size="24" fill="var(--sc-emerald)" font-weight="700" transform="rotate(-90 20 140)"></text>
+
+  <!-- sweet spot band -->
+  <rect x="470" y="40" width="120" height="195" fill="var(--sc-emerald)" opacity="0.12"/>
+  <text x="530" y="58" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sc-emerald)">실용 구간</text>
+  <text x="530" y="74" text-anchor="middle" font-size="11" fill="var(--sc-emerald)">≈0.92–0.97</text>
+
+  <!-- 히트율 곡선: 임계값↑ → 히트율↓ -->
+  <path d="M80 70 C 250 95, 430 150, 700 220" stroke="var(--sc-blue)" stroke-width="3" fill="none"/>
+  <text x="140" y="66" font-size="12.5" fill="var(--sc-blue)" font-weight="700">캐시 히트율</text>
+
+  <!-- 오답위험 곡선: 임계값↑ → 오답↓ -->
+  <path d="M80 205 C 260 200, 380 150, 700 55" stroke="var(--sc-rose)" stroke-width="3" fill="none" stroke-dasharray="7 4"/>
+  <text x="560" y="86" font-size="12.5" fill="var(--sc-rose)" font-weight="700">오답 위험(거짓 양성)</text>
+
+  <text x="120" y="228" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">0.80</text>
+  <text x="530" y="228" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">0.95</text>
+  <text x="690" y="228" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.7">0.99</text>
+</svg><figcaption>임계값은 히트율(파랑)과 오답 위험(빨강)을 반대로 움직인다. 정답은 트래픽마다 다르다 — 보수적으로 높게(예: 0.95~0.97) 시작해 오답률을 지켜보며 조금씩 내리는 게 안전하다.</figcaption></figure>
+
+<p>그럼 얼마로 시작할까요? 실무 가이드들은 대체로 <strong>보수적으로 높게</strong> 잡으라고 합니다. 아무 데이터가 없는 첫 배포라면 0.95~0.97쯤에서 출발해, 캐시 히트의 1~5%를 샘플링해 "이 답이 정말 맞았나"를 사람이나 강한 LLM(LLM-as-judge)으로 채점하며 거짓 양성률을 지켜봅니다. 오답이 거의 없으면 0.01씩 내려 히트율을 넓혀 가는 식이죠. 임계값 0.97처럼 아주 높게 잡으면 히트율은 5~10%로 낮아도 거짓 양성률은 0.5% 밑으로 억누를 수 있습니다.</p>
+
+<p>효과가 어느 정도인지 감을 주는 숫자도 있습니다. 시맨틱 캐시를 정면으로 연구한 <em>GPT Semantic Cache</em>(arXiv 2411.05276)는 실제 챗봇 트래픽에서 <strong>API 호출을 최대 68.8% 줄이고</strong>, 캐시 히트율 61.6~68.8%를 달성하면서도 히트가 <strong>맞은 비율(positive hit rate)을 97% 이상</strong>으로 유지했다고 보고합니다. 반복 질문이 많은 FAQ·고객지원 성격의 트래픽에서 특히 강하다는 걸 보여 주죠. 현업에서 흔히 보고되는 히트율은 트래픽 성격에 따라 대략 30~70% 사이입니다.</p>
+
+<h2 id="sec-6">6. 언제 켜고, 언제 절대 켜지 말아야 하나</h2>
+
+<p>시맨틱 캐시는 만능이 아닙니다. 오히려 <strong>켜면 안 되는 곳</strong>에 켜면 조용히 사고를 냅니다. 판단 기준은 "이 질문의 답이 <em>누가·언제·어떤 맥락</em>에서 물어도 같은가?"입니다.</p>
+
+<div class="sc-tblwrap">
+<table class="sc-tbl">
+  <thead><tr><th>상황</th><th>시맨틱 캐시</th><th>이유</th></tr></thead>
+  <tbody>
+    <tr><td>FAQ·제품 설명·정책 안내처럼 반복되는 질문</td><td>✅ 아주 좋음</td><td>답이 안정적이고 표현만 다른 같은 질문이 쏟아짐</td></tr>
+    <tr><td>문서 요약·번역·분류 등 입력이 겹치는 배치 작업</td><td>✅ 좋음</td><td>같은 입력이 자주 반복됨</td></tr>
+    <tr><td>"지금 잔액", "오늘 배송 상태" 같은 <strong>실시간·개인화</strong> 질의</td><td>❌ 위험</td><td>답이 사용자·시점마다 다름 → 남의 답이 새어 나감</td></tr>
+    <tr><td>정확한 수치·법률·의료처럼 <strong>한 단어 차이가 치명적</strong>인 질의</td><td>⚠️ 매우 주의</td><td>임베딩이 가까워도 정답은 완전히 다를 수 있음</td></tr>
+    <tr><td>창작·브레인스토밍처럼 <strong>매번 다른 답</strong>을 원하는 질의</td><td>❌ 부적합</td><td>같은 답 재사용이 오히려 나쁨</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>실무에서는 보통 <strong>전부 켜거나 전부 끄지</strong> 않습니다. 라우팅 앞단에서 "이 요청은 캐시 가능한 종류인가"를 먼저 판단해, FAQ성 트래픽에만 시맨틱 캐시를 태우고 개인화·실시간 질의는 통과시킵니다. 캐시 키에 사용자 ID나 언어·테넌트 같은 <strong>맥락을 함께 넣어</strong> 네임스페이스를 나누는 것도 기본기고요(남의 답이 새는 걸 막는 핵심 장치입니다).</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="sc-note sc-warn"><strong>1) 거짓 양성 — 가장 무서운 실수.</strong> 임계값을 욕심내 낮추면, "서울 날씨"에 "부산 날씨" 답을, "2023년 매출"에 "2024년 매출" 답을 <strong>자신 있게</strong> 내놓습니다. 사용자는 캐시가 있는지도 모르니 그냥 틀린 답을 믿습니다. 임계값은 항상 <em>보수적으로 높게</em> 시작하고, 히트를 샘플링해 오답률을 계속 감시하세요.</div>
+
+<div class="sc-note sc-warn"><strong>2) 개인화·맥락 누출.</strong> 사용자 A의 "내 주문 어디쯤이야?" 답이 캐시에 남아, 비슷하게 물은 사용자 B에게 <strong>A의 개인정보</strong>가 그대로 나갈 수 있습니다. 개인화 질의는 캐시에서 빼거나, 캐시 키에 사용자·세션·테넌트를 반드시 포함해 격리하세요.</div>
+
+<div class="sc-note sc-warn"><strong>3) 신선도(staleness)와 TTL.</strong> "최신 요금제는?", "오늘 환율은?"의 답은 시간이 지나면 틀린 답이 됩니다. 시맨틱 캐시는 오래된 답을 <strong>영원히</strong> 돌려줄 수 있으니, 항목마다 만료 시간(TTL)을 두고, 시간에 민감한 질의는 아예 캐시하지 마세요.</div>
+
+<div class="sc-note sc-warn"><strong>4) 임베딩 모델을 바꾸면 캐시가 깨진다.</strong> 저장된 벡터는 <em>그때 쓴 임베딩 모델</em>의 좌표계입니다. 모델을 교체하면 새 질문 벡터와 옛 저장 벡터의 유사도가 무의미해집니다. 임베딩 모델을 바꾸면 캐시를 통째로 다시 채워야(재인덱싱) 합니다.</div>
+
+<div class="sc-note"><strong>5) 히트율을 측정하지 않으면 켠 의미가 없다.</strong> 히트율·거짓 양성률·절감액을 대시보드로 보세요. 히트율이 몇 %밖에 안 되면 임계값이 너무 높거나 트래픽이 애초에 안 겹치는 것이고, 오답 신고가 늘면 임계값이 너무 낮은 겁니다. <strong>측정 없이는 튜닝도 없습니다.</strong></div>
+
+<div class="sc-note sc-good"><strong>6) 프롬프트 캐시와 같이 쓰기.</strong> 시맨틱 캐시가 미스여서 모델을 부를 때, 그 호출은 여전히 프롬프트 캐시의 혜택을 받습니다. 둘은 층이 달라 충돌하지 않습니다. 시맨틱 캐시로 "부를지 말지"를 거르고, 부를 때는 프롬프트 캐시로 "얼마나 싸게 부를지"를 챙기는 조합이 이상적입니다.</div>
+
+<div class="sc-note sc-good"><strong>7) 질문을 정규화(normalize)하면 히트율이 오른다.</strong> 앞뒤 공백·대소문자·불필요한 인사말("안녕하세요, 혹시…")을 임베딩 전에 다듬으면 같은 뜻의 질문이 더 잘 뭉칩니다. 다만 정규화가 뜻을 바꾸지 않도록 조심하세요(부정어 "안", "말고" 같은 건 절대 지우면 안 됩니다).</div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>시맨틱 캐시</strong>는 질문을 임베딩으로 바꿔 <em>의미가 비슷한</em> 예전 질문의 답을 재사용합니다. 프롬프트 캐시가 못 잡는 "표현만 다른 같은 질문"을 잡아 LLM 호출 자체를 건너뜁니다.</li>
+  <li>LLM 캐시는 셋입니다. <strong>KV 캐시</strong>(한 생성 안), <strong>프롬프트 캐시</strong>(같은 프리픽스 계산, 무손실), <strong>시맨틱 캐시</strong>(같은 뜻이면 호출 생략, 근사 일치라 틀릴 수 있음). 서로 층이 달라 함께 씁니다.</li>
+  <li>원리는 <strong>임베딩 → 코사인 유사도 → 임계값</strong>입니다. 유사도 0.95는 "95% 정답"이 아니라 "방향이 그만큼 비슷하다"는 기하학적 수치일 뿐입니다.</li>
+  <li>핵심 손잡이는 <strong>임계값</strong>입니다. 낮추면 히트율↑·오답위험↑, 높이면 오답위험↓·히트율↓. <strong>보수적으로 높게(≈0.95~0.97)</strong> 시작해 오답률을 보며 내리세요.</li>
+  <li>효과는 큽니다 — GPT Semantic Cache는 API 호출 최대 68.8%↓, 히트 정확도 97%+를 보고합니다. 현업 히트율은 대략 30~70%.</li>
+  <li>가장 무서운 건 <strong>거짓 양성·개인화 누출·신선도</strong>입니다. FAQ성 질의에만 켜고, 캐시 키에 맥락을 넣어 격리하고, TTL을 두고, <strong>히트를 샘플링해 계속 감시</strong>하세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Regmi &amp; Pun, <a href="https://arxiv.org/abs/2411.05276" target="_blank" rel="noopener">GPT Semantic Cache: Reducing LLM Costs and Latency via Semantic Embedding Caching</a> (arXiv 2411.05276) — Redis 기반 시맨틱 캐시, API 호출 최대 68.8%↓·히트율 61.6~68.8%·정확도 97%+.</li>
+  <li><a href="https://arxiv.org/abs/2603.03301" target="_blank" rel="noopener">From Exact Hits to Close Enough: Semantic Caching for LLM Embeddings</a> (arXiv 2603.03301, 2026) — '정확 일치에서 근사 일치로', 임베딩 대상 시맨틱 캐싱 연구.</li>
+  <li>GitHub, <a href="https://github.com/zilliztech/GPTCache" target="_blank" rel="noopener">zilliztech/GPTCache</a> — LangChain·llama_index와 통합된 대표 오픈소스 시맨틱 캐시(임베딩 + FAISS/Milvus 벡터 검색).</li>
+  <li>TrueFoundry, <a href="https://www.truefoundry.com/blog/semantic-caching-ai-gateway" target="_blank" rel="noopener">Semantic Caching for LLMs: Beyond Prefix Caching</a> — 프리픽스 캐싱과의 차이, 게이트웨이 관점 정리.</li>
+  <li>Spheron, <a href="https://www.spheron.network/blog/semantic-cache-llm-inference-gpu-cloud/" target="_blank" rel="noopener">Semantic Caching for LLM Inference: GPTCache, Redis Vector Cache, and Prompt Cache Setup (2026)</a> — 임계값 설정·거짓 양성 모니터링 실전 가이드.</li>
+  <li>Respan, <a href="https://www.respan.ai/articles/semantic-cache-llm" target="_blank" rel="noopener">Semantic Cache for LLMs: When to Ship, When to Skip (2026)</a> — 도입 판단 기준과 임계값 튜닝.</li>
+  <li>Gravitee, <a href="https://www.gravitee.io/blog/semantic-caching-for-llms-how-to-reduce-ai-costs-and-latency-at-the-gateway" target="_blank" rel="noopener">Semantic Caching for LLMs: How to Reduce AI Costs and Latency at the Gateway</a> — 게이트웨이 단 시맨틱 캐시 정책.</li>
+  <li>MyEngineeringPath, <a href="https://myengineeringpath.dev/genai-engineer/llm-caching/" target="_blank" rel="noopener">LLM Caching — Semantic Cache, KV Cache &amp; Prompt Cache (2026)</a> — 세 캐시의 구분 정리.</li>
+  <li>LangChain 문서, <a href="https://python.langchain.com/docs/integrations/llm_caching/" target="_blank" rel="noopener">LLM Caching integrations</a> — <code>RedisSemanticCache</code> 등 프레임워크 통합.</li>
+</ul>

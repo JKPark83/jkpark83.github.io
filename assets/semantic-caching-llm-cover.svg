@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="시맨틱 캐시의 핵심을 나타낸 그림. 왼쪽에 표현이 다른 두 질문 '오늘 날씨 어때?'와 '지금 날씨 어떤가요?'가 있다. 가운데 시맨틱 캐시가 둘을 임베딩으로 바꿔 '의미가 거의 같다'고 판단하고, 저장된 같은 답을 곧바로 돌려준다. 그래서 오른쪽의 크고 느린 LLM은 호출되지 않고 건너뛴다.">
+  <defs>
+    <linearGradient id="scbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="sccache" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#scbg)"/>
+
+  <text x="600" y="86" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="46" font-weight="800" fill="#f8fafc">시맨틱 캐시(semantic cache)</text>
+  <text x="600" y="128" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="24" fill="#a5b4fc">‘똑같이’가 아니라 ‘비슷하게’만 물어도 캐시에서 꺼내 쓴다</text>
+
+  <!-- 두 질문 -->
+  <g font-family="'Segoe UI',system-ui,sans-serif">
+    <rect x="70" y="220" width="300" height="70" rx="16" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="220" y="263" text-anchor="middle" font-size="25" fill="#e2e8f0">“오늘 날씨 어때?”</text>
+    <rect x="70" y="330" width="300" height="70" rx="16" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="220" y="373" text-anchor="middle" font-size="25" fill="#e2e8f0">“지금 날씨 어떤가요?”</text>
+    <text x="220" y="440" text-anchor="middle" font-size="18" fill="#94a3b8">표현은 달라도 뜻은 사실상 같다</text>
+  </g>
+
+  <!-- 화살표 -->
+  <path d="M375 255 H455" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#a)"/>
+  <path d="M375 365 H455" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#64748b"/></marker></defs>
+
+  <!-- 시맨틱 캐시 -->
+  <rect x="460" y="215" width="255" height="200" rx="22" fill="url(#sccache)"/>
+  <text x="587" y="262" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="27" font-weight="800" fill="#042f2e">시맨틱 캐시</text>
+  <text x="587" y="300" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="18" fill="#042f2e">① 질문을 임베딩으로</text>
+  <text x="587" y="330" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="18" fill="#042f2e">② 코사인 유사도 검색</text>
+  <text x="587" y="360" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="18" fill="#042f2e">③ 임계값 넘으면 = 히트</text>
+  <text x="587" y="394" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="19" font-weight="700" fill="#042f2e">→ 저장된 답을 즉시 반환</text>
+
+  <!-- 히트: 저장된 답 -->
+  <path d="M720 315 H820" stroke="#2dd4bf" stroke-width="3.5" fill="none" marker-end="url(#a2)"/>
+  <defs><marker id="a2" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2dd4bf"/></marker></defs>
+  <rect x="825" y="280" width="300" height="72" rx="16" fill="#134e4a" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="975" y="312" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="20" fill="#ccfbf1">캐시 히트 ✓</text>
+  <text x="975" y="338" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="16" fill="#99f6e4">수 ms · 토큰 0 · 비용 0</text>
+
+  <!-- LLM 건너뜀 -->
+  <g opacity="0.42">
+    <rect x="825" y="430" width="300" height="120" rx="18" fill="#1e293b" stroke="#475569" stroke-width="1.5" stroke-dasharray="7 6"/>
+    <text x="975" y="478" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="30" font-weight="800" fill="#64748b">거대한 LLM</text>
+    <text x="975" y="512" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="18" fill="#64748b">느리고 · 비싸다</text>
+    <text x="975" y="536" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="16" fill="#64748b">— 이번엔 호출되지 않음 —</text>
+  </g>
+  <path d="M587 415 C 587 500, 700 500, 815 495" stroke="#ef4444" stroke-width="3" fill="none" stroke-dasharray="8 7" marker-end="url(#ax)"/>
+  <defs><marker id="ax" markerWidth="12" markerHeight="12" refX="6" refY="6" orient="auto"><circle cx="6" cy="6" r="5" fill="none" stroke="#ef4444" stroke-width="2"/><path d="M3,3 L9,9 M9,3 L3,9" stroke="#ef4444" stroke-width="2"/></marker></defs>
+  <text x="690" y="565" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="17" fill="#fca5a5">호출 자체를 건너뛴다</text>
+</svg>

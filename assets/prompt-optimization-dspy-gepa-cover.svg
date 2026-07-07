@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="자동 프롬프트 최적화를 나타낸 그림. 왼쪽은 개발자가 프롬프트 문구를 손으로 계속 고치며 밤을 새우는 '손 튜닝'이고, 화살표가 얽혀 있어 시행착오가 많다. 오른쪽은 평가, 성찰, 진화가 순환하는 자동 최적화 루프로, 옵티마이저가 실행 결과를 보고 스스로 더 나은 프롬프트를 만들어 낸다.">
+  <defs>
+    <linearGradient id="pobg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="poloop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+    <marker id="poarrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="poarrowg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2dd4bf"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#pobg)"/>
+
+  <text x="600" y="84" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="46" font-weight="800" fill="#f8fafc">자동 프롬프트 최적화</text>
+  <text x="600" y="128" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="24" fill="#a5b4fc">프롬프트를 손으로 튜닝하지 말고, 옵티마이저에게 맡겨라 — DSPy · GEPA</text>
+
+  <!-- 왼쪽: 손 튜닝 -->
+  <g font-family="'Segoe UI',system-ui,sans-serif">
+    <text x="300" y="200" text-anchor="middle" font-size="24" font-weight="700" fill="#fca5a5">손 튜닝 (hand-tuning)</text>
+    <rect x="120" y="235" width="360" height="70" rx="12" fill="#1e293b" stroke="#f87171" stroke-width="1.5"/>
+    <text x="300" y="270" text-anchor="middle" font-size="18" fill="#e2e8f0">"제발 JSON으로만... 단계별로... 다시!"</text>
+    <text x="300" y="294" text-anchor="middle" font-size="15" fill="#94a3b8">문구를 바꾸고 → 돌려보고 → 또 바꾸고</text>
+
+    <path d="M180 330 C 240 380, 360 380, 420 335" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#poarrow)"/>
+    <path d="M420 360 C 360 410, 240 410, 185 365" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#poarrow)"/>
+    <text x="300" y="452" text-anchor="middle" font-size="16" fill="#94a3b8">밤새 시행착오 · 모델 바꾸면 처음부터</text>
+    <text x="300" y="478" text-anchor="middle" font-size="15" fill="#64748b">재현 불가 · 근거 없음 · 지치는 사람</text>
+  </g>
+
+  <!-- 가운데 구분 -->
+  <line x1="600" y1="180" x2="600" y2="520" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 6"/>
+  <text x="600" y="360" text-anchor="middle" font-size="30" fill="#64748b">→</text>
+
+  <!-- 오른쪽: 자동 최적화 루프 -->
+  <g font-family="'Segoe UI',system-ui,sans-serif">
+    <text x="900" y="200" text-anchor="middle" font-size="24" font-weight="700" fill="#5eead4">자동 최적화 루프</text>
+
+    <circle cx="900" cy="360" r="120" fill="none" stroke="url(#poloop)" stroke-width="3"/>
+    <!-- 세 노드 -->
+    <g>
+      <circle cx="900" cy="240" r="42" fill="#312e81" stroke="#818cf8" stroke-width="2"/>
+      <text x="900" y="236" text-anchor="middle" font-size="16" font-weight="700" fill="#e0e7ff">평가</text>
+      <text x="900" y="256" text-anchor="middle" font-size="12" fill="#a5b4fc">metric</text>
+    </g>
+    <g>
+      <circle cx="1004" cy="420" r="42" fill="#134e4a" stroke="#2dd4bf" stroke-width="2"/>
+      <text x="1004" y="416" text-anchor="middle" font-size="16" font-weight="700" fill="#ccfbf1">성찰</text>
+      <text x="1004" y="436" text-anchor="middle" font-size="12" fill="#5eead4">reflect</text>
+    </g>
+    <g>
+      <circle cx="796" cy="420" r="42" fill="#1e3a8a" stroke="#60a5fa" stroke-width="2"/>
+      <text x="796" y="416" text-anchor="middle" font-size="16" font-weight="700" fill="#dbeafe">진화</text>
+      <text x="796" y="436" text-anchor="middle" font-size="12" fill="#93c5fd">evolve</text>
+    </g>
+    <!-- 순환 화살표 -->
+    <path d="M940 268 A 120 120 0 0 1 1000 375" fill="none" stroke="#2dd4bf" stroke-width="2.5" marker-end="url(#poarrowg)"/>
+    <path d="M968 452 A 120 120 0 0 1 832 452" fill="none" stroke="#2dd4bf" stroke-width="2.5" marker-end="url(#poarrowg)"/>
+    <path d="M800 375 A 120 120 0 0 1 860 268" fill="none" stroke="#2dd4bf" stroke-width="2.5" marker-end="url(#poarrowg)"/>
+
+    <text x="900" y="368" text-anchor="middle" font-size="15" fill="#94a3b8">옵티마이저가</text>
+    <text x="900" y="388" text-anchor="middle" font-size="15" fill="#94a3b8">스스로 개선</text>
+
+    <text x="900" y="525" text-anchor="middle" font-size="15" fill="#64748b">근거 있는 개선 · 재현 가능 · 사람은 metric만</text>
+  </g>
+
+  <text x="600" y="600" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="17" fill="#475569">프롬프트는 손으로 쓰는 문장이 아니라, 평가로 맞춰 가는 '파라미터'다</text>
+</svg>

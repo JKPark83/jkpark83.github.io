@@ -1,0 +1,378 @@
+---
+title: "프롬프트를 손으로 튜닝하지 마라: 옵티마이저에게 맡기는 자동 프롬프트 최적화 (DSPy와 GEPA)"
+date: 2026-07-08T07:30:00+09:00
+draft: false
+tags: ["AI", "프롬프트 최적화", "prompt optimization", "DSPy", "GEPA", "자동 프롬프트 엔지니어링", "옵티마이저", "eval", "에이전트", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "프롬프트 하나 고치겠다고 문구를 바꿔 가며 밤을 새운 적 있나요? 그렇게 겨우 맞춰 놓아도 모델을 바꾸는 순간 다시 처음부터입니다. 손으로 쓰는 프롬프트는 근거도 없고 재현도 안 되는 '숨은 하이퍼파라미터'거든요. 자동 프롬프트 최적화(automatic prompt optimization)는 이 문구 튜닝을 사람 대신 옵티마이저에게 맡깁니다. 평가(metric)를 정해 두면, 옵티마이저가 예시를 뽑고 지시문을 고쳐 가며 점수가 오르는 프롬프트를 스스로 찾아냅니다. 이 글은 DSPy의 '프롬프트가 아니라 프로그램' 사고방식부터, BootstrapFewShot·MIPROv2·GEPA 옵티마이저의 차이, 그리고 요즘 화제인 GEPA(Genetic-Pareto)가 강화학습보다 35배 적은 예산으로 어떻게 더 좋은 프롬프트를 만드는지, 직접 돌려 볼 수 있는 코드와 함께 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "prompt-optimization-dspy-gepa-cover.svg"
+  alt: "왼쪽은 개발자가 프롬프트 문구를 손으로 계속 고치며 밤을 새우는 '손 튜닝'으로, 화살표가 얽혀 시행착오가 많다. 오른쪽은 평가·성찰·진화가 순환하는 자동 최적화 루프로, 옵티마이저가 실행 결과를 보고 스스로 더 나은 프롬프트를 만들어 낸다."
+  caption: "프롬프트는 손으로 쓰는 문장이 아니라 평가로 맞춰 가는 '파라미터'다 — 사람은 metric만 정하고, 문구 튜닝은 옵티마이저에게 맡긴다."
+  relative: false
+---
+
+<style>
+/* ── Prompt Optimization 포스트 전용 스타일 (po- 접두사) ── */
+.po-fig{
+  --po-blue:#2563eb; --po-indigo:#4f46e5; --po-emerald:#0d9488; --po-amber:#d97706;
+  --po-rose:#e11d48; --po-cyan:#0891b2; --po-slate:#64748b; --po-violet:#7c3aed;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .po-fig{
+  --po-blue:#60a5fa; --po-indigo:#818cf8; --po-emerald:#2dd4bf; --po-amber:#fbbf24;
+  --po-rose:#fb7185; --po-cyan:#22d3ee; --po-slate:#94a3b8; --po-violet:#a78bfa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .po-fig{
+    --po-blue:#60a5fa; --po-indigo:#818cf8; --po-emerald:#2dd4bf; --po-amber:#fbbf24;
+    --po-rose:#fb7185; --po-cyan:#22d3ee; --po-slate:#94a3b8; --po-violet:#a78bfa;
+  }
+}
+.po-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.po-fig text{font-family:inherit}
+.po-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.po-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.po-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.po-toc ol{margin:0;padding-left:1.25rem}
+.po-toc li{margin:.22rem 0;font-size:.95rem}
+.po-toc a{text-decoration:none}
+.po-toc a:hover{text-decoration:underline}
+.po-pull{font-size:1.12rem;line-height:1.72}
+.po-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.po-note{border-left:4px solid var(--po-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.po-note strong{color:var(--po-blue,#2563eb)}
+.po-warn{border-left:4px solid var(--po-rose,#e11d48)}
+.po-warn strong{color:var(--po-rose,#e11d48)}
+.po-good{border-left:4px solid var(--po-emerald,#0d9488)}
+.po-good strong{color:var(--po-emerald,#0d9488)}
+.po-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.po-tbl th,.po-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.po-tbl th{background:var(--entry);font-weight:700}
+.po-tbl code{font-size:.86em}
+.po-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="po-pull">
+  <p>프롬프트를 손으로 고친다는 건, 사실 <strong>눈금 없는 손잡이</strong>를 감으로 돌리는 일입니다. "단계별로 생각해"를 넣었더니 좀 나아진 것 같고, 예시를 두 개 넣었더니 또 나아진 것 같고 — 그런데 <em>왜</em> 나아졌는지, <em>얼마나</em> 나아졌는지는 아무도 모릅니다.</p>
+  <footer>— 자동 프롬프트 최적화는 이 손잡이에 눈금을 답니다. 평가(metric)를 정해 두면, 문구 튜닝은 옵티마이저가 대신 합니다.</footer>
+</blockquote>
+
+<p>LLM으로 뭔가를 만들어 본 사람은 다 겪는 밤이 있습니다. 분류든 추출이든 요약이든, 결과가 딱 원하는 만큼 안 나와서 프롬프트 문구를 계속 바꿔 보는 밤이죠. "제발 JSON으로만 답해"를 대문자로도 써 보고, 예시를 하나 더 넣었다 뺐다 하고, "너는 전문가야"를 붙였다 지웠다 합니다. 그러다 겨우 좀 맞는 것 같으면 저장하고 잡니다.</p>
+
+<p>문제는 그다음입니다. 모델을 <code>gpt-4.1-mini</code>에서 다른 모델로 바꾸는 순간, 애써 맞춰 놓은 그 문구가 <strong>와르르 무너집니다.</strong> 같은 프롬프트인데 새 모델에서는 엉뚱하게 답하거든요. 그럼 또 밤을 새워야 합니다. 이게 반복되면 이상한 낌새를 챕니다. <em>혹시 내가 지금 하는 게, 근거도 재현도 없는 노가다 아닌가?</em></p>
+
+<p>맞습니다. 손으로 쓴 프롬프트는 사실 <strong>숨은 하이퍼파라미터(hidden hyperparameter)</strong>입니다. 모델의 성능을 좌우하는 값인데, 우리는 그 값을 <em>감으로</em> 정하고 있는 겁니다. 학습률(learning rate)을 감으로 손튜닝하지 않듯이, 프롬프트도 그러면 안 됩니다. 여기서 나오는 아이디어가 <strong>자동 프롬프트 최적화(automatic prompt optimization)</strong>입니다. 핵심은 한 줄입니다. <em>사람은 "무엇이 좋은 답인가"(평가)만 정하고, "어떤 문구가 그 평가 점수를 올리는가"는 옵티마이저가 데이터로 찾게 한다.</em></p>
+
+<p>이 주제가 2026년 중반에 다시 크게 화제입니다. 방아쇠는 <strong>GEPA</strong>라는 옵티마이저입니다. "GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning"이라는 논문(arXiv 2507.19457)이 ICLR 2026에 구두 발표(oral)로 채택되면서, "프롬프트를 잘 진화시키면 강화학습(RL)보다도 낫다"는 주장이 실무자 타임라인을 채웠습니다. 6월엔 Nous Research가 에이전트의 스킬·프롬프트·도구 설명을 DSPy와 GEPA로 자동 진화시키는 <code>hermes-agent-self-evolution</code>을 공개했고, Arize·Decagon·Morph 같은 곳이 앞다퉈 "GEPA를 프로덕션에 어떻게 태웠나" 사례를 냈습니다. 올해 내내 이어진 "토큰을 아끼자·평가로 증명하자"는 흐름과도 딱 맞아떨어졌죠.</p>
+
+<p>이 글은 junior 개발자가 이 흐름을 원리부터 이해하도록 정리합니다. 프롬프트를 왜 손으로 튜닝하면 안 되는지, DSPy가 프롬프트를 어떻게 '프로그램'으로 바꾸는지, 그리고 GEPA가 다른 옵티마이저와 무엇이 다른지 — 직접 돌려 볼 수 있는 코드와 함께 쉽고 자세하게 살펴봅니다.</p>
+
+<nav class="po-toc">
+  <div class="po-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 손튜닝은 안 되는가 — 프롬프트는 '숨은 파라미터'</a></li>
+    <li><a href="#sec-2">배경 — DSPy의 '프롬프트가 아니라 프로그램'</a></li>
+    <li><a href="#sec-3">옵티마이저 지형 — 예시 뽑기부터 GEPA까지</a></li>
+    <li><a href="#sec-4">GEPA는 무엇이 다른가 — 점수 대신 '왜 틀렸나'</a></li>
+    <li><a href="#sec-5">실전 — DSPy + GEPA로 프롬프트 최적화하기</a></li>
+    <li><a href="#sec-6">언제 쓰고, 언제 참을까</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 손튜닝은 안 되는가 — 프롬프트는 '숨은 파라미터'</h2>
+
+<p>머신러닝을 배울 때 제일 먼저 익히는 습관이 있습니다. <strong>손잡이(하이퍼파라미터)를 감으로 돌리지 말고, 검증 세트(validation set)로 점수를 재 가며 맞춰라.</strong> 학습률을 0.01로 할지 0.001로 할지 눈 감고 정하는 사람은 없습니다. 값을 여러 개 시도해 보고, 검증 점수가 제일 좋은 걸 고릅니다.</p>
+
+<p>그런데 LLM 시대의 프롬프트만은 이상하게 예외 취급을 받습니다. 프롬프트야말로 모델 성능을 크게 흔드는 손잡이인데, 다들 이걸 <em>감으로</em> 돌립니다. "이렇게 쓰면 좀 더 잘 되는 것 같다"는 인상만으로요. 문제는 그 '인상'이 다음 세 가지에서 배신한다는 겁니다.</p>
+
+<ul>
+  <li><strong>근거가 없다.</strong> "단계별로 생각해"를 넣어서 정확도가 3%p 올랐는지, 아니면 그냥 그날 운이 좋았는지 측정하지 않으면 알 수 없습니다.</li>
+  <li><strong>재현이 안 된다.</strong> 어떤 문구를 왜 그렇게 썼는지 기록이 없으니, 두 달 뒤엔 나조차 못 고칩니다. 팀원은 더더욱 못 건드립니다.</li>
+  <li><strong>모델을 바꾸면 처음부터다.</strong> 프롬프트는 특정 모델의 버릇에 맞춰 손으로 깎은 것이라, 모델이 바뀌면 그 버릇도 바뀌어 성능이 무너집니다.</li>
+</ul>
+
+<p>정리하면 프롬프트는 <strong>숨은 하이퍼파라미터</strong>입니다. 코드 어딘가에 긴 문자열로 박혀서 성능을 좌우하는데, 아무도 그걸 <em>최적화</em>하지 않고 <em>손으로 조립</em>하고 있는 거죠. DSPy 논문(arXiv 2310.03714)의 표현을 빌리면, 지금의 LLM 파이프라인은 대부분 "시행착오로 발견한 긴 문자열, 즉 하드코딩된 prompt template"로 짜여 있습니다. 자동 프롬프트 최적화는 이 문자열을 <em>손으로 쓰는 대상</em>에서 <em>데이터로 맞추는 대상</em>으로 옮깁니다.</p>
+
+<div class="po-note"><strong>용어 하나 짚고 갑니다.</strong> 여기서 '최적화'는 모델의 <em>가중치(weight)</em>를 바꾸는 파인튜닝이 아닙니다. 모델은 그대로 두고, 모델에게 <strong>보내는 텍스트(지시문 + 예시)</strong>만 바꿉니다. 그래서 GPU도, 라벨 대량도 필요 없고, API 모델에도 그대로 씁니다. 가중치를 건드리는 강화학습(RL)과는 다른 길이라는 점을 먼저 못 박아 둡니다.</div>
+
+<h2 id="sec-2">2. 배경 — DSPy의 '프롬프트가 아니라 프로그램'</h2>
+
+<p>자동 프롬프트 최적화를 이야기할 때 빠지지 않는 이름이 <strong>DSPy</strong>입니다. 스탠퍼드에서 시작된 오픈소스 프레임워크로, 슬로건이 아예 "programming—not prompting"(프롬프트가 아니라 프로그래밍)입니다. GitHub 별도 2만 5천 개를 넘겼고, 프롬프트 최적화라고 하면 사실상 대명사처럼 쓰입니다.</p>
+
+<p>DSPy의 발상은 이렇습니다. 프롬프트 문자열을 직접 쓰지 말고, <strong>무엇을 원하는지(입력→출력)</strong>만 선언하라. 그러면 실제 프롬프트 문구는 프레임워크가 <em>컴파일해서</em> 만들어 준다. 이해를 위해 세 가지 조각만 알면 됩니다.</p>
+
+<ul>
+  <li><strong>Signature(시그니처)</strong> — 이 단계의 입력과 출력이 무엇인지 선언합니다. 예: <code>"question -&gt; answer"</code>. 함수의 타입 시그니처와 비슷합니다. <em>무엇을</em> 할지만 적고, <em>어떻게</em> 프롬프트로 쓸지는 안 적습니다.</li>
+  <li><strong>Module(모듈)</strong> — 그 시그니처를 어떤 방식으로 수행할지 고릅니다. 그냥 답하게 하는 <code>dspy.Predict</code>, 추론 과정을 거치게 하는 <code>dspy.ChainOfThought</code>, 도구를 쓰게 하는 <code>dspy.ReAct</code> 등이 있습니다.</li>
+  <li><strong>Metric(평가 함수)</strong> — 출력이 얼마나 좋은지 점수로 매기는 함수입니다. 정답과 비교하든, 다른 LLM에게 채점을 맡기든(LLM-as-judge), <strong>"좋음"의 정의</strong>를 여기에 코드로 박아 둡니다. 최적화의 나침반이 바로 이 metric입니다.</li>
+</ul>
+
+<p>이 셋을 갖추면 DSPy의 <strong>옵티마이저(optimizer)</strong>가 등장합니다. 옵티마이저는 학습 데이터 몇십 개를 프로그램에 흘려 보내며 실제 출력을 만들고, metric으로 점수를 매기고, 점수가 오르도록 <em>지시문과 예시를 바꿔 가며</em> 프롬프트를 다시 씁니다. 이 과정을 DSPy에서는 <code>compile</code>이라고 부릅니다. 프롬프트가 손으로 쓰는 문장이 아니라 <strong>컴파일 산출물</strong>이 되는 겁니다.</p>
+
+<figure class="po-fig"><svg viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DSPy의 컴파일 흐름을 보여 준다. 왼쪽에서 개발자는 시그니처(입력 화살표 출력)와 모듈(ChainOfThought), 그리고 평가 함수 metric과 학습 데이터만 준비한다. 가운데의 옵티마이저는 이 프로그램에 학습 데이터를 흘려 실제 출력을 만들고, metric으로 점수를 매기고, 점수가 오르도록 지시문과 예시를 바꾸는 일을 반복한다. 오른쪽 결과물은 사람이 손으로 쓰지 않은, 최적화된 프롬프트다. 아래에는 사람이 손대는 것은 왼쪽의 선언뿐이고 문구는 컴파일 산출물이라는 설명이 있다.">
+  <rect x="0" y="0" width="760" height="360" fill="none"/>
+  <!-- 왼쪽: 개발자가 짜는 것 -->
+  <rect x="24" y="40" width="212" height="240" rx="14" fill="var(--po-indigo)" fill-opacity="0.10" stroke="var(--po-indigo)" stroke-width="1.5"/>
+  <text x="130" y="66" text-anchor="middle" font-size="15" font-weight="700" fill="var(--po-indigo)">개발자가 선언하는 것</text>
+  <rect x="44" y="84" width="172" height="52" rx="9" fill="var(--entry)" stroke="var(--po-slate)" stroke-width="1"/>
+  <text x="130" y="106" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--po-slate)">Signature</text>
+  <text x="130" y="125" text-anchor="middle" font-size="12" fill="var(--po-slate)">question → answer</text>
+  <rect x="44" y="146" width="172" height="52" rx="9" fill="var(--entry)" stroke="var(--po-slate)" stroke-width="1"/>
+  <text x="130" y="168" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--po-slate)">Module</text>
+  <text x="130" y="187" text-anchor="middle" font-size="12" fill="var(--po-slate)">ChainOfThought</text>
+  <rect x="44" y="208" width="172" height="52" rx="9" fill="var(--entry)" stroke="var(--po-emerald)" stroke-width="1.3"/>
+  <text x="130" y="230" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--po-emerald)">Metric + 데이터</text>
+  <text x="130" y="249" text-anchor="middle" font-size="12" fill="var(--po-slate)">"좋음"의 정의 · 예제 수십 개</text>
+
+  <!-- 화살표 -->
+  <path d="M240 160 H 300" fill="none" stroke="var(--po-slate)" stroke-width="2" marker-end="url(#po-a)"/>
+
+  <!-- 가운데: 옵티마이저 루프 -->
+  <rect x="304" y="60" width="200" height="200" rx="14" fill="var(--po-blue)" fill-opacity="0.10" stroke="var(--po-blue)" stroke-width="1.8"/>
+  <text x="404" y="86" text-anchor="middle" font-size="15" font-weight="700" fill="var(--po-blue)">옵티마이저 (compile)</text>
+  <text x="404" y="120" text-anchor="middle" font-size="12.5" fill="var(--po-slate)">① 데이터를 흘려</text>
+  <text x="404" y="142" text-anchor="middle" font-size="12.5" fill="var(--po-slate)">② 실제 출력 생성</text>
+  <text x="404" y="164" text-anchor="middle" font-size="12.5" fill="var(--po-slate)">③ metric으로 채점</text>
+  <text x="404" y="186" text-anchor="middle" font-size="12.5" fill="var(--po-slate)">④ 지시문·예시 수정</text>
+  <text x="404" y="214" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--po-blue)">↻ 점수 오를 때까지 반복</text>
+
+  <path d="M508 160 H 568" fill="none" stroke="var(--po-slate)" stroke-width="2" marker-end="url(#po-a)"/>
+
+  <!-- 오른쪽: 산출물 -->
+  <rect x="572" y="90" width="164" height="140" rx="14" fill="var(--po-emerald)" fill-opacity="0.12" stroke="var(--po-emerald)" stroke-width="1.8"/>
+  <text x="654" y="132" text-anchor="middle" font-size="14" font-weight="700" fill="var(--po-emerald)">최적화된</text>
+  <text x="654" y="154" text-anchor="middle" font-size="14" font-weight="700" fill="var(--po-emerald)">프롬프트</text>
+  <text x="654" y="182" text-anchor="middle" font-size="11.5" fill="var(--po-slate)">사람이 손으로</text>
+  <text x="654" y="198" text-anchor="middle" font-size="11.5" fill="var(--po-slate)">쓰지 않은 문구</text>
+
+  <text x="380" y="322" text-anchor="middle" font-size="13" fill="var(--po-slate)">사람이 손대는 건 왼쪽의 <tspan font-weight="700">선언</tspan>뿐 — 실제 프롬프트 문구는 <tspan font-weight="700" fill="var(--po-emerald)">컴파일 산출물</tspan>이다.</text>
+  <defs>
+    <marker id="po-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--po-slate)"/>
+    </marker>
+  </defs>
+</svg><figcaption>DSPy에서 프롬프트는 손으로 쓰는 문장이 아니라 <em>컴파일 산출물</em>이다. 개발자는 시그니처·모듈·metric만 선언하고, 옵티마이저가 데이터로 점수를 올리며 실제 문구를 만들어 낸다.</figcaption></figure>
+
+<h2 id="sec-3">3. 옵티마이저 지형 — 예시 뽑기부터 GEPA까지</h2>
+
+<p>DSPy에는 옵티마이저가 여러 개 있습니다. 다 외울 필요는 없고, <strong>무엇을 자동으로 바꾸는가</strong>를 기준으로 세 층만 잡으면 충분합니다. 뒤로 갈수록 더 똑똑하지만 더 비쌉니다.</p>
+
+<div class="po-tblwrap">
+<table class="po-tbl">
+  <thead>
+    <tr><th>옵티마이저</th><th>무엇을 자동으로 바꾸나</th><th>한 줄 요약</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>BootstrapFewShot</code></td><td><strong>예시(few-shot)</strong>를 자동 생성</td><td>프로그램을 굴려 잘 푼 사례를 골라 프롬프트에 예시로 붙인다. 라벨이 없어도 됨.</td></tr>
+    <tr><td><code>MIPROv2</code></td><td><strong>지시문 + 예시</strong>를 함께</td><td>새 지시문 후보를 여러 개 만들고, 베이지안 최적화로 지시문·예시 조합을 탐색한다.</td></tr>
+    <tr><td><code>GEPA</code></td><td><strong>지시문</strong>을 성찰로 진화</td><td>실패한 실행 트레이스를 LLM이 읽고 "왜 틀렸는지"를 진단해 지시문을 다시 쓴다.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>가장 아래층 <strong><code>BootstrapFewShot</code></strong>부터 봅시다. few-shot이란 프롬프트 안에 "이렇게 물으면 이렇게 답해"라는 <strong>예시 몇 개</strong>를 넣어 주는 기법입니다. 이 옵티마이저는 그 예시를 사람이 고르지 않고, 프로그램을 실제로 굴려서 자동으로 만듭니다. 학습 데이터를 흘려 보내 모델이 스스로 답을 만들게 하고(bootstrap), 그중 metric을 통과한 <em>잘 푼 사례</em>만 골라 프롬프트에 예시로 심습니다. 정답 라벨이 없어도 되는 게 매력입니다.</p>
+
+<p>가운데층 <strong><code>MIPROv2</code></strong>는 여기서 한 발 더 나갑니다. 예시뿐 아니라 <strong>지시문(instruction)</strong> 자체도 여러 후보를 만들어 봅니다. "데이터를 보니 이런 지시문이 좋겠다"고 후보를 생성한 뒤, <em>지시문 × 예시</em>의 여러 조합을 베이지안 최적화(Bayesian optimization)로 효율적으로 탐색해 가장 점수 높은 조합을 찾습니다. 손튜닝을 제대로 대체하는 첫 단계가 대개 여기입니다.</p>
+
+<p>그리고 맨 위층에 이번 글의 주인공 <strong><code>GEPA</code></strong>가 있습니다. 이름은 <strong>Genetic-Pareto(제네틱-파레토)</strong>의 약자입니다. 앞의 둘과 결정적으로 다른 점은 <em>점수만 보고 더듬거리지 않고</em>, 실패한 실행 기록을 <strong>자연어로 읽고 진단</strong>한다는 것입니다. 이게 왜 그렇게 강력한지, 다음 장에서 따로 봅니다.</p>
+
+<h2 id="sec-4">4. GEPA는 무엇이 다른가 — 점수 대신 '왜 틀렸나'</h2>
+
+<p>비유로 시작하겠습니다. 시험공부를 하는 두 학생이 있습니다. 학생 A는 모의고사 점수만 봅니다. "이번엔 70점, 저번보다 낮네" 하고 공부법을 이리저리 바꿔 봅니다. 학생 B는 <strong>틀린 문제의 해설</strong>을 읽습니다. "아, 나는 시간 관련 표현을 인과 관계로 착각하는 버릇이 있구나" 하고 그 약점을 콕 집어 고칩니다. 누가 더 빨리 늘까요? 당연히 B입니다.</p>
+
+<p>기존 강화학습(RL) 방식은 학생 A에 가깝습니다. "이 출력은 0.7점"이라는 <strong>숫자(스칼라 보상)</strong> 하나만 신호로 받습니다. 그 숫자만으로 방향을 더듬으려니 수천 번씩 시도(rollout)해야 합니다. GEPA는 학생 B입니다. "이 출력은 시간 표현을 인과로 착각해서 틀렸다"는 <strong>자연어 피드백</strong>을 신호로 받습니다. 자연어는 숫자 하나보다 훨씬 정보가 풍부해서, 훨씬 적은 시도로 방향을 잡습니다.</p>
+
+<p>구체적으로 GEPA는 이런 루프를 돕니다.</p>
+
+<ol>
+  <li><strong>실행 트레이스 수집</strong> — 현재 프롬프트로 학습 예제들을 풀게 하고, 입력·출력·실패·피드백을 통째로 기록합니다.</li>
+  <li><strong>자연어 성찰(reflect)</strong> — 강한 LLM(<code>reflection_lm</code>)이 이 트레이스를 읽고 "무엇이 잘됐고 무엇이 왜 틀렸는지"를 진단합니다.</li>
+  <li><strong>지시문 진화(evolve)</strong> — 진단을 바탕으로 실패를 겨냥한 <em>새 지시문 후보</em>를 씁니다. 유전 알고리즘처럼 좋은 후보를 골라 조금씩 변형·교배합니다.</li>
+  <li><strong>Pareto 프런티어 유지</strong> — 여기가 GEPA의 이름값입니다. "전체 평균이 가장 높은 하나"만 남기지 않고, <strong>어떤 문제 유형에서든 1등인 후보들의 집합</strong>(Pareto frontier)을 보관합니다. 기하 문제를 잘 푸는 프롬프트와 대수 문제를 잘 푸는 프롬프트를 억지로 평균 내 버리지 않고, 각각의 특기를 살려 두는 겁니다. 그래서 한 우물만 파다 국소 최적(local optimum)에 빠지는 걸 피합니다.</li>
+</ol>
+
+<figure class="po-fig"><svg viewBox="0 0 760 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="위쪽은 강화학습 방식으로, 출력에 0.7점이라는 숫자 하나만 신호로 주어져 방향을 더듬느라 수천 번의 시도가 필요하다. 아래쪽은 GEPA 방식으로, 실행 트레이스를 강한 LLM이 자연어로 읽고 '시간 표현을 인과로 착각해 틀렸다'처럼 왜 틀렸는지 진단한 뒤, 그 진단으로 새 지시문 후보를 만들고, 여러 특기를 가진 후보들을 파레토 프런티어에 함께 보관하며 반복한다. 그래서 훨씬 적은 시도로 더 나은 프롬프트에 도달한다.">
+  <!-- 위: RL -->
+  <text x="30" y="42" font-size="15" font-weight="700" fill="var(--po-rose)">강화학습(RL): 숫자 하나만 보고 더듬기</text>
+  <rect x="30" y="56" width="150" height="46" rx="9" fill="var(--entry)" stroke="var(--po-slate)" stroke-width="1"/>
+  <text x="105" y="84" text-anchor="middle" font-size="13" fill="var(--po-slate)">프롬프트로 실행</text>
+  <path d="M184 79 H 250" fill="none" stroke="var(--po-rose)" stroke-width="2" marker-end="url(#po-b)"/>
+  <rect x="252" y="56" width="150" height="46" rx="9" fill="var(--po-rose)" fill-opacity="0.12" stroke="var(--po-rose)" stroke-width="1.4"/>
+  <text x="327" y="78" text-anchor="middle" font-size="14" font-weight="700" fill="var(--po-rose)">보상 = 0.7</text>
+  <text x="327" y="95" text-anchor="middle" font-size="11" fill="var(--po-slate)">(숫자뿐)</text>
+  <path d="M406 79 H 470" fill="none" stroke="var(--po-rose)" stroke-width="2" marker-end="url(#po-b)"/>
+  <rect x="472" y="56" width="258" height="46" rx="9" fill="var(--entry)" stroke="var(--po-slate)" stroke-width="1"/>
+  <text x="601" y="78" text-anchor="middle" font-size="12.5" fill="var(--po-slate)">방향 감으로 조정 → 수천 번 반복</text>
+  <text x="601" y="95" text-anchor="middle" font-size="11" fill="var(--po-rose)">rollout이 많이 든다</text>
+
+  <line x1="30" y1="128" x2="730" y2="128" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 5"/>
+
+  <!-- 아래: GEPA -->
+  <text x="30" y="166" font-size="15" font-weight="700" fill="var(--po-emerald)">GEPA: 자연어로 '왜 틀렸나'를 읽고 고치기</text>
+  <rect x="30" y="182" width="150" height="52" rx="9" fill="var(--entry)" stroke="var(--po-slate)" stroke-width="1"/>
+  <text x="105" y="205" text-anchor="middle" font-size="13" fill="var(--po-slate)">실행 트레이스</text>
+  <text x="105" y="222" text-anchor="middle" font-size="11" fill="var(--po-slate)">입력·출력·실패</text>
+  <path d="M184 208 H 236" fill="none" stroke="var(--po-emerald)" stroke-width="2" marker-end="url(#po-c)"/>
+  <rect x="238" y="176" width="196" height="64" rx="9" fill="var(--po-emerald)" fill-opacity="0.12" stroke="var(--po-emerald)" stroke-width="1.5"/>
+  <text x="336" y="199" text-anchor="middle" font-size="13" font-weight="700" fill="var(--po-emerald)">자연어 성찰(reflect)</text>
+  <text x="336" y="218" text-anchor="middle" font-size="11.5" fill="var(--po-slate)">"시간 표현을 인과로</text>
+  <text x="336" y="233" text-anchor="middle" font-size="11.5" fill="var(--po-slate)">착각해 틀렸다"</text>
+  <path d="M438 208 H 490" fill="none" stroke="var(--po-emerald)" stroke-width="2" marker-end="url(#po-c)"/>
+  <rect x="492" y="176" width="238" height="64" rx="9" fill="var(--po-blue)" fill-opacity="0.10" stroke="var(--po-blue)" stroke-width="1.4"/>
+  <text x="611" y="199" text-anchor="middle" font-size="13" font-weight="700" fill="var(--po-blue)">새 지시문 후보 진화</text>
+  <text x="611" y="218" text-anchor="middle" font-size="11.5" fill="var(--po-slate)">실패를 겨냥해 다시 쓰기</text>
+  <text x="611" y="233" text-anchor="middle" font-size="11.5" fill="var(--po-slate)">좋은 후보 골라 변형·교배</text>
+
+  <!-- 파레토 -->
+  <rect x="180" y="264" width="400" height="52" rx="9" fill="var(--po-violet)" fill-opacity="0.10" stroke="var(--po-violet)" stroke-width="1.4"/>
+  <text x="380" y="287" text-anchor="middle" font-size="13" font-weight="700" fill="var(--po-violet)">Pareto 프런티어에 보관</text>
+  <text x="380" y="305" text-anchor="middle" font-size="11.5" fill="var(--po-slate)">기하 잘하는 후보 · 대수 잘하는 후보를 평균 내지 않고 함께 유지</text>
+  <path d="M492 240 C 470 258, 430 260, 400 262" fill="none" stroke="var(--po-violet)" stroke-width="1.8" marker-end="url(#po-d)"/>
+  <path d="M180 290 C 120 290, 90 250, 105 236" fill="none" stroke="var(--po-slate)" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#po-c)"/>
+  <text x="640" y="292" text-anchor="middle" font-size="11.5" fill="var(--po-emerald)">↻ 훨씬 적은</text>
+  <text x="640" y="308" text-anchor="middle" font-size="11.5" fill="var(--po-emerald)">시도로 개선</text>
+
+  <defs>
+    <marker id="po-b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--po-rose)"/></marker>
+    <marker id="po-c" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--po-emerald)"/></marker>
+    <marker id="po-d" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--po-violet)"/></marker>
+  </defs>
+</svg><figcaption>RL은 "0.7점"이라는 숫자 하나로 방향을 더듬어 rollout이 많이 든다. GEPA는 "왜 틀렸는지"를 자연어로 읽고 지시문을 고치며, 여러 특기를 파레토 프런티어에 함께 남긴다 — 그래서 훨씬 적은 예산으로 더 낫다.</figcaption></figure>
+
+<p>결과 숫자가 인상적입니다. GEPA 논문에 따르면 여섯 개 과제에서 GEPA는 강화학습 기법 <strong>GRPO를 평균 약 6%p, 최대 약 20%p 앞서면서 rollout(시도 횟수)은 최대 35배 적게</strong> 썼습니다. 기존 최고 프롬프트 옵티마이저였던 MIPROv2도 10%p 넘게 앞섰고, 경시대회 수학 문제 AIME-2025에서는 튜닝 안 한 기준 프롬프트의 정확도를 <strong>46.67% → 60.00%</strong>로, 지시문만 다시 써서 끌어올렸습니다. "프롬프트를 잘 진화시키면 가중치를 건드리는 RL보다 나을 수 있다"는 제목이 허풍이 아닌 셈입니다.</p>
+
+<div class="po-note"><strong>왜 지금 화제인가.</strong> GEPA가 ICLR 2026 구두 발표로 채택되며 무게가 실렸고, 6월 Nous Research가 에이전트의 스킬·프롬프트·도구 설명을 DSPy+GEPA로 <em>스스로 진화</em>시키는 <code>hermes-agent-self-evolution</code>을 공개하면서 "에이전트가 자기 프롬프트를 최적화한다"는 그림이 실감 나게 다가왔습니다. 여기에 "적은 예제로 더 좋은 프롬프트"라는 특성이 2026년 내내 이어진 <em>token discipline</em>(토큰 절약) 흐름과 맞물려, 프롬프트 최적화가 다시 실무 talking point로 올라왔습니다.</div>
+
+<h2 id="sec-5">5. 실전 — DSPy + GEPA로 프롬프트 최적화하기</h2>
+
+<p>말로만 하면 와닿지 않으니 코드로 봅시다. 간단한 질의응답 프로그램을 만들고, GEPA로 프롬프트를 최적화하는 최소 예제입니다. 먼저 설치와 프로그램 정의입니다.</p>
+
+{{< highlight python >}}
+# pip install -U dspy
+import dspy
+
+# 1) 실행에 쓸 모델(task LM)과 성찰에 쓸 강한 모델(reflection LM)을 설정
+#    - task_lm: 실제로 문제를 푸는 모델 (작고 싸도 됨)
+#    - reflection_lm: 트레이스를 읽고 왜 틀렸는지 진단하는 모델 (강할수록 좋음)
+task_lm = dspy.LM(model="openai/gpt-4.1-mini", temperature=0.0)
+dspy.configure(lm=task_lm)
+
+# 2) '무엇을' 할지만 선언한다 — 프롬프트 문구는 안 쓴다
+class QA(dspy.Signature):
+    """질문에 정확하고 간결하게 답한다."""
+    question: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+
+# 3) 어떤 방식으로 수행할지 모듈로 감싼다 (추론 과정을 거치게)
+program = dspy.ChainOfThought(QA)
+{{< /highlight >}}
+
+<p>여기까지는 프롬프트를 한 글자도 손으로 쓰지 않았습니다. 이제 <strong>핵심인 metric</strong>을 만듭니다. GEPA의 생명은 <em>피드백</em>이라, 단순히 점수만 돌려주지 말고 <strong>"왜 그 점수인지"를 자연어로</strong> 함께 돌려줘야 합니다. 그래야 성찰 단계가 방향을 잡습니다.</p>
+
+{{< highlight python >}}
+# 4) metric은 (점수 + 자연어 피드백)을 함께 돌려준다 — 이게 GEPA의 연료다
+def metric_with_feedback(example, pred, trace=None,
+                         pred_name=None, pred_trace=None):
+    gold = example.answer.strip().lower()
+    got = (pred.answer or "").strip().lower()
+    if gold == got:
+        return dspy.Prediction(score=1.0, feedback="정답과 정확히 일치했다.")
+    # 틀렸을 때, '왜' 틀렸는지 구체적으로 적어 준다 (짧아도 구체적으로!)
+    fb = (f"정답은 '{example.answer}'인데 '{pred.answer}'라고 답했다. "
+          f"질문의 핵심 개체를 놓쳤거나 군더더기를 붙인 것으로 보인다. "
+          f"질문에서 묻는 대상만 골라 한 단어로 답하라.")
+    return dspy.Prediction(score=0.0, feedback=fb)
+{{< /highlight >}}
+
+<p>이제 GEPA로 컴파일합니다. <code>reflection_lm</code>은 필수이고, 예산은 <code>auto="light"</code>(빠른 실험)·<code>"medium"</code>·<code>"heavy"</code> 중 하나로 정합니다.</p>
+
+{{< highlight python >}}
+# 5) GEPA 옵티마이저로 프롬프트를 진화시킨다
+optimizer = dspy.GEPA(
+    metric=metric_with_feedback,   # 점수 + 피드백을 주는 그 함수
+    auto="light",                  # 예산 프리셋: light/medium/heavy
+    num_threads=16,                # 병렬 평가로 속도 확보
+    track_stats=True,
+    reflection_lm=dspy.LM(         # 성찰용 강한 모델 (필수)
+        model="openai/gpt-5", temperature=1.0, max_tokens=32000),
+)
+
+# trainset/valset은 dspy.Example 리스트 (각각 question, answer 필드)
+optimized = optimizer.compile(
+    program, trainset=trainset, valset=valset)
+
+# 6) 최적화된 프로그램을 그냥 함수처럼 쓴다
+print(optimized(question="세계에서 가장 높은 산은?").answer)
+
+# 7) 나중에 다시 쓰도록 저장 (진화된 프롬프트가 통째로 담긴다)
+optimized.save("qa_gepa.json")
+{{< /highlight >}}
+
+<p>실행이 끝나면 <code>optimized</code> 안에는 GEPA가 성찰로 진화시킨 <strong>새 지시문(과 필요하면 예시)</strong>이 들어 있습니다. <code>optimized.save(...)</code>로 저장해 두면, 다음엔 최적화를 다시 돌리지 않고 그 프롬프트를 그대로 불러 씁니다. 모델을 바꾸고 싶으면? <code>task_lm</code>만 새 모델로 바꾸고 <strong>compile을 다시 한 번</strong> 돌리면 됩니다. 손으로 밤새우던 그 이사(migration)를, 이제 옵티마이저가 대신 합니다.</p>
+
+<div class="po-note po-good"><strong>DSPy 없이도 됩니다.</strong> GEPA는 <code>pip install gepa</code>로 설치하는 독립 라이브러리로도 제공됩니다. DSPy에 얽매이지 않고 "임의의 텍스트 파라미터"(프롬프트뿐 아니라 코드·설명문 등)를 최적화하는 범용 API를 지향합니다. 다만 처음 배우기엔 시그니처·모듈·metric이 잘 짜여 있는 DSPy 쪽이 훨씬 수월합니다.</div>
+
+<h2 id="sec-6">6. 언제 쓰고, 언제 참을까</h2>
+
+<p>자동 최적화가 만병통치약은 아닙니다. 준비 비용(평가셋 만들기, 최적화 실행 비용)이 들기 때문에, 켤 값어치가 있는 상황을 골라야 합니다.</p>
+
+<div class="po-tblwrap">
+<table class="po-tbl">
+  <thead>
+    <tr><th>상황</th><th>추천</th><th>이유</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>분류·추출·라우팅처럼 <strong>정답을 채점할 수 있는</strong> 반복 작업</td><td>✅ 아주 좋음</td><td>metric이 명확해 최적화 신호가 깨끗하다</td></tr>
+    <tr><td>모델을 자주 바꾸거나 <strong>여러 모델</strong>을 함께 쓰는 파이프라인</td><td>✅ 좋음</td><td>모델마다 compile만 다시 돌리면 이사 끝</td></tr>
+    <tr><td>여러 단계가 엮인 <strong>멀티 스텝 에이전트</strong>의 각 단계 프롬프트</td><td>✅ 좋음</td><td>단계별로 성찰·진화해 전체 성능을 끌어올린다</td></tr>
+    <tr><td>예제가 <strong>10개도 안 되는</strong> 극초기 프로토타입</td><td>⚠️ 이르다</td><td>평가할 데이터가 없으면 최적화도 없다. 먼저 예제부터 모아라</td></tr>
+    <tr><td>창작·브레인스토밍처럼 <strong>정답이 없는</strong> 열린 생성</td><td>❌ 부적합</td><td>metric을 정의하기 어렵다. LLM-as-judge도 흔들린다</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>실무 순서는 대개 이렇습니다. 먼저 <strong>작은 평가셋(20~50개)</strong>과 metric을 만듭니다(이게 8할입니다). 그다음 <code>BootstrapFewShot</code>으로 싸게 시작해 보고, 형식이 흔들리거나 더 필요하면 <code>MIPROv2</code>나 <code>GEPA</code>로 올라갑니다. GEPA는 성찰용 강한 모델을 부르느라 비용이 좀 더 들지만, <em>적은 예제로도</em> 잘 작동하는 게 강점이라 라벨이 귀한 도메인에 특히 어울립니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="po-note po-warn"><strong>1) metric이 부실하면 최적화도 부실하다.</strong> 옵티마이저는 오직 metric 점수를 올리려 합니다. metric이 대충이면 "점수만 높고 실제론 나쁜" 프롬프트로 흘러갑니다(reward hacking). 특히 GEPA는 <em>피드백 문장</em>이 연료이니, 틀린 이유를 <strong>구체적으로</strong> 적어 주세요. "틀렸음"보다 "정답의 어떤 개체를 놓쳤음"이 백배 낫습니다.</div>
+
+<div class="po-note po-warn"><strong>2) 예제를 많이 넣을수록 좋다는 착각.</strong> 프로덕션 사례들을 보면 오히려 <strong>20~100개가 500개보다 나은</strong> 경우가 흔합니다. 예제를 500개로 늘리면 프롬프트가 부풀고(길이 폭증), 옵티마이저가 모든 예외를 프롬프트에 욱여넣어 <strong>과적합(overfitting)</strong>됩니다. 그 프롬프트는 새 입력에서 오히려 무너집니다. 적게, 대표성 있게 고르세요.</div>
+
+<div class="po-note po-warn"><strong>3) 최적화 세트로 성능을 보고하는 실수.</strong> 최적화에 쓴 데이터로 점수를 재면 당연히 높게 나옵니다. 반드시 <strong>따로 떼어 둔 테스트셋(held-out)</strong>으로 최종 성능을 재세요. 안 그러면 "좋아졌다"는 착시에 속습니다. <a href="/posts/agent-evals-reliability/" target="_blank" rel="noopener">평가(evals)</a>의 기본기가 여기서도 그대로 적용됩니다.</div>
+
+<div class="po-note po-warn"><strong>4) 성찰 모델을 아끼다 손해.</strong> <code>reflection_lm</code>은 "왜 틀렸는지"를 진단하는 두뇌입니다. 여기에 약한 모델을 쓰면 진단이 엉성해져 진화가 헛돕니다. task는 작고 싼 모델로 풀더라도, 성찰만큼은 강한 모델을 쓰는 조합이 정석입니다.</div>
+
+<div class="po-note po-warn"><strong>5) 최적화는 '정답'이 아니라 '검증된 후보'다.</strong> 옵티마이저가 뱉은 프롬프트를 사람이 한 번은 읽어 보세요. 가끔 특정 예제에 과하게 맞춘 이상한 규칙이 박혀 있습니다. 최적화 결과도 코드 리뷰처럼 다뤄야 합니다.</div>
+
+<div class="po-note po-good"><strong>6) 최적화된 프롬프트는 버전 관리하라.</strong> <code>optimized.save(...)</code>로 나온 산출물을 git에 넣고, 언제·어떤 metric·어떤 데이터로 만들었는지 함께 기록하세요. 그래야 손튜닝 시절의 "왜 이렇게 썼지?" 문제가 되풀이되지 않습니다. 프롬프트가 드디어 <em>재현 가능한 자산</em>이 됩니다.</div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>손으로 쓴 프롬프트는 <strong>숨은 하이퍼파라미터</strong>다 — 근거·재현이 없고, 모델을 바꾸면 무너진다. 학습률을 감으로 안 정하듯, 프롬프트도 그러면 안 된다.</li>
+  <li><strong>자동 프롬프트 최적화</strong>는 사람이 metric(무엇이 좋은 답인가)만 정하고, 문구 튜닝은 옵티마이저에게 맡긴다. 모델 가중치를 건드리는 파인튜닝·RL과 달리 <strong>보내는 텍스트만</strong> 바꾼다.</li>
+  <li><strong>DSPy</strong>는 프롬프트를 문자열이 아니라 <em>프로그램</em>으로 다룬다. Signature(무엇을)·Module(어떻게)·Metric(좋음의 정의)만 선언하면, 실제 프롬프트는 <code>compile</code> 산출물이 된다.</li>
+  <li>옵티마이저는 층이 있다. <code>BootstrapFewShot</code>(예시 자동) → <code>MIPROv2</code>(지시문+예시 탐색) → <code>GEPA</code>(성찰로 지시문 진화).</li>
+  <li><strong>GEPA</strong>는 숫자 보상 대신 <em>"왜 틀렸나"</em>를 자연어로 읽고 고치며, 특기가 다른 후보들을 <strong>파레토 프런티어</strong>에 함께 남긴다. GRPO를 최대 ~20%p 앞서면서 rollout은 최대 <strong>35배 적게</strong> 썼다.</li>
+  <li>함정은 분명하다 — <strong>부실한 metric(reward hacking)·과한 예제 수(과적합)·최적화셋으로 성능 보고·약한 성찰 모델</strong>. metric과 held-out 평가셋을 먼저 갖추고, 결과 프롬프트를 버전 관리하라.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Agrawal 외, <a href="https://arxiv.org/abs/2507.19457" target="_blank" rel="noopener">GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning</a> (arXiv 2507.19457, ICLR 2026 Oral) — GRPO 대비 최대 ~20%p·rollout 최대 35배↓, MIPROv2 대비 10%p+, AIME-2025 46.67→60.00.</li>
+  <li>Khattab 외, <a href="https://arxiv.org/abs/2310.03714" target="_blank" rel="noopener">DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines</a> (arXiv 2310.03714) — '프롬프트가 아니라 프로그래밍', 컴파일러가 metric을 최대화하도록 파이프라인을 최적화.</li>
+  <li>DSPy 문서, <a href="https://dspy.ai/api/optimizers/GEPA/overview/" target="_blank" rel="noopener">GEPA Overview</a> — <code>dspy.GEPA</code> API, <code>metric_with_feedback</code>·<code>auto</code>·<code>reflection_lm</code> 등 사용법.</li>
+  <li>DSPy 문서, <a href="https://dspy.ai/learn/optimization/optimizers/" target="_blank" rel="noopener">Optimizers</a> — <code>BootstrapFewShot</code>·<code>MIPROv2</code> 등 옵티마이저 지형.</li>
+  <li>GitHub, <a href="https://github.com/gepa-ai/gepa" target="_blank" rel="noopener">gepa-ai/gepa</a> — 독립 라이브러리(<code>pip install gepa</code>), 임의의 텍스트 파라미터를 최적화하는 범용 API.</li>
+  <li>GitHub, <a href="https://github.com/stanfordnlp/dspy" target="_blank" rel="noopener">stanfordnlp/dspy</a> — DSPy 프레임워크 소스와 문서.</li>
+  <li>Arize AI, <a href="https://arize.com/blog/gepa-vs-prompt-learning-benchmarking-different-prompt-optimization-approaches/" target="_blank" rel="noopener">GEPA vs Prompt Learning: Benchmarking Different Prompt Optimization Approaches</a> — 접근법별 벤치마크 비교.</li>
+  <li>Decagon, <a href="https://decagon.ai/blog/optimizing-gepa-for-production" target="_blank" rel="noopener">Optimizing GEPA for production: A test-driven approach</a> — 예제 20~100개가 500개보다 나은 이유, 과적합·프롬프트 팽창.</li>
+  <li>The Agent Report, <a href="https://the-agent-report.com/2026/06/hermes-agent-self-evolution-dspy-gepa-june2026/" target="_blank" rel="noopener">Hermes Agent Self-Evolution: DSPy + GEPA</a> — Nous Research의 에이전트 자기 진화(2026-06).</li>
+  <li>Weaviate, <a href="https://weaviate.io/blog/dspy-optimizers" target="_blank" rel="noopener">Your Language Model Deserves Better Prompting</a> — DSPy 옵티마이저 개념 정리.</li>
+</ul>

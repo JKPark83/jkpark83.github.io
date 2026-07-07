@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" font-family="-apple-system,Segoe UI,Roboto,sans-serif" role="img" aria-label="토큰·문맥 통제 워크플로">
+  <style>
+    .h{font-size:14px;font-weight:700;fill:#0f172a}
+    .b{font-size:12px;font-weight:700;fill:#0f172a}
+    .s{font-size:10.5px;fill:#334155}
+    .w{font-size:12px;font-weight:700;fill:#ffffff}
+    .ws{font-size:10.5px;fill:#e2e8f0}
+    .cap{font-size:10.5px;fill:#475569}
+  </style>
+  <rect x="0" y="0" width="760" height="380" fill="#f8fafc"/>
+  <text x="24" y="32" class="h">Agent Builder 시사점 — 토큰·문맥 낭비를 4개 레버로 통제</text>
+
+  <!-- left: problem -->
+  <rect x="24" y="70" width="150" height="150" rx="12" fill="#fee2e2" stroke="#ef4444"/>
+  <text x="99" y="96" text-anchor="middle" class="b">비용 폭증 지점</text>
+  <text x="36" y="126" class="s">• 2M 컨텍스트 남용</text>
+  <text x="36" y="148" class="s">• 모든 툴 스키마 로드</text>
+  <text x="36" y="170" class="s">• 서브에이전트 무한 fan-out</text>
+  <text x="36" y="192" class="s">• 장황한 루프 출력</text>
+
+  <!-- arrow -->
+  <path d="M174 145 L214 145" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- levers -->
+  <rect x="220" y="60" width="240" height="34" rx="8" fill="#16a34a"/>
+  <text x="234" y="82" class="w">① 토큰 다이어트 — caveman 스킬</text>
+  <rect x="220" y="102" width="240" height="34" rx="8" fill="#0ea5e9"/>
+  <text x="234" y="124" class="w">② tool search — composio/MCP</text>
+  <rect x="220" y="144" width="240" height="34" rx="8" fill="#9333ea"/>
+  <text x="234" y="166" class="w">③ workflow size — CC 2.1.202</text>
+  <rect x="220" y="186" width="240" height="34" rx="8" fill="#f59e0b"/>
+  <text x="234" y="208" class="w">④ 위임 — codex-plugin-cc</text>
+
+  <!-- arrow to result -->
+  <path d="M460 140 L500 140" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- result -->
+  <rect x="506" y="70" width="230" height="150" rx="12" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="621" y="96" text-anchor="middle" class="b">통제된 실행</text>
+  <text x="518" y="126" class="s">• 같은 작업, 토큰 65%↓</text>
+  <text x="518" y="148" class="s">• 필요한 툴만 문맥에</text>
+  <text x="518" y="170" class="s">• 에이전트 수 small/med/large</text>
+  <text x="518" y="192" class="s">• 리뷰·서브태스크는 다른 툴로</text>
+
+  <text x="24" y="270" class="cap">핵심: 컨텍스트 창이 커질수록 "다 넣기"의 유혹도 커진다 — 넣기 전에 줄이고, 로드 전에 검색하고, 뿌리기 전에 상한을 건다.</text>
+  <text x="24" y="292" class="cap">각 레버는 오늘 브리핑의 실제 레포/기능에 매핑됨(caveman·composio·CC 2.1.202·codex-plugin-cc).</text>
+
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+</svg>

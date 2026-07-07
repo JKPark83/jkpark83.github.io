@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" font-family="-apple-system,Segoe UI,Roboto,sans-serif" role="img" aria-label="오픈소스 3종 별점 비교">
+  <style>
+    .title{font-size:15px;font-weight:700;fill:#0f172a}
+    .lbl{font-size:12.5px;font-weight:700;fill:#0f172a}
+    .sub{font-size:11px;fill:#475569}
+    .val{font-size:12.5px;font-weight:700;fill:#0f172a}
+    .ax{font-size:10.5px;fill:#64748b}
+  </style>
+  <rect x="0" y="0" width="720" height="320" fill="#f8fafc"/>
+  <text x="24" y="34" class="title">오픈소스 스포트라이트 — GitHub ★ (2026-07-08 API 확인)</text>
+
+  <!-- grid -->
+  <line x1="220" y1="60" x2="220" y2="250" stroke="#e2e8f0"/>
+  <line x1="380" y1="60" x2="380" y2="250" stroke="#e2e8f0"/>
+  <line x1="540" y1="60" x2="540" y2="250" stroke="#e2e8f0"/>
+  <line x1="700" y1="60" x2="700" y2="250" stroke="#e2e8f0"/>
+  <text x="220" y="268" text-anchor="middle" class="ax">30k</text>
+  <text x="380" y="268" text-anchor="middle" class="ax">55k</text>
+  <text x="540" y="268" text-anchor="middle" class="ax">80k</text>
+
+  <!-- caveman 86230 -->
+  <text x="24" y="82" class="lbl">caveman</text>
+  <text x="24" y="98" class="sub">JS · CC 토큰 절감 스킬</text>
+  <rect x="130" y="70" width="520" height="26" rx="5" fill="#16a34a"/>
+  <text x="640" y="88" text-anchor="end" class="val" fill="#ffffff">86,230★</text>
+
+  <!-- composio 29126 -->
+  <text x="24" y="152" class="lbl">composio</text>
+  <text x="24" y="168" class="sub">TS · 1000+ 툴킷·tool search</text>
+  <rect x="130" y="140" width="175" height="26" rx="5" fill="#0ea5e9"/>
+  <text x="315" y="158" class="val">29,126★</text>
+
+  <!-- codex-plugin-cc 26599 -->
+  <text x="24" y="222" class="lbl">codex-plugin-cc</text>
+  <text x="24" y="238" class="sub">JS · CC↔Codex 위임</text>
+  <rect x="130" y="210" width="160" height="26" rx="5" fill="#9333ea"/>
+  <text x="300" y="228" class="val">26,599★</text>
+
+  <text x="24" y="298" class="sub">막대 길이 = 별점 비례 · caveman은 6/말~7월 초 급상승한 화제 스킬</text>
+</svg>

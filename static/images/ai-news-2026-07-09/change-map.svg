@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="400" fill="#0f172a"/>
+  <text x="24" y="38" fill="#f8fafc" font-size="22" font-weight="700">2026-07-09 · 오늘의 AI 변화 지도</text>
+  <text x="24" y="62" fill="#94a3b8" font-size="13">프론티어 3파전 재편 — 성능은 오르고 가격은 내린다</text>
+
+  <!-- Model nodes -->
+  <g>
+    <rect x="24" y="92" width="200" height="86" rx="12" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="40" y="118" fill="#38bdf8" font-size="14" font-weight="700">GPT-5.6 · 오늘 공개</text>
+    <text x="40" y="140" fill="#e2e8f0" font-size="12">Sol / Terra / Luna</text>
+    <text x="40" y="158" fill="#94a3b8" font-size="11">Luna $1/$6 · TB2.1 82.5</text>
+    <text x="40" y="173" fill="#94a3b8" font-size="11">Opus 4.8(78.9) 추월</text>
+  </g>
+  <g>
+    <rect x="260" y="92" width="200" height="86" rx="12" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="276" y="118" fill="#a78bfa" font-size="14" font-weight="700">Claude Sonnet 5</text>
+    <text x="276" y="140" fill="#e2e8f0" font-size="12">Claude Code 기본 모델</text>
+    <text x="276" y="158" fill="#94a3b8" font-size="11">1M 컨텍스트</text>
+    <text x="276" y="173" fill="#94a3b8" font-size="11">$2/$10 (~8/31 프로모)</text>
+  </g>
+  <g>
+    <rect x="496" y="92" width="200" height="86" rx="12" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="512" y="118" fill="#f59e0b" font-size="14" font-weight="700">Gemini 3.5 Pro</text>
+    <text x="512" y="140" fill="#e2e8f0" font-size="12">7/17로 연기 · 대기</text>
+    <text x="512" y="158" fill="#94a3b8" font-size="11">2M 컨텍스트 예고</text>
+    <text x="512" y="173" fill="#94a3b8" font-size="11">아직 붙일 물건 아님</text>
+  </g>
+
+  <!-- connectors -->
+  <line x1="124" y1="178" x2="360" y2="238" stroke="#475569" stroke-width="1.5"/>
+  <line x1="360" y1="178" x2="360" y2="238" stroke="#475569" stroke-width="1.5"/>
+  <line x1="596" y1="178" x2="360" y2="238" stroke="#475569" stroke-width="1.5"/>
+
+  <!-- Action node -->
+  <rect x="150" y="240" width="420" height="120" rx="12" fill="#052e16" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="360" y="268" fill="#4ade80" font-size="15" font-weight="700" text-anchor="middle">그래서 오늘 개발자가 할 일</text>
+  <text x="360" y="294" fill="#e2e8f0" font-size="12.5" text-anchor="middle">① 자체 eval 셋을 GPT-5.6 3종 + Sonnet 5에 다시 돌린다</text>
+  <text x="360" y="316" fill="#e2e8f0" font-size="12.5" text-anchor="middle">② 쉬운 스텝은 Luna($1/$6)로, 어려운 스텝만 Sol/Opus로 티어 라우팅</text>
+  <text x="360" y="338" fill="#e2e8f0" font-size="12.5" text-anchor="middle">③ 가격창 열려있을 때(프로모) 벤치 결과로 라우팅 규칙 확정</text>
+</svg>

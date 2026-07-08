@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 430" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="430" fill="#ffffff"/>
+  <text x="24" y="36" fill="#0f172a" font-size="20" font-weight="700">GPT-5.6 vs 레퍼런스 — TerminalBench 2.1</text>
+  <text x="24" y="58" fill="#64748b" font-size="12">막대=점수(0~100), 오른쪽=출력가격($/1M). 파랑=GPT-5.6, 회색=비교군</text>
+
+  <!-- gridlines at 0,25,50,75,100 -->
+  <g stroke="#e2e8f0" stroke-width="1">
+    <line x1="170" y1="80" x2="170" y2="392"/>
+    <line x1="290" y1="80" x2="290" y2="392"/>
+    <line x1="410" y1="80" x2="410" y2="392"/>
+    <line x1="530" y1="80" x2="530" y2="392"/>
+    <line x1="650" y1="80" x2="650" y2="392"/>
+  </g>
+  <g fill="#94a3b8" font-size="10" text-anchor="middle">
+    <text x="170" y="406">0</text>
+    <text x="290" y="406">25</text>
+    <text x="410" y="406">50</text>
+    <text x="530" y="406">75</text>
+    <text x="650" y="406">100</text>
+  </g>
+
+  <!-- rows: y start 92, step 50, bar height 26 -->
+  <!-- Sol Ultra 91.9 -->
+  <text x="160" y="110" fill="#0f172a" font-size="12.5" text-anchor="end">Sol Ultra</text>
+  <rect x="170" y="97" width="441" height="26" rx="4" fill="#2563eb"/>
+  <text x="618" y="115" fill="#0f172a" font-size="12" font-weight="700">91.9</text>
+
+  <!-- Sol 88.8 $30 -->
+  <text x="160" y="160" fill="#0f172a" font-size="12.5" text-anchor="end">Sol · $30</text>
+  <rect x="170" y="147" width="426" height="26" rx="4" fill="#3b82f6"/>
+  <text x="603" y="165" fill="#0f172a" font-size="12" font-weight="700">88.8</text>
+
+  <!-- Mythos 5 88.0 ref -->
+  <text x="160" y="210" fill="#0f172a" font-size="12.5" text-anchor="end">Mythos 5</text>
+  <rect x="170" y="197" width="422" height="26" rx="4" fill="#94a3b8"/>
+  <text x="599" y="215" fill="#0f172a" font-size="12" font-weight="700">88.0</text>
+
+  <!-- Terra 84.3 $15 -->
+  <text x="160" y="260" fill="#0f172a" font-size="12.5" text-anchor="end">Terra · $15</text>
+  <rect x="170" y="247" width="405" height="26" rx="4" fill="#60a5fa"/>
+  <text x="582" y="265" fill="#0f172a" font-size="12" font-weight="700">84.3</text>
+
+  <!-- Luna 82.5 $6 -->
+  <text x="160" y="310" fill="#0f172a" font-size="12.5" text-anchor="end">Luna · $6</text>
+  <rect x="170" y="297" width="396" height="26" rx="4" fill="#93c5fd"/>
+  <text x="573" y="315" fill="#0f172a" font-size="12" font-weight="700">82.5</text>
+
+  <!-- Opus 4.8 78.9 ref -->
+  <text x="160" y="360" fill="#0f172a" font-size="12.5" text-anchor="end">Opus 4.8</text>
+  <rect x="170" y="347" width="379" height="26" rx="4" fill="#cbd5e1"/>
+  <text x="556" y="365" fill="#0f172a" font-size="12" font-weight="700">78.9</text>
+</svg>

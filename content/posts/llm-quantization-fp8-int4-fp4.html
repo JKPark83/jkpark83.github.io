@@ -1,0 +1,456 @@
+---
+title: "모델을 반으로, 또 반으로: LLM 양자화(quantization) 제대로 이해하기 — FP16·INT4·FP8·FP4"
+date: 2026-07-09T07:30:00+09:00
+draft: false
+tags: ["AI", "양자화", "quantization", "FP8", "INT4", "FP4", "NVFP4", "GGUF", "AWQ", "GPTQ", "추론 서빙", "inference", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "70B 모델은 원래 GPU 4장을 잡아먹습니다. 그런데 요즘은 노트북 한 대에서도 돌아갑니다. 비결이 양자화(quantization)입니다. 가중치 하나를 16비트가 아니라 4비트로 담으면, 메모리도 비용도 반의반으로 줄어듭니다. 이 글은 부동소수점·정수 표현 기초부터 FP16·INT8·INT4·FP8·FP4(NVFP4·MXFP4)까지의 포맷 지도, GPTQ·AWQ·GGUF 같은 방법 지도, vLLM·llama.cpp로 직접 돌리는 코드, 그리고 '내 하드웨어에는 뭘 써야 하나'를 정하는 결정 트리를 junior 개발자 눈높이로 쉽고 자세하게 정리합니다. 2026년 Blackwell과 함께 FP4가 주류로 올라온 지금, 꼭 잡아 둘 기본기입니다."
+ShowToc: false
+cover:
+  image: "llm-quantization-fp8-int4-fp4-cover.svg"
+  alt: "같은 70B 모델을 정밀도를 낮춰 가며 담는 네 개의 상자가 점점 작아진다. FP16 140GB, INT8 70GB, INT4 35GB, FP4 약 18GB. 비트 수를 낮출수록 메모리는 반씩 줄지만 품질은 조금씩 깎인다."
+  caption: "양자화는 '더 작은 모델'을 만드는 게 아니다. 같은 모델을, 숫자 한 개당 비트 수를 줄인 더 촘촘한 그릇에 담는 일이다."
+  relative: false
+---
+
+<style>
+/* ── LLM Quantization 포스트 전용 스타일 (qz- 접두사) ── */
+.qz-fig{
+  --qz-blue:#2563eb; --qz-cyan:#0891b2; --qz-teal:#0d9488; --qz-amber:#d97706;
+  --qz-rose:#e11d48; --qz-indigo:#4f46e5; --qz-slate:#64748b; --qz-violet:#7c3aed; --qz-green:#16a34a;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .qz-fig{
+  --qz-blue:#60a5fa; --qz-cyan:#22d3ee; --qz-teal:#2dd4bf; --qz-amber:#fbbf24;
+  --qz-rose:#fb7185; --qz-indigo:#818cf8; --qz-slate:#94a3b8; --qz-violet:#a78bfa; --qz-green:#4ade80;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .qz-fig{
+    --qz-blue:#60a5fa; --qz-cyan:#22d3ee; --qz-teal:#2dd4bf; --qz-amber:#fbbf24;
+    --qz-rose:#fb7185; --qz-indigo:#818cf8; --qz-slate:#94a3b8; --qz-violet:#a78bfa; --qz-green:#4ade80;
+  }
+}
+.qz-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.qz-fig text{font-family:inherit}
+.qz-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.qz-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.qz-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.qz-toc ol{margin:0;padding-left:1.25rem}
+.qz-toc li{margin:.22rem 0;font-size:.95rem}
+.qz-toc a{text-decoration:none}
+.qz-toc a:hover{text-decoration:underline}
+.qz-pull{font-size:1.12rem;line-height:1.72}
+.qz-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.qz-note{border-left:4px solid var(--qz-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.qz-note strong{color:var(--qz-blue,#2563eb)}
+.qz-warn{border-left:4px solid var(--qz-rose,#e11d48)}
+.qz-warn strong{color:var(--qz-rose,#e11d48)}
+.qz-good{border-left:4px solid var(--qz-teal,#0d9488)}
+.qz-good strong{color:var(--qz-teal,#0d9488)}
+.qz-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.qz-tbl th,.qz-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.qz-tbl th{background:var(--entry);font-weight:700}
+.qz-tbl code{font-size:.86em}
+.qz-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="qz-pull">
+  <p>모델을 양자화한다는 건 <strong>더 작은 모델을 새로 만드는 게 아닙니다.</strong> 똑같은 70B 모델을, 숫자 한 개를 16비트가 아니라 4비트로 적는 <em>더 성긴 표기법</em>으로 다시 적는 것뿐입니다. 담긴 지식은 그대로인데, 그릇이 반의반으로 줄죠.</p>
+  <footer>— 그래서 GPU 4장이 있어야 돌던 모델이, 갑자기 한 장에 올라갑니다.</footer>
+</blockquote>
+
+<p>LLM을 직접 돌려 보려다 벽에 부딪히는 첫 순간은 대개 이겁니다. "이 70B 모델 좋다던데?" 하고 받아 보니 파일이 <strong>140GB</strong>입니다. 내 그래픽카드는 24GB. 안 들어갑니다. 클라우드 GPU를 빌리자니 시간당 요금이 무섭습니다. 그런데 어떤 사람은 같은 모델을 노트북에서 돌린다고 자랑합니다. 대체 뭐가 다른 걸까요?</p>
+
+<p>답이 <strong>양자화(quantization)</strong>입니다. 한 문장으로 줄이면 이렇습니다. <em>모델을 이루는 수십억 개의 숫자(가중치)를, 하나당 더 적은 비트로 표현해 전체 크기를 줄이는 기술.</em> 16비트로 적던 걸 8비트로 적으면 크기가 반, 4비트로 적으면 반의반이 됩니다. 메모리가 줄면 더 작은(또는 더 적은) GPU에 올라가고, 메모리에서 숫자를 읽어 오는 시간도 줄어서 <strong>속도까지</strong> 빨라집니다. 추론 비용이 사실상 전부 여기서 나오는 요즘, 양자화는 선택이 아니라 기본기입니다.</p>
+
+<p>이 주제가 2026년에 다시 크게 화제입니다. 방아쇠는 <strong>FP4</strong>, 즉 4비트 <em>부동소수점</em>입니다. NVIDIA의 Blackwell 세대 GPU가 FP4를 하드웨어에서 직접 가속하는 <strong>NVFP4</strong> 포맷을 실으면서, "이제 4비트가 진짜 기본값"이라는 이야기가 서빙 엔진마다 번졌습니다. 결정적으로 2026년 3~4월엔 이 FP4가 로컬 추론의 대명사인 <code>llama.cpp</code>/GGUF 생태계에도 병합됐습니다. 노트북에서도 4비트 부동소수점을 굴릴 수 있게 된 거죠. "GGUF냐 AWQ냐 GPTQ냐 FP8이냐 FP4냐, 2026년엔 뭘 써야 하나"라는 질문이 실무자들 사이에서 살아 있는 talking point가 된 이유입니다.</p>
+
+<p>이 글은 그 지형을 junior 개발자 눈높이에서 처음부터 정리합니다. 숫자를 줄인다는 게 정확히 무슨 뜻인지, FP16·INT8·INT4·FP8·FP4가 어떻게 다른지, GPTQ·AWQ·GGUF 같은 방법들은 뭘 하는지, 그리고 <em>내 하드웨어엔 뭘 골라야 하는지</em>까지 — 직접 돌려 볼 코드와 함께 쉽고 자세하게 살펴봅니다.</p>
+
+<nav class="qz-toc">
+  <div class="qz-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">모델 크기는 어떻게 정해지는가 — 숫자 × 바이트</a></li>
+    <li><a href="#sec-2">양자화의 원리 — 실수 뭉치를 정수 눈금에 앉히기</a></li>
+    <li><a href="#sec-3">포맷 지도 — FP16부터 FP4까지</a></li>
+    <li><a href="#sec-4">방법 지도 — GPTQ·AWQ·GGUF·bitsandbytes</a></li>
+    <li><a href="#sec-5">실전 — vLLM과 llama.cpp로 직접 돌리기</a></li>
+    <li><a href="#sec-6">그래서 뭘 써야 하나 — 결정 트리</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 모델 크기는 어떻게 정해지는가 — 숫자 × 바이트</h2>
+
+<p>양자화를 이해하려면 먼저 "모델 파일이 왜 그렇게 큰가"를 알아야 합니다. LLM은 결국 <strong>가중치(weight)</strong>라 부르는 어마어마하게 많은 숫자 덩어리입니다. "70B 모델"의 B는 billion, 즉 이 숫자가 <strong>700억 개</strong>라는 뜻입니다. 파일 크기는 아주 단순한 곱셈으로 나옵니다.</p>
+
+<p style="text-align:center;font-size:1.05rem"><strong>모델 크기 = 파라미터 수 × (숫자 하나당 비트 수 ÷ 8)</strong></p>
+
+<p>기본값인 16비트(2바이트) 부동소수점으로 저장하면, 70B 모델은 <code>700억 × 2바이트 = 140GB</code>입니다. 그래서 80GB짜리 데이터센터 GPU로도 한 장엔 안 들어가고, 넉넉히 4장은 있어야 합니다. 여기서 핵심 통찰이 나옵니다. <strong>파라미터 수는 못 줄여도, "숫자 하나당 비트 수"는 줄일 수 있다.</strong> 이게 양자화의 전부입니다.</p>
+
+<figure class="qz-fig"><svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="70B 모델의 정밀도별 메모리를 막대로 비교한다. FP16은 140GB로 가장 길고, INT8은 70GB로 절반, INT4는 35GB로 또 절반, FP4는 약 18GB로 다시 절반이다. 비트 수를 반으로 줄일 때마다 가중치 메모리도 반으로 줄어든다. 오른쪽에 KV 캐시와 실행 오버헤드가 10에서 20퍼센트 더 붙는다는 설명이 있다.">
+  <text x="20" y="34" font-size="15" font-weight="700" fill="currentColor">70B 모델 · 가중치 메모리 (막대 길이 = 크기)</text>
+  <!-- FP16 -->
+  <text x="20" y="78" font-size="14" font-weight="700" fill="var(--qz-blue)">FP16</text>
+  <rect x="90" y="62" width="600" height="26" rx="5" fill="var(--qz-blue)" opacity="0.85"/>
+  <text x="700" y="80" font-size="14" font-weight="700" fill="currentColor">140GB</text>
+  <text x="98" y="80" font-size="12.5" fill="#fff">16비트 · 기준(품질 100%)</text>
+  <!-- INT8 -->
+  <text x="20" y="128" font-size="14" font-weight="700" fill="var(--qz-cyan)">INT8</text>
+  <rect x="90" y="112" width="300" height="26" rx="5" fill="var(--qz-cyan)" opacity="0.85"/>
+  <text x="400" y="130" font-size="14" font-weight="700" fill="currentColor">70GB</text>
+  <text x="98" y="130" font-size="12.5" fill="#083344">8비트 · 거의 무손실</text>
+  <!-- INT4 -->
+  <text x="20" y="178" font-size="14" font-weight="700" fill="var(--qz-teal)">INT4</text>
+  <rect x="90" y="162" width="150" height="26" rx="5" fill="var(--qz-teal)" opacity="0.85"/>
+  <text x="250" y="180" font-size="14" font-weight="700" fill="currentColor">35GB</text>
+  <text x="98" y="180" font-size="12.5" fill="#04312c">4비트 · 소폭 손실</text>
+  <!-- FP4 -->
+  <text x="20" y="228" font-size="14" font-weight="700" fill="var(--qz-amber)">FP4</text>
+  <rect x="90" y="212" width="75" height="26" rx="5" fill="var(--qz-amber)" opacity="0.9"/>
+  <text x="175" y="230" font-size="14" font-weight="700" fill="currentColor">~18GB</text>
+  <text x="98" y="230" font-size="11.5" fill="#3b1e00">4비트 float</text>
+  <line x1="90" y1="256" x2="690" y2="256" stroke="var(--qz-slate)" stroke-width="1" opacity="0.4"/>
+  <text x="90" y="280" font-size="12.5" fill="currentColor" opacity="0.75">※ 실제로는 여기에 KV 캐시·실행 오버헤드가 10~20% 더 붙는다 — INT4 70B는 현실에서 약 40GB.</text>
+</svg><figcaption>비트 수를 절반으로 줄일 때마다 가중치 메모리도 절반이 된다. 다만 "가중치"만 그렇다 — 실제 VRAM엔 KV 캐시와 실행 오버헤드가 10~20% 더 붙는다.</figcaption></figure>
+
+<div class="qz-note"><strong>바이트 감각 잡기.</strong> 32비트(FP32)는 4바이트, 16비트(FP16/BF16)는 2바이트, 8비트(INT8/FP8)는 1바이트, 4비트(INT4/FP4)는 0.5바이트입니다. 즉 "FP16 대비 몇 분의 1"을 계산할 때 <em>16 ÷ 목표비트</em>만 하면 됩니다. INT4는 16÷4 = 4배 작아지는 식이죠. 파라미터 수에 곱할 바이트만 바꾸면 어떤 모델이든 크기가 바로 나옵니다.</div>
+
+<h2 id="sec-2">2. 양자화의 원리 — 실수 뭉치를 정수 눈금에 앉히기</h2>
+
+<p>이제 "16비트를 4비트로 줄인다"가 실제로 무슨 일인지 봅시다. 원래 가중치는 <code>0.0342</code>, <code>-0.187</code> 같은 실수(부동소수점)입니다. 4비트 정수(INT4)는 <strong>16개의 칸</strong>밖에 없습니다(2⁴ = 16). 연속적인 실수들을 이 16개 눈금 중 가장 가까운 칸에 <em>반올림해서 밀어 넣는</em> 게 양자화의 본질입니다.</p>
+
+<p>문제는 실수의 범위가 제각각이라는 점입니다. 어떤 층의 가중치는 −0.2 ~ 0.2에 옹기종기 모여 있고, 어떤 층은 −8 ~ 8까지 넓게 퍼져 있습니다. 그래서 그냥 자를 수 없고, <strong>스케일(scale)</strong>이라는 배율을 함께 저장합니다. "이 뭉치의 실제 최댓값은 8이니까, 정수 눈금 1칸은 실수 0.5에 해당한다" 같은 환산표를 붙여 두는 거죠. 복원할 땐 <code>정수값 × 스케일</code>로 원래 실수에 가깝게 되돌립니다.</p>
+
+<figure class="qz-fig"><svg viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="양자화의 원리를 수직선으로 보여 준다. 위쪽에는 연속적인 실수 가중치들이 불규칙하게 흩어져 있다. 아래쪽에는 4비트가 만드는 16개의 균일한 눈금이 있고, 각 실수는 화살표로 가장 가까운 눈금에 반올림되어 앉는다. 원래 값과 눈금 사이의 작은 틈이 양자화 오차다. 오른쪽 위에는 큰 값 하나가 이상치로 따로 떨어져 있어서, 이 이상치 하나 때문에 스케일이 커지고 나머지 값들의 정밀도가 나빠진다는 경고가 붙어 있다.">
+  <!-- 위: 실수 가중치 -->
+  <text x="20" y="34" font-size="14" font-weight="700" fill="currentColor">원래 가중치 (연속적인 실수)</text>
+  <line x1="40" y1="70" x2="560" y2="70" stroke="var(--qz-slate)" stroke-width="2"/>
+  <g fill="var(--qz-blue)">
+    <circle cx="90" cy="70" r="6"/><circle cx="150" cy="70" r="6"/><circle cx="205" cy="70" r="6"/>
+    <circle cx="240" cy="70" r="6"/><circle cx="330" cy="70" r="6"/><circle cx="410" cy="70" r="6"/><circle cx="470" cy="70" r="6"/>
+  </g>
+  <!-- 이상치 -->
+  <circle cx="700" cy="70" r="7" fill="var(--qz-rose)"/>
+  <text x="700" y="52" text-anchor="middle" font-size="12" fill="var(--qz-rose)" font-weight="700">이상치(outlier)</text>
+  <line x1="560" y1="70" x2="690" y2="70" stroke="var(--qz-slate)" stroke-width="2" stroke-dasharray="4 4"/>
+
+  <!-- 반올림 화살표 -->
+  <g stroke="var(--qz-slate)" stroke-width="1.5" opacity="0.7" marker-end="url(#qzd)">
+    <path d="M90 80 L100 150" fill="none"/><path d="M150 80 L140 150" fill="none"/>
+    <path d="M205 80 L220 150" fill="none"/><path d="M240 80 L220 150" fill="none"/>
+    <path d="M330 80 L340 150" fill="none"/><path d="M410 80 L420 150" fill="none"/><path d="M470 80 L460 150" fill="none"/>
+  </g>
+  <defs><marker id="qzd" markerWidth="8" markerHeight="8" refX="4" refY="6" orient="auto"><path d="M1,1 L4,6 L7,1" fill="none" stroke="var(--qz-slate)" stroke-width="1.5"/></marker></defs>
+
+  <!-- 아래: 16개 눈금 -->
+  <text x="20" y="185" font-size="14" font-weight="700" fill="var(--qz-teal)">4비트 눈금 16칸 (정수 · 균일 간격)</text>
+  <line x1="40" y1="160" x2="560" y2="160" stroke="var(--qz-teal)" stroke-width="2"/>
+  <g fill="var(--qz-teal)">
+    <!-- 16 ticks -->
+    <rect x="40" y="153" width="2.5" height="14"/><rect x="74" y="153" width="2.5" height="14"/><rect x="108" y="153" width="2.5" height="14"/><rect x="142" y="153" width="2.5" height="14"/>
+    <rect x="176" y="153" width="2.5" height="14"/><rect x="210" y="153" width="2.5" height="14"/><rect x="244" y="153" width="2.5" height="14"/><rect x="278" y="153" width="2.5" height="14"/>
+    <rect x="312" y="153" width="2.5" height="14"/><rect x="346" y="153" width="2.5" height="14"/><rect x="380" y="153" width="2.5" height="14"/><rect x="414" y="153" width="2.5" height="14"/>
+    <rect x="448" y="153" width="2.5" height="14"/><rect x="482" y="153" width="2.5" height="14"/><rect x="516" y="153" width="2.5" height="14"/><rect x="550" y="153" width="2.5" height="14"/>
+  </g>
+  <text x="40" y="196" font-size="12" fill="currentColor" opacity="0.7">0</text>
+  <text x="545" y="196" font-size="12" fill="currentColor" opacity="0.7">15</text>
+
+  <!-- 복원 공식 -->
+  <rect x="40" y="228" width="330" height="46" rx="9" fill="var(--qz-teal)" opacity="0.12" stroke="var(--qz-teal)"/>
+  <text x="205" y="256" text-anchor="middle" font-size="14" fill="currentColor">복원: <tspan font-weight="700" fill="var(--qz-teal)">실수 ≈ 정수값 × 스케일</tspan></text>
+
+  <!-- 오차 -->
+  <rect x="390" y="228" width="330" height="46" rx="9" fill="var(--qz-rose)" opacity="0.1" stroke="var(--qz-rose)"/>
+  <text x="555" y="256" text-anchor="middle" font-size="13" fill="currentColor">눈금과의 틈 = <tspan font-weight="700" fill="var(--qz-rose)">양자화 오차</tspan></text>
+
+  <text x="40" y="312" font-size="12.5" fill="currentColor" opacity="0.8">이상치 하나가 범위를 넓히면 스케일이 커지고, 나머지 값들의 눈금 간격이 벌어져 정밀도가 나빠진다.</text>
+</svg><figcaption>양자화는 흩어진 실수들을 16개(4비트) 정수 눈금에 반올림해 앉히는 일이다. 눈금과의 틈이 오차이고, 이상치(outlier) 하나가 이 틈을 크게 벌린다 — 좋은 양자화 기법은 대부분 이 이상치 문제를 어떻게 다루느냐로 갈린다.</figcaption></figure>
+
+<p>여기서 두 가지 중요한 개념이 나옵니다. 첫째, <strong>그룹 단위(group-wise) 양자화</strong>입니다. 텐서 전체에 스케일 하나를 쓰면 이상치 때문에 손해가 큽니다. 그래서 보통 <strong>64개나 128개</strong> 값을 한 그룹으로 묶고, 그룹마다 별도 스케일을 둡니다. 그룹이 잘게 쪼개질수록 정밀도는 좋아지지만, 스케일을 저장하는 <em>부가 비용(overhead)</em>이 늘어나는 절충이 있습니다.</p>
+
+<p>둘째, 위 그림의 빨간 점, <strong>이상치(outlier)</strong>입니다. 트랜스포머의 활성값(activation)엔 나머지보다 수십~수천 배 큰 값이 드물게 튀어나옵니다. 이 값 하나 때문에 범위가 확 넓어지고, 스케일이 커지면서 <em>평범한 값들의 정밀도가 다 나빠집니다.</em> 뒤에서 볼 좋은 양자화 기법들은 사실상 전부 "이 이상치를 어떻게 달래느냐"의 이야기입니다.</p>
+
+<h2 id="sec-3">3. 포맷 지도 — FP16부터 FP4까지</h2>
+
+<p>"4비트"라고 다 같은 4비트가 아닙니다. 같은 비트 수라도 그 비트를 어떻게 나눠 쓰느냐에 따라 표현할 수 있는 값이 달라집니다. 크게 <strong>정수(INT) 계열</strong>과 <strong>부동소수점(FP) 계열</strong>로 갈립니다.</p>
+
+<p><strong>부동소수점</strong>은 비트를 부호(sign)·지수(exponent)·가수(mantissa) 셋으로 나눕니다. 지수 비트가 <em>범위</em>를, 가수 비트가 <em>정밀도</em>를 담당하죠. 예컨대 FP8은 8비트를 어떻게 쪼개느냐로 두 종류가 있습니다. <code>E4M3</code>(지수 4·가수 3)은 정밀도 쪽에 무게를 실어 약 ±448까지 표현하고, <code>E5M2</code>(지수 5·가수 2)는 범위 쪽에 실어 약 ±57,344까지 갑니다. 그래서 순전파의 가중치·활성값엔 정밀도가 좋은 E4M3을, 값이 크게 요동치는 학습 그래디언트엔 범위가 넓은 E5M2를 쓰는 식으로 역할을 나눕니다.</p>
+
+<figure class="qz-fig"><svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="여러 숫자 포맷의 비트 구성을 나란히 보여 준다. 각 포맷은 부호 비트(1개), 지수 비트, 가수 비트로 나뉜 칸으로 그려진다. FP32는 32비트로 지수 8 가수 23, FP16은 16비트로 지수 5 가수 10, BF16은 16비트지만 지수 8 가수 7로 범위를 넓혔다. FP8 E4M3은 지수 4 가수 3, FP8 E5M2는 지수 5 가수 2다. INT8과 INT4는 지수 없이 정수 눈금만 있다. FP4 E2M1은 4비트로 부호 1 지수 2 가수 1이다. 지수 비트가 많을수록 표현 범위가 넓고, 가수 비트가 많을수록 정밀도가 높다.">
+  <!-- legend -->
+  <g font-size="12">
+    <rect x="20" y="16" width="16" height="14" fill="var(--qz-slate)"/><text x="42" y="28" fill="currentColor">부호(S)</text>
+    <rect x="120" y="16" width="16" height="14" fill="var(--qz-amber)"/><text x="142" y="28" fill="currentColor">지수(E) = 범위</text>
+    <rect x="300" y="16" width="16" height="14" fill="var(--qz-blue)"/><text x="322" y="28" fill="currentColor">가수(M) = 정밀도</text>
+    <rect x="500" y="16" width="16" height="14" fill="var(--qz-teal)"/><text x="522" y="28" fill="currentColor">정수 눈금(INT)</text>
+  </g>
+
+  <!-- helper rows: x start 150, each bit ~ width -->
+  <!-- FP32 -->
+  <text x="20" y="72" font-size="13" font-weight="700" fill="currentColor">FP32</text>
+  <text x="20" y="88" font-size="10.5" fill="currentColor" opacity="0.6">4바이트</text>
+  <rect x="150" y="58" width="12" height="26" fill="var(--qz-slate)"/>
+  <rect x="164" y="58" width="96" height="26" fill="var(--qz-amber)"/>
+  <rect x="262" y="58" width="276" height="26" fill="var(--qz-blue)"/>
+  <text x="540" y="76" font-size="11.5" fill="currentColor" opacity="0.7">E8 · M23</text>
+
+  <!-- FP16 -->
+  <text x="20" y="118" font-size="13" font-weight="700" fill="currentColor">FP16</text>
+  <text x="20" y="134" font-size="10.5" fill="currentColor" opacity="0.6">2바이트</text>
+  <rect x="150" y="104" width="12" height="26" fill="var(--qz-slate)"/>
+  <rect x="164" y="104" width="60" height="26" fill="var(--qz-amber)"/>
+  <rect x="226" y="104" width="120" height="26" fill="var(--qz-blue)"/>
+  <text x="352" y="122" font-size="11.5" fill="currentColor" opacity="0.7">E5 · M10</text>
+
+  <!-- BF16 -->
+  <text x="20" y="164" font-size="13" font-weight="700" fill="currentColor">BF16</text>
+  <text x="20" y="180" font-size="10.5" fill="currentColor" opacity="0.6">2바이트</text>
+  <rect x="150" y="150" width="12" height="26" fill="var(--qz-slate)"/>
+  <rect x="164" y="150" width="96" height="26" fill="var(--qz-amber)"/>
+  <rect x="262" y="150" width="84" height="26" fill="var(--qz-blue)"/>
+  <text x="352" y="168" font-size="11.5" fill="currentColor" opacity="0.7">E8 · M7 (범위↑ 정밀도↓)</text>
+
+  <!-- FP8 E4M3 -->
+  <text x="20" y="210" font-size="13" font-weight="700" fill="var(--qz-cyan)">FP8 E4M3</text>
+  <text x="20" y="226" font-size="10.5" fill="currentColor" opacity="0.6">1바이트</text>
+  <rect x="150" y="196" width="12" height="26" fill="var(--qz-slate)"/>
+  <rect x="164" y="196" width="48" height="26" fill="var(--qz-amber)"/>
+  <rect x="214" y="196" width="36" height="26" fill="var(--qz-blue)"/>
+  <text x="256" y="214" font-size="11.5" fill="currentColor" opacity="0.7">±448 · 가중치/활성값용</text>
+
+  <!-- FP8 E5M2 -->
+  <text x="20" y="256" font-size="13" font-weight="700" fill="var(--qz-cyan)">FP8 E5M2</text>
+  <text x="20" y="272" font-size="10.5" fill="currentColor" opacity="0.6">1바이트</text>
+  <rect x="150" y="242" width="12" height="26" fill="var(--qz-slate)"/>
+  <rect x="164" y="242" width="60" height="26" fill="var(--qz-amber)"/>
+  <rect x="226" y="242" width="24" height="26" fill="var(--qz-blue)"/>
+  <text x="256" y="260" font-size="11.5" fill="currentColor" opacity="0.7">±57,344 · 그래디언트용</text>
+
+  <!-- INT8 -->
+  <text x="20" y="302" font-size="13" font-weight="700" fill="var(--qz-teal)">INT8</text>
+  <text x="20" y="318" font-size="10.5" fill="currentColor" opacity="0.6">1바이트</text>
+  <rect x="150" y="288" width="100" height="26" fill="var(--qz-teal)" opacity="0.85"/>
+  <text x="256" y="306" font-size="11.5" fill="currentColor" opacity="0.7">256개 균일 눈금 · 지수 없음</text>
+
+  <!-- INT4 -->
+  <text x="20" y="348" font-size="13" font-weight="700" fill="var(--qz-teal)">INT4</text>
+  <text x="20" y="364" font-size="10.5" fill="currentColor" opacity="0.6">0.5바이트</text>
+  <rect x="150" y="334" width="50" height="26" fill="var(--qz-teal)" opacity="0.85"/>
+  <text x="206" y="352" font-size="11.5" fill="currentColor" opacity="0.7">16개 눈금 · 그룹 스케일 필수</text>
+
+  <!-- FP4 E2M1 -->
+  <text x="20" y="394" font-size="13" font-weight="700" fill="var(--qz-amber)">FP4 E2M1</text>
+  <rect x="150" y="380" width="12" height="17" fill="var(--qz-slate)"/>
+  <rect x="164" y="380" width="24" height="17" fill="var(--qz-amber)"/>
+  <rect x="190" y="380" width="12" height="17" fill="var(--qz-blue)"/>
+  <text x="208" y="393" font-size="11.5" fill="currentColor" opacity="0.7">4비트 float · 블록 스케일과 함께(MXFP4/NVFP4)</text>
+</svg><figcaption>같은 비트 수라도 나누는 방식이 다르다. 부동소수점은 지수(범위)와 가수(정밀도)를 맞바꾸고, 정수는 균일한 눈금만 쓴다. BF16이 FP16과 같은 2바이트인데도 딥러닝에서 사랑받는 건, 지수를 8비트로 늘려 큰 값에서 잘 안 터지기 때문이다.</figcaption></figure>
+
+<p><strong>정수(INT)</strong> 계열은 지수가 없어 눈금이 균일합니다. 대신 앞서 본 스케일로 범위를 맞춥니다. INT8은 눈금이 256개라 넉넉하고, INT4는 16개뿐이라 그룹 스케일이 거의 필수입니다. FP8과 INT8을 비교하면, FP8은 지수 덕분에 <strong>이상치에 강합니다.</strong> 활성값이 층마다 1,000배씩 요동쳐도 지수가 흡수해 주거든요. 그래서 활성값까지 8비트로 낮출 땐 FP8이 유리한 경우가 많습니다.</p>
+
+<p>맨 아래가 요즘의 주인공, <strong>FP4</strong>입니다. <code>E2M1</code>, 즉 4비트를 부호 1·지수 2·가수 1로 쪼갠 부동소수점이죠. 4비트 float 하나만으론 표현력이 너무 빈약해서, <strong>블록 스케일</strong>과 항상 짝을 이룹니다. 여기서 2026년의 두 표준이 갈립니다.</p>
+
+<ul>
+  <li><strong>MXFP4</strong> (OCP 오픈 표준): 32개 값을 한 블록으로 묶고, 블록마다 2의 거듭제곱 형태의 스케일(E8M0) 하나를 붙입니다. 구조가 단순하고 개방적입니다.</li>
+  <li><strong>NVFP4</strong> (NVIDIA): 블록을 <strong>16개</strong>로 더 잘게 쪼개고, <em>두 단계 스케일</em>을 씁니다 — 블록마다 FP8(E4M3) 스케일을 두고, 그 위에 텐서 전체를 위한 FP32 스케일을 하나 더 얹죠. 이 이중 스케일 덕분에 MXFP4보다 양자화 오차가 크게 줄어듭니다(NVIDIA 보고 기준 약 88% 감소). Blackwell GPU는 이 NVFP4를 <strong>텐서 코어에서 직접 가속</strong>합니다.</li>
+</ul>
+
+<div class="qz-note"><strong>한 줄 정리.</strong> 지수 비트 = 넓은 범위(이상치에 강함), 가수 비트 = 촘촘한 정밀도. 정수는 지수를 포기한 대신 스케일로 범위를 맞추고, FP4처럼 극단적으로 비트가 적으면 "블록마다 스케일"로 표현력을 벌충합니다.</div>
+
+<h2 id="sec-4">4. 방법 지도 — GPTQ·AWQ·GGUF·bitsandbytes</h2>
+
+<p>포맷이 "어떤 그릇에 담느냐"라면, <strong>방법(method)</strong>은 "어떻게 잘 담느냐"입니다. 그냥 반올림해 밀어 넣으면 품질이 뚝 떨어집니다. 좋은 방법들은 앞서 본 이상치 문제를 각자의 방식으로 달래서, 같은 4비트라도 훨씬 덜 망가지게 합니다.</p>
+
+<p>먼저 큰 갈래 하나. <strong>가중치만 양자화(weight-only)</strong>하느냐, <strong>활성값까지 양자화(weight+activation)</strong>하느냐입니다. 흔히 <code>W4A16</code>(가중치 4비트, 활성값 16비트), <code>W8A8</code>(둘 다 8비트) 식으로 씁니다. 가중치만 줄이면 <em>메모리</em>는 크게 아끼지만 계산은 여전히 16비트로 하니 속도 이득이 제한적입니다. 활성값까지 줄여야 텐서 코어가 저비트 연산을 직접 돌려 <em>속도</em>도 크게 붙습니다. 대신 활성값엔 이상치가 심해서 더 어렵죠.</p>
+
+<div class="qz-tblwrap">
+<table class="qz-tbl">
+  <thead><tr><th>방법</th><th>한 줄 요약</th><th>보통 쓰는 곳</th></tr></thead>
+  <tbody>
+    <tr><td><strong>LLM.int8()</strong><br>(arXiv 2208.07339)</td><td>이상치가 있는 소수 차원만 16비트로 남기고 나머지는 INT8로. 무손실에 가깝지만 다소 느림.</td><td>bitsandbytes, HF Transformers</td></tr>
+    <tr><td><strong>SmoothQuant</strong><br>(arXiv 2211.10438)</td><td>활성값의 이상치 부담을 수학적으로 가중치 쪽으로 "밀어" 넘겨 W8A8을 가능케 함.</td><td>W8A8 서빙, TensorRT-LLM</td></tr>
+    <tr><td><strong>GPTQ</strong><br>(arXiv 2210.17323)</td><td>층별로 오차를 보정하며 한 번에 4비트로. 저비트 가중치 정확도가 높지만 양자화(변환) 자체는 느림.</td><td>vLLM, HF, AutoGPTQ</td></tr>
+    <tr><td><strong>AWQ</strong><br>(arXiv 2306.00978)</td><td>활성값 분포를 보고 "중요한 1% 가중치"를 찾아 보호. 정확도와 속도의 균형이 좋아 W4A16의 사실상 표준.</td><td>vLLM, TensorRT-LLM</td></tr>
+    <tr><td><strong>GGUF (K-quant)</strong><br>llama.cpp</td><td>파일 포맷 겸 양자화 체계. Q4_K_M 등 다양한 비트 조합을 super-block(256값) 단위로. 로컬/CPU 추론의 표준.</td><td>llama.cpp, Ollama, LM Studio</td></tr>
+    <tr><td><strong>bitsandbytes</strong><br>(NF4)</td><td>즉석에서 4비트(NF4)로 로드. 별도 변환 없이 간편해 파인튜닝(QLoRA)에 자주 쓰임.</td><td>HF Transformers, QLoRA</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>이름이 많아 어지럽지만, 실무에서 마주치는 조합은 사실 몇 개로 좁혀집니다. <strong>서버에서 GPU로 서빙</strong>하면 vLLM + AWQ(또는 FP8)가 기본이고, <strong>내 노트북/로컬</strong>이면 llama.cpp + GGUF(Q4_K_M)가 기본입니다. <strong>파인튜닝</strong>할 땐 bitsandbytes의 4비트로 모델을 얹고 어댑터만 학습하는 QLoRA 조합을 씁니다.</p>
+
+<div class="qz-note"><strong>GGUF의 <code>Q4_K_M</code> 읽는 법.</strong> <code>Q4</code>는 대략 4비트, <code>_K</code>는 super-block 구조를 쓰는 K-quant 계열, <code>_M</code>은 그 안에서 medium 크기(S/M/L 중)라는 뜻입니다. 실제 평균 비트는 이름보다 살짝 높습니다 — Q4_K_M은 약 4.5~4.9 bpw(bits per weight)죠. 스케일·메타데이터가 조금씩 붙기 때문입니다. 로컬에서 헷갈리면 <strong>Q4_K_M을 기본</strong>으로 잡으면 대체로 실패하지 않습니다.</div>
+
+<h2 id="sec-5">5. 실전 — vLLM과 llama.cpp로 직접 돌리기</h2>
+
+<p>개념은 충분히 봤으니 손으로 만져 봅시다. 요즘은 <strong>이미 양자화된 모델</strong>이 Hugging Face에 잔뜩 올라와 있어서, 직접 변환하지 않고 받아서 바로 돌리는 게 가장 흔한 경로입니다. 이름에 <code>-AWQ</code>, <code>-GPTQ</code>, <code>-FP8</code>, <code>-GGUF</code> 같은 꼬리표가 붙어 있습니다.</p>
+
+<p>먼저 <strong>서버 서빙</strong> 쪽. vLLM은 양자화 모델을 대부분 자동으로 알아채서, 그냥 모델 경로만 주면 됩니다.</p>
+
+{{< highlight bash >}}
+# 이미 AWQ로 양자화된 모델을 vLLM으로 서빙 (OpenAI 호환 API)
+# vLLM이 config에서 양자화 방식을 자동 감지한다.
+vllm serve TheBloke/Llama-2-13B-chat-AWQ
+
+# FP8 모델도 방식은 동일 — H100/Blackwell에서 속도 이득이 크다.
+vllm serve neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8
+{{< /highlight >}}
+
+<p>파이썬에서 직접 로드하며 양자화 방식을 명시할 수도 있습니다.</p>
+
+{{< highlight python >}}
+from vllm import LLM, SamplingParams
+
+# quantization을 명시하면 감지 실패 시에도 안전하다.
+llm = LLM(
+    model="TheBloke/Llama-2-13B-chat-AWQ",
+    quantization="awq",      # "gptq", "fp8", "compressed-tensors" 등도 가능
+    max_model_len=4096,
+)
+
+out = llm.generate(
+    ["양자화가 왜 추론을 빠르게 하는지 한 문장으로 설명해줘."],
+    SamplingParams(temperature=0.7, max_tokens=200),
+)
+print(out[0].outputs[0].text)
+{{< /highlight >}}
+
+<p>다음은 <strong>로컬</strong> 쪽. llama.cpp는 GGUF 파일 하나만 있으면 CPU만으로도 돌아갑니다. Ollama 같은 도구는 이 과정을 한 번 더 감싼 것뿐입니다.</p>
+
+{{< highlight bash >}}
+# GGUF 모델 하나 받아서 바로 대화 — CPU만으로도 동작한다.
+# -ngl 은 GPU에 올릴 레이어 수. VRAM이 있으면 늘릴수록 빨라진다.
+llama-cli -hf bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M \
+          -ngl 99 -p "양자화를 한 문장으로 설명해줘."
+{{< /highlight >}}
+
+<p>직접 변환하고 싶다면? 원본(FP16) 모델을 GGUF로 바꾼 뒤 원하는 비트로 양자화하는 두 단계입니다.</p>
+
+{{< highlight bash >}}
+# 1) HF 모델 → GGUF(FP16)로 변환
+python convert_hf_to_gguf.py ./Llama-3.1-8B-Instruct --outfile model-f16.gguf
+
+# 2) FP16 GGUF → 4비트(Q4_K_M)로 양자화
+llama-quantize model-f16.gguf model-Q4_K_M.gguf Q4_K_M
+{{< /highlight >}}
+
+<p>마지막으로, 코드를 짜기 전에 항상 먼저 해야 할 계산 — <strong>이 모델이 내 GPU에 들어가나?</strong> 30초짜리 암산 함수로 만들어 두면 편합니다.</p>
+
+{{< highlight python >}}
+def fits(params_b, bits, vram_gb, overhead=1.2):
+    """params_b: 파라미터 수(단위 10억), bits: 가중치 비트,
+       overhead: KV캐시+실행 여유 20%를 곱셈으로."""
+    weights_gb = params_b * bits / 8          # 700억×4비트/8 = 35GB
+    need = weights_gb * overhead              # 실사용은 20% 더
+    return need, need <= vram_gb
+
+for bits in (16, 8, 4):
+    need, ok = fits(70, bits, vram_gb=48)     # 48GB 카드 가정
+    print(f"{bits}비트: 약 {need:.0f}GB 필요 → {'OK' if ok else '초과'}")
+# 16비트: 약 168GB 필요 → 초과
+# 8비트:  약 84GB 필요  → 초과
+# 4비트:  약 42GB 필요  → OK
+{{< /highlight >}}
+
+<p>바로 이 계산이 "왜 4비트여야 하는가"를 숫자로 보여 줍니다. 48GB 카드 한 장에 70B를 올리려면 4비트 말곤 답이 없죠.</p>
+
+<h2 id="sec-6">6. 그래서 뭘 써야 하나 — 결정 트리</h2>
+
+<p>가장 자주 받는 질문입니다. 정답은 <strong>하드웨어</strong>가 절반, <strong>용도</strong>가 절반을 정합니다. 아래 결정 트리가 대부분의 경우를 커버합니다.</p>
+
+<figure class="qz-fig"><svg viewBox="0 0 760 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="양자화 포맷을 고르는 결정 트리. 맨 위에서 '어디서 돌리나'를 묻는다. 데이터센터 GPU로 가면 다시 'Blackwell 세대인가'를 묻고, 그렇다면 NVFP4나 FP8을, 아니고 H100/A100이면 FP8을, 그보다 낮으면 AWQ INT4를 권한다. 로컬이나 노트북으로 가면 GGUF Q4_K_M을 기본으로 하고, Blackwell 노트북이면 NVFP4 GGUF도 시도해 볼 수 있다. 파인튜닝으로 가면 bitsandbytes의 4비트 NF4로 QLoRA를 권한다. 맨 아래에 품질이 최우선이면 한 단계 올려 FP8이나 INT8, Q8을 쓰라는 원칙이 붙어 있다.">
+  <!-- root -->
+  <rect x="290" y="14" width="180" height="46" rx="10" fill="var(--qz-indigo)" opacity="0.15" stroke="var(--qz-indigo)" stroke-width="2"/>
+  <text x="380" y="42" text-anchor="middle" font-size="14" font-weight="700" fill="var(--qz-indigo)">어디서 돌리나?</text>
+
+  <!-- three branches -->
+  <path d="M330 60 L150 96" stroke="var(--qz-slate)" stroke-width="2" fill="none"/>
+  <path d="M380 60 L380 96" stroke="var(--qz-slate)" stroke-width="2" fill="none"/>
+  <path d="M430 60 L620 96" stroke="var(--qz-slate)" stroke-width="2" fill="none"/>
+
+  <!-- branch labels -->
+  <text x="205" y="86" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">데이터센터 GPU</text>
+  <text x="380" y="86" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">로컬 · 노트북</text>
+  <text x="588" y="86" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.8">파인튜닝</text>
+
+  <!-- DC node -->
+  <rect x="60" y="100" width="230" height="40" rx="9" fill="var(--qz-blue)" opacity="0.12" stroke="var(--qz-blue)"/>
+  <text x="175" y="125" text-anchor="middle" font-size="13" fill="currentColor">Blackwell(B200/RTX50) 세대?</text>
+  <path d="M120 140 L100 176" stroke="var(--qz-slate)" stroke-width="1.8" fill="none"/>
+  <path d="M230 140 L250 176" stroke="var(--qz-slate)" stroke-width="1.8" fill="none"/>
+  <text x="92" y="164" text-anchor="middle" font-size="11" fill="var(--qz-green)">예</text>
+  <text x="258" y="164" text-anchor="middle" font-size="11" fill="var(--qz-rose)">아니오</text>
+
+  <rect x="20" y="180" width="150" height="58" rx="9" fill="var(--qz-amber)" opacity="0.15" stroke="var(--qz-amber)"/>
+  <text x="95" y="204" text-anchor="middle" font-size="13" font-weight="700" fill="var(--qz-amber)">NVFP4 / FP8</text>
+  <text x="95" y="224" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">4비트 텐서코어 가속</text>
+
+  <rect x="185" y="180" width="150" height="58" rx="9" fill="var(--qz-cyan)" opacity="0.14" stroke="var(--qz-cyan)"/>
+  <text x="260" y="200" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--qz-cyan)">H100/A100 → FP8</text>
+  <text x="260" y="220" text-anchor="middle" font-size="12" fill="currentColor">그 아래 → AWQ INT4</text>
+
+  <!-- local node -->
+  <rect x="305" y="180" width="150" height="58" rx="9" fill="var(--qz-teal)" opacity="0.14" stroke="var(--qz-teal)"/>
+  <text x="380" y="204" text-anchor="middle" font-size="13" font-weight="700" fill="var(--qz-teal)">GGUF Q4_K_M</text>
+  <text x="380" y="224" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">llama.cpp / Ollama 기본</text>
+
+  <!-- finetune node -->
+  <rect x="500" y="180" width="200" height="58" rx="9" fill="var(--qz-violet)" opacity="0.14" stroke="var(--qz-violet)"/>
+  <text x="600" y="204" text-anchor="middle" font-size="13" font-weight="700" fill="var(--qz-violet)">bitsandbytes 4비트(NF4)</text>
+  <text x="600" y="224" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">QLoRA로 어댑터만 학습</text>
+
+  <!-- principle box -->
+  <rect x="60" y="286" width="640" height="52" rx="10" fill="var(--qz-slate)" opacity="0.1" stroke="var(--qz-slate)"/>
+  <text x="380" y="309" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">기본 원칙: 8비트(FP8/INT8/Q8)는 "거의 무손실", 4비트는 "소폭 손실 대신 큰 절약"</text>
+  <text x="380" y="329" text-anchor="middle" font-size="12.5" fill="currentColor" opacity="0.85">품질이 최우선이면 한 단계 올리고, 메모리가 최우선이면 한 단계 내려라.</text>
+
+  <rect x="60" y="356" width="640" height="56" rx="10" fill="var(--qz-rose)" opacity="0.08" stroke="var(--qz-rose)"/>
+  <text x="380" y="379" text-anchor="middle" font-size="12.5" fill="currentColor">⚠ 어느 쪽을 고르든 <tspan font-weight="700" fill="var(--qz-rose)">내 실제 과제로 품질을 재 본 뒤</tspan> 배포하라.</text>
+  <text x="380" y="399" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.85">"메모리엔 들어가는데 답이 이상해진" 경우는 한 단계 위 포맷과 비교해 보면 금방 드러난다.</text>
+</svg><figcaption>하드웨어가 절반, 용도가 절반을 정한다. 큰 원칙 하나만 기억하자 — 8비트는 거의 공짜 점심(near-lossless), 4비트는 "소폭 손실 대신 큰 절약". 확신이 없으면 8비트에서 시작해 내려가며 품질을 재라.</figcaption></figure>
+
+<p>숫자로 감을 붙여 두면 좋습니다. <strong>FP8</strong>은 대부분의 과제에서 BF16과 거의 구분되지 않을 만큼 품질이 유지되면서, H100·Blackwell에서 속도 이득이 큽니다 — 그래서 "2026년의 실용적 스위트스폿"으로 불립니다. <strong>GGUF Q8_0</strong>은 사실상 무손실(perplexity 증가 ~0.01)이고, <strong>Q4_K_M</strong>은 Q8 대비 품질을 약 2%만 내주면서 VRAM을 약 40% 아낍니다. 그래서 로컬 기본값으로 자리 잡았죠. <strong>FP4</strong>는 가장 공격적인 카드라 잠재 이득도 크지만(NVFP4는 BF16 대비 약 1.6배 처리량·41% 에너지 절감 보고), 4비트 float의 표현력 한계상 품질을 지키려면 흔히 <strong>양자화 인지 학습(QAT/QAD)</strong> 같은 추가 보정이 필요합니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="qz-note qz-warn"><strong>1) "메모리엔 들어감 = 잘 됨"이 아니다.</strong> 4비트로 눌러 담으면 VRAM엔 올라가지만, 답 품질은 별개입니다. perplexity만 보고 안심하지 말고 <strong>내 실제 과제(분류·추출·코딩 등)로 정확도를 재세요.</strong> 특히 코드·수학·긴 추론은 저비트에서 먼저 무너지는 영역입니다. <a href="/posts/agent-evals-reliability/" target="_blank" rel="noopener">평가(evals)</a>의 기본기가 여기서도 그대로 필요합니다.</div>
+
+<div class="qz-note qz-warn"><strong>2) 가중치만 줄여 놓고 "왜 안 빨라지지?"</strong> W4A16은 <em>메모리</em>를 아끼는 것이지, 계산은 여전히 16비트로 합니다. 저배치(개인용)에선 메모리 대역폭이 병목이라 이것만으로도 빨라지지만, 고배치 서빙에서 진짜 처리량을 올리려면 활성값까지 낮춘(FP8 W8A8, NVFP4 W4A4) 포맷과 그걸 가속하는 하드웨어가 필요합니다.</div>
+
+<div class="qz-note qz-warn"><strong>3) KV 캐시 양자화는 <em>따로</em>다.</strong> 가중치를 4비트로 줄여도 KV 캐시는 기본적으로 16비트로 쌓입니다. 긴 컨텍스트·큰 배치에선 이 KV 캐시가 오히려 메모리를 더 먹습니다. vLLM의 <code>kv_cache_dtype="fp8"</code>처럼 KV 캐시 양자화는 별도 스위치이니, 긴 컨텍스트를 다루면 꼭 함께 챙기세요.</div>
+
+<div class="qz-note qz-warn"><strong>4) 캘리브레이션 데이터를 아무거나 쓰기.</strong> GPTQ·AWQ는 "대표 입력 몇백 개"로 이상치 분포를 파악해 스케일을 정합니다. 이 캘리브레이션 데이터가 실제 사용 분포와 동떨어지면(예: 한국어 서비스인데 영어로만 캘리브레이션) 품질이 손해를 봅니다. <strong>내 도메인에 가까운 샘플</strong>로 캘리브레이션하세요.</div>
+
+<div class="qz-note qz-warn"><strong>5) 오래된 GPU에서 FP4 기대하기.</strong> FP4의 <em>속도</em> 이득은 Blackwell의 전용 텐서 코어에서 나옵니다. Hopper(H100) 이하에선 FP4 파일을 올려도 <strong>메모리만 절약</strong>될 뿐 연산 가속은 없습니다. "FP4니까 무조건 빠르겠지"는 하드웨어를 먼저 확인해야 하는 착각입니다.</div>
+
+<div class="qz-note qz-good"><strong>6) 확신이 없으면 8비트에서 시작하라.</strong> FP8이나 Q8_0은 거의 무손실이라 "일단 돌아가게" 만들기에 안전합니다. 여기서 시작해 4비트로 <em>한 단계씩 내려가며</em> 품질을 재면, 어디서 무너지는지 경계가 또렷하게 보입니다. 처음부터 가장 공격적인 FP4로 뛰어들지 마세요.</div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>양자화는 <strong>더 작은 모델을 만드는 게 아니라</strong>, 같은 모델의 숫자 하나를 더 적은 비트로 적어 크기·비용·(대개) 지연을 줄이는 기술이다. 크기 = 파라미터 수 × 비트 ÷ 8.</li>
+  <li>원리는 단순하다 — 흩어진 실수를 정수 눈금에 <strong>반올림</strong>하고, <strong>스케일</strong>로 범위를 맞춘다. 좋은 기법은 전부 <strong>이상치(outlier)</strong>를 어떻게 달래느냐의 이야기다.</li>
+  <li>포맷은 <strong>정수(INT)</strong>와 <strong>부동소수점(FP)</strong>으로 갈린다. 지수 비트 = 범위(이상치에 강함), 가수 비트 = 정밀도. FP8(E4M3/E5M2)은 활성값에 강하고, FP4(MXFP4/NVFP4)는 블록 스케일로 표현력을 벌충한다.</li>
+  <li>방법은 몇 조합으로 좁혀진다 — <strong>서버 서빙</strong>은 vLLM+AWQ/FP8, <strong>로컬</strong>은 llama.cpp+GGUF(Q4_K_M), <strong>파인튜닝</strong>은 bitsandbytes 4비트(QLoRA).</li>
+  <li>고르는 법: <strong>8비트(FP8/Q8)는 거의 무손실, 4비트는 소폭 손실 대신 큰 절약.</strong> Blackwell이면 NVFP4/FP8, H100이면 FP8, 그 아래면 AWQ INT4, 노트북이면 Q4_K_M. 확신 없으면 8비트에서 시작해 내려가라.</li>
+  <li>함정은 분명하다 — <strong>메모리≠품질(내 과제로 평가)·가중치만 줄이면 속도는 제한적·KV 캐시는 별도·캘리브레이션 데이터·구형 GPU의 FP4 속도 착각.</strong> 배포 전 반드시 한 단계 위 포맷과 품질을 비교하라.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Dettmers 외, <a href="https://arxiv.org/abs/2208.07339" target="_blank" rel="noopener">LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale</a> (arXiv 2208.07339) — 이상치 차원만 남기는 혼합 정밀도 INT8, 무손실에 가까운 8비트의 출발점.</li>
+  <li>Xiao 외, <a href="https://arxiv.org/abs/2211.10438" target="_blank" rel="noopener">SmoothQuant: Accurate and Efficient Post-Training Quantization for LLMs</a> (arXiv 2211.10438) — 활성값 이상치 부담을 가중치로 옮겨 W8A8을 가능케 함.</li>
+  <li>Frantar 외, <a href="https://arxiv.org/abs/2210.17323" target="_blank" rel="noopener">GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers</a> (arXiv 2210.17323) — 층별 오차 보정으로 저비트 가중치 정확도를 지키는 대표 PTQ.</li>
+  <li>Lin 외, <a href="https://arxiv.org/abs/2306.00978" target="_blank" rel="noopener">AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration</a> (arXiv 2306.00978) — 활성값 분포로 중요한 1% 가중치를 보호하는 W4A16의 사실상 표준.</li>
+  <li>Micikevicius 외, <a href="https://arxiv.org/abs/2209.05433" target="_blank" rel="noopener">FP8 Formats for Deep Learning</a> (arXiv 2209.05433) — E4M3·E5M2 두 FP8 포맷의 정의와 역할 분담.</li>
+  <li>vLLM 문서, <a href="https://docs.vllm.ai/en/latest/features/quantization/index.html" target="_blank" rel="noopener">Quantization</a> — FP8·AWQ·GPTQ·INT8·NVFP4·bitsandbytes 등 지원 방식과 사용법.</li>
+  <li>NVIDIA, <a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/" target="_blank" rel="noopener">Introducing NVFP4 for Efficient and Accurate Low-Precision Inference</a> — 블록 16·이중 스케일 구조, MXFP4 대비 오차 감소, Blackwell 텐서코어 가속.</li>
+  <li>llama.cpp, <a href="https://github.com/ggml-org/llama.cpp/blob/master/tools/quantize/README.md" target="_blank" rel="noopener">quantize README</a> — GGUF K-quant 종류와 변환·양자화 명령.</li>
+  <li>arXiv, <a href="https://arxiv.org/abs/2601.14277" target="_blank" rel="noopener">Which Quantization Should I Use? A Unified Evaluation of llama.cpp Quantization on Llama-3.1-8B</a> (arXiv 2601.14277, 2026) — GGUF 양자화 레벨별 품질 통합 평가.</li>
+  <li>InsiderLLM, <a href="https://insiderllm.com/guides/fp4-inference-llamacpp-nvfp4-mxfp4/" target="_blank" rel="noopener">FP4 Just Landed in llama.cpp: NVFP4 vs MXFP4 Explained (2026)</a> — 2026년 FP4의 GGUF 생태계 병합과 두 포맷 비교.</li>
+  <li>Hugging Face, <a href="https://huggingface.co/docs/transformers/en/quantization/overview" target="_blank" rel="noopener">Transformers Quantization Overview</a> — GGUF·GPTQ·AWQ·bitsandbytes·FP8·MXFP4 등 20+ 스킴 개요와 선택 가이드.</li>
+  <li>Spheron, <a href="https://www.spheron.network/blog/fp8-quantization-inference-performance-hardware-explained/" target="_blank" rel="noopener">What Is FP8 Quantization? (2026)</a> — FP8이 대부분 과제에서 BF16과 거의 구분되지 않는 이유. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="LLM 양자화의 핵심을 나타낸 그림. 같은 70B 모델을 정밀도를 낮춰 가며 담는 네 개의 상자가 왼쪽에서 오른쪽으로 점점 작아진다. FP16은 140GB로 가장 크고, INT8은 70GB, INT4는 35GB, FP4는 약 18GB로 가장 작다. 정밀도(비트 수)를 낮출수록 메모리는 반씩 줄지만 품질은 조금씩 깎인다는 절충을 보여 준다.">
+  <defs>
+    <linearGradient id="qzbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#082f49"/>
+    </linearGradient>
+    <linearGradient id="qzb1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#2563eb"/></linearGradient>
+    <linearGradient id="qzb2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#0891b2"/></linearGradient>
+    <linearGradient id="qzb3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+    <linearGradient id="qzb4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/></linearGradient>
+    <marker id="qzar" markerWidth="11" markerHeight="11" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#qzbg)"/>
+
+  <text x="600" y="82" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="46" font-weight="800" fill="#f8fafc">LLM 양자화(quantization)</text>
+  <text x="600" y="124" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="24" fill="#7dd3fc">숫자 한 개당 비트 수를 줄여, 같은 모델을 더 작게 담는다</text>
+
+  <!-- 같은 70B 모델, 정밀도별 상자 -->
+  <g font-family="'Segoe UI',system-ui,sans-serif" text-anchor="middle">
+    <!-- FP16 -->
+    <rect x="70" y="200" width="230" height="300" rx="16" fill="url(#qzb1)"/>
+    <text x="185" y="248" font-size="30" font-weight="800" fill="#082f49">FP16</text>
+    <text x="185" y="284" font-size="17" fill="#0c2a4d">16비트 · 기준</text>
+    <text x="185" y="470" font-size="34" font-weight="800" fill="#f8fafc">140 GB</text>
+    <!-- INT8 -->
+    <rect x="330" y="290" width="200" height="210" rx="16" fill="url(#qzb2)"/>
+    <text x="430" y="336" font-size="28" font-weight="800" fill="#083344">INT8</text>
+    <text x="430" y="368" font-size="16" fill="#0c3a4d">8비트</text>
+    <text x="430" y="470" font-size="30" font-weight="800" fill="#f8fafc">70 GB</text>
+    <!-- INT4 -->
+    <rect x="560" y="365" width="180" height="135" rx="14" fill="url(#qzb3)"/>
+    <text x="650" y="408" font-size="26" font-weight="800" fill="#04312c">INT4</text>
+    <text x="650" y="436" font-size="15" fill="#064b43">4비트</text>
+    <text x="650" y="472" font-size="26" font-weight="800" fill="#f8fafc">35 GB</text>
+    <!-- FP4 -->
+    <rect x="770" y="418" width="150" height="82" rx="12" fill="url(#qzb4)"/>
+    <text x="845" y="452" font-size="22" font-weight="800" fill="#3b1e00">FP4</text>
+    <text x="845" y="480" font-size="18" font-weight="800" fill="#f8fafc">~18 GB</text>
+  </g>
+
+  <!-- 화살표: 정밀도 낮추기 -->
+  <path d="M300 175 H930" stroke="#94a3b8" stroke-width="2.5" fill="none" marker-end="url(#qzar)"/>
+  <text x="615" y="163" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="18" fill="#cbd5e1">정밀도(비트)를 낮출수록 → 메모리는 반씩 줄고, 품질은 조금씩 깎인다</text>
+
+  <!-- 같은 모델 라벨 -->
+  <text x="500" y="540" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="19" fill="#94a3b8">— 넷 다 같은 70B 모델이다. 담는 그릇의 정밀도만 다르다 —</text>
+
+  <!-- 오른쪽 설명 카드 -->
+  <g font-family="'Segoe UI',system-ui,sans-serif">
+    <rect x="965" y="210" width="175" height="290" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="1052" y="248" text-anchor="middle" font-size="17" font-weight="700" fill="#e2e8f0">한 장 GPU 기준</text>
+    <text x="1052" y="288" text-anchor="middle" font-size="14" fill="#93c5fd">FP16 → 4장 필요</text>
+    <text x="1052" y="326" text-anchor="middle" font-size="14" fill="#67e8f9">INT8 → 2장</text>
+    <text x="1052" y="364" text-anchor="middle" font-size="14" fill="#5eead4">INT4 → 1장</text>
+    <text x="1052" y="402" text-anchor="middle" font-size="14" fill="#fcd34d">FP4 → 1장에 여유</text>
+    <line x1="985" y1="424" x2="1120" y2="424" stroke="#334155" stroke-width="1"/>
+    <text x="1052" y="456" text-anchor="middle" font-size="13.5" fill="#94a3b8">80GB GPU 1장 =</text>
+    <text x="1052" y="478" text-anchor="middle" font-size="13.5" fill="#94a3b8">INT4부터 올라간다</text>
+  </g>
+</svg>

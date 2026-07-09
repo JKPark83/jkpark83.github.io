@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="440" fill="#0f172a"/>
+  <text x="24" y="38" fill="#f8fafc" font-size="22" font-weight="700">2026-07-10 · 오늘의 AI 변화 지도</text>
+  <text x="24" y="62" fill="#94a3b8" font-size="13">새 프론티어 모델보다 '툴체인'이 움직인 날 — 코딩 에이전트 실행 방식이 바뀐다</text>
+
+  <!-- edges -->
+  <g stroke="#334155" stroke-width="2" fill="none">
+    <path d="M170 150 L360 220"/>
+    <path d="M170 250 L360 220"/>
+    <path d="M170 350 L360 220"/>
+    <path d="M470 220 L560 220"/>
+  </g>
+
+  <!-- node: Sonnet 5 -->
+  <g>
+    <rect x="24" y="118" width="146" height="64" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="36" y="140" fill="#38bdf8" font-size="13" font-weight="700">모델 · Sonnet 5</text>
+    <text x="36" y="159" fill="#e2e8f0" font-size="11">CC 기본 · 1M 컨텍스트</text>
+    <text x="36" y="174" fill="#94a3b8" font-size="11">$2/$10 프로모 ~8/31</text>
+  </g>
+
+  <!-- node: Codex -->
+  <g>
+    <rect x="24" y="218" width="146" height="64" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+    <text x="36" y="240" fill="#34d399" font-size="13" font-weight="700">Codex v0.144.0</text>
+    <text x="36" y="259" fill="#e2e8f0" font-size="11">writes 승인 모드</text>
+    <text x="36" y="274" fill="#94a3b8" font-size="11">MCP 대화형 인증 기본</text>
+  </g>
+
+  <!-- node: builders -->
+  <g>
+    <rect x="24" y="318" width="146" height="64" rx="10" fill="#1e293b" stroke="#c084fc" stroke-width="1.5"/>
+    <text x="36" y="340" fill="#c084fc" font-size="13" font-weight="700">비주얼 빌더 급부상</text>
+    <text x="36" y="359" fill="#e2e8f0" font-size="11">Langflow 151k</text>
+    <text x="36" y="374" fill="#94a3b8" font-size="11">Dify 148k</text>
+  </g>
+
+  <!-- hub -->
+  <g>
+    <rect x="360" y="188" width="110" height="64" rx="10" fill="#0b1220" stroke="#f8fafc" stroke-width="1.5"/>
+    <text x="415" y="216" fill="#f8fafc" font-size="13" font-weight="700" text-anchor="middle">에이전트</text>
+    <text x="415" y="234" fill="#f8fafc" font-size="13" font-weight="700" text-anchor="middle">빌더</text>
+  </g>
+
+  <!-- action -->
+  <g>
+    <rect x="560" y="168" width="136" height="104" rx="10" fill="#172554" stroke="#60a5fa" stroke-width="1.5"/>
+    <text x="574" y="192" fill="#60a5fa" font-size="13" font-weight="700">오늘의 액션</text>
+    <text x="574" y="214" fill="#e2e8f0" font-size="11">1) 긴 컨텍스트 잡을</text>
+    <text x="574" y="228" fill="#e2e8f0" font-size="11">   Sonnet 5로 지금 실험</text>
+    <text x="574" y="248" fill="#e2e8f0" font-size="11">2) Codex writes 모드로</text>
+    <text x="574" y="262" fill="#e2e8f0" font-size="11">   반자동 코딩 켜기</text>
+  </g>
+
+  <text x="24" y="420" fill="#64748b" font-size="11">출처: Claude Code CHANGELOG 2.1.x · openai/codex rust-v0.144.0 릴리스 · GitHub 레포 페이지(별점 2026-07-10 확인)</text>
+</svg>

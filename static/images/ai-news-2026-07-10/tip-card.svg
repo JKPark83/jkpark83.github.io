@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="340" fill="#0f172a"/>
+  <text x="24" y="36" fill="#f8fafc" font-size="20" font-weight="700">Codex vs Claude Code · 오늘의 실전 팁</text>
+  <text x="24" y="57" fill="#94a3b8" font-size="12">둘 다 '자율성은 높이되 사고 반경은 좁히는' 방향으로 새 손잡이를 줬다</text>
+
+  <!-- Codex card -->
+  <rect x="24" y="78" width="326" height="230" rx="12" fill="#0b1220" stroke="#34d399" stroke-width="1.5"/>
+  <text x="44" y="108" fill="#34d399" font-size="15" font-weight="700">🟩 Codex · writes 승인 모드</text>
+  <text x="44" y="130" fill="#94a3b8" font-size="11">rust-v0.144.0 (7/9)</text>
+  <text x="44" y="160" fill="#e2e8f0" font-size="12">읽기 전용 툴 → 자동 실행</text>
+  <text x="44" y="180" fill="#e2e8f0" font-size="12">파일 쓰기/변경 → 그때만 승인</text>
+  <line x1="44" y1="196" x2="330" y2="196" stroke="#1e293b" stroke-width="1"/>
+  <text x="44" y="220" fill="#94a3b8" font-size="12">🎯 반자동 코딩: 탐색은 막힘없이,</text>
+  <text x="44" y="238" fill="#94a3b8" font-size="12">   디스크 변경만 게이트</text>
+  <text x="44" y="266" fill="#facc15" font-size="12">⚠ "읽기 전용" 선언을 믿는 구조 —</text>
+  <text x="44" y="284" fill="#facc15" font-size="12">   MCP 툴 부작용은 직접 확인</text>
+
+  <!-- Claude Code card -->
+  <rect x="370" y="78" width="326" height="230" rx="12" fill="#0b1220" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="390" y="108" fill="#38bdf8" font-size="15" font-weight="700">🟦 Claude Code · 워크플로 크기</text>
+  <text x="390" y="130" fill="#94a3b8" font-size="11">/config → Dynamic workflow size</text>
+  <text x="390" y="160" fill="#e2e8f0" font-size="12">small / medium / large 선택</text>
+  <text x="390" y="180" fill="#e2e8f0" font-size="12">= 팬아웃하는 에이전트 수 가이드</text>
+  <line x1="390" y1="196" x2="676" y2="196" stroke="#1e293b" stroke-width="1"/>
+  <text x="390" y="220" fill="#94a3b8" font-size="12">🎯 토큰/비용 폭주 방지 —</text>
+  <text x="390" y="238" fill="#94a3b8" font-size="12">   대규모 리뷰·마이그레이션에 small</text>
+  <text x="390" y="266" fill="#facc15" font-size="12">⚠ 강제 상한이 아니라 '가이드' —</text>
+  <text x="390" y="284" fill="#facc15" font-size="12">   진짜 상한은 예산/턴으로</text>
+</svg>

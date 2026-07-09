@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="300" fill="#0f172a"/>
+  <text x="24" y="36" fill="#f8fafc" font-size="20" font-weight="700">비주얼 에이전트 빌더 · 별점 비교</text>
+  <text x="24" y="58" fill="#94a3b8" font-size="12">GitHub 레포 페이지 근사값 (2026-07-10 확인) · 막대 길이는 별점 비례</text>
+
+  <!-- axis baseline -->
+  <line x1="150" y1="90" x2="150" y2="250" stroke="#334155" stroke-width="1"/>
+
+  <!-- Langflow: 151k -->
+  <text x="140" y="132" fill="#e2e8f0" font-size="13" text-anchor="end" font-weight="700">Langflow</text>
+  <text x="140" y="148" fill="#64748b" font-size="10" text-anchor="end">Python</text>
+  <rect x="150" y="112" width="500" height="36" rx="6" fill="#c084fc"/>
+  <text x="662" y="135" fill="#f8fafc" font-size="14" font-weight="700">151k ★</text>
+
+  <!-- Dify: 148k -->
+  <text x="140" y="202" fill="#e2e8f0" font-size="13" text-anchor="end" font-weight="700">Dify</text>
+  <text x="140" y="218" fill="#64748b" font-size="10" text-anchor="end">TypeScript</text>
+  <rect x="150" y="182" width="490" height="36" rx="6" fill="#38bdf8"/>
+  <text x="652" y="205" fill="#f8fafc" font-size="14" font-weight="700">148k ★</text>
+
+  <text x="24" y="282" fill="#64748b" font-size="11">Langflow=시각적 플로우+파이썬 커스터마이즈 · Dify=프로덕션용 에이전틱 워크플로 플랫폼. 둘 다 MCP 서버 배포 지원.</text>
+</svg>

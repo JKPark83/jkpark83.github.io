@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="AI 에이전트 관측성의 핵심을 나타낸 그림. 하나의 요청(트레이스) 안에서 invoke_agent 스팬 아래로 model 호출과 execute_tool 호출이 시간 순서대로 폭포처럼 쌓인 워터폴 그림. 각 막대는 스팬 하나이며 길이는 걸린 시간을 뜻한다. 그중 도구 스팬 하나가 빨간색으로 표시되어 '성공처럼 보이지만 실제로는 실패한' 지점을 가리킨다. 트레이스를 보면 에이전트가 실제로 무엇을 언제 했는지, 어디서 막혔는지가 한눈에 드러난다.">
+  <defs>
+    <linearGradient id="obg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="ob-a" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+    <linearGradient id="ob-m" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#0891b2"/></linearGradient>
+    <linearGradient id="ob-t" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+    <linearGradient id="ob-e" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#obg)"/>
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">에이전트가 실제로 뭘 했는지,</text>
+  <text x="80" y="152" fill="#a5b4fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">트레이스는 알고 있다</text>
+  <text x="80" y="196" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="500">하나의 요청 = 하나의 trace · 한 단계 = 하나의 span</text>
+
+  <!-- time axis -->
+  <line x1="80" y1="250" x2="1120" y2="250" stroke="#475569" stroke-width="1.5"/>
+  <text x="80" y="240" fill="#64748b" font-family="ui-monospace,monospace" font-size="15">t=0ms</text>
+  <text x="1050" y="240" fill="#64748b" font-family="ui-monospace,monospace" font-size="15">3,910ms</text>
+
+  <!-- span waterfall bars -->
+  <!-- root agent span -->
+  <rect x="80" y="270" width="1010" height="34" rx="8" fill="url(#ob-a)"/>
+  <text x="96" y="292" fill="#0f172a" font-family="ui-monospace,monospace" font-size="16" font-weight="700">invoke_agent  research-agent</text>
+  <text x="1074" y="292" fill="#e0e7ff" font-family="ui-monospace,monospace" font-size="14" text-anchor="end">3910ms</text>
+
+  <!-- model span 1 -->
+  <rect x="110" y="316" width="250" height="30" rx="7" fill="url(#ob-m)"/>
+  <text x="124" y="336" fill="#052e2e" font-family="ui-monospace,monospace" font-size="14" font-weight="700">chat  gpt-5.6</text>
+
+  <!-- tool span (error) -->
+  <rect x="372" y="316" width="300" height="30" rx="7" fill="url(#ob-e)"/>
+  <text x="386" y="336" fill="#3f0713" font-family="ui-monospace,monospace" font-size="14" font-weight="700">execute_tool  search ✕</text>
+
+  <!-- tool span retry -->
+  <rect x="372" y="352" width="180" height="30" rx="7" fill="url(#ob-t)"/>
+  <text x="386" y="372" fill="#052e2e" font-family="ui-monospace,monospace" font-size="14" font-weight="700">execute_tool  search</text>
+
+  <!-- model span 2 -->
+  <rect x="684" y="316" width="220" height="30" rx="7" fill="url(#ob-m)"/>
+  <text x="698" y="336" fill="#052e2e" font-family="ui-monospace,monospace" font-size="14" font-weight="700">chat  gpt-5.6</text>
+
+  <!-- model span 3 -->
+  <rect x="916" y="316" width="174" height="30" rx="7" fill="url(#ob-m)"/>
+  <text x="930" y="336" fill="#052e2e" font-family="ui-monospace,monospace" font-size="14" font-weight="700">chat</text>
+
+  <!-- callout on error -->
+  <line x1="522" y1="316" x2="522" y2="398" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <rect x="372" y="404" width="360" height="60" rx="10" fill="#1e293b" stroke="#fb7185" stroke-width="1.5"/>
+  <text x="392" y="428" fill="#fecdd3" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="700">status 200인데 tool 결과가 비었다</text>
+  <text x="392" y="450" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14">"성공처럼 보이는 실패" — 트레이스에만 보인다</text>
+
+  <!-- legend -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="600">
+    <rect x="80" y="516" width="20" height="20" rx="4" fill="url(#ob-a)"/><text x="108" y="532" fill="#cbd5e1">agent</text>
+    <rect x="200" y="516" width="20" height="20" rx="4" fill="url(#ob-m)"/><text x="228" y="532" fill="#cbd5e1">model (chat)</text>
+    <rect x="380" y="516" width="20" height="20" rx="4" fill="url(#ob-t)"/><text x="408" y="532" fill="#cbd5e1">tool</text>
+    <rect x="480" y="516" width="20" height="20" rx="4" fill="url(#ob-e)"/><text x="508" y="532" fill="#cbd5e1">실패한 스팬</text>
+  </g>
+  <text x="80" y="586" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">OpenTelemetry GenAI 시맨틱 컨벤션: gen_ai.operation.name = invoke_agent · chat · execute_tool</text>
+</svg>

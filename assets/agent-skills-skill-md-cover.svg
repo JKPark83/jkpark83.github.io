@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Agent Skills와 progressive disclosure를 나타낸 그림. 왼쪽에는 여러 개의 skill 카드가 이름과 설명만 담긴 작은 형태로 항상 로드되어 있다. 사용자의 요청과 맞아떨어진 카드 하나가 커지면서 SKILL.md 본문이 열리고, 다시 그 아래로 스크립트와 참고 문서 같은 추가 파일이 필요할 때만 펼쳐진다. 컨텍스트 창은 필요한 만큼만 채워진다.">
+  <defs>
+    <linearGradient id="skg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="sk-a" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+    <linearGradient id="sk-b" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#0891b2"/></linearGradient>
+    <linearGradient id="sk-c" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#skg)"/>
+  <text x="80" y="92" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">같은 지시를 매번 붙여넣지 마라</text>
+  <text x="80" y="148" fill="#93c5fd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">SKILL.md로 전문성을 심는 법</text>
+  <text x="80" y="192" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="500">Agent Skills · progressive disclosure — 필요할 때만 펼쳐지는 지식</text>
+
+  <!-- Level 1: metadata cards, always loaded -->
+  <text x="80" y="258" fill="#64748b" font-family="ui-monospace,monospace" font-size="15">LEVEL 1 · 항상 로드 (이름 + 설명)</text>
+  <g font-family="ui-monospace,monospace">
+    <rect x="80" y="272" width="250" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="96" y="297" fill="#cbd5e1" font-size="15" font-weight="700">pdf-processing</text>
+    <rect x="80" y="322" width="250" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="96" y="347" fill="#cbd5e1" font-size="15" font-weight="700">writing-commits</text>
+    <rect x="80" y="372" width="250" height="40" rx="8" fill="url(#sk-a)"/>
+    <text x="96" y="397" fill="#0f172a" font-size="15" font-weight="700">analyzing-excel  ◀ 매칭</text>
+    <rect x="80" y="422" width="250" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="96" y="447" fill="#cbd5e1" font-size="15" font-weight="700">managing-db</text>
+  </g>
+
+  <!-- arrow -->
+  <path d="M348 392 L410 392" stroke="#93c5fd" stroke-width="2.5" fill="none" marker-end="url(#ah)"/>
+  <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#93c5fd"/></marker></defs>
+
+  <!-- Level 2: SKILL.md body -->
+  <text x="430" y="258" fill="#64748b" font-family="ui-monospace,monospace" font-size="15">LEVEL 2 · 매칭되면 본문 로드</text>
+  <rect x="430" y="272" width="330" height="200" rx="10" fill="url(#sk-b)"/>
+  <text x="450" y="302" fill="#052e2e" font-family="ui-monospace,monospace" font-size="16" font-weight="800"># SKILL.md</text>
+  <text x="450" y="332" fill="#083344" font-family="ui-monospace,monospace" font-size="14">## 빠른 시작</text>
+  <text x="450" y="356" fill="#083344" font-family="ui-monospace,monospace" font-size="14">openpyxl로 시트를 연다…</text>
+  <text x="450" y="392" fill="#083344" font-family="ui-monospace,monospace" font-size="14">## 고급 기능</text>
+  <text x="450" y="416" fill="#083344" font-family="ui-monospace,monospace" font-size="14">피벗 → PIVOT.md 참고</text>
+  <text x="450" y="440" fill="#083344" font-family="ui-monospace,monospace" font-size="14">검증 → validate.py 실행</text>
+
+  <!-- arrow -->
+  <path d="M778 372 L840 372" stroke="#5eead4" stroke-width="2.5" fill="none" marker-end="url(#ah2)"/>
+  <defs><marker id="ah2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#5eead4"/></marker></defs>
+
+  <!-- Level 3: resources, only if needed -->
+  <text x="860" y="258" fill="#64748b" font-family="ui-monospace,monospace" font-size="15">LEVEL 3 · 필요할 때만</text>
+  <g font-family="ui-monospace,monospace">
+    <rect x="860" y="272" width="260" height="40" rx="8" fill="#134e4a" stroke="#2dd4bf" stroke-width="1.5"/>
+    <text x="876" y="297" fill="#99f6e4" font-size="14">PIVOT.md</text>
+    <rect x="860" y="322" width="260" height="40" rx="8" fill="#134e4a" stroke="#2dd4bf" stroke-width="1.5"/>
+    <text x="876" y="347" fill="#99f6e4" font-size="14">validate.py  (실행만)</text>
+    <rect x="860" y="372" width="260" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="876" y="397" fill="#64748b" font-size="14">REFERENCE.md  (안 읽음)</text>
+    <rect x="860" y="422" width="260" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="876" y="447" fill="#64748b" font-size="14">examples.md  (안 읽음)</text>
+  </g>
+
+  <text x="80" y="540" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="600">폴더 하나 = 스킬 하나. 컨텍스트 창엔 지금 필요한 것만 올라간다.</text>
+  <text x="80" y="574" fill="#64748b" font-family="ui-monospace,monospace" font-size="16">metadata ~100 tokens  ·  SKILL.md &lt; 5k tokens  ·  나머지 파일은 0 tokens</text>
+</svg>

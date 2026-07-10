@@ -1,0 +1,414 @@
+---
+title: "매번 같은 지시를 붙여넣지 마라: 에이전트에게 SKILL.md로 전문성을 심는 법 (Agent Skills)"
+date: 2026-07-11T07:30:00+09:00
+draft: false
+tags: ["AI", "Agent Skills", "SKILL.md", "에이전트", "agent", "progressive disclosure", "컨텍스트", "context", "Claude Code", "MCP", "프롬프트", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트에게 매번 똑같은 지시를 붙여넣고 있다면, 그건 프롬프트가 아니라 스킬이 되어야 합니다. Agent Skills는 SKILL.md 파일 하나가 담긴 폴더로, 에이전트에게 도메인 전문성을 얹는 방법입니다. 핵심 원리는 progressive disclosure — 평소엔 이름·설명만 로드해 두고, 요청과 맞아떨어질 때만 본문을, 그다음 필요할 때만 스크립트·참고 문서를 펼칩니다. 그래서 스킬을 100개 설치해도 컨텍스트가 터지지 않습니다. 이 글은 왜 스킬이 필요한지, SKILL.md는 어떻게 생겼는지, 3단계 로딩이 어떻게 동작하는지, 좋은 스킬을 쓰는 법과 흔한 실수까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-skills-skill-md-cover.svg"
+  alt: "여러 개의 skill 카드가 이름과 설명만 담긴 작은 형태로 항상 로드되어 있고, 사용자의 요청과 맞아떨어진 카드 하나가 커지면서 SKILL.md 본문이 열리고, 다시 그 아래로 스크립트와 참고 문서가 필요할 때만 펼쳐지는 progressive disclosure 그림."
+  caption: "Agent Skills의 핵심은 progressive disclosure다. 평소엔 이름·설명만(약 100 tokens), 매칭되면 SKILL.md 본문을, 필요할 때만 나머지 파일을 펼친다."
+  relative: false
+---
+
+<style>
+/* ── Agent Skills 포스트 전용 스타일 (skl- 접두사) ── */
+.skl-fig{
+  --skl-indigo:#4f46e5; --skl-cyan:#0891b2; --skl-teal:#0d9488; --skl-amber:#d97706;
+  --skl-rose:#e11d48; --skl-blue:#2563eb; --skl-slate:#64748b; --skl-violet:#7c3aed; --skl-green:#16a34a;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .skl-fig{
+  --skl-indigo:#818cf8; --skl-cyan:#22d3ee; --skl-teal:#2dd4bf; --skl-amber:#fbbf24;
+  --skl-rose:#fb7185; --skl-blue:#60a5fa; --skl-slate:#94a3b8; --skl-violet:#a78bfa; --skl-green:#4ade80;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .skl-fig{
+    --skl-indigo:#818cf8; --skl-cyan:#22d3ee; --skl-teal:#2dd4bf; --skl-amber:#fbbf24;
+    --skl-rose:#fb7185; --skl-blue:#60a5fa; --skl-slate:#94a3b8; --skl-violet:#a78bfa; --skl-green:#4ade80;
+  }
+}
+.skl-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.skl-fig text{font-family:inherit}
+.skl-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.skl-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.skl-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.skl-toc ol{margin:0;padding-left:1.25rem}
+.skl-toc li{margin:.22rem 0;font-size:.95rem}
+.skl-toc a{text-decoration:none}
+.skl-toc a:hover{text-decoration:underline}
+.skl-pull{font-size:1.12rem;line-height:1.72}
+.skl-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.skl-note{border-left:4px solid var(--skl-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.skl-note strong{color:var(--skl-blue,#2563eb)}
+.skl-warn{border-left:4px solid var(--skl-rose,#e11d48)}
+.skl-warn strong{color:var(--skl-rose,#e11d48)}
+.skl-good{border-left:4px solid var(--skl-teal,#0d9488)}
+.skl-good strong{color:var(--skl-teal,#0d9488)}
+.skl-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.skl-tbl th,.skl-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.skl-tbl th{background:var(--entry);font-weight:700}
+.skl-tbl code{font-size:.86em}
+.skl-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="skl-pull">
+  <p>좋은 프롬프트를 하나 완성했습니다. 커밋 메시지 쓰는 법, 우리 팀 배포 절차, "테스트 계정은 항상 빼라"는 규칙까지. 그런데 다음 대화에서 또 붙여넣습니다. 그다음에도, 그다음에도. <strong>같은 지시를 열 번 붙여넣고 있다면, 그건 프롬프트가 아니라 스킬(skill)이 되어야 합니다.</strong></p>
+  <footer>— 반복되는 지시는 파일로 굳혀서, 에이전트가 필요할 때 스스로 꺼내 쓰게 하라.</footer>
+</blockquote>
+
+<p>에이전트를 조금 다뤄 본 junior 개발자라면 이 답답함을 압니다. LLM은 똑똑하지만 <em>우리 사정</em>은 모릅니다. 우리 회사의 커밋 컨벤션, 사내 데이터 테이블 이름, PDF 양식을 채우는 정확한 절차 — 이런 건 매번 알려 줘야 합니다. 그래서 우리는 점점 더 긴 시스템 프롬프트를 만들고, <code>CLAUDE.md</code> 같은 파일을 부풀리고, 대화창에 같은 문단을 반복해서 붙여넣습니다.</p>
+
+<p>문제는 이 방식이 <strong>안 늘어난다</strong>는 겁니다. 절차 10개를 모두 시스템 프롬프트에 넣으면, 지금 이 대화에 필요 없는 9개까지 매 요청 컨텍스트를 잡아먹습니다. 컨텍스트 창(context window)은 공용 자원인데, 안 쓰는 지식이 자리를 차지하면 정작 중요한 대화 내용이 밀려납니다.</p>
+
+<p><strong>Agent Skills</strong>는 바로 이 문제를 푸는 방법입니다. 한 문장으로 줄이면 이렇습니다. <em>에이전트에게 도메인 전문성을 얹되, 지금 필요한 것만 컨텍스트에 올라오게 하는 폴더 기반 방식.</em> 스킬 하나는 <code>SKILL.md</code> 파일이 담긴 디렉터리이고, 그 안엔 설명·절차·스크립트·참고 문서를 함께 넣습니다. 그리고 에이전트는 <em>요청과 맞아떨어질 때만</em> 그 스킬을 꺼내 읽습니다.</p>
+
+<p>이 주제가 2026년 여름에 부쩍 화제입니다. 작년 10월 Anthropic이 처음 선보인 뒤 12월엔 <strong>공개 표준(open standard)</strong>으로 열렸고, 지금은 Linux Foundation 산하 Agentic AI Foundation이 규격을 관리합니다. 무엇보다 이 <code>SKILL.md</code> 형식은 이제 한 회사 것이 아닙니다. Claude Code, Codex CLI, Gemini CLI, Cursor, GitHub Copilot 등 <strong>30개가 넘는 도구가 같은 파일을 읽습니다</strong>. 이번 주에도 "스킬을 여러 에이전트에서 이식 가능하게 쓰는 법"을 다룬 실무 글이 새로 돌면서, 실무자들 사이에서 "재사용 가능한 에이전트 전문성의 단위"로 스킬이 자리 잡는 분위기입니다.</p>
+
+<p>이 글은 그 지형을 처음부터 짚습니다. 왜 스킬이 시스템 프롬프트보다 나은지, <code>SKILL.md</code>는 어떻게 생겼는지, 핵심 원리인 <strong>progressive disclosure(점진적 공개)</strong>가 어떻게 컨텍스트를 아끼는지, 직접 스킬을 만드는 실전 절차, 그리고 좋은 스킬을 쓰는 법과 흔한 실수까지 — 쉽고 자세하게 살펴봅니다.</p>
+
+<nav class="skl-toc">
+  <div class="skl-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 스킬인가 — 시스템 프롬프트의 한계</a></li>
+    <li><a href="#sec-2">배경 — 프롬프트·CLAUDE.md·MCP·스킬은 뭐가 다른가</a></li>
+    <li><a href="#sec-3">SKILL.md의 구조 — 폴더 하나가 스킬 하나</a></li>
+    <li><a href="#sec-4">핵심 원리 — progressive disclosure의 3단계 로딩</a></li>
+    <li><a href="#sec-5">실전 — 커밋 메시지 스킬 직접 만들기</a></li>
+    <li><a href="#sec-6">좋은 스킬을 쓰는 법</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 스킬인가 — 시스템 프롬프트의 한계</h2>
+
+<p>먼저 <em>왜</em>부터 봅시다. 우리가 에이전트에게 지식을 주는 가장 흔한 방법은 시스템 프롬프트나 <code>CLAUDE.md</code>에 다 적어 넣는 것입니다. 이건 지식이 하나둘일 땐 잘 됩니다. 문제는 늘어날 때 생깁니다.</p>
+
+<p>가정해 봅시다. 우리 팀엔 에이전트가 알아야 할 절차가 여럿 있습니다. ① 커밋 메시지 쓰는 규칙, ② 사내 BigQuery 테이블 스키마, ③ PDF 계약서 양식 채우기, ④ 릴리스 노트 포맷, ⑤ 온콜 대응 체크리스트… 이 모두를 시스템 프롬프트에 넣으면 어떻게 될까요?</p>
+
+<ul>
+  <li><strong>매 요청마다 전부 로드됩니다.</strong> 지금은 커밋 메시지만 쓰면 되는데, PDF·BigQuery·릴리스 노트 설명까지 통째로 컨텍스트에 올라옵니다. 토큰이 낭비되고, 그만큼 실제 대화가 들어갈 자리가 줄어듭니다.</li>
+  <li><strong>모델이 산만해집니다.</strong> 관련 없는 지시가 잔뜩 섞여 있으면, 정작 지금 중요한 규칙이 묻힙니다. 컨텍스트가 길수록 중간에 있는 지시를 놓치기 쉽다는 건 이미 잘 알려진 문제입니다.</li>
+  <li><strong>재사용·공유가 어렵습니다.</strong> 한 뭉텅이 프롬프트는 팀원끼리 나눠 쓰기도, 프로젝트별로 갈아 끼우기도 불편합니다.</li>
+</ul>
+
+<p>스킬은 이 셋을 한 번에 해결합니다. 각 절차를 독립된 폴더로 떼어 놓고, 평소엔 <strong>"이런 스킬이 있다"는 한 줄 소개만</strong> 로드해 둡니다. 에이전트가 실제로 "커밋 메시지 좀 써 줘"라는 요청을 받으면, 그제서야 커밋 스킬의 본문을 파일에서 읽어 옵니다. 나머지 스킬은 이름만 알 뿐, 본문은 컨텍스트에 없습니다.</p>
+
+<div class="skl-note"><strong>핵심 직관.</strong> 스킬은 신입에게 건네는 <em>업무 매뉴얼</em>과 같습니다. 신입이 출근 첫날 매뉴얼 전권을 통째로 외우지 않습니다. 목차만 훑어보고, PDF 양식을 채울 일이 생기면 그때 해당 챕터를 펼치죠. 스킬도 똑같이 동작합니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 프롬프트·CLAUDE.md·MCP·스킬은 뭐가 다른가</h2>
+
+<p>여기서 헷갈리기 쉬운 개념들을 한 번 정리하고 갑시다. 에이전트에게 뭔가를 "얹는" 방법은 여럿인데, 각자 역할이 다릅니다.</p>
+
+<div class="skl-tblwrap">
+<table class="skl-tbl">
+  <thead>
+    <tr><th>방법</th><th>무엇인가</th><th>언제 로드되나</th><th>주 용도</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>프롬프트</strong></td><td>대화창에 그때그때 적는 지시</td><td>매번 직접 입력</td><td>일회성 작업</td></tr>
+    <tr><td><strong>시스템 프롬프트 / <code>CLAUDE.md</code></strong></td><td>항상 적용되는 배경 지식·규칙</td><td>세션 내내 항상</td><td>변하지 않는 <em>사실</em>·컨벤션</td></tr>
+    <tr><td><strong>도구(tool) / MCP</strong></td><td>에이전트가 호출하는 <em>기능</em>(API·DB·검색)</td><td>도구 정의는 항상 로드</td><td>외부 시스템과 <em>연결·행동</em></td></tr>
+    <tr><td><strong>스킬(Skill)</strong></td><td>절차·전문성이 담긴 폴더(<code>SKILL.md</code>)</td><td>요청과 맞을 때만 본문 로드</td><td>재사용 가능한 <em>절차·지식</em></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>가장 자주 나오는 질문은 "<strong>스킬과 MCP는 뭐가 다르냐</strong>"입니다. 짧게 답하면, <strong>MCP는 '무엇을 할 수 있는가'(기능·연결), 스킬은 '어떻게 하는가'(절차·지식)</strong>입니다. MCP 서버는 에이전트에게 BigQuery를 조회하는 <em>도구</em>를 쥐여 주고, 스킬은 "그 도구로 매출을 뽑을 땐 테스트 계정을 빼라"는 <em>노하우</em>를 알려 줍니다. 둘은 경쟁이 아니라 <strong>짝꿍</strong>입니다. 스킬 본문에서 MCP 도구를 직접 지목해 쓸 수도 있습니다(뒤에서 봅니다).</p>
+
+<p><code>CLAUDE.md</code>와의 차이도 중요합니다. <code>CLAUDE.md</code>에 적은 내용은 <em>항상</em> 컨텍스트에 있습니다. 그래서 "변하지 않는 사실"엔 맞지만, "가끔 필요한 긴 절차"엔 낭비입니다. 실제로 Claude Code 공식 문서는 이렇게 조언합니다 — <strong>"<code>CLAUDE.md</code>의 한 섹션이 사실이 아니라 절차로 커졌다면, 스킬로 옮겨라."</strong> 스킬 본문은 쓸 때만 로드되니, 긴 참고 자료를 넣어 둬도 안 쓰면 비용이 거의 0입니다.</p>
+
+<figure class="skl-fig">
+<svg viewBox="0 0 720 340" role="img" aria-label="시스템 프롬프트 방식과 스킬 방식의 컨텍스트 사용 비교. 왼쪽은 절차 다섯 개가 모두 컨텍스트 창을 가득 채워 실제 대화가 들어갈 자리가 좁다. 오른쪽은 이름·설명만 담긴 작은 카드 다섯 개와, 지금 요청에 맞는 스킬 하나의 본문만 로드되어 대화가 들어갈 자리가 넓다.">
+  <text x="180" y="26" text-anchor="middle" font-size="15" font-weight="700" fill="var(--skl-rose)">시스템 프롬프트에 다 넣기</text>
+  <text x="540" y="26" text-anchor="middle" font-size="15" font-weight="700" fill="var(--skl-teal)">스킬로 나누기</text>
+  <text x="360" y="26" text-anchor="middle" font-size="13" fill="var(--skl-slate)">← 같은 컨텍스트 창 →</text>
+
+  <!-- LEFT: bloated -->
+  <rect x="40" y="44" width="280" height="256" rx="10" fill="none" stroke="var(--skl-slate)" stroke-width="1.5"/>
+  <rect x="52" y="56" width="256" height="30" rx="5" fill="var(--skl-rose)" opacity="0.85"/>
+  <text x="180" y="76" text-anchor="middle" font-size="12" fill="#fff">커밋 규칙 (지금 필요)</text>
+  <rect x="52" y="92" width="256" height="30" rx="5" fill="var(--skl-slate)" opacity="0.5"/>
+  <text x="180" y="112" text-anchor="middle" font-size="12" fill="currentColor">BigQuery 스키마 (불필요)</text>
+  <rect x="52" y="128" width="256" height="30" rx="5" fill="var(--skl-slate)" opacity="0.5"/>
+  <text x="180" y="148" text-anchor="middle" font-size="12" fill="currentColor">PDF 양식 채우기 (불필요)</text>
+  <rect x="52" y="164" width="256" height="30" rx="5" fill="var(--skl-slate)" opacity="0.5"/>
+  <text x="180" y="184" text-anchor="middle" font-size="12" fill="currentColor">릴리스 노트 (불필요)</text>
+  <rect x="52" y="200" width="256" height="30" rx="5" fill="var(--skl-slate)" opacity="0.5"/>
+  <text x="180" y="220" text-anchor="middle" font-size="12" fill="currentColor">온콜 체크리스트 (불필요)</text>
+  <rect x="52" y="236" width="256" height="52" rx="5" fill="none" stroke="var(--skl-slate)" stroke-dasharray="4 4"/>
+  <text x="180" y="266" text-anchor="middle" font-size="12" fill="var(--skl-slate)">대화 자리 (좁음)</text>
+
+  <!-- RIGHT: skills -->
+  <rect x="400" y="44" width="280" height="256" rx="10" fill="none" stroke="var(--skl-slate)" stroke-width="1.5"/>
+  <rect x="412" y="56" width="49" height="22" rx="4" fill="var(--skl-slate)" opacity="0.6"/>
+  <rect x="463" y="56" width="49" height="22" rx="4" fill="var(--skl-slate)" opacity="0.6"/>
+  <rect x="514" y="56" width="49" height="22" rx="4" fill="var(--skl-slate)" opacity="0.6"/>
+  <rect x="565" y="56" width="49" height="22" rx="4" fill="var(--skl-slate)" opacity="0.6"/>
+  <rect x="616" y="56" width="52" height="22" rx="4" fill="var(--skl-slate)" opacity="0.6"/>
+  <text x="540" y="94" text-anchor="middle" font-size="11" fill="var(--skl-slate)">이름·설명만 (스킬 5개, 약 100 tokens씩)</text>
+  <rect x="412" y="104" width="256" height="30" rx="5" fill="var(--skl-teal)"/>
+  <text x="540" y="124" text-anchor="middle" font-size="12" fill="#052e2e">커밋 스킬 본문만 로드</text>
+  <rect x="412" y="142" width="256" height="146" rx="5" fill="none" stroke="var(--skl-teal)" stroke-dasharray="4 4"/>
+  <text x="540" y="218" text-anchor="middle" font-size="12" fill="var(--skl-teal)">대화 자리 (넓음)</text>
+</svg>
+<figcaption>같은 컨텍스트 창을 두고, 시스템 프롬프트에 다 넣으면(왼쪽) 안 쓰는 절차가 자리를 차지한다. 스킬로 나누면(오른쪽) 이름·설명만 상주하고 본문은 필요한 하나만 올라와, 대화가 들어갈 자리가 넓어진다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. SKILL.md의 구조 — 폴더 하나가 스킬 하나</h2>
+
+<p>이제 스킬이 실제로 어떻게 생겼는지 봅시다. 스킬은 <strong>디렉터리 하나</strong>이고, 그 안에 <code>SKILL.md</code>가 반드시 있어야 합니다. 나머지 파일은 전부 선택입니다.</p>
+
+{{< highlight text >}}
+pdf-processing/
+├── SKILL.md          # 필수. 메타데이터 + 본문 지시
+├── FORMS.md          # 선택. 양식 채우기 상세 가이드
+├── reference.md      # 선택. API 레퍼런스
+└── scripts/
+    ├── fill_form.py  # 선택. 실행용 스크립트(내용은 컨텍스트에 안 올라감)
+    └── validate.py
+{{< /highlight >}}
+
+<p><code>SKILL.md</code>는 두 부분으로 나뉩니다. 위쪽 <strong>YAML frontmatter</strong>(메타데이터)와 아래쪽 <strong>마크다운 본문</strong>입니다.</p>
+
+{{< highlight markdown >}}
+---
+name: pdf-processing
+description: PDF 파일에서 텍스트·표를 추출하고, 양식을 채우고, 문서를 병합한다.
+  PDF·양식·문서 추출을 다뤄야 할 때 사용한다.
+---
+
+# PDF Processing
+
+## 빠른 시작
+
+pdfplumber로 텍스트를 추출한다:
+```python
+import pdfplumber
+with pdfplumber.open("file.pdf") as pdf:
+    text = pdf.pages[0].extract_text()
+```
+
+## 고급 기능
+
+- **양식 채우기**: [FORMS.md](FORMS.md) 참고
+- **API 레퍼런스**: [reference.md](reference.md) 참고
+{{< /highlight >}}
+
+<p>frontmatter에서 <strong>필수는 딱 두 개</strong>입니다. <code>name</code>과 <code>description</code>. 규칙도 간단합니다.</p>
+
+<ul>
+  <li><code>name</code>: 최대 64자, <strong>소문자·숫자·하이픈만</strong>. XML 태그 금지. 예약어 <code>anthropic</code>·<code>claude</code>는 못 씁니다.</li>
+  <li><code>description</code>: 비어 있으면 안 되고 최대 1024자. <strong>"무엇을 하는지"와 "언제 쓰는지"를 함께</strong> 적습니다. 이게 스킬 선택의 핵심이라 6장에서 따로 다룹니다.</li>
+</ul>
+
+<p>본문은 그냥 마크다운입니다. 지시·예시·코드·다른 파일로의 링크를 자유롭게 넣습니다. 위 예처럼 <em>자주 쓰는 건 본문에</em>, <em>가끔 쓰는 상세는 별도 파일에</em> 두고 링크로 가리키는 게 정석입니다. 이 링크가 바로 다음 장에서 볼 progressive disclosure의 출발점입니다.</p>
+
+<h2 id="sec-4">4. 핵심 원리 — progressive disclosure의 3단계 로딩</h2>
+
+<p>스킬이 "많이 설치해도 안 무겁다"는 마법의 정체가 바로 <strong>progressive disclosure(점진적 공개)</strong>입니다. 이름은 거창하지만 개념은 쉽습니다. <em>지식을 한 번에 다 올리지 말고, 필요한 깊이만큼 단계적으로 올려라.</em> 스킬은 이걸 3단계로 구현합니다.</p>
+
+<figure class="skl-fig">
+<svg viewBox="0 0 720 300" role="img" aria-label="progressive disclosure의 3단계 로딩을 계단식으로 나타낸 그림. 1단계는 이름과 설명으로 항상 로드되며 스킬당 약 100 토큰. 2단계는 요청과 맞을 때 SKILL.md 본문이 로드되며 5천 토큰 미만. 3단계는 필요할 때만 참고 파일과 스크립트가 로드되며 사실상 무제한이지만 안 읽으면 0 토큰.">
+  <!-- Level 1 -->
+  <rect x="40" y="40" width="620" height="66" rx="10" fill="var(--skl-indigo)" opacity="0.16" stroke="var(--skl-indigo)" stroke-width="1.5"/>
+  <circle cx="72" cy="73" r="15" fill="var(--skl-indigo)"/>
+  <text x="72" y="78" text-anchor="middle" font-size="15" font-weight="800" fill="#fff">1</text>
+  <text x="102" y="66" font-size="14.5" font-weight="700" fill="currentColor">메타데이터 (이름 + 설명)</text>
+  <text x="102" y="90" font-size="12.5" fill="var(--skl-slate)">항상 로드 · 설치한 모든 스킬 · 스킬당 약 100 tokens</text>
+  <text x="648" y="78" text-anchor="end" font-size="13" font-weight="700" fill="var(--skl-indigo)">항상</text>
+
+  <!-- Level 2 -->
+  <rect x="90" y="118" width="570" height="66" rx="10" fill="var(--skl-cyan)" opacity="0.16" stroke="var(--skl-cyan)" stroke-width="1.5"/>
+  <circle cx="122" cy="151" r="15" fill="var(--skl-cyan)"/>
+  <text x="122" y="156" text-anchor="middle" font-size="15" font-weight="800" fill="#fff">2</text>
+  <text x="152" y="144" font-size="14.5" font-weight="700" fill="currentColor">SKILL.md 본문 (절차·지시)</text>
+  <text x="152" y="168" font-size="12.5" fill="var(--skl-slate)">요청과 매칭될 때만 로드 · 5k tokens 미만 · 500줄 이하 권장</text>
+  <text x="648" y="156" text-anchor="end" font-size="13" font-weight="700" fill="var(--skl-cyan)">매칭 시</text>
+
+  <!-- Level 3 -->
+  <rect x="140" y="196" width="520" height="66" rx="10" fill="var(--skl-teal)" opacity="0.16" stroke="var(--skl-teal)" stroke-width="1.5"/>
+  <circle cx="172" cy="229" r="15" fill="var(--skl-teal)"/>
+  <text x="172" y="234" text-anchor="middle" font-size="15" font-weight="800" fill="#fff">3</text>
+  <text x="202" y="222" font-size="14.5" font-weight="700" fill="currentColor">참고 파일 · 스크립트 (리소스)</text>
+  <text x="202" y="246" font-size="12.5" fill="var(--skl-slate)">필요할 때만 · 사실상 무제한 · 안 읽으면 0 tokens</text>
+  <text x="648" y="234" text-anchor="end" font-size="13" font-weight="700" fill="var(--skl-teal)">필요 시</text>
+</svg>
+<figcaption>progressive disclosure의 3단계. 아래로 갈수록 로드되는 순간이 늦고, 담을 수 있는 양은 많아진다. 스킬을 100개 설치해도 상주 비용은 1단계(메타데이터)뿐이다.</figcaption>
+</figure>
+
+<p>표로 정리하면 이렇습니다. 수치는 Anthropic 공식 문서 기준입니다.</p>
+
+<div class="skl-tblwrap">
+<table class="skl-tbl">
+  <thead>
+    <tr><th>단계</th><th>언제 로드</th><th>토큰 비용</th><th>내용</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>1. 메타데이터</strong></td><td>항상(시작 시)</td><td>스킬당 약 100 tokens</td><td>frontmatter의 <code>name</code>·<code>description</code></td></tr>
+    <tr><td><strong>2. 지시(본문)</strong></td><td>스킬이 발동될 때</td><td>5k tokens 미만</td><td><code>SKILL.md</code> 본문</td></tr>
+    <tr><td><strong>3+. 리소스</strong></td><td>필요할 때</td><td>사실상 무제한</td><td>번들 파일(bash로 열거나 실행)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>동작을 순서대로 따라가면 이렇습니다. PDF 스킬이 설치돼 있다고 합시다.</p>
+
+<ol>
+  <li><strong>시작 시</strong>: 시스템 프롬프트에 한 줄만 들어갑니다 — <code>pdf-processing: PDF에서 텍스트·표 추출, 양식 채우기, 문서 병합…</code></li>
+  <li><strong>사용자 요청</strong>: "이 PDF 텍스트 뽑아서 요약해 줘"</li>
+  <li><strong>매칭·발동</strong>: 설명과 요청이 맞아떨어집니다. 에이전트가 bash로 <code>SKILL.md</code>를 읽어 본문을 컨텍스트에 올립니다.</li>
+  <li><strong>선택적 확장</strong>: 양식 채우기는 필요 없으니 <code>FORMS.md</code>는 <em>안 읽습니다</em>. 관련 파일만 골라 읽습니다.</li>
+  <li><strong>실행</strong>: 본문 지시대로 작업을 끝냅니다.</li>
+</ol>
+
+<div class="skl-good skl-note"><strong>스크립트는 특히 이득입니다.</strong> 3단계 리소스 중 <em>스크립트</em>는 내용이 컨텍스트에 안 올라옵니다. 에이전트가 <code>validate.py</code>를 <strong>실행</strong>하면, 코드 본문이 아니라 <em>출력만</em>("검증 통과" 또는 에러 메시지) 토큰을 씁니다. 그래서 매번 코드를 생성시키는 것보다 미리 만든 스크립트를 실행시키는 게 더 싸고, 더 안정적이고, 결과도 일관됩니다.</p></div>
+
+<h2 id="sec-5">5. 실전 — 커밋 메시지 스킬 직접 만들기</h2>
+
+<p>말로만 들으면 추상적이니 직접 하나 만들어 봅시다. Claude Code 기준으로, 우리 팀 컨벤션에 맞는 <strong>커밋 메시지 스킬</strong>을 만들겠습니다. Claude Code에서 스킬은 파일시스템 기반이라 API 업로드도 필요 없습니다.</p>
+
+<p>스킬이 사는 위치는 두 곳입니다. 어디에 두느냐로 적용 범위가 갈립니다.</p>
+
+<div class="skl-tblwrap">
+<table class="skl-tbl">
+  <thead><tr><th>범위</th><th>경로</th><th>적용 대상</th></tr></thead>
+  <tbody>
+    <tr><td><strong>개인(personal)</strong></td><td><code>~/.claude/skills/&lt;이름&gt;/SKILL.md</code></td><td>내 모든 프로젝트</td></tr>
+    <tr><td><strong>프로젝트(project)</strong></td><td><code>.claude/skills/&lt;이름&gt;/SKILL.md</code></td><td>이 프로젝트만(팀과 git으로 공유)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>팀과 나눠 쓸 커밋 컨벤션이니 프로젝트 범위로 만들겠습니다. 폴더부터 만듭니다.</p>
+
+{{< highlight bash >}}
+# 프로젝트 루트에서
+mkdir -p .claude/skills/writing-commits
+{{< /highlight >}}
+
+<p>이제 <code>.claude/skills/writing-commits/SKILL.md</code>를 씁니다. 핵심은 <strong>예시(input → output)를 보여 주는 것</strong>입니다. 스타일은 설명 열 줄보다 예시 두 개가 더 잘 전달됩니다.</p>
+
+{{< highlight markdown >}}
+---
+name: writing-commits
+description: git diff를 분석해 우리 팀 컨벤션에 맞는 커밋 메시지를 작성한다.
+  커밋 메시지를 써 달라거나 staged 변경을 검토할 때 사용한다.
+---
+
+# 커밋 메시지 작성
+
+형식: `type(scope): 요약` 한 줄 뒤, 빈 줄, 상세 설명.
+type은 feat·fix·chore·docs·refactor·test 중 하나.
+
+## 예시
+
+입력: JWT 토큰으로 로그인 인증 추가
+출력:
+```
+feat(auth): JWT 기반 인증 구현
+
+로그인 엔드포인트와 토큰 검증 미들웨어를 추가한다.
+```
+
+입력: 리포트에서 날짜가 잘못 표시되던 버그 수정
+출력:
+```
+fix(reports): 타임존 변환 시 날짜 포맷 오류 수정
+
+리포트 생성 전반에서 UTC 타임스탬프를 일관되게 사용한다.
+```
+
+## 규칙
+- 요약은 50자 이내, 명령형("추가한다"가 아니라 "추가").
+- 무엇을 왜 바꿨는지 본문에 적되, 어떻게는 코드가 말하게 둔다.
+{{< /highlight >}}
+
+<p>끝입니다. Claude Code는 스킬 디렉터리의 변경을 <strong>실시간으로 감지</strong>하므로, 세션을 재시작하지 않아도 방금 만든 스킬이 바로 잡힙니다(단, 세션 시작 시 없던 최상위 <code>skills/</code> 폴더를 새로 만든 경우엔 재시작이 필요합니다).</p>
+
+<p>쓰는 방법은 두 가지입니다.</p>
+
+<ul>
+  <li><strong>에이전트가 알아서</strong>: "방금 staged한 거 커밋 메시지 좀 써 줘"라고 하면, <code>description</code>과 맞아떨어져 스킬이 자동으로 발동합니다.</li>
+  <li><strong>직접 호출</strong>: 슬래시로 <code>/writing-commits</code>를 입력하면 명시적으로 실행됩니다. (Claude Code에선 예전 <code>.claude/commands/</code>가 스킬로 통합됐습니다.)</li>
+</ul>
+
+<div class="skl-note"><strong>같은 파일, 여러 도구.</strong> 방금 만든 <code>SKILL.md</code>는 Claude Code 전용이 아닙니다. <a href="https://agentskills.io" target="_blank" rel="noopener">Agent Skills</a> 공개 표준을 따르므로, Codex CLI·Gemini CLI·Cursor 같은 다른 에이전트도 같은 파일을 읽습니다. 한 번 쓰면 여러 곳에서 재사용됩니다. 다만 Claude Code는 표준에 더해 <code>allowed-tools</code>(자동 허용 도구), <code>disable-model-invocation</code>(자동 발동 끄기) 같은 확장 필드를 추가로 지원합니다.</p></div>
+
+<h3>MCP 도구를 스킬에서 쓰기</h3>
+
+<p>2장에서 "스킬과 MCP는 짝꿍"이라고 했죠. 스킬 본문에서 MCP 도구를 지목할 때는 <strong>반드시 서버 이름을 붙인 정식 이름</strong>을 씁니다. 안 그러면 "도구를 못 찾음" 에러가 납니다.</p>
+
+{{< highlight markdown >}}
+매출 데이터를 조회할 땐 BigQuery:bigquery_schema 도구로 스키마를 먼저 확인한다.
+이슈를 만들 땐 GitHub:create_issue 도구를 사용한다.
+{{< /highlight >}}
+
+<p>형식은 <code>서버이름:도구이름</code>입니다. 여러 MCP 서버가 붙어 있을 때 특히 이 접두사가 중요합니다.</p>
+
+<h2 id="sec-6">6. 좋은 스킬을 쓰는 법</h2>
+
+<p>스킬을 <em>만드는</em> 건 쉽습니다. 잘 <em>동작하게</em> 만드는 데엔 요령이 있습니다. 공식 authoring 가이드가 강조하는 것들을 junior 눈높이로 추립니다.</p>
+
+<p><strong>① <code>description</code>이 8할이다.</strong> 에이전트는 100개 넘는 스킬 중에서 <code>description</code>만 보고 "이걸 쓸까"를 정합니다. 그러니 <em>무엇을 하는지</em>와 <em>언제 쓰는지</em>를 구체적인 키워드와 함께 적어야 합니다. 그리고 반드시 <strong>3인칭</strong>으로 씁니다(설명이 시스템 프롬프트에 그대로 들어가기 때문).</p>
+
+<div class="skl-tblwrap">
+<table class="skl-tbl">
+  <thead><tr><th>나쁨</th><th>좋음</th></tr></thead>
+  <tbody>
+    <tr><td><code>description: 문서를 도와줍니다</code></td><td><code>description: Excel 파일을 분석하고 피벗 테이블·차트를 만든다. 스프레드시트·.xlsx·표 데이터를 다룰 때 사용한다.</code></td></tr>
+    <tr><td><code>description: I can help you with PDFs</code> (1인칭)</td><td><code>description: PDF에서 텍스트·표를 추출한다…</code> (3인칭)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>② 간결함이 미덕이다.</strong> 컨텍스트 창은 공용 자원입니다. "Claude는 이미 똑똑하다"를 기본 전제로 두고, <em>모델이 이미 아는 건 빼세요</em>. "PDF란 무엇인가"를 설명하지 말고 바로 코드를 보여 주세요. 본문은 <strong>500줄 이하</strong>를 권장합니다. 넘으면 별도 파일로 쪼갭니다.</p>
+
+<p><strong>③ 상세는 별도 파일로, 링크는 한 단계만.</strong> 자주 쓰는 건 본문에, 가끔 쓰는 상세는 <code>FORMS.md</code> 같은 파일에 두고 본문에서 링크합니다. 단, <strong>참고 파일은 SKILL.md에서 한 단계만</strong> 링크하세요. "SKILL.md → advanced.md → details.md"처럼 깊게 물리면, 에이전트가 중간 파일을 <code>head</code>로 일부만 훑고 넘어가 정보를 놓칠 수 있습니다.</p>
+
+<p><strong>④ 자유도를 작업에 맞춰라.</strong> 여러 방법이 다 통하는 일(코드 리뷰 등)엔 큰 방향만 주고 맡깁니다(높은 자유도). 반대로 순서가 틀리면 깨지는 일(DB 마이그레이션 등)엔 "이 스크립트를 이 플래그로 정확히 실행하라"고 못 박습니다(낮은 자유도). 공식 문서의 비유가 좋습니다 — <em>양옆이 절벽인 좁은 다리</em>엔 난간(정확한 지시)을, <em>탁 트인 벌판</em>엔 방향만.</p>
+
+<p><strong>⑤ 결정적인 일은 스크립트에 맡겨라.</strong> 매번 코드를 생성시키기보다, 검증·변환 같은 반복 작업은 스크립트로 만들어 <em>실행</em>시키세요. 더 안정적이고 토큰도 아낍니다. 그리고 스크립트 안에서 에러를 직접 처리하세요("파일 없으면 만든다") — 실패를 에이전트에게 떠넘기지 마세요.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="skl-note skl-warn"><strong>1) 신뢰할 수 없는 스킬을 그냥 설치하기.</strong> 스킬은 에이전트에게 <em>지시와 코드</em>를 줍니다. 악의적 스킬은 에이전트를 시켜 데이터를 빼돌리거나 엉뚱한 도구를 호출하게 만들 수 있습니다. 스킬은 <strong>소프트웨어를 설치하는 것과 똑같이</strong> 다루세요. 출처가 불분명하면 <code>SKILL.md</code>·스크립트·리소스를 <em>전부 열어 보고</em>, 특히 외부 URL을 가져오는 부분을 의심하세요.</div>
+
+<div class="skl-note skl-warn"><strong>2) 설명은 부실한데 본문만 길게.</strong> 본문을 아무리 잘 써도 <code>description</code>이 부실하면 <em>스킬이 발동조차 안 됩니다</em>. 에이전트가 그 스킬을 안 고르니까요. 발동이 안 되는 것 같으면 본문이 아니라 <strong>설명의 키워드·트리거</strong>부터 손보세요.</div>
+
+<div class="skl-note skl-warn"><strong>3) 시간에 민감한 정보 박아 넣기.</strong> "2025년 8월 전이면 구 API를…" 같은 문장은 곧 틀린 정보가 됩니다. 현재 방식만 본문에 두고, 옛 방식은 <code>&lt;details&gt;</code>로 접어 "old patterns" 섹션에 따로 두세요.</div>
+
+<div class="skl-note skl-warn"><strong>4) Windows식 역슬래시 경로.</strong> <code>scripts\helper.py</code>는 Unix에서 깨집니다. 스킬은 여러 OS·여러 도구에서 읽히니 <strong>항상 슬래시</strong>(<code>scripts/helper.py</code>)를 쓰세요.</div>
+
+<div class="skl-note skl-warn"><strong>5) 선택지를 너무 많이 주기.</strong> "pypdf도 되고 pdfplumber도 되고 PyMuPDF도…"는 에이전트를 헷갈리게 합니다. <strong>기본 하나를 정해</strong> 주고, 예외 상황에만 대안을 제시하세요("스캔 PDF는 OCR로").</div>
+
+<div class="skl-note skl-good"><strong>6) 스킬은 Claude와 함께 만들어라.</strong> 가장 효율적인 방법은, 먼저 스킬 없이 Claude와 작업을 한번 끝내 보는 겁니다. 그 과정에서 <em>반복해서 알려 준 정보</em>가 곧 스킬 재료입니다. 그 뒤 "방금 한 이 절차를 스킬로 만들어 줘"라고 부탁하면 됩니다. Claude는 <code>SKILL.md</code> 형식을 이미 알기 때문에 별도 설정 없이 제대로 된 스킬을 만들어 냅니다.</div>
+
+<div class="skl-note skl-good"><strong>7) 평가부터 만들어라.</strong> 문서를 잔뜩 쓰기 전에, "이 스킬 없이 Claude가 못 하는 일" 3가지를 먼저 테스트 케이스로 만드세요. 그 실패를 통과시키는 데 필요한 만큼만 본문을 쓰면, 상상 속 요구가 아니라 진짜 문제를 푸는 스킬이 됩니다.</div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>같은 지시를 <strong>반복해서 붙여넣고 있다면 스킬로 만들 때</strong>다. 스킬은 <code>SKILL.md</code>가 담긴 폴더로, 에이전트에게 재사용 가능한 절차·전문성을 얹는다.</li>
+  <li>시스템 프롬프트·<code>CLAUDE.md</code>에 다 넣으면 안 쓰는 지식까지 <strong>매 요청 컨텍스트를 잡아먹는다</strong>. 스킬은 이름·설명만 상주시키고 본문은 필요할 때만 올린다.</li>
+  <li>핵심 원리는 <strong>progressive disclosure(3단계 로딩)</strong> — ① 메타데이터 항상(약 100 tokens), ② 본문은 매칭 시(5k 미만), ③ 리소스는 필요할 때만(안 읽으면 0). 그래서 100개를 설치해도 가볍다.</li>
+  <li>frontmatter 필수는 <code>name</code>·<code>description</code> 둘뿐. <strong><code>description</code>이 스킬 선택의 8할</strong>이다 — 무엇을·언제를 3인칭·구체 키워드로.</li>
+  <li>본문은 <strong>간결하게(500줄 이하)</strong>, 상세는 별도 파일로 <strong>한 단계만</strong> 링크, 결정적 작업은 <strong>스크립트로 실행</strong>. MCP 도구는 <code>서버:도구</code> 정식 이름으로 지목한다.</li>
+  <li><code>SKILL.md</code>는 <strong>공개 표준</strong>이라 Claude Code·Codex CLI·Gemini CLI·Cursor 등 30개 넘는 도구가 같은 파일을 읽는다. 한 번 쓰면 여러 곳에서 재사용된다. 단, 스킬은 <strong>소프트웨어처럼</strong> 출처를 검증하고 설치하라.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Anthropic, <a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills" target="_blank" rel="noopener">Equipping agents for the real world with Agent Skills</a> — 스킬 아키텍처와 progressive disclosure의 공식 출발점. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anthropic, <a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview" target="_blank" rel="noopener">Agent Skills — Overview</a> — 3단계 로딩·토큰 비용 표·SKILL.md 구조·보안 고려사항. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anthropic, <a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices" target="_blank" rel="noopener">Skill authoring best practices</a> — description 작성법·간결함·자유도·스크립트·평가 주도 개발. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Claude Code Docs, <a href="https://code.claude.com/docs/en/skills" target="_blank" rel="noopener">Extend Claude with skills</a> — 개인/프로젝트 경로, 실시간 감지, 커맨드-스킬 통합, 확장 frontmatter. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Agent Skills, <a href="https://agentskills.io" target="_blank" rel="noopener">agentskills.io</a> — SKILL.md 공개 표준의 공식 사이트. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>GitHub, <a href="https://github.com/anthropics/skills" target="_blank" rel="noopener">anthropics/skills</a> — 공개된 오픈소스 스킬 저장소(실제 SKILL.md 예시). <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>VentureBeat, <a href="https://venturebeat.com/ai/anthropic-launches-enterprise-agent-skills-and-opens-the-standard" target="_blank" rel="noopener">Anthropic launches enterprise 'Agent Skills' and opens the standard</a> — 공개 표준화·엔터프라이즈 확장 배경. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Codex Knowledge Base, <a href="https://codex.danielvaughan.com/2026/05/05/agent-skills-open-standard-portable-skills-codex-cli-cross-agent/" target="_blank" rel="noopener">The Agent Skills Open Standard: Writing Portable SKILL.md Files</a> — 여러 에이전트에서 이식 가능한 스킬 작성(이번 주 갱신된 실무 글). <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

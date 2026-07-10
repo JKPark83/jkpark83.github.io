@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 460" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="460" fill="#0f172a"/>
+  <text x="24" y="38" fill="#f8fafc" font-size="22" font-weight="700">2026-07-11 · 오늘의 AI 변화 지도</text>
+  <text x="24" y="62" fill="#94a3b8" font-size="13">키워드는 '에이전트 메모리 &amp; 오케스트레이션' — 모델·논문이 같은 방향을 가리킨다</text>
+
+  <!-- edges -->
+  <g stroke="#334155" stroke-width="2" fill="none">
+    <path d="M170 150 L360 235"/>
+    <path d="M170 250 L360 235"/>
+    <path d="M170 350 L360 235"/>
+    <path d="M470 235 L560 235"/>
+  </g>
+
+  <!-- node: Muse Spark 1.1 -->
+  <g>
+    <rect x="24" y="118" width="146" height="70" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="36" y="140" fill="#38bdf8" font-size="13" font-weight="700">모델 · Muse Spark 1.1</text>
+    <text x="36" y="159" fill="#e2e8f0" font-size="11">기본 에이전트·서브에이전트</text>
+    <text x="36" y="175" fill="#94a3b8" font-size="11">MCP · 1M · $1.25/$4.25</text>
+  </g>
+
+  <!-- node: paper memory -->
+  <g>
+    <rect x="24" y="218" width="146" height="70" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="36" y="240" fill="#a78bfa" font-size="13" font-weight="700">논문 · 메모리 에이전트</text>
+    <text x="36" y="259" fill="#e2e8f0" font-size="11">능동적 리마인더 주입</text>
+    <text x="36" y="275" fill="#94a3b8" font-size="11">Terminal-Bench +8.3pp</text>
+  </g>
+
+  <!-- node: paper webswarm -->
+  <g>
+    <rect x="24" y="318" width="146" height="70" rx="10" fill="#1e293b" stroke="#f472b6" stroke-width="1.5"/>
+    <text x="36" y="340" fill="#f472b6" font-size="13" font-weight="700">논문 · WebSwarm</text>
+    <text x="36" y="359" fill="#e2e8f0" font-size="11">재귀 위임 멀티에이전트</text>
+    <text x="36" y="375" fill="#94a3b8" font-size="11">깊이+폭 웹 탐색</text>
+  </g>
+
+  <!-- hub -->
+  <g>
+    <rect x="360" y="198" width="110" height="74" rx="12" fill="#0b1220" stroke="#facc15" stroke-width="2"/>
+    <text x="415" y="228" fill="#facc15" font-size="13" font-weight="700" text-anchor="middle">에이전트</text>
+    <text x="415" y="247" fill="#facc15" font-size="13" font-weight="700" text-anchor="middle">메모리 ·</text>
+    <text x="415" y="263" fill="#facc15" font-size="12" text-anchor="middle">오케스트레이션</text>
+  </g>
+
+  <!-- action -->
+  <g>
+    <rect x="560" y="190" width="136" height="90" rx="10" fill="#132a1e" stroke="#34d399" stroke-width="1.5"/>
+    <text x="572" y="214" fill="#34d399" font-size="13" font-weight="700">그래서 오늘 할 일</text>
+    <text x="572" y="236" fill="#e2e8f0" font-size="11">긴-호라이즌 잡에</text>
+    <text x="572" y="251" fill="#e2e8f0" font-size="11">메모리 에이전트를</text>
+    <text x="572" y="266" fill="#e2e8f0" font-size="11">플러그인처럼 붙여보기</text>
+  </g>
+
+  <!-- tool bar bottom -->
+  <g>
+    <rect x="24" y="410" width="672" height="34" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="36" y="432" fill="#94a3b8" font-size="12">🧑‍💻 툴 · Claude Code 2.1.206: /commit-push-pr 자동 push · /doctor CLAUDE.md 다이어트 · 게이트웨이 /login</text>
+  </g>
+</svg>

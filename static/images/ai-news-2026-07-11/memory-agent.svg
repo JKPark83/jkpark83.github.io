@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="420" fill="#0f172a"/>
+  <text x="24" y="36" fill="#f8fafc" font-size="19" font-weight="700">Proactive Memory Agent — '언제 상기시킬지'를 결정하는 별도 에이전트</text>
+  <text x="24" y="58" fill="#94a3b8" font-size="12">arXiv 2607.08716 · 액션 에이전트는 그대로, 메모리 에이전트가 옆에서 선택적으로 리마인더를 주입</text>
+
+  <!-- action agent lane -->
+  <rect x="24" y="86" width="672" height="96" rx="10" fill="#132033" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="40" y="110" fill="#38bdf8" font-size="13" font-weight="700">액션 에이전트 (수정 없음)</text>
+  <g fill="#1e293b" stroke="#334155">
+    <rect x="40" y="122" width="90" height="44" rx="8"/>
+    <rect x="150" y="122" width="90" height="44" rx="8"/>
+    <rect x="260" y="122" width="90" height="44" rx="8"/>
+    <rect x="370" y="122" width="90" height="44" rx="8"/>
+    <rect x="480" y="122" width="90" height="44" rx="8"/>
+  </g>
+  <g fill="#cbd5e1" font-size="11" text-anchor="middle">
+    <text x="85" y="149">step t-2</text>
+    <text x="195" y="149">step t-1</text>
+    <text x="305" y="149">step t</text>
+    <text x="415" y="149">step t+1</text>
+    <text x="525" y="149">step t+2</text>
+  </g>
+  <g stroke="#475569" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <path d="M130 144 L150 144"/>
+    <path d="M240 144 L260 144"/>
+    <path d="M350 144 L370 144"/>
+    <path d="M460 144 L480 144"/>
+  </g>
+  <text x="620" y="149" fill="#64748b" font-size="11">긴 궤적…</text>
+
+  <!-- observe arrow down -->
+  <g stroke="#a78bfa" stroke-width="1.8" fill="none" marker-end="url(#p)">
+    <path d="M305 166 L305 212"/>
+  </g>
+  <text x="315" y="196" fill="#a78bfa" font-size="11">최근 궤적 관찰</text>
+
+  <!-- memory agent -->
+  <rect x="130" y="212" width="360" height="90" rx="10" fill="#1a1330" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="146" y="236" fill="#a78bfa" font-size="13" font-weight="700">메모리 에이전트</text>
+  <text x="146" y="258" fill="#e2e8f0" font-size="11">① 구조화된 메모리 뱅크 업데이트</text>
+  <text x="146" y="276" fill="#e2e8f0" font-size="11">   (요구사항·사실·이전 시도·진단·열린 서브골)</text>
+  <text x="146" y="294" fill="#e2e8f0" font-size="11">② 지금 상기시킬까? — 주입 vs 침묵 결정</text>
+
+  <!-- inject arrow up -->
+  <g stroke="#facc15" stroke-width="1.8" fill="none" marker-end="url(#y)">
+    <path d="M415 212 L415 168"/>
+  </g>
+  <text x="425" y="196" fill="#facc15" font-size="11">근거 기반 리마인더 주입(선택적)</text>
+
+  <!-- decay callout -->
+  <rect x="510" y="212" width="186" height="90" rx="10" fill="#2a1520" stroke="#f472b6" stroke-width="1.3"/>
+  <text x="524" y="234" fill="#f472b6" font-size="12" font-weight="700">막는 실패: 행동 상태 붕괴</text>
+  <text x="524" y="254" fill="#e2e8f0" font-size="11">결정에 필요한 상태가</text>
+  <text x="524" y="270" fill="#e2e8f0" font-size="11">컨텍스트 밖으로 밀려</text>
+  <text x="524" y="286" fill="#e2e8f0" font-size="11">제때 반영되지 못하는 것</text>
+
+  <!-- results -->
+  <rect x="24" y="326" width="672" height="70" rx="10" fill="#0b1220" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="350" fill="#94a3b8" font-size="12" font-weight="700">검증 결과 (pass@1)</text>
+  <text x="40" y="374" fill="#34d399" font-size="13" font-weight="700">Terminal-Bench 2.0 +8.3pp</text>
+  <text x="250" y="374" fill="#34d399" font-size="13" font-weight="700">τ²-Bench +6.8pp</text>
+  <text x="430" y="374" fill="#cbd5e1" font-size="11">선택적 주입 &gt; 항상 주입 &gt; 수동 노출 &gt; 일반 검색</text>
+
+  <defs>
+    <marker id="a" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#475569"/></marker>
+    <marker id="p" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#a78bfa"/></marker>
+    <marker id="y" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#facc15"/></marker>
+  </defs>
+</svg>

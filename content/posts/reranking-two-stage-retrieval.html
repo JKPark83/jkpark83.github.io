@@ -1,0 +1,377 @@
+---
+title: "검색은 잘되는데 답이 엉뚱하다면: 리랭킹(reranking)으로 RAG 정확도를 끌어올리는 법"
+date: 2026-07-12T07:30:00+09:00
+draft: false
+tags: ["AI", "리랭킹", "reranking", "cross-encoder", "RAG", "retrieval", "하이브리드 검색", "RRF", "ColBERT", "임베딩", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "RAG를 붙였는데 답이 자꾸 헛도나요? 원인은 대개 '검색이 안 돼서'가 아니라 '맞는 문서를 뽑아 놓고도 위로 못 올려서'입니다. 벡터 검색(bi-encoder)은 빠른 대신 상위 정렬이 거칠거든요. 그래서 2026년 RAG 실무의 정석은 2단계 검색입니다. 1차로 넓게 후보를 건지고, 2차로 크로스 인코더(cross-encoder) 리랭커가 질문과 문서를 '함께' 읽어 정밀하게 다시 줄을 세우는 거죠. 이 글은 bi-encoder와 cross-encoder가 왜 다른지, 하이브리드 검색과 RRF로 후보를 모으는 법, ColBERT 같은 절충안, Cohere·Voyage·Qwen3-Reranker·BGE 모델 지형, 그리고 직접 돌려 볼 수 있는 코드와 흔한 함정까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "reranking-two-stage-retrieval-cover.svg"
+  alt: "왼쪽의 큰 문서 더미에서 빠른 1차 검색(bi-encoder)이 넓게 후보 수십 개를 건져 올리고, 가운데 크로스 인코더 리랭커가 질문과 문서를 함께 읽어 정밀하게 다시 줄을 세워 상위 몇 개만 남기며, 오른쪽에서 그 알짜만 LLM으로 전달되는 깔때기 그림."
+  caption: "2단계 검색: 1차 검색(bi-encoder)은 넓게 뽑아 recall을 벌고, 리랭커(cross-encoder)는 질문·문서를 함께 읽어 precision을 벌어 상위 몇 개만 LLM에 남긴다."
+  relative: false
+---
+
+<style>
+/* ── Reranking 포스트 전용 스타일 (rrk- 접두사) ── */
+.rrk-fig{
+  --rrk-sky:#0284c7; --rrk-amber:#d97706; --rrk-green:#16a34a; --rrk-rose:#e11d48;
+  --rrk-slate:#64748b; --rrk-violet:#7c3aed; --rrk-teal:#0d9488; --rrk-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .rrk-fig{
+  --rrk-sky:#38bdf8; --rrk-amber:#fbbf24; --rrk-green:#4ade80; --rrk-rose:#fb7185;
+  --rrk-slate:#94a3b8; --rrk-violet:#a78bfa; --rrk-teal:#2dd4bf; --rrk-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .rrk-fig{
+    --rrk-sky:#38bdf8; --rrk-amber:#fbbf24; --rrk-green:#4ade80; --rrk-rose:#fb7185;
+    --rrk-slate:#94a3b8; --rrk-violet:#a78bfa; --rrk-teal:#2dd4bf; --rrk-blue:#60a5fa;
+  }
+}
+.rrk-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.rrk-fig text{font-family:inherit}
+.rrk-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.rrk-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.rrk-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.rrk-toc ol{margin:0;padding-left:1.25rem}
+.rrk-toc li{margin:.22rem 0;font-size:.95rem}
+.rrk-toc a{text-decoration:none}
+.rrk-toc a:hover{text-decoration:underline}
+.rrk-pull{font-size:1.12rem;line-height:1.72}
+.rrk-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.rrk-note{border-left:4px solid var(--rrk-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.rrk-note strong{color:var(--rrk-blue,#2563eb)}
+.rrk-warn{border-left:4px solid var(--rrk-rose,#e11d48)}
+.rrk-warn strong{color:var(--rrk-rose,#e11d48)}
+.rrk-good{border-left:4px solid var(--rrk-teal,#0d9488)}
+.rrk-good strong{color:var(--rrk-teal,#0d9488)}
+.rrk-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.rrk-tbl th,.rrk-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.rrk-tbl th{background:var(--entry);font-weight:700}
+.rrk-tbl code{font-size:.86em}
+.rrk-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="rrk-pull">
+  <p>RAG가 틀리는 순간, 대부분은 <strong>모델이 멍청해서가 아닙니다.</strong> 맞는 문서를 후보 50개 안에 <em>분명히 뽑아 놓고도</em>, 그게 47번째에 처박혀 있어서 상위 5개 안에 못 들어온 겁니다. LLM은 못 받은 문서로는 답할 수 없습니다.</p>
+  <footer>— 그래서 필요한 건 더 센 임베딩이 아니라, 뽑아 온 것들을 <em>다시 줄 세우는</em> 한 단계입니다.</footer>
+</blockquote>
+
+<p>RAG(검색 증강 생성, retrieval-augmented generation)를 처음 붙여 본 junior 개발자가 자주 겪는 일이 있습니다. 벡터 DB를 넣고, 임베딩으로 검색하고, 상위 몇 개를 프롬프트에 끼워 넣었습니다. 데모는 그럴듯했죠. 그런데 실제 질문을 던져 보면 답이 자꾸 살짝 빗나갑니다. "분명 문서엔 답이 있는데 왜 못 찾지?"</p>
+
+<p>로그를 열어 상위 검색 결과를 찍어 보면 더 억울합니다. <strong>정답이 담긴 문서가 후보 안에 있긴 있습니다.</strong> 다만 3등이 아니라 40등쯤에 있습니다. 그리고 프롬프트엔 상위 5개만 넣었죠. 문제는 "검색이 안 된 것"이 아니라 "<strong>순서가 엉망인 것</strong>"입니다.</p>
+
+<p>이 간극을 메우는 게 <strong>리랭킹(reranking)</strong>, 우리말로는 재순위화입니다. 1차 검색이 넓게 건져 온 후보들을 놓고, 질문과의 진짜 관련성 기준으로 <em>다시</em> 정밀하게 줄을 세우는 단계죠. 2026년 RAG 실무 가이드들이 입을 모아 "리랭킹은 임베딩 모델을 바꾸는 것보다 투자 대비 효과가 가장 큰 개선"이라고 말하는 이유입니다. 최근엔 지시(instruction)를 따라 순위를 조정하는 Voyage <code>rerank-2.5</code>나 오픈 웨이트 <code>Qwen3-Reranker</code> 같은 리랭커가 쏟아지면서, "1년 전보다 리랭킹 계층이 훨씬 강력해졌다"는 이야기가 실무자 사이에서 다시 화제입니다.</p>
+
+<p>이 글은 그 리랭킹을 처음부터 짚습니다. bi-encoder와 cross-encoder가 왜 근본적으로 다른지, 왜 둘을 <em>같이</em> 써야 하는지, 후보를 넓게 모으는 하이브리드 검색과 RRF, ColBERT 같은 절충안, 2026년 리랭커 모델 지형, 그리고 직접 돌려 볼 수 있는 코드와 함정까지 — 쉽고 자세하게 살펴봅니다.</p>
+
+<nav class="rrk-toc">
+  <div class="rrk-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 벡터 검색만으로는 부족한가</a></li>
+    <li><a href="#sec-2">핵심 — bi-encoder vs cross-encoder</a></li>
+    <li><a href="#sec-3">그래서 나온 답: 2단계 검색</a></li>
+    <li><a href="#sec-4">후보를 넓게 모으기 — 하이브리드 검색과 RRF</a></li>
+    <li><a href="#sec-5">절충안 — ColBERT식 late interaction</a></li>
+    <li><a href="#sec-6">실전 — 코드로 2단계 파이프라인 만들기</a></li>
+    <li><a href="#sec-7">리랭커 모델 고르기 (2026)</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 벡터 검색만으로는 부족한가</h2>
+
+<p>보통의 벡터 RAG는 이렇게 동작합니다. 문서를 조각(chunk)으로 나눠 각 조각을 임베딩 벡터로 바꿔 DB에 저장해 둡니다. 질문이 오면 질문도 벡터로 바꿔, DB에서 코사인 유사도가 가장 높은 조각 몇 개를 근사 최근접 이웃(ANN, approximate nearest neighbor) 검색으로 꺼내 옵니다. 이 방식의 검색기를 <strong>bi-encoder</strong>(양방향 인코더)라고 부릅니다. 질문과 문서를 <em>따로따로</em> 벡터로 만들기 때문이죠.</p>
+
+<p>이 구조의 장점은 명확합니다. 문서 벡터는 미리 다 계산해 둘 수 있으니, 질문이 올 때 할 일은 "질문 벡터 하나 만들고 가까운 이웃 찾기"뿐입니다. 문서가 100만 개든 1억 개든 빠릅니다.</p>
+
+<p>대신 치명적인 한계가 있습니다. 질문과 문서가 <strong>서로를 한 번도 못 본 채</strong> 각자 벡터가 됩니다. "이 문서가 이 질문에 답하나?"라는 판단을, 두 벡터 사이의 거리 하나로 뭉뚱그려 근사하는 겁니다. 그래서 뜻은 비슷한데 정작 답이 아닌 문서(예: 질문과 같은 키워드가 많지만 결론이 반대인 글)를 위로 올리는 실수를 자주 합니다.</p>
+
+<p>결과적으로 bi-encoder 검색은 <strong>recall(재현율)은 괜찮은데 상위 정밀도(precision@k)가 거칠다</strong>는 특성을 보입니다. 정답을 후보 50개 안에 넣는 데엔 성공하지만, 그걸 1~3등으로 밀어 올리는 데는 서툽니다. 그리고 LLM 프롬프트엔 상위 몇 개밖에 못 넣죠. 바로 이 지점이 프로덕션 RAG에서 답 품질이 무너지는 가장 흔한 원인입니다.</p>
+
+<div class="rrk-note"><strong>recall과 precision, 한 줄 정리.</strong> <em>recall</em>은 "정답을 후보 안에 넣었나"(빠뜨리지 않기), <em>precision</em>은 "위쪽에 담긴 게 진짜 알짜인가"(허수 걸러 내기)입니다. bi-encoder는 recall에 강하고 precision 상위권이 약합니다. 리랭킹은 정확히 이 약점, <em>상위권 precision</em>을 보강합니다.</div>
+
+<h2 id="sec-2">2. 핵심 — bi-encoder vs cross-encoder</h2>
+
+<p>리랭킹의 주인공은 <strong>cross-encoder</strong>(교차 인코더)입니다. bi-encoder와 뭐가 다른지가 이 글 전체에서 가장 중요합니다.</p>
+
+<ul>
+  <li><strong>bi-encoder</strong> — 질문과 문서를 <em>각각 따로</em> 하나의 벡터로 인코딩합니다. 관련성은 나중에 두 벡터의 코사인 유사도로 계산합니다. 문서 벡터는 색인 때 미리 만들어 두므로, 질문당 비용이 사실상 상수(<code>O(1)</code> 조회)에 가깝습니다. 그래서 수백만 개에서도 검색이 됩니다.</li>
+  <li><strong>cross-encoder</strong> — <em>(질문, 문서) 쌍을 하나로 이어 붙여</em> 트랜스포머에 통째로 넣습니다. 모델 내부에서 질문의 모든 토큰이 문서의 모든 토큰에 어텐션을 주고받습니다. 그 상호작용의 결과로 0~1 사이 관련성 점수 하나가 나옵니다. 미리 계산해 둘 수 있는 게 없습니다. 쌍마다 매번 트랜스포머 forward pass를 한 번씩 돌려야 합니다.</li>
+</ul>
+
+<p>정확도는 cross-encoder가 압도적입니다. 질문과 문서를 함께 읽으니 "이 문서가 이 질문에 정말 답하는가"를 훨씬 잘 판단합니다. 대신 대가가 큽니다. 문서 <code>N</code>개를 채점하려면 forward pass가 <code>N</code>번 필요합니다. 코퍼스가 100만 개면 질문 하나에 forward pass 100만 번 — 아무리 작은 MiniLM급 모델이라도 현실적으로 불가능합니다.</p>
+
+<figure class="rrk-fig">
+<svg viewBox="0 0 760 380" role="img" aria-label="bi-encoder와 cross-encoder 구조 비교. 왼쪽 bi-encoder는 질문과 문서를 각각 다른 인코더에 넣어 벡터 두 개를 만든 뒤 코사인 유사도를 계산한다. 문서 벡터는 미리 저장해 둘 수 있어 질문당 조회 비용이 상수에 가깝고 빠르지만 상위 정밀도가 거칠다. 오른쪽 cross-encoder는 질문과 문서를 하나로 이어 붙여 한 인코더에 함께 넣고 어텐션으로 상호작용시켜 관련성 점수 하나를 내며, 쌍마다 forward pass가 한 번씩 필요해 느리지만 정확하다.">
+  <rect x="8" y="8" width="360" height="364" rx="14" fill="none" stroke="var(--rrk-sky)" stroke-width="2"/>
+  <rect x="392" y="8" width="360" height="364" rx="14" fill="none" stroke="var(--rrk-amber)" stroke-width="2.5"/>
+
+  <text x="188" y="40" fill="var(--rrk-sky)" font-size="19" font-weight="800" text-anchor="middle">bi-encoder (1차 검색)</text>
+  <text x="572" y="40" fill="var(--rrk-amber)" font-size="19" font-weight="800" text-anchor="middle">cross-encoder (리랭커)</text>
+
+  <!-- bi-encoder -->
+  <rect x="40" y="66" width="120" height="34" rx="7" fill="var(--entry)" stroke="var(--rrk-slate)"/>
+  <text x="100" y="88" fill="currentColor" font-size="14" text-anchor="middle">질문 Q</text>
+  <rect x="216" y="66" width="120" height="34" rx="7" fill="var(--entry)" stroke="var(--rrk-slate)"/>
+  <text x="276" y="88" fill="currentColor" font-size="14" text-anchor="middle">문서 D</text>
+
+  <rect x="40" y="122" width="120" height="40" rx="7" fill="var(--rrk-sky)" opacity="0.22" stroke="var(--rrk-sky)"/>
+  <text x="100" y="147" fill="currentColor" font-size="13" text-anchor="middle">인코더</text>
+  <rect x="216" y="122" width="120" height="40" rx="7" fill="var(--rrk-sky)" opacity="0.22" stroke="var(--rrk-sky)"/>
+  <text x="276" y="147" fill="currentColor" font-size="13" text-anchor="middle">인코더</text>
+
+  <line x1="100" y1="100" x2="100" y2="122" stroke="var(--rrk-slate)" stroke-width="1.5"/>
+  <line x1="276" y1="100" x2="276" y2="122" stroke="var(--rrk-slate)" stroke-width="1.5"/>
+
+  <rect x="52" y="184" width="96" height="26" rx="6" fill="none" stroke="var(--rrk-sky)"/>
+  <text x="100" y="202" fill="currentColor" font-size="12" text-anchor="middle">벡터 q</text>
+  <rect x="228" y="184" width="96" height="26" rx="6" fill="none" stroke="var(--rrk-sky)"/>
+  <text x="276" y="202" fill="currentColor" font-size="12" text-anchor="middle">벡터 d (미리 저장)</text>
+  <line x1="100" y1="162" x2="100" y2="184" stroke="var(--rrk-slate)" stroke-width="1.5"/>
+  <line x1="276" y1="162" x2="276" y2="184" stroke="var(--rrk-slate)" stroke-width="1.5"/>
+
+  <rect x="118" y="238" width="140" height="34" rx="8" fill="var(--rrk-sky)" opacity="0.28" stroke="var(--rrk-sky)"/>
+  <text x="188" y="260" fill="currentColor" font-size="13" text-anchor="middle">코사인 유사도</text>
+  <line x1="100" y1="210" x2="150" y2="238" stroke="var(--rrk-slate)" stroke-width="1.5"/>
+  <line x1="276" y1="210" x2="226" y2="238" stroke="var(--rrk-slate)" stroke-width="1.5"/>
+  <text x="188" y="312" fill="var(--rrk-sky)" font-size="13" font-weight="700" text-anchor="middle">질문당 O(1) · 빠름</text>
+  <text x="188" y="336" fill="currentColor" font-size="12" text-anchor="middle" opacity="0.75">recall은 좋지만 상위 정밀도가 거침</text>
+
+  <!-- cross-encoder -->
+  <rect x="452" y="66" width="240" height="34" rx="7" fill="var(--entry)" stroke="var(--rrk-slate)"/>
+  <text x="572" y="88" fill="currentColor" font-size="13" text-anchor="middle">[Q] 질문 [SEP] 문서 D  (이어 붙임)</text>
+
+  <rect x="472" y="128" width="200" height="52" rx="9" fill="var(--rrk-amber)" opacity="0.25" stroke="var(--rrk-amber)" stroke-width="1.5"/>
+  <text x="572" y="150" fill="currentColor" font-size="13" text-anchor="middle">트랜스포머 (함께 읽음)</text>
+  <text x="572" y="169" fill="currentColor" font-size="11" text-anchor="middle" opacity="0.75">모든 토큰이 서로 어텐션</text>
+  <line x1="572" y1="100" x2="572" y2="128" stroke="var(--rrk-slate)" stroke-width="1.5"/>
+
+  <rect x="502" y="204" width="140" height="34" rx="8" fill="var(--rrk-amber)" opacity="0.32" stroke="var(--rrk-amber)"/>
+  <text x="572" y="226" fill="currentColor" font-size="13" text-anchor="middle">관련성 점수 1개</text>
+  <line x1="572" y1="180" x2="572" y2="204" stroke="var(--rrk-slate)" stroke-width="1.5"/>
+
+  <text x="572" y="290" fill="var(--rrk-amber)" font-size="13" font-weight="700" text-anchor="middle">쌍마다 forward pass 1번 · 느림</text>
+  <text x="572" y="314" fill="currentColor" font-size="12" text-anchor="middle" opacity="0.75">정확 · 코퍼스 전체엔 못 씀</text>
+  <text x="572" y="344" fill="currentColor" font-size="12" text-anchor="middle" opacity="0.75">→ 후보 수십 개에만 적용</text>
+</svg>
+<figcaption>bi-encoder는 질문·문서를 따로 벡터로 만들어 코사인 유사도로 재니 빠르지만 거칠고, cross-encoder는 질문·문서를 함께 읽어 정확하지만 쌍마다 forward pass가 필요해 느리다. 그래서 전자로 넓게 뽑고, 후자로 좁게 다듬는다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 그래서 나온 답: 2단계 검색</h2>
+
+<p>두 방식의 장단점이 정확히 반대라는 점을 눈치챘을 겁니다. bi-encoder는 빠르지만 거칠고, cross-encoder는 정확하지만 느립니다. 답은 뻔합니다. <strong>둘을 이어 붙이면 됩니다.</strong> 이걸 <strong>2단계 검색(two-stage retrieval)</strong>, 또는 retrieve-and-rerank라고 부릅니다.</p>
+
+<ol>
+  <li><strong>1단계 · 검색(retrieve)</strong> — 빠른 bi-encoder(+키워드 검색)로 코퍼스 전체에서 후보를 <em>넓게</em> 뽑습니다. 보통 상위 20~100개. 여기선 recall이 목표입니다. 정답을 이 안에만 넣으면 됩니다.</li>
+  <li><strong>2단계 · 리랭킹(rerank)</strong> — 뽑힌 후보에만 cross-encoder를 돌려 (질문, 후보) 쌍마다 점수를 매기고, 그 점수로 <em>다시</em> 정렬합니다. 그중 상위 3~5개만 LLM에 넘깁니다. 여기선 precision이 목표입니다.</li>
+</ol>
+
+<p>핵심은 cross-encoder를 <strong>코퍼스 전체가 아니라 후보 수십 개에만</strong> 돌린다는 점입니다. forward pass가 100만 번이 아니라 50번이면 실시간으로 충분히 감당됩니다. 느리지만 정확한 도구를, 느려도 되는 작은 범위에만 쓰는 겁니다.</p>
+
+<p>효과는 실측으로도 큽니다. 2026년에 나온 여러 실무 보고를 종합하면, 잘 고른 리랭커 하나로 상위 정렬 품질 지표인 NDCG@10이 대략 0.55~0.70 구간에서 0.75~0.85 구간으로 올라가고, RAG 답변 품질(RAGAS 등)도 15~30% 개선되는 사례가 흔합니다. 숫자 자체는 데이터셋마다 다르니 <em>내 데이터로 직접 재는 것</em>이 원칙이지만, "임베딩만 바꾸는 것보다 리랭커를 붙이는 게 대개 더 남는 장사"라는 방향은 일관됩니다.</p>
+
+<div class="rrk-good rrk-note"><strong>왜 지금 다시 화제일까.</strong> 2026년 RAG 담론은 "context가 크다고 다 넣지 말고 <em>진짜 알짜만</em> 넣자"는 token discipline 흐름으로 기울었습니다. 리랭킹은 딱 그 도구입니다. 후보 50개를 그대로 프롬프트에 밀어 넣는 대신, 리랭커로 상위 3~5개만 골라 넣으면 토큰도 아끼고 정확도도 오릅니다. 게다가 최근 리랭커는 "이 질문엔 최신 문서를 우선하라" 같은 <em>지시를 따르는</em> instruction-following 기능까지 붙어, 도메인 규칙을 순위에 반영하기 쉬워졌습니다.</div>
+
+<h2 id="sec-4">4. 후보를 넓게 모으기 — 하이브리드 검색과 RRF</h2>
+
+<p>2단계 검색이 잘 돌아가려면 대전제가 하나 있습니다. <strong>1단계가 정답을 후보 안에 넣어 줘야 합니다.</strong> 리랭커는 후보를 <em>다시 줄 세울</em> 뿐, 후보에 없는 문서를 새로 만들어 내진 못합니다. 1단계에서 놓친 문서는 영영 못 씁니다. 그래서 1단계 recall을 최대한 끌어올리는 게 중요합니다.</p>
+
+<p>여기서 흔히 쓰는 게 <strong>하이브리드 검색(hybrid search)</strong>입니다. 성격이 다른 두 검색을 함께 돌리는 거죠.</p>
+
+<ul>
+  <li><strong>희소(sparse) 검색 · BM25</strong> — 키워드 기반 고전 검색. 정확한 단어·제품명·오류 코드·희귀어에 강합니다. "무슨 뜻인지"보다 "그 단어가 들어 있는지"를 봅니다.</li>
+  <li><strong>밀집(dense) 검색 · 임베딩</strong> — 의미 기반. 표현이 달라도 뜻이 비슷하면 잡습니다. 대신 정확한 고유명사·숫자엔 약할 때가 있습니다.</li>
+</ul>
+
+<p>문제는 이 둘의 점수 체계가 서로 호환되지 않는다는 겁니다. BM25 점수는 0에서 수십까지 아무 범위나 나오고, 코사인 유사도는 −1~1입니다. 그냥 더하거나 가중 평균하면 한쪽이 다른 쪽을 압도해 엉망이 됩니다.</p>
+
+<p>이 문제를 우아하게 피하는 표준 기법이 <strong>RRF(Reciprocal Rank Fusion, 상호 순위 융합)</strong>입니다. 점수를 아예 무시하고 <em>순위(rank)만</em> 씁니다. 각 문서에 대해 다음처럼 점수를 매깁니다.</p>
+
+<figure class="rrk-fig">
+<svg viewBox="0 0 720 250" role="img" aria-label="RRF 공식과 계산 예시. RRF 점수는 각 검색 결과 리스트에서 그 문서의 순위 rank에 대해 1을 (k + rank)로 나눈 값을 모두 더한 것이다. k는 보통 60을 쓴다. 예를 들어 BM25에서 2등, 밀집 검색에서 5등인 문서는 1/(60+2) 더하기 1/(60+5)로 약 0.0316점을 받는다. 순위만 쓰기 때문에 BM25 점수와 코사인 점수의 범위가 달라도 문제가 되지 않는다.">
+  <text x="360" y="44" fill="currentColor" font-size="22" font-weight="800" text-anchor="middle">RRF(d) = Σ<tspan font-size="15" dy="6">r</tspan><tspan dy="-6"> </tspan> 1 / (k + rank<tspan font-size="14" dy="4">r</tspan><tspan dy="-4">(d))</tspan></text>
+  <text x="360" y="78" fill="currentColor" font-size="14" text-anchor="middle" opacity="0.8">r = 각 검색 리스트(BM25, 밀집…) · rank = 그 리스트에서의 순위 · k = 보통 60</text>
+
+  <rect x="60" y="104" width="280" height="120" rx="10" fill="var(--entry)" stroke="var(--rrk-sky)"/>
+  <text x="200" y="128" fill="var(--rrk-sky)" font-size="14" font-weight="700" text-anchor="middle">예시: 문서 D</text>
+  <text x="200" y="154" fill="currentColor" font-size="13" text-anchor="middle">BM25에서 2등 → 1/(60+2) = 0.0161</text>
+  <text x="200" y="178" fill="currentColor" font-size="13" text-anchor="middle">밀집에서 5등 → 1/(60+5) = 0.0154</text>
+  <text x="200" y="206" fill="var(--rrk-green)" font-size="14" font-weight="700" text-anchor="middle">합계 ≈ 0.0315</text>
+
+  <rect x="380" y="104" width="280" height="120" rx="10" fill="var(--entry)" stroke="var(--rrk-amber)"/>
+  <text x="520" y="128" fill="var(--rrk-amber)" font-size="14" font-weight="700" text-anchor="middle">왜 k=60?</text>
+  <text x="520" y="154" fill="currentColor" font-size="12.5" text-anchor="middle">1등의 과한 지배를 눌러 주는</text>
+  <text x="520" y="174" fill="currentColor" font-size="12.5" text-anchor="middle">완충 상수. 여러 데이터셋에서</text>
+  <text x="520" y="194" fill="currentColor" font-size="12.5" text-anchor="middle">경험적으로 잘 통해 사실상 기본값.</text>
+</svg>
+<figcaption>RRF는 점수 대신 순위만 더한다. BM25 점수와 코사인 점수의 범위가 달라도 순위는 언제나 1, 2, 3…이라 자연스럽게 섞인다. Elasticsearch·OpenSearch·Azure AI Search·Weaviate 등이 하이브리드 검색 기본 융합 방식으로 채택했다.</figcaption>
+</figure>
+
+<p>순위만 쓰므로 점수 범위 문제가 사라집니다. 학습도 필요 없고 손잡이는 <code>k</code> 하나뿐이며, 대개 가중 점수 합산보다 잘 나옵니다. 그래서 Elasticsearch, OpenSearch, Azure AI Search, MongoDB Atlas, Weaviate 같은 검색 엔진들이 하이브리드 랭킹 기본값으로 RRF를 씁니다. 정리하면 파이프라인은 이렇게 됩니다. <strong>BM25 + 밀집 검색 → RRF로 후보 통합 → cross-encoder로 리랭킹 → 상위 몇 개를 LLM에.</strong></p>
+
+<h2 id="sec-5">5. 절충안 — ColBERT식 late interaction</h2>
+
+<p>bi-encoder(빠름·거침)와 cross-encoder(느림·정확) 사이에 낀 세 번째 길이 있습니다. <strong>late interaction(지연 상호작용)</strong> 방식이고, 대표 모델이 <strong>ColBERT</strong>입니다.</p>
+
+<p>아이디어는 이렇습니다. bi-encoder는 문서 하나를 벡터 <em>한 개</em>로 뭉갭니다. 그 과정에서 세부 정보가 뭉개지죠. ColBERT는 대신 문서의 <strong>토큰마다 벡터를 하나씩</strong> 만들어 둡니다. 질문도 토큰별 벡터로 만들고요. 관련성은 질문 토큰 각각이 문서 토큰들 중 가장 잘 맞는 것과의 유사도를 취해(MaxSim) 모두 더하는 식으로 계산합니다.</p>
+
+<p>이게 "late" interaction인 이유는, 질문과 문서의 상호작용을 인코딩 <em>이후</em> 채점 단계로 미루기 때문입니다. cross-encoder처럼 처음부터 함께 넣진 않지만, 단일 벡터보다는 훨씬 세밀하게 맞춰 봅니다. 문서 토큰 벡터를 미리 색인해 둘 수 있어 cross-encoder보다 빠르면서, 정밀도는 bi-encoder보다 높습니다. 대신 토큰마다 벡터를 저장하니 색인 용량이 커지는 대가가 있습니다.</p>
+
+<figure class="rrk-fig">
+<svg viewBox="0 0 760 250" role="img" aria-label="세 가지 검색 방식의 위치 비교. 왼쪽부터 bi-encoder는 가장 빠르지만 정밀도가 낮고 문서를 벡터 한 개로 표현한다. 가운데 ColBERT식 late interaction은 토큰마다 벡터를 만들어 MaxSim으로 채점하며 속도와 정밀도의 중간에 있다. 오른쪽 cross-encoder는 가장 정밀하지만 가장 느리고 질문과 문서를 함께 읽는다. 화살표는 왼쪽으로 갈수록 빠르고 오른쪽으로 갈수록 정밀함을 나타낸다.">
+  <line x1="60" y1="60" x2="700" y2="60" stroke="var(--rrk-slate)" stroke-width="2"/>
+  <text x="80" y="42" fill="var(--rrk-sky)" font-size="14" font-weight="700">← 빠름 · 저장 작음</text>
+  <text x="680" y="42" fill="var(--rrk-amber)" font-size="14" font-weight="700" text-anchor="end">정밀 · 느림 →</text>
+
+  <circle cx="140" cy="60" r="8" fill="var(--rrk-sky)"/>
+  <circle cx="380" cy="60" r="8" fill="var(--rrk-violet)"/>
+  <circle cx="640" cy="60" r="8" fill="var(--rrk-amber)"/>
+
+  <rect x="40" y="90" width="200" height="128" rx="10" fill="var(--entry)" stroke="var(--rrk-sky)"/>
+  <text x="140" y="114" fill="var(--rrk-sky)" font-size="14" font-weight="800" text-anchor="middle">bi-encoder</text>
+  <text x="140" y="140" fill="currentColor" font-size="12" text-anchor="middle">문서 = 벡터 1개</text>
+  <text x="140" y="162" fill="currentColor" font-size="12" text-anchor="middle">코사인 유사도</text>
+  <text x="140" y="192" fill="currentColor" font-size="11.5" text-anchor="middle" opacity="0.72">1차 검색용 · 코퍼스 전체</text>
+
+  <rect x="280" y="90" width="200" height="128" rx="10" fill="var(--entry)" stroke="var(--rrk-violet)"/>
+  <text x="380" y="114" fill="var(--rrk-violet)" font-size="14" font-weight="800" text-anchor="middle">ColBERT (late)</text>
+  <text x="380" y="140" fill="currentColor" font-size="12" text-anchor="middle">문서 = 토큰별 벡터</text>
+  <text x="380" y="162" fill="currentColor" font-size="12" text-anchor="middle">MaxSim 합산</text>
+  <text x="380" y="192" fill="currentColor" font-size="11.5" text-anchor="middle" opacity="0.72">중간 · 색인 용량 큼</text>
+
+  <rect x="540" y="90" width="200" height="128" rx="10" fill="var(--entry)" stroke="var(--rrk-amber)"/>
+  <text x="640" y="114" fill="var(--rrk-amber)" font-size="14" font-weight="800" text-anchor="middle">cross-encoder</text>
+  <text x="640" y="140" fill="currentColor" font-size="12" text-anchor="middle">질문+문서 함께</text>
+  <text x="640" y="162" fill="currentColor" font-size="12" text-anchor="middle">점수 1개</text>
+  <text x="640" y="192" fill="currentColor" font-size="11.5" text-anchor="middle" opacity="0.72">리랭킹용 · 후보 수십 개</text>
+</svg>
+<figcaption>세 방식은 속도–정밀도 스펙트럼 위의 서로 다른 점이다. 실무에서는 왼쪽(bi-encoder)으로 넓게 뽑고 오른쪽(cross-encoder)으로 좁게 다듬는 조합이 가장 흔하며, ColBERT는 그 중간을 하나의 모델로 메우고 싶을 때 쓴다.</figcaption>
+</figure>
+
+<h2 id="sec-6">6. 실전 — 코드로 2단계 파이프라인 만들기</h2>
+
+<p>말로 열 번 듣는 것보다 코드 한 번이 빠릅니다. 오픈소스 <code>sentence-transformers</code>로 cross-encoder 리랭킹의 알맹이를 보겠습니다. 핵심은 딱 두 줄입니다 — (질문, 문서) 쌍을 만들어 <code>predict</code>에 넣으면 점수가 나옵니다.</p>
+
+{{< highlight python >}}
+from sentence_transformers import CrossEncoder
+
+# 작고 빠른 대표적 리랭커. 후보에만 돌리므로 이 정도로도 충분합니다.
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+query = "RAG에서 리랭킹은 왜 필요한가?"
+# 1차 검색이 건져 온 후보들이라고 가정 (실제로는 벡터 DB에서 옵니다)
+candidates = [
+    "리랭커는 후보를 질문과의 관련성으로 다시 정렬한다.",
+    "벡터 검색은 문서를 미리 임베딩해 두어 빠르다.",
+    "오늘 점심 메뉴는 김치찌개였다.",
+]
+
+# (질문, 문서) 쌍마다 관련성 점수를 매깁니다 — 이게 cross-encoder의 핵심
+pairs = [(query, doc) for doc in candidates]
+scores = reranker.predict(pairs)
+
+# 점수 높은 순으로 재정렬
+ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
+for doc, score in ranked:
+    print(f"{score:6.2f}  {doc}")
+{{< /highlight >}}
+
+<p>여기서 <code>candidates</code>는 원래 1차 검색이 뽑아 온 목록입니다. 실제 파이프라인은 앞에 검색 단계를 붙입니다. 아래는 뼈대입니다 — 넓게 뽑고(<code>top_k</code>=50), 좁게 남깁니다(<code>top_n</code>=5).</p>
+
+{{< highlight python >}}
+def search(query, top_k=50, top_n=5):
+    # 1단계: bi-encoder(+BM25)로 넓게 후보 뽑기 — recall이 목표
+    candidates = vector_db.search(query, k=top_k)   # 후보 50개
+
+    # 2단계: cross-encoder로 후보에만 점수 매겨 다시 줄 세우기 — precision이 목표
+    pairs = [(query, c.text) for c in candidates]
+    scores = reranker.predict(pairs)
+    reranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
+
+    # 상위 몇 개만 LLM에 — 토큰도 아끼고 정확도도 오른다
+    return [c for c, _ in reranked[:top_n]]        # 최종 5개
+{{< /highlight >}}
+
+<p>자체 GPU가 부담스러우면 호스팅 리랭커 API를 쓰면 됩니다. 인프라 없이 한 번 호출로 순위를 받아 옵니다. 예를 들어 Cohere Rerank는 이렇게 씁니다.</p>
+
+{{< highlight python >}}
+import cohere
+co = cohere.ClientV2()  # COHERE_API_KEY 환경변수 사용
+
+resp = co.rerank(
+    model="rerank-v3.5",
+    query="RAG에서 리랭킹은 왜 필요한가?",
+    documents=[c.text for c in candidates],  # 1차 검색 후보들
+    top_n=5,                                 # 상위 5개만 돌려받기
+)
+# resp.results: relevance_score(0~1)와 원본 index가 관련성 순으로 정렬돼 옴
+for r in resp.results:
+    print(f"{r.relevance_score:.3f}  {candidates[r.index].text}")
+{{< /highlight >}}
+
+<p>패턴은 어떤 리랭커든 똑같습니다. <em>질문 하나 + 문서 목록 → 관련성 점수로 정렬된 목록</em>. 자체 호스팅(<code>sentence-transformers</code>, <code>Qwen3-Reranker</code>, <code>BGE</code>)이냐 API(Cohere, Voyage)냐만 다를 뿐입니다.</p>
+
+<div class="rrk-note"><strong>지시를 따르는 리랭커.</strong> 2026년의 새 흐름은 순위에 <em>규칙</em>을 얹는 겁니다. Voyage <code>rerank-2.5</code>나 <code>Qwen3-Reranker</code>는 "같은 관련성이면 최신 문서를 우선하라", "튜토리얼보다 공식 레퍼런스를 위로" 같은 자연어 지시를 함께 받아 순위에 반영합니다. 도메인 규칙을 코드로 후처리하지 않고 리랭커에 맡길 수 있어 편리합니다.</div>
+
+<h2 id="sec-7">7. 리랭커 모델 고르기 (2026)</h2>
+
+<p>2026년 현재 실무에서 자주 보이는 선택지를 정리하면 이렇습니다. 정답은 없고, <em>내 데이터로 재보고</em> 고르는 게 원칙입니다.</p>
+
+<div class="rrk-tblwrap">
+<table class="rrk-tbl">
+<thead><tr><th>모델</th><th>형태</th><th>특징 / 언제</th></tr></thead>
+<tbody>
+<tr><td><code>Cohere Rerank 3.5</code></td><td>호스팅 API</td><td>인프라 없이 바로. 다국어·긴 문서에 강함. search unit 단위 과금(대략 1,000 유닛당 $2 수준).</td></tr>
+<tr><td><code>Voyage rerank-2.5</code></td><td>호스팅 API</td><td>지시(instruction)를 따라 순위 조정. 도메인 규칙을 순위에 얹고 싶을 때.</td></tr>
+<tr><td><code>Qwen3-Reranker</code> (0.6B/4B/8B)</td><td>오픈 웨이트</td><td>자체 호스팅, 다국어·코드 검색 강함. 크기 골라 속도↔정확도 조절. 지시 지원.</td></tr>
+<tr><td><code>bge-reranker-v2-m3</code></td><td>오픈 웨이트</td><td>가볍고 다국어. 메모리 여유 없을 때 무난한 기본값(BAAI).</td></tr>
+<tr><td><code>bge-reranker-v2-gemma</code> / <code>-minicpm-layerwise</code></td><td>오픈 웨이트</td><td>더 크고 정확. 품질 우선일 때(BAAI).</td></tr>
+<tr><td><code>ms-marco-MiniLM-L-6-v2</code></td><td>오픈 웨이트</td><td>아주 가볍고 빠름. 영어 위주 프로토타입·학습용.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>고를 때 보는 축은 대체로 넷입니다. <strong>(1) 언어</strong> — 한국어/다국어면 다국어 모델(Cohere, Qwen3, bge-m3)로. <strong>(2) 배포</strong> — 데이터 반출이 곤란하거나 대량이면 자체 호스팅, 빠르게 붙이려면 API. <strong>(3) 지연·비용</strong> — 후보 수 × 모델 크기가 곧 지연입니다. <strong>(4) 지시 필요 여부</strong> — 도메인 규칙을 순위에 얹어야 하면 instruction 지원 모델로.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>후보를 너무 많이 리랭킹</strong> — cross-encoder는 후보 수에 비례해 느려집니다. 500개를 리랭킹하면 지연이 터집니다. <em>1차에서 20~50개로 줄인 뒤</em> 리랭킹하세요. "recall이 걱정되면 후보 수를 늘린다"는 유혹은 지연과 맞바꾸는 겁니다.</li>
+  <li><strong>필터를 리랭킹 뒤에 적용</strong> — 권한(ACL)·기간 같은 하드 필터는 리랭킹 <em>앞에서</em> 걸어 후보 집합을 줄이세요. 뒤에서 걸면 비싼 리랭킹을 버릴 문서에까지 낭비하고, 최종 개수도 모자라집니다.</li>
+  <li><strong>리랭커 점수를 확률로 착각</strong> — 많은 리랭커의 출력은 보정된 확률이 아니라 <em>상대 점수</em>입니다. "0.5 넘으면 채택" 같은 고정 임계값을 모든 질문에 그대로 쓰면 위험합니다. 필요하면 질문별 분포를 보고 top-n 방식으로 자르세요.</li>
+  <li><strong>리랭커의 토큰 한도를 잊음</strong> — cross-encoder도 최대 입력 길이가 있습니다. 긴 문서는 잘려 들어가 뒷부분이 무시될 수 있습니다. chunk 크기와 리랭커 한도를 맞추세요.</li>
+  <li><strong>진짜 문제가 recall인데 리랭킹으로 때움</strong> — 정답이 애초에 후보에 없으면 리랭커가 할 수 있는 게 없습니다. "리랭킹해도 안 좋아진다"면 1단계 recall부터 의심하세요(하이브리드 검색·chunking·임베딩 점검).</li>
+  <li><strong>측정 없이 도입</strong> — "좋아진 것 같다"는 착각입니다. 정답 라벨을 붙인 작은 평가셋으로 NDCG·recall·답변 정확도를 <em>도입 전후로</em> 재세요. 리랭커·top_k·top_n은 전부 재봐야 아는 손잡이입니다.</li>
+</ul>
+
+<div class="rrk-warn rrk-note"><strong>리랭킹은 만능이 아닙니다.</strong> 리랭킹이 고치는 건 "뽑아 놓고 못 올린" 문제(상위 precision)입니다. "애초에 못 뽑은" 문제(recall)나 "문서 자체에 답이 없는" 문제는 못 고칩니다. 증상을 먼저 나눠 보세요 — 후보 50개 안에 정답이 <em>있는데</em> 상위 5개에 없다면 리랭킹감, 후보 50개에 <em>아예 없다면</em> 검색·색인감입니다.</div>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>RAG가 틀리는 흔한 원인은 검색 실패가 아니라 <strong>순서 실패</strong>다 — 정답을 후보에 뽑아 놓고도 상위로 못 올린다.</li>
+  <li><strong>bi-encoder</strong>는 질문·문서를 따로 벡터로 만들어 빠르지만 상위 정밀도가 거칠고, <strong>cross-encoder</strong>는 둘을 함께 읽어 정확하지만 쌍마다 forward pass가 필요해 느리다.</li>
+  <li>정답은 <strong>2단계 검색</strong>: 1차로 넓게 뽑아(recall) → 2차로 후보에만 cross-encoder 리랭킹(precision) → 상위 3~5개만 LLM에.</li>
+  <li>1차 recall을 위해 <strong>하이브리드 검색(BM25+밀집)</strong>을 <strong>RRF</strong>로 합쳐라. 순위만 더하니 점수 범위 충돌이 없다(k=60이 사실상 기본값).</li>
+  <li><strong>ColBERT식 late interaction</strong>은 토큰별 벡터+MaxSim으로 속도–정밀도의 중간을 메운다.</li>
+  <li>모델은 다국어면 Cohere·Qwen3·bge-m3, 지시가 필요하면 Voyage·Qwen3, 가벼운 프로토타입이면 MiniLM. <strong>내 데이터로 재보고</strong> 골라라.</li>
+  <li>함정: 후보 과다 리랭킹·필터를 뒤에 적용·점수를 확률로 오해·토큰 한도·recall 문제를 리랭킹으로 때우기·측정 없이 도입.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Pinecone, <a href="https://www.pinecone.io/learn/series/rag/rerankers/" target="_blank" rel="noopener">Rerankers and Two-Stage Retrieval</a> — 2단계 검색과 리랭킹 개념을 그림으로 설명한 표준 입문. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Sentence Transformers, <a href="https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html" target="_blank" rel="noopener">Retrieve &amp; Re-Rank</a> — bi-encoder 검색 + cross-encoder 리랭킹 공식 예제·코드. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>ZeroEntropy, <a href="https://zeroentropy.dev/articles/biencoder-vs-crossencoder/" target="_blank" rel="noopener">Bi-Encoders vs Cross-Encoders</a> — 두 구조의 계산량·정확도 차이 상세. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>BigData Boutique, <a href="https://bigdataboutique.com/blog/reciprocal-rank-fusion-how-it-works-and-when-to-use-it" target="_blank" rel="noopener">Reciprocal Rank Fusion (RRF): How It Works and When to Use It</a> — RRF 공식·k=60·엔진별 채택 현황. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Qwen, <a href="https://huggingface.co/collections/Qwen/qwen3-reranker" target="_blank" rel="noopener">Qwen3-Reranker collection</a> · <a href="https://arxiv.org/abs/2506.05176" target="_blank" rel="noopener">Qwen3 Embedding 기술 보고서</a> — 오픈 웨이트 리랭커(0.6B/4B/8B)와 임베딩·리랭킹 학습. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Cohere, <a href="https://docs.cohere.com/docs/rerank" target="_blank" rel="noopener">Rerank</a> — 호스팅 리랭크 API 사용법과 search unit 과금. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Stanford, <a href="https://github.com/stanford-futuredata/ColBERT" target="_blank" rel="noopener">ColBERT</a> — late interaction·MaxSim 원조 구현. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>DigitalApplied, <a href="https://www.digitalapplied.com/blog/hybrid-search-bm25-vector-reranking-reference-2026" target="_blank" rel="noopener">Hybrid Search: BM25, Vector &amp; Reranking Reference 2026</a> — 하이브리드+리랭킹 파이프라인 실무 레퍼런스. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>ZeroEntropy, <a href="https://zeroentropy.dev/articles/ultimate-guide-to-choosing-the-best-reranking-model-in-2025/" target="_blank" rel="noopener">Ultimate Guide to Choosing the Best Reranking Model</a> — 2026 리랭커 모델 비교. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

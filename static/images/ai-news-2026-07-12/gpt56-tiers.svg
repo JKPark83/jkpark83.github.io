@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="400" fill="#0f172a"/>
+  <text x="24" y="34" fill="#f8fafc" font-size="20" font-weight="700">GPT-5.6 3티어 가격 (1M 토큰당, USD)</text>
+  <text x="24" y="56" fill="#94a3b8" font-size="12">Sol=프런티어 추론, Terra=프로덕션 균형, Luna=고처리량 경량. mini/nano 접미사를 대체.</text>
+
+  <!-- axis -->
+  <line x1="70" y1="310" x2="690" y2="310" stroke="#334155" stroke-width="1.5"/>
+  <g stroke="#1e293b" stroke-width="1">
+    <line x1="70" y1="90" x2="690" y2="90"/>
+    <line x1="70" y1="163" x2="690" y2="163"/>
+    <line x1="70" y1="237" x2="690" y2="237"/>
+  </g>
+  <g fill="#64748b" font-size="10" text-anchor="end">
+    <text x="62" y="314">$0</text>
+    <text x="62" y="241">$10</text>
+    <text x="62" y="167">$20</text>
+    <text x="62" y="94">$30</text>
+  </g>
+
+  <!-- Luna group (in $1=7.3, out $6=44) -->
+  <g>
+    <rect x="130" y="302.7" width="44" height="7.3" fill="#38bdf8"/>
+    <rect x="180" y="266" width="44" height="44" fill="#0ea5e9"/>
+    <text x="152" y="296" fill="#7dd3fc" font-size="10" text-anchor="middle">$1</text>
+    <text x="202" y="258" fill="#7dd3fc" font-size="10" text-anchor="middle">$6</text>
+    <text x="177" y="332" fill="#e2e8f0" font-size="13" font-weight="700" text-anchor="middle">Luna</text>
+  </g>
+
+  <!-- Terra group (in $2.5=18.3, out $15=110) -->
+  <g>
+    <rect x="320" y="291.7" width="44" height="18.3" fill="#34d399"/>
+    <rect x="370" y="200" width="44" height="110" fill="#10b981"/>
+    <text x="342" y="284" fill="#6ee7b7" font-size="10" text-anchor="middle">$2.5</text>
+    <text x="392" y="192" fill="#6ee7b7" font-size="10" text-anchor="middle">$15</text>
+    <text x="367" y="332" fill="#e2e8f0" font-size="13" font-weight="700" text-anchor="middle">Terra</text>
+  </g>
+
+  <!-- Sol group (in $5=36.7, out $30=220) -->
+  <g>
+    <rect x="510" y="273.3" width="44" height="36.7" fill="#fbbf24"/>
+    <rect x="560" y="90" width="44" height="220" fill="#f59e0b"/>
+    <text x="532" y="266" fill="#fcd34d" font-size="10" text-anchor="middle">$5</text>
+    <text x="582" y="82" fill="#fcd34d" font-size="10" text-anchor="middle">$30</text>
+    <text x="557" y="332" fill="#e2e8f0" font-size="13" font-weight="700" text-anchor="middle">Sol</text>
+  </g>
+
+  <!-- legend -->
+  <g>
+    <rect x="470" y="352" width="14" height="14" fill="#38bdf8"/>
+    <text x="490" y="364" fill="#cbd5e1" font-size="12">입력</text>
+    <rect x="540" y="352" width="14" height="14" fill="#f59e0b"/>
+    <text x="560" y="364" fill="#cbd5e1" font-size="12">출력</text>
+  </g>
+  <text x="24" y="364" fill="#64748b" font-size="10.5">출처: GPT-5.6 출시 가격 공지 (2026-07). max 추론 노력 옵션은 Sol 가격.</text>
+</svg>

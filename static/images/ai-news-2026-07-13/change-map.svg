@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" font-family="'Segoe UI',Roboto,'Helvetica Neue',sans-serif">
+  <rect width="720" height="470" fill="#0f172a"/>
+  <text x="24" y="38" fill="#f8fafc" font-size="22" font-weight="700">2026-07-13 · 오늘의 AI 변화 지도</text>
+  <text x="24" y="62" fill="#94a3b8" font-size="13">키워드는 'LLM 판사를 감사하라' — 논문·툴이 평가 신뢰(eval trust)로 모인다</text>
+
+  <!-- edges -->
+  <g stroke="#334155" stroke-width="2" fill="none">
+    <path d="M170 150 L360 245"/>
+    <path d="M170 255 L360 245"/>
+    <path d="M170 360 L360 245"/>
+    <path d="M470 245 L560 175"/>
+    <path d="M470 245 L560 320"/>
+  </g>
+
+  <!-- node: Judge Reliability paper -->
+  <g>
+    <rect x="24" y="112" width="150" height="80" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="36" y="134" fill="#38bdf8" font-size="13" font-weight="700">논문 · Judge 감사</text>
+    <text x="36" y="153" fill="#e2e8f0" font-size="11">판사 바꾸면 점수 이동</text>
+    <text x="36" y="170" fill="#94a3b8" font-size="11">업그레이드 비단조</text>
+    <text x="36" y="186" fill="#94a3b8" font-size="11">2607.08535</text>
+  </g>
+
+  <!-- node: Citation verifier paper -->
+  <g>
+    <rect x="24" y="220" width="150" height="80" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="36" y="242" fill="#38bdf8" font-size="13" font-weight="700">논문 · 인용 판사</text>
+    <text x="36" y="261" fill="#e2e8f0" font-size="11">싼 판사도 경쟁력</text>
+    <text x="36" y="278" fill="#94a3b8" font-size="11">GPT-5-mini F1 0.908</text>
+    <text x="36" y="294" fill="#94a3b8" font-size="11">2607.08700</text>
+  </g>
+
+  <!-- node: Codex import -->
+  <g>
+    <rect x="24" y="328" width="150" height="70" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+    <text x="36" y="350" fill="#34d399" font-size="13" font-weight="700">툴 · Codex /import</text>
+    <text x="36" y="369" fill="#e2e8f0" font-size="11">Claude Code 설정·챗</text>
+    <text x="36" y="386" fill="#94a3b8" font-size="11">선택 이관</text>
+  </g>
+
+  <!-- hub -->
+  <g>
+    <rect x="360" y="205" width="110" height="80" rx="12" fill="#7c3aed" stroke="#c4b5fd" stroke-width="2"/>
+    <text x="415" y="238" fill="#f5f3ff" font-size="14" font-weight="700" text-anchor="middle">평가 신뢰</text>
+    <text x="415" y="258" fill="#ede9fe" font-size="12" text-anchor="middle">판사 보정</text>
+    <text x="415" y="275" fill="#ddd6fe" font-size="11" text-anchor="middle">calibrate</text>
+  </g>
+
+  <!-- node: Gemini countdown -->
+  <g>
+    <rect x="560" y="140" width="140" height="70" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="572" y="162" fill="#fbbf24" font-size="13" font-weight="700">📅 Gemini 3.5 Pro</text>
+    <text x="572" y="181" fill="#e2e8f0" font-size="11">7/17 GA · D-4</text>
+    <text x="572" y="198" fill="#94a3b8" font-size="11">2M ctx · Deep Think</text>
+  </g>
+
+  <!-- node: Claude Linux desktop -->
+  <g>
+    <rect x="560" y="290" width="140" height="70" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+    <text x="572" y="312" fill="#34d399" font-size="13" font-weight="700">툴 · Claude 데스크톱</text>
+    <text x="572" y="331" fill="#e2e8f0" font-size="11">Linux 베타 (Ubuntu/Debian)</text>
+    <text x="572" y="348" fill="#94a3b8" font-size="11">Cowork·Claude Code</text>
+  </g>
+
+  <text x="24" y="446" fill="#64748b" font-size="11">값 출처: arXiv API(2607.08535·08700), Codex/Claude Code 체인지로그 · 생성 SVG</text>
+</svg>

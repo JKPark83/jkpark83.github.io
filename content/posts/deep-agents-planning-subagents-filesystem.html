@@ -1,0 +1,384 @@
+---
+title: "얕은 에이전트를 깊게: 계획·서브에이전트·파일시스템으로 오래 가는 에이전트 만들기 (Deep Agents)"
+date: 2026-07-13T07:30:00+09:00
+draft: false
+tags: ["AI", "Deep Agents", "에이전트", "agent", "subagent", "서브에이전트", "계획", "planning", "컨텍스트", "context", "파일시스템", "LangGraph", "deepagents", "Claude Code", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "단순한 while 루프 에이전트는 잠깐 데모엔 좋지만, 여러 단계짜리 긴 작업을 맡기면 컨텍스트가 터지고 중간에 목표를 잊어버립니다. 요즘 실무자들이 그 해법으로 모이는 패턴이 Deep Agent입니다. 핵심은 네 기둥 — 상세한 시스템 프롬프트, 계획 도구(write_todos), 서브에이전트(컨텍스트 격리), 파일시스템(컨텍스트 오프로드)입니다. Claude Code가 실제로 이렇게 동작하고, LangChain의 deepagents 라이브러리가 이 네 기둥을 그대로 오픈소스로 묶어 놓았습니다. 이 글은 왜 얕은 에이전트가 무너지는지부터, 네 기둥이 각각 무슨 문제를 푸는지, deepagents로 리서치 에이전트를 직접 만드는 법, 흔한 실수까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "deep-agents-planning-subagents-filesystem-cover.svg"
+  alt: "가운데 에이전트 LLM 루프를 네 개의 기둥이 감싸는 그림. ① 상세한 시스템 프롬프트, ② 계획 도구 write_todos, ③ 서브에이전트(컨텍스트 격리), ④ 파일시스템(컨텍스트 오프로드). 얕은 에이전트가 긴 작업에서 컨텍스트가 터지는 대신 네 기둥으로 오래 가는 에이전트가 된다."
+  caption: "Deep Agent은 하나의 마법이 아니라 네 가지 평범한 기둥의 조합이다 — 계획·서브에이전트·파일시스템·상세 프롬프트."
+  relative: false
+---
+
+<style>
+/* ── Deep Agents 포스트 전용 스타일 (da- 접두사) ── */
+.da-fig{
+  --da-indigo:#4f46e5; --da-cyan:#0891b2; --da-teal:#0d9488; --da-amber:#d97706;
+  --da-rose:#e11d48; --da-blue:#2563eb; --da-slate:#64748b; --da-violet:#7c3aed; --da-green:#16a34a; --da-pink:#db2777;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .da-fig{
+  --da-indigo:#818cf8; --da-cyan:#22d3ee; --da-teal:#2dd4bf; --da-amber:#fbbf24;
+  --da-rose:#fb7185; --da-blue:#60a5fa; --da-slate:#94a3b8; --da-violet:#a78bfa; --da-green:#4ade80; --da-pink:#f472b6;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .da-fig{
+    --da-indigo:#818cf8; --da-cyan:#22d3ee; --da-teal:#2dd4bf; --da-amber:#fbbf24;
+    --da-rose:#fb7185; --da-blue:#60a5fa; --da-slate:#94a3b8; --da-violet:#a78bfa; --da-green:#4ade80; --da-pink:#f472b6;
+  }
+}
+.da-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.da-fig text{font-family:inherit}
+.da-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.da-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.da-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.da-toc ol{margin:0;padding-left:1.25rem}
+.da-toc li{margin:.22rem 0;font-size:.95rem}
+.da-toc a{text-decoration:none}
+.da-toc a:hover{text-decoration:underline}
+.da-pull{font-size:1.12rem;line-height:1.72}
+.da-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.da-note{border-left:4px solid var(--da-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.da-note strong{color:var(--da-blue,#2563eb)}
+.da-warn{border-left:4px solid var(--da-rose,#e11d48)}
+.da-warn strong{color:var(--da-rose,#e11d48)}
+.da-good{border-left:4px solid var(--da-teal,#0d9488)}
+.da-good strong{color:var(--da-teal,#0d9488)}
+.da-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.da-tbl th,.da-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.da-tbl th{background:var(--entry);font-weight:700}
+.da-tbl code{font-size:.86em}
+.da-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="da-pull">
+  <p>간단한 에이전트 루프를 처음 짜면 감동합니다. LLM이 도구를 부르고, 결과를 보고, 다시 도구를 부르고… 알아서 문제를 풉니다. 그런데 "이 주제로 리서치해서 보고서 써 줘" 같은 <em>진짜</em> 일을 맡기는 순간, 열 몇 번 도구를 부르다 컨텍스트가 꽉 차고, 처음에 뭘 하려 했는지 잊고, 엉뚱한 결론으로 끝납니다.</p>
+  <footer>— 얕은 에이전트는 데모에서 빛나고 긴 작업에서 무너진다. 그 간극을 메우는 게 Deep Agent이다.</footer>
+</blockquote>
+
+<p>에이전트를 조금 다뤄 본 junior 개발자라면 이 장면이 익숙할 겁니다. <code>while</code> 루프 안에서 LLM에게 도구 몇 개를 쥐여 주면, 짧은 작업은 정말 잘 해냅니다. "이 파일에서 버그 찾아 줘" 정도는 훌륭합니다. 그런데 단계가 대여섯 개를 넘어가는 일 — 코드베이스 전체 리팩터링, 여러 소스를 뒤지는 리서치, 스펙 하나를 처음부터 구현 — 을 맡기면 갑자기 바보가 됩니다.</p>
+
+<p>이걸 실무자들은 <strong>얕은 에이전트(shallow agent)</strong>라고 부릅니다. 도구를 부르는 단순 루프는 맞지만, <em>긴 시간 축</em>을 버틸 구조가 없다는 뜻입니다. 반대말이 <strong>Deep Agent(딥 에이전트)</strong>입니다. 이름은 거창해도 마법은 아닙니다. <strong>네 가지 평범한 장치</strong>를 더했을 뿐입니다 — 상세한 시스템 프롬프트, 계획 도구, 서브에이전트(sub-agent), 파일시스템.</p>
+
+<p>이 주제가 2026년 여름에 부쩍 화제입니다. <a href="https://www.anthropic.com/news/claude-sonnet-5" target="_blank" rel="noopener">Claude Sonnet 5</a>가 "가장 에이전트다운 모델"을 내세우며 나왔고, 프런티어 랩들이 며칠 간격으로 비슷한 에이전트 아키텍처를 내놓으면서 "결국 에이전트에 필요한 뼈대는 같더라"는 공감대가 형성됐습니다. 그 뼈대를 그대로 오픈소스로 묶은 LangChain의 <code>deepagents</code> 라이브러리는 이번 주에도 <a href="https://pypi.org/project/deepagents/" target="_blank" rel="noopener">새 버전(0.7 계열 프리릴리스)</a>을 올리며 활발히 갱신 중입니다. Claude Code가 실제로 이 네 기둥으로 동작한다는 사실이 알려지면서, "왜 Claude Code는 긴 작업을 그렇게 잘 버티나"의 답으로 이 패턴이 다시 조명받고 있습니다.</p>
+
+<p>이 글은 그 네 기둥을 하나씩 뜯어봅니다. 왜 얕은 에이전트가 무너지는지, 각 기둥이 정확히 <em>어떤 문제</em>를 푸는지, <code>deepagents</code>로 리서치 에이전트를 직접 만드는 법, 그리고 흔한 실수까지 — 쉽고 자세하게 살펴봅니다.</p>
+
+<nav class="da-toc">
+  <div class="da-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 얕은 에이전트는 긴 작업에서 무너지나</a></li>
+    <li><a href="#sec-2">배경 — 에이전트 루프와 컨텍스트 창이라는 병목</a></li>
+    <li><a href="#sec-3">Deep Agent의 네 기둥 한눈에 보기</a></li>
+    <li><a href="#sec-4">기둥 ① 상세한 시스템 프롬프트</a></li>
+    <li><a href="#sec-5">기둥 ② 계획 도구 (write_todos / TodoWrite)</a></li>
+    <li><a href="#sec-6">기둥 ③ 서브에이전트 — 컨텍스트 격리</a></li>
+    <li><a href="#sec-7">기둥 ④ 파일시스템 — 컨텍스트 오프로드</a></li>
+    <li><a href="#sec-8">실전 — deepagents로 리서치 에이전트 만들기</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 얕은 에이전트는 긴 작업에서 무너지나</h2>
+
+<p>가장 단순한 에이전트는 이런 루프입니다. LLM에게 도구 목록을 주고, "도구를 부르든 최종 답을 내든 하라"고 시킵니다. 도구를 부르면 그 결과를 대화에 이어 붙이고, 다시 LLM을 호출합니다. 최종 답이 나올 때까지 반복합니다.</p>
+
+{{< highlight python >}}
+# 얕은 에이전트의 뼈대 — 짧은 작업엔 이걸로 충분하다
+messages = [{"role": "user", "content": task}]
+while True:
+    reply = llm(messages, tools=tools)      # 도구를 부를지, 답할지 모델이 결정
+    if reply.tool_calls:
+        for call in reply.tool_calls:
+            result = run_tool(call)          # 도구 실행
+            messages.append(result)          # 결과를 '대화'에 그대로 이어 붙임 ← 문제의 씨앗
+    else:
+        return reply.content                 # 도구를 안 부르면 그게 최종 답
+{{< /highlight >}}
+
+<p>문제는 <code>messages.append(result)</code> 한 줄입니다. 도구를 부를 때마다 그 <em>전체 결과</em>가 대화에 쌓입니다. 웹 검색 결과 20개, 파일 3천 줄, 로그 뭉치… 전부 컨텍스트 창(context window, 모델이 한 번에 볼 수 있는 토큰의 양)에 그대로 눌러 담깁니다. 단계가 길어질수록 세 가지가 동시에 나빠집니다.</p>
+
+<ul>
+  <li><strong>컨텍스트가 터진다.</strong> 도구 결과가 누적돼 창을 가득 채우고, 결국 한계에 부딪힙니다.</li>
+  <li><strong>목표가 흐려진다.</strong> 처음에 준 지시가 대화의 맨 위로 밀려나고, 최근 도구 결과가 모델의 주의를 독차지합니다. 초반 계획을 잊어버립니다.</li>
+  <li><strong>정확도가 떨어진다.</strong> 토큰이 많아질수록 그 안에서 필요한 정보를 정확히 꺼내 오는 능력이 떨어지는 현상 — 이른바 <em>context rot(컨텍스트 부식)</em> — 이 심해집니다. 창이 크다고 다 채워 쓰면 오히려 성능이 나빠집니다.</li>
+</ul>
+
+<p>핵심을 한 문장으로 줄이면 이렇습니다. <strong>얕은 에이전트에겐 "지금 이 순간의 대화" 말고는 아무 구조가 없습니다.</strong> 계획도, 작업 기억을 덜어 둘 곳도, 지저분한 일을 대신 맡길 조수도 없습니다. Deep Agent의 네 기둥은 정확히 이 빈자리를 하나씩 채웁니다.</p>
+
+<h2 id="sec-2">2. 배경 — 에이전트 루프와 컨텍스트 창이라는 병목</h2>
+
+<p>본격적으로 들어가기 전에 딱 두 가지만 짚겠습니다. 이미 안다면 3장으로 건너뛰어도 됩니다.</p>
+
+<p><strong>에이전트 = LLM + 루프 + 도구.</strong> 에이전트는 특별한 모델이 아닙니다. 평범한 LLM을 루프에 넣고, 바깥세상과 닿을 도구(웹 검색, 파일 읽기·쓰기, 코드 실행 등)를 쥐여 준 것입니다. 모델은 매 턴 "지금 무슨 도구를 부를까, 아니면 끝낼까"를 정합니다.</p>
+
+<p><strong>컨텍스트 창 = 에이전트의 작업 기억(working memory).</strong> 흔한 비유가 "컨텍스트 창은 저장소가 아니라 RAM"입니다. 지금 이 순간 모델이 <em>동시에</em> 붙들고 있는 정보의 총량이고, 유한하며, 꽉 차면 밀려납니다. 그래서 에이전트 엔지니어링의 상당 부분은 결국 <em>이 유한한 RAM에 무엇을 올리고 무엇을 내릴지</em>를 설계하는 일 — <strong>컨텍스트 엔지니어링(context engineering)</strong> — 입니다.</p>
+
+<p>이 관점을 쥐고 보면 네 기둥이 왜 그렇게 생겼는지가 선명해집니다. 계획 도구는 <em>목표를 RAM에 다시 띄우고</em>, 서브에이전트는 <em>지저분한 작업을 다른 RAM에서 처리</em>하고, 파일시스템은 <em>지금 안 쓰는 것을 RAM 밖으로 내려</em> 둡니다. 상세한 시스템 프롬프트는 <em>언제 그렇게 할지</em>를 알려 주는 사용 설명서입니다.</p>
+
+<h2 id="sec-3">3. Deep Agent의 네 기둥 한눈에 보기</h2>
+
+<p>먼저 전체 그림입니다. 얕은 에이전트와 Deep Agent의 결정적 차이는 "도구 결과를 어떻게 다루느냐"에 있습니다.</p>
+
+<figure class="da-fig">
+<svg viewBox="0 0 760 380" role="img" aria-label="얕은 에이전트와 Deep Agent의 컨텍스트 창 비교. 왼쪽 얕은 에이전트는 도구 결과가 대화에 그대로 쌓여 컨텍스트 창이 가득 차고 목표가 맨 위로 밀려난다. 오른쪽 Deep Agent는 계획은 위에 고정되고, 긴 도구 결과는 파일로 내려가며, 무거운 조사는 서브에이전트가 대신 처리해 요약만 돌아와, 컨텍스트 창이 여유롭다.">
+  <text x="190" y="26" text-anchor="middle" font-size="15" font-weight="700" fill="var(--da-rose)">얕은 에이전트</text>
+  <text x="570" y="26" text-anchor="middle" font-size="15" font-weight="700" fill="var(--da-teal)">Deep Agent</text>
+  <text x="380" y="26" text-anchor="middle" font-size="12" fill="var(--da-slate)">← 같은 컨텍스트 창 →</text>
+
+  <!-- LEFT: shallow, overflowing -->
+  <rect x="40" y="44" width="300" height="300" rx="10" fill="none" stroke="var(--da-slate)" stroke-width="1.5"/>
+  <rect x="52" y="56" width="276" height="26" rx="5" fill="var(--da-slate)" opacity="0.4"/>
+  <text x="190" y="74" text-anchor="middle" font-size="11" fill="currentColor">원래 목표 (맨 위로 밀려남)</text>
+  <rect x="52" y="88" width="276" height="44" rx="5" fill="var(--da-rose)" opacity="0.8"/>
+  <text x="190" y="114" text-anchor="middle" font-size="11" fill="#fff">검색 결과 20개 (원문 통째로)</text>
+  <rect x="52" y="138" width="276" height="44" rx="5" fill="var(--da-rose)" opacity="0.8"/>
+  <text x="190" y="164" text-anchor="middle" font-size="11" fill="#fff">파일 3,000줄 (원문 통째로)</text>
+  <rect x="52" y="188" width="276" height="40" rx="5" fill="var(--da-rose)" opacity="0.8"/>
+  <text x="190" y="212" text-anchor="middle" font-size="11" fill="#fff">로그 뭉치 (원문 통째로)</text>
+  <rect x="52" y="234" width="276" height="40" rx="5" fill="var(--da-rose)" opacity="0.8"/>
+  <text x="190" y="258" text-anchor="middle" font-size="11" fill="#fff">또 검색 결과…</text>
+  <rect x="52" y="280" width="276" height="52" rx="5" fill="none" stroke="var(--da-rose)" stroke-dasharray="4 4"/>
+  <text x="190" y="303" text-anchor="middle" font-size="11" fill="var(--da-rose)">지금 생각할 자리</text>
+  <text x="190" y="321" text-anchor="middle" font-size="11" fill="var(--da-rose)">(거의 안 남음 · 곧 터짐)</text>
+
+  <!-- RIGHT: deep, roomy -->
+  <rect x="420" y="44" width="300" height="300" rx="10" fill="none" stroke="var(--da-slate)" stroke-width="1.5"/>
+  <rect x="432" y="56" width="276" height="40" rx="5" fill="var(--da-cyan)"/>
+  <text x="570" y="73" text-anchor="middle" font-size="11" fill="#052e2e">계획(todos) — 항상 위에 고정</text>
+  <text x="570" y="88" text-anchor="middle" font-size="10" fill="#052e2e">[x] 조사  [ ] 초안  [ ] 검토</text>
+  <rect x="432" y="104" width="276" height="30" rx="5" fill="var(--da-teal)" opacity="0.9"/>
+  <text x="570" y="123" text-anchor="middle" font-size="11" fill="#052e2e">서브에이전트 요약 한 줄 ↩</text>
+  <rect x="432" y="142" width="276" height="30" rx="5" fill="var(--da-amber)" opacity="0.85"/>
+  <text x="570" y="161" text-anchor="middle" font-size="11" fill="#3a2c05">"결과는 notes.md에 저장함" (포인터)</text>
+  <rect x="432" y="180" width="276" height="152" rx="5" fill="none" stroke="var(--da-teal)" stroke-dasharray="4 4"/>
+  <text x="570" y="252" text-anchor="middle" font-size="11" fill="var(--da-teal)">지금 생각할 자리 (넉넉함)</text>
+
+  <!-- offloaded box -->
+  <rect x="432" y="300" width="132" height="26" rx="5" fill="var(--da-amber)" opacity="0.25"/>
+  <text x="498" y="317" text-anchor="middle" font-size="10" fill="var(--da-amber)">📄 notes.md (창 밖)</text>
+  <rect x="576" y="300" width="132" height="26" rx="5" fill="var(--da-teal)" opacity="0.2"/>
+  <text x="642" y="317" text-anchor="middle" font-size="10" fill="var(--da-teal)">🤖 서브에이전트 (딴 창)</text>
+</svg>
+<figcaption>얕은 에이전트(왼쪽)는 도구 결과 원문이 창에 쌓여 목표가 밀려나고 곧 터진다. Deep Agent(오른쪽)는 계획을 위에 고정하고, 긴 결과는 파일로 내리고, 무거운 조사는 다른 창의 서브에이전트에게 맡겨 요약만 받는다.</figcaption>
+</figure>
+
+<p>네 기둥을 한 줄씩 요약하면 이렇습니다. 뒤에서 하나씩 자세히 봅니다.</p>
+
+<div class="da-tblwrap">
+<table class="da-tbl">
+<thead><tr><th>기둥</th><th>푸는 문제</th><th>구체적 장치</th></tr></thead>
+<tbody>
+<tr><td><strong>① 상세한 시스템 프롬프트</strong></td><td>"언제 계획하고 언제 위임하나"를 모름</td><td>도구 사용 규칙·절차를 길고 구체적으로</td></tr>
+<tr><td><strong>② 계획 도구</strong></td><td>긴 작업 중 목표를 잊음</td><td><code>write_todos</code> / <code>TodoWrite</code> — 체크리스트를 컨텍스트에 유지</td></tr>
+<tr><td><strong>③ 서브에이전트</strong></td><td>지저분한 조사가 메인 창을 오염</td><td><code>task</code> 도구 — 별도 컨텍스트에서 처리, 요약만 반환</td></tr>
+<tr><td><strong>④ 파일시스템</strong></td><td>긴 결과·상태를 둘 곳이 없음</td><td><code>ls</code>/<code>read_file</code>/<code>write_file</code>/<code>edit_file</code> — 창 밖 저장소</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="sec-4">4. 기둥 ① 상세한 시스템 프롬프트</h2>
+
+<p>가장 지루하지만 가장 효과가 큰 기둥입니다. 얕은 에이전트가 실패하는 이유 중 하나는, 우리가 "알아서 잘해"라고만 말하기 때문입니다. 모델은 <em>언제</em> 계획을 세우고, <em>언제</em> 하위 작업을 위임하고, <em>언제</em> 결과를 파일에 저장할지 스스로 정할 단서가 없습니다.</p>
+
+<p>Deep Agent의 시스템 프롬프트는 짧지 않습니다. 도구 하나하나의 사용 규칙, 작업을 시작할 때의 절차, 위임 판단 기준까지 구체적으로 적습니다. Claude Code나 <code>deepagents</code>의 기본 프롬프트를 열어 보면 놀랄 만큼 깁니다. 예를 들면 이런 식입니다.</p>
+
+{{< highlight text >}}
+너는 리서치 에이전트다. 복잡한 요청을 받으면:
+1. 먼저 write_todos로 작업을 단계별 체크리스트로 쪼개라.
+2. 한 번에 하나의 항목만 in_progress로 두고, 끝나면 곧바로 completed로 표시하라.
+3. 깊은 조사가 필요한 하위 작업은 직접 하지 말고 task 도구로 서브에이전트에게 위임하라.
+   - 서브에이전트에는 '무엇을 조사할지'와 '어떤 형식으로 보고할지'를 명확히 전달하라.
+4. 웹 페이지 원문·검색 결과 뭉치처럼 긴 내용은 대화에 남기지 말고
+   write_file로 파일에 저장한 뒤, 필요할 때 read_file로 다시 읽어라.
+5. 최종 답을 내기 전, todos가 모두 completed인지 확인하라.
+{{< /highlight >}}
+
+<p>포인트는 "규칙"이 아니라 "<em>언제</em> 그 도구를 쓰는지"까지 못 박는다는 점입니다. 도구만 쥐여 주고 설명이 부실하면 모델은 그 도구를 거의 안 씁니다. 반대로 절차를 구체적으로 주면, 모델은 매 턴 이 프롬프트를 나침반 삼아 스스로를 조율합니다.</p>
+
+<div class="da-note"><strong>왜 이게 먹히나.</strong> 시스템 프롬프트는 대화가 아무리 길어져도 <em>항상 컨텍스트 맨 앞에 상주</em>합니다. 다른 내용이 밀려나도 이 "행동 지침"만은 안 밀려납니다. 그래서 긴 작업일수록 상세한 프롬프트의 값어치가 커집니다.</div>
+
+<h2 id="sec-5">5. 기둥 ② 계획 도구 (write_todos / TodoWrite)</h2>
+
+<p>두 번째 기둥은 놀랄 만큼 단순합니다. <strong>할 일 목록을 쓰는 도구</strong> 하나입니다. <code>deepagents</code>에선 <code>write_todos</code>, Claude Code에선 <code>TodoWrite</code>라고 부릅니다. 항목마다 상태가 있습니다 — <code>pending</code>(대기), <code>in_progress</code>(진행 중), <code>completed</code>(완료).</p>
+
+<p>"이게 왜 도구씩이나?"라고 생각하기 쉽습니다. 핵심은 이겁니다. 이 체크리스트는 <em>에이전트 상태에 저장</em>되고, 매 턴 컨텍스트에 다시 실립니다. 즉 <strong>목표와 진행 상황을 계속 모델 눈앞에 띄워 두는 장치</strong>입니다. 긴 작업 중 초반 계획이 대화 위로 밀려나도, todos만은 최신 상태로 앞에 남습니다.</p>
+
+<figure class="da-fig">
+<svg viewBox="0 0 720 250" role="img" aria-label="계획 도구가 목표를 컨텍스트에 유지하는 방식. 왼쪽은 계획 없는 에이전트로, 스텝이 진행될수록 원래 목표가 대화 맨 위로 밀려나 흐려진다. 오른쪽은 write_todos를 쓰는 에이전트로, 매 스텝마다 체크리스트가 갱신되어 항상 컨텍스트 앞에 최신 상태로 남는다.">
+  <!-- left: no plan -->
+  <text x="180" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="var(--da-rose)">계획 없음 — 목표가 흐려짐</text>
+  <rect x="40" y="40" width="280" height="30" rx="5" fill="var(--da-slate)" opacity="0.25"/>
+  <text x="180" y="60" text-anchor="middle" font-size="11" fill="currentColor">목표 (밀려나는 중…)</text>
+  <rect x="40" y="80" width="280" height="24" rx="5" fill="var(--da-slate)" opacity="0.4"/>
+  <text x="180" y="97" text-anchor="middle" font-size="10" fill="currentColor">도구 결과 · 도구 결과 · 도구 결과</text>
+  <rect x="40" y="112" width="280" height="24" rx="5" fill="var(--da-slate)" opacity="0.5"/>
+  <text x="180" y="129" text-anchor="middle" font-size="10" fill="currentColor">도구 결과 · 도구 결과 …</text>
+  <rect x="40" y="150" width="280" height="60" rx="6" fill="var(--da-rose)" opacity="0.15" stroke="var(--da-rose)" stroke-dasharray="4 3"/>
+  <text x="180" y="176" text-anchor="middle" font-size="11" fill="var(--da-rose)">"어… 내가 지금 뭘</text>
+  <text x="180" y="194" text-anchor="middle" font-size="11" fill="var(--da-rose)">하려던 거였지?"</text>
+
+  <!-- right: with todos -->
+  <text x="540" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="var(--da-teal)">write_todos — 목표가 앞에 고정</text>
+  <rect x="400" y="40" width="280" height="120" rx="8" fill="var(--da-cyan)" opacity="0.14" stroke="var(--da-cyan)" stroke-width="1.5"/>
+  <text x="416" y="62" font-size="12" font-weight="700" fill="var(--da-cyan)">📋 TODO (매 턴 갱신)</text>
+  <text x="416" y="86" font-size="12" fill="var(--da-teal)">[x] 자료 조사</text>
+  <text x="416" y="108" font-size="12" fill="var(--da-teal)">[x] 핵심 논점 정리</text>
+  <text x="416" y="130" font-size="12" fill="var(--da-amber)">[~] 초안 작성  ← 지금 여기</text>
+  <text x="416" y="152" font-size="12" fill="var(--da-slate)">[ ] 검토 · 마무리</text>
+  <rect x="400" y="172" width="280" height="40" rx="6" fill="var(--da-teal)" opacity="0.12"/>
+  <text x="540" y="197" text-anchor="middle" font-size="11" fill="var(--da-teal)">"다음은 초안이다" — 매 턴 방향이 분명</text>
+</svg>
+<figcaption>계획이 없으면(왼쪽) 스텝이 쌓일수록 목표가 밀려나 흐려진다. <code>write_todos</code>로 체크리스트를 유지하면(오른쪽) 매 턴 "지금 어디까지 왔고 다음이 뭔지"가 컨텍스트 앞에 또렷이 남는다.</figcaption>
+</figure>
+
+<p>재미있는 사실 하나. 이 todos는 대단한 스케줄러가 아닙니다. 그냥 <em>모델에게 자기 계획을 소리 내어 말하게 하고, 그 말을 다음 턴까지 붙들어 두는</em> 장치에 가깝습니다. 그런데 이 단순한 트릭이 "스텝을 건너뛰는" 실패를 극적으로 줄입니다. 작업 첫머리에 "먼저 전체 단계를 todos로 적어라"를 강제하는 것만으로도, 중간에 빼먹는 스텝이 눈에 띄게 사라집니다.</p>
+
+<h2 id="sec-6">6. 기둥 ③ 서브에이전트 — 컨텍스트 격리</h2>
+
+<p>세 번째 기둥이 Deep Agent의 진짜 힘입니다. <strong>서브에이전트(sub-agent)</strong>는 메인 에이전트가 <code>task</code>라는 도구로 불러내는 <em>또 다른 에이전트</em>입니다. 새로 태어나고, <em>자기만의 깨끗한 컨텍스트 창</em>을 갖고, 맡은 일을 끝까지 하고, <strong>결과를 딱 한 줄(또는 한 문단) 요약으로 돌려주고 사라집니다.</strong></p>
+
+<p>왜 이게 중요할까요. "이 라이브러리의 인증 흐름을 조사해"라는 하위 작업을 생각해 봅시다. 제대로 하려면 파일 열 개를 읽고, 함수를 따라가고, 문서를 뒤져야 합니다. 그 과정에서 나오는 원문 수천 줄이 <em>메인 컨텍스트에 그대로 쌓이면</em> 앞에서 본 오염이 그대로 재현됩니다. 하지만 서브에이전트에게 맡기면, 그 지저분한 읽기는 <em>딴 창에서</em> 벌어지고, 메인은 <strong>"인증은 JWT를 쓰고 만료는 15분, 갱신은 /refresh 엔드포인트"</strong> 같은 결론만 받습니다.</p>
+
+<figure class="da-fig">
+<svg viewBox="0 0 720 300" role="img" aria-label="서브에이전트의 컨텍스트 격리. 메인 에이전트가 task 도구로 서브에이전트를 호출한다. 서브에이전트는 자기만의 깨끗한 컨텍스트 창에서 파일 열 개를 읽고 함수를 따라가는 지저분한 작업을 모두 처리한 뒤, 요약 한 줄만 메인에게 돌려주고 사라진다. 메인 컨텍스트는 깨끗하게 유지된다.">
+  <!-- main agent -->
+  <rect x="30" y="90" width="180" height="120" rx="12" fill="var(--da-indigo)" opacity="0.16" stroke="var(--da-indigo)" stroke-width="2"/>
+  <text x="120" y="118" text-anchor="middle" font-size="14" font-weight="700" fill="var(--da-indigo)">메인 에이전트</text>
+  <text x="120" y="142" text-anchor="middle" font-size="11" fill="currentColor">컨텍스트: 깨끗함 ✨</text>
+  <text x="120" y="162" text-anchor="middle" font-size="11" fill="currentColor">계획 + 결론만 보유</text>
+  <text x="120" y="188" text-anchor="middle" font-size="10" fill="var(--da-slate)">"인증 흐름 조사해 줘"</text>
+
+  <!-- call arrow -->
+  <path d="M214 128 L330 128" stroke="var(--da-teal)" stroke-width="2.5" fill="none" marker-end="url(#da-ar)"/>
+  <text x="272" y="118" text-anchor="middle" font-size="11" fill="var(--da-teal)">task 호출</text>
+  <defs><marker id="da-ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="var(--da-teal)"/></marker></defs>
+
+  <!-- subagent -->
+  <rect x="336" y="30" width="350" height="200" rx="12" fill="var(--da-teal)" opacity="0.1" stroke="var(--da-teal)" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="511" y="54" text-anchor="middle" font-size="13" font-weight="700" fill="var(--da-teal)">서브에이전트 (딴 컨텍스트 창)</text>
+  <rect x="356" y="66" width="310" height="20" rx="4" fill="var(--da-slate)" opacity="0.3"/>
+  <text x="511" y="80" text-anchor="middle" font-size="10" fill="currentColor">auth.py 3,000줄 읽기 (여기서만)</text>
+  <rect x="356" y="90" width="310" height="20" rx="4" fill="var(--da-slate)" opacity="0.3"/>
+  <text x="511" y="104" text-anchor="middle" font-size="10" fill="currentColor">token.py · refresh 흐름 추적</text>
+  <rect x="356" y="114" width="310" height="20" rx="4" fill="var(--da-slate)" opacity="0.3"/>
+  <text x="511" y="128" text-anchor="middle" font-size="10" fill="currentColor">문서 검색 · 예제 확인</text>
+  <text x="511" y="158" text-anchor="middle" font-size="11" fill="var(--da-teal)" font-weight="700">↓ 다 끝내고 요약만 추림</text>
+  <rect x="396" y="170" width="230" height="42" rx="6" fill="var(--da-teal)" opacity="0.2"/>
+  <text x="511" y="188" text-anchor="middle" font-size="10.5" fill="var(--da-teal)">"JWT · 만료 15분 ·</text>
+  <text x="511" y="204" text-anchor="middle" font-size="10.5" fill="var(--da-teal)">갱신은 /refresh"</text>
+
+  <!-- return arrow -->
+  <path d="M400 236 C 300 280, 180 260, 120 214" stroke="var(--da-teal)" stroke-width="2.5" fill="none" marker-end="url(#da-ar2)"/>
+  <text x="250" y="272" text-anchor="middle" font-size="11" fill="var(--da-teal)">요약 한 줄만 반환 · 나머진 버려짐</text>
+  <defs><marker id="da-ar2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="var(--da-teal)"/></marker></defs>
+</svg>
+<figcaption>서브에이전트는 파일 수천 줄을 읽는 지저분한 작업을 <em>자기 창</em>에서 처리하고, 메인에는 결론만 돌려준다. 그 원문 수천 줄은 메인 컨텍스트에 절대 들어오지 않는다 — 이것이 컨텍스트 격리(context isolation)다.</figcaption>
+</figure>
+
+<p>Claude Code의 <code>task</code> 도구가 정확히 이렇게 동작합니다. 서브에이전트마다 별도 컨텍스트 창, 별도 시스템 프롬프트, 별도 도구 권한을 갖습니다. 여러 개를 <strong>동시에</strong> 띄울 수도 있어서(한 번에 최대 10개까지 병렬), 서로 무관한 조사를 병렬로 돌리면 속도도 크게 빨라집니다. <code>deepagents</code>도 <code>create_deep_agent(..., subagents=[...])</code>로 커스텀 서브에이전트를 정의할 수 있고, 기본으로 범용 서브에이전트를 부르는 <code>task</code> 도구를 제공합니다.</p>
+
+<div class="da-note da-warn"><strong>병렬은 빠르지만 싸지는 않다.</strong> 서브에이전트를 여러 개 띄우면 <em>속도</em>는 빨라져도 <em>비용</em>은 줄지 않습니다. 창마다 토큰을 따로 소모하기 때문입니다. 그러니 서브에이전트는 "컨텍스트를 격리해야 하거나 병렬이 정말 이득일 때"만 쓰세요. 둘 다 아니라면, 메인에서 순차로 도구를 부르는 편이 더 싸고 디버깅도 쉽습니다.</div>
+
+<h2 id="sec-7">7. 기둥 ④ 파일시스템 — 컨텍스트 오프로드</h2>
+
+<p>마지막 기둥은 <strong>파일시스템</strong>입니다. Deep Agent에는 대개 네 개의 파일 도구가 붙습니다 — <code>ls</code>, <code>read_file</code>, <code>write_file</code>, <code>edit_file</code>. 역할은 하나입니다. <strong>지금 당장 안 보는 정보를 컨텍스트 밖으로 내려 두는 것</strong>입니다.</p>
+
+<p>비유하자면 이렇습니다. 컨텍스트 창이 책상 위라면, 파일시스템은 서랍입니다. 검색 결과 원문 20개를 책상에 늘어놓으면 정작 일할 공간이 없습니다. 대신 <code>write_file("sources.md", 원문)</code>으로 서랍에 넣고, 책상엔 "자료는 sources.md에 있음"이라는 쪽지 한 장만 남깁니다. 나중에 특정 대목이 필요하면 그때 <code>read_file</code>로 꺼내 봅니다.</p>
+
+<p>여기서 junior가 자주 헷갈리는 지점 하나. <code>deepagents</code>의 기본 파일시스템은 <strong>진짜 디스크가 아닙니다.</strong> LangGraph의 상태(State) 객체 안에 파일을 흉내 낸 <em>가상 파일시스템</em>입니다. 그래서 격리가 안전하고, 필요하면 진짜 파일시스템이나 저장소로 갈아 끼울 수도 있습니다. 핵심은 "실제 디스크냐"가 아니라, <strong>컨텍스트 창과 별개인 저장 공간이 있다는 것</strong> 자체입니다.</p>
+
+<p>이 파일시스템은 서브에이전트와 특히 잘 어울립니다. 여러 서브에이전트가 같은 가상 파일시스템을 공유하면, 그 파일이 서로의 <em>협업 게시판</em>이 됩니다. A가 <code>findings_auth.md</code>를 쓰고, B가 그걸 읽어 이어서 작업하는 식입니다 — 서로의 지저분한 대화 원문을 주고받지 않고도요.</p>
+
+<h2 id="sec-8">8. 실전 — deepagents로 리서치 에이전트 만들기</h2>
+
+<p>이제 네 기둥을 한꺼번에 써 봅니다. <code>deepagents</code>는 이 네 가지(계획 도구·서브에이전트·파일시스템·상세 프롬프트)를 <em>기본 탑재</em>한 라이브러리라, 우리가 직접 배선할 필요가 없습니다. 우리는 "도메인 도구"(여기선 웹 검색)와 "지시"만 얹으면 됩니다.</p>
+
+{{< highlight bash >}}
+# Python 3.11 이상 필요
+pip install deepagents
+{{< /highlight >}}
+
+<p>가장 작은 예제입니다. 웹 검색 도구 하나를 만들어 넘기고, 리서치 절차를 시스템 프롬프트로 줍니다.</p>
+
+{{< highlight python >}}
+import os
+from deepagents import create_deep_agent
+from tavily import TavilyClient  # 예시용 웹 검색 (아무 검색 도구나 무방)
+
+tavily = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+
+def internet_search(query: str) -> str:
+    """웹을 검색해 상위 결과의 제목·요약·URL을 돌려준다."""
+    res = tavily.search(query, max_results=5)
+    # 원문 전체가 아니라 요약만 반환 — 그래도 긴 건 에이전트가 파일에 저장한다
+    return "\n\n".join(f"{r['title']}\n{r['content']}\n{r['url']}" for r in res["results"])
+
+# 리서치 절차를 '언제 무엇을 하라'까지 구체적으로 못 박는다 (기둥 ①)
+research_prompt = """너는 꼼꼼한 리서치 에이전트다.
+- 시작하면 먼저 write_todos로 조사 단계를 체크리스트로 쪼개라.
+- 자료를 많이 읽어야 하는 하위 주제는 task 도구로 서브에이전트에게 위임하라.
+- 검색 원문처럼 긴 내용은 write_file로 파일에 저장하고, 대화에는 요약만 남겨라.
+- 마지막에 final_report.md 파일로 근거 링크를 포함한 보고서를 작성하라."""
+
+# 네 기둥(계획·서브에이전트·파일시스템·프롬프트)은 create_deep_agent이 기본 제공한다
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-5",     # 아무 모델이나 — 모델에 종속되지 않는다
+    tools=[internet_search],               # 우리가 얹는 건 도메인 도구뿐
+    system_prompt=research_prompt,
+)
+
+result = agent.invoke({"messages": [
+    {"role": "user", "content": "2026년 벡터 DB의 하이브리드 검색 동향을 조사해 보고서로 정리해 줘"}
+]})
+
+# 에이전트가 만든 가상 파일(final_report.md 등)은 결과 상태에서 꺼내 볼 수 있다
+print(result["messages"][-1].content)
+{{< /highlight >}}
+
+<p>이 몇 줄이 내부에서 하는 일을 풀어 보면 이렇습니다. 요청을 받은 메인 에이전트는 먼저 <code>write_todos</code>로 "① 하위 주제 나누기 → ② 각 주제 조사 → ③ 종합 → ④ 보고서 작성" 같은 계획을 세웁니다. 조사 단계에선 주제별로 <code>task</code> 서브에이전트를 띄워 <code>internet_search</code>를 돌리게 하고, 각 서브에이전트는 긴 검색 원문을 <code>write_file</code>로 저장한 뒤 <strong>요약만</strong> 메인에 돌려줍니다. 메인은 그 요약들을 모아 <code>final_report.md</code>를 씁니다. 우리가 배선한 건 아무것도 없습니다 — 네 기둥이 라이브러리 안에 이미 서 있으니까요.</p>
+
+<div class="da-note da-good"><strong>모델에 안 묶인다.</strong> <code>deepagents</code>는 LangGraph 위에 있어서 <code>model=</code> 한 줄만 바꾸면 Claude·GPT·오픈 모델 사이를 오갈 수 있습니다. "Claude Code 같은 걸 특정 모델에 안 묶여서 쓰고 싶다"는 요구가 이 라이브러리가 뜬 이유 중 하나입니다.</div>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<div class="da-note da-warn"><strong>1) 안 그래도 되는 일에 Deep Agent를 쓴다.</strong> 네 기둥은 공짜가 아닙니다. 프롬프트가 길어지고, 서브에이전트는 토큰을 더 쓰고, 파일 왕복은 턴을 늘립니다. "파일 하나에서 함수 찾기"처럼 <em>짧고 곧은</em> 작업엔 얕은 루프가 더 빠르고 쌉니다. Deep Agent는 <strong>단계가 길고, 곁가지 조사가 많고, 상태를 오래 들고 가야 하는</strong> 작업을 위한 도구입니다.</div>
+
+<div class="da-note da-warn"><strong>2) 서브에이전트를 "그냥 병렬이니까" 남발한다.</strong> 병렬은 빠르지만 비용은 그대로입니다(6장). 게다가 서브에이전트가 많아질수록 <em>무엇을 위임했고 무엇이 돌아왔는지</em> 추적이 어려워집니다. 위임 기준을 프롬프트에 명확히 적고("파일을 3개 이상 읽어야 하면 위임하라"), 서브에이전트에는 <strong>무엇을 조사하고 어떤 형식으로 보고할지</strong>를 구체적으로 지시하세요.</div>
+
+<div class="da-note da-warn"><strong>3) 계획을 세우게만 하고 갱신은 안 시킨다.</strong> <code>write_todos</code>를 첫 턴에만 쓰고 방치하면 체크리스트가 현실과 어긋납니다. 프롬프트에 "한 항목을 끝내면 <em>즉시</em> completed로 바꾸고, 새 하위 작업이 생기면 목록에 추가하라"를 넣어, 계획이 <em>살아 있는</em> 문서가 되게 하세요.</div>
+
+<div class="da-note da-warn"><strong>4) 파일시스템을 진짜 디스크로 착각한다.</strong> <code>deepagents</code>의 기본 파일시스템은 상태 안의 가상 저장소입니다(7장). 프로세스가 끝나면 사라집니다. 결과를 <em>정말로</em> 보존하려면, 마지막에 실제 디스크나 저장소로 내보내는 단계를 따로 두거나, 실 파일시스템 백엔드로 갈아 끼우세요.</div>
+
+<div class="da-note da-warn"><strong>5) 서브에이전트에 도구·권한을 통째로 넘긴다.</strong> 서브에이전트의 장점 하나는 <em>권한을 좁힐 수 있다</em>는 점입니다. 조사만 하는 서브에이전트에 파일 쓰기·코드 실행까지 다 주면, 격리의 안전성이 무너집니다. "이 서브에이전트는 읽기·검색만" 하는 식으로 최소 권한을 주세요.</div>
+
+<div class="da-note da-good"><strong>6) 이미 쓰고 있을지도 모른다.</strong> Claude Code를 써 봤다면 이 네 기둥을 이미 경험한 겁니다 — <code>TodoWrite</code>로 계획을 세우고, <code>Task</code>로 서브에이전트를 띄우고, 파일을 읽고 씁니다. Deep Agent는 새로운 마법이 아니라, <em>잘 되는 에이전트가 이미 하고 있던 것</em>에 이름을 붙이고 라이브러리로 묶은 것입니다.</div>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>얕은 에이전트</strong>(단순 while 루프)는 짧은 작업엔 좋지만, 긴 작업에선 도구 결과가 컨텍스트에 쌓여 <strong>창이 터지고, 목표를 잊고, 정확도가 떨어진다</strong>.</li>
+  <li><strong>Deep Agent</strong>은 마법이 아니라 <strong>네 기둥</strong>의 조합이다 — ① 상세한 시스템 프롬프트, ② 계획 도구, ③ 서브에이전트, ④ 파일시스템.</li>
+  <li><strong>계획 도구</strong>(<code>write_todos</code>/<code>TodoWrite</code>)는 목표와 진행 상황을 <em>매 턴 컨텍스트 앞에</em> 띄워, 스텝을 건너뛰는 실패를 줄인다.</li>
+  <li><strong>서브에이전트</strong>는 지저분한 조사를 <em>딴 컨텍스트 창</em>에서 처리하고 <strong>요약만</strong> 돌려준다(컨텍스트 격리). 병렬이면 빠르지만 <em>토큰은 그대로</em>이니 필요할 때만 쓴다.</li>
+  <li><strong>파일시스템</strong>은 지금 안 보는 긴 결과를 <em>창 밖 서랍</em>에 내려 둔다(컨텍스트 오프로드). <code>deepagents</code> 기본은 가상 파일시스템이라 프로세스가 끝나면 사라진다.</li>
+  <li>직접 배선할 필요는 없다. <code>deepagents</code>의 <code>create_deep_agent</code>가 네 기둥을 기본 탑재하고, <strong>모델에도 묶이지 않는다</strong>. Claude Code가 이미 이 패턴으로 긴 작업을 버틴다.</li>
+  <li>단, <strong>짧은 작업엔 얕은 루프가 더 싸고 빠르다</strong>. Deep Agent는 길고 곁가지 많은 작업을 위한 도구다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>LangChain, <a href="https://docs.langchain.com/oss/python/deepagents/overview" target="_blank" rel="noopener">Deep Agents — Overview</a> — 네 기둥·<code>create_deep_agent</code> API·가상 파일시스템·서브에이전트의 공식 문서. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>LangChain, <a href="https://www.langchain.com/deep-agents" target="_blank" rel="noopener">Deep Agents</a> — "얕은 vs 깊은 에이전트" 개념과 네 특성의 출발점. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>LangChain Blog, <a href="https://www.langchain.com/blog/introducing-dynamic-subagents-in-deep-agents" target="_blank" rel="noopener">Introducing Dynamic Subagents in Deep Agents</a> — 서브에이전트 위임 설계(이번 주 갱신 흐름). <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>PyPI, <a href="https://pypi.org/project/deepagents/" target="_blank" rel="noopener">deepagents</a> · GitHub, <a href="https://github.com/langchain-ai/deepagents" target="_blank" rel="noopener">langchain-ai/deepagents</a> — 설치·버전·소스(0.7 계열 프리릴리스가 이번 주 갱신됨). <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anthropic, <a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Building effective agents</a> — 워크플로 vs 에이전트, 오케스트레이터-워커 등 패턴의 원전. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anthropic, <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Effective context engineering for AI agents</a> — 컨텍스트를 유한한 작업 기억으로 다루는 관점·context rot. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Claude Code Docs, <a href="https://code.claude.com/docs/en/sub-agents" target="_blank" rel="noopener">Create custom subagents</a> — <code>Task</code> 도구·별도 컨텍스트·권한 분리·병렬 실행. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anthropic, <a href="https://www.anthropic.com/news/claude-sonnet-5" target="_blank" rel="noopener">Claude Sonnet 5</a> — "가장 에이전트다운 모델" 발표(이 주제가 이번 주 화제가 된 배경). <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

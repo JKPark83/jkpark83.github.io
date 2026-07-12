@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Deep Agent의 네 기둥을 나타낸 그림. 가운데에 에이전트 루프가 있고, 그 둘레를 네 개의 기둥이 감싼다. 상세한 시스템 프롬프트, 계획 도구(write_todos), 서브에이전트(컨텍스트 격리), 파일시스템(컨텍스트 오프로드). 얕은 에이전트가 긴 작업에서 컨텍스트가 터지는 대신, 네 기둥으로 오래 가는 에이전트가 된다.">
+  <defs>
+    <linearGradient id="dag" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="da-core" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#dag)"/>
+  <text x="80" y="92" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">얕은 에이전트를 깊게</text>
+  <text x="80" y="148" fill="#a5b4fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">Deep Agent의 네 기둥</text>
+  <text x="80" y="192" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="500">계획 · 서브에이전트 · 파일시스템 · 상세 프롬프트 — 오래 가는 에이전트의 뼈대</text>
+
+  <!-- center agent loop -->
+  <circle cx="600" cy="430" r="86" fill="url(#da-core)"/>
+  <text x="600" y="418" text-anchor="middle" fill="#0f172a" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800">에이전트</text>
+  <text x="600" y="448" text-anchor="middle" fill="#0f172a" font-family="ui-monospace,monospace" font-size="16" font-weight="700">LLM 루프</text>
+
+  <!-- pillar 1: system prompt (top-left) -->
+  <g font-family="ui-monospace,monospace">
+    <rect x="150" y="270" width="270" height="96" rx="12" fill="#1e293b" stroke="#f472b6" stroke-width="2"/>
+    <text x="170" y="302" fill="#f9a8d4" font-size="16" font-weight="800">① 상세한 시스템 프롬프트</text>
+    <text x="170" y="330" fill="#cbd5e1" font-size="14">언제 계획하고, 언제 위임하고,</text>
+    <text x="170" y="352" fill="#cbd5e1" font-size="14">언제 파일에 저장할지 규칙</text>
+  </g>
+  <path d="M420 342 L516 402" stroke="#f472b6" stroke-width="2.5" fill="none"/>
+
+  <!-- pillar 2: planning (top-right) -->
+  <g font-family="ui-monospace,monospace">
+    <rect x="780" y="270" width="270" height="96" rx="12" fill="#1e293b" stroke="#22d3ee" stroke-width="2"/>
+    <text x="800" y="302" fill="#67e8f9" font-size="16" font-weight="800">② 계획 도구 write_todos</text>
+    <text x="800" y="330" fill="#cbd5e1" font-size="14">[x] 자료 조사</text>
+    <text x="800" y="352" fill="#cbd5e1" font-size="14">[ ] 초안 작성  [ ] 검토</text>
+  </g>
+  <path d="M780 342 L684 402" stroke="#22d3ee" stroke-width="2.5" fill="none"/>
+
+  <!-- pillar 3: subagents (bottom-left) -->
+  <g font-family="ui-monospace,monospace">
+    <rect x="150" y="500" width="270" height="96" rx="12" fill="#1e293b" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="170" y="532" fill="#5eead4" font-size="16" font-weight="800">③ 서브에이전트</text>
+    <text x="170" y="560" fill="#cbd5e1" font-size="14">깊은 조사는 별도 컨텍스트에서,</text>
+    <text x="170" y="582" fill="#cbd5e1" font-size="14">요약 한 줄만 돌려받는다</text>
+  </g>
+  <path d="M420 524 L516 460" stroke="#2dd4bf" stroke-width="2.5" fill="none"/>
+
+  <!-- pillar 4: filesystem (bottom-right) -->
+  <g font-family="ui-monospace,monospace">
+    <rect x="780" y="500" width="270" height="96" rx="12" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+    <text x="800" y="532" fill="#fcd34d" font-size="16" font-weight="800">④ 파일시스템</text>
+    <text x="800" y="560" fill="#cbd5e1" font-size="14">긴 결과는 notes.md에 적어 두고,</text>
+    <text x="800" y="582" fill="#cbd5e1" font-size="14">컨텍스트는 가볍게 유지</text>
+  </g>
+  <path d="M780 524 L684 460" stroke="#fbbf24" stroke-width="2.5" fill="none"/>
+</svg>

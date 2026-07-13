@@ -1,0 +1,387 @@
+---
+title: "에이전트가 도구를 헛짚는다면: 함수 호출(tool calling) 설계와 평가 제대로 하기"
+date: 2026-07-14T07:30:00+09:00
+draft: false
+tags: ["AI", "tool calling", "function calling", "함수 호출", "에이전트", "agent", "tool use", "BFCL", "tau-bench", "JSON Schema", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트가 엉뚱하게 구는 이유는 대개 '모델이 멍청해서'가 아니라 '도구를 잘못 설계해서'입니다. 함수 호출(tool calling)에서 모델이 하는 일은 도구를 실행하는 게 아니라, 어떤 도구를 어떤 인자로 부를지 JSON으로 '정하는' 것뿐입니다. 실행은 우리 코드가 하죠. 그래서 좋은 도구 이름·설명·에러 설계가 곧 정확도입니다. 이 글은 함수 호출이 실제로 어떻게 도는지, 도구 정의는 왜 API 문서처럼 써야 하는지, 도구가 많아질 때 무슨 세금이 붙는지, 병렬 호출과 에러를 어떻게 설계하는지, 그리고 BFCL v4·tau-bench로 신뢰성을 어떻게 재는지까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+cover:
+  image: "tool-calling-design-agents-cover.svg"
+  alt: "왼쪽 LLM이 도구를 직접 실행하지 않고 JSON으로 된 호출(tool_use)만 만들어 내면, 가운데 런타임(우리 코드)이 실제 함수를 실행하고, 그 결과(tool_result)를 다시 LLM에게 돌려주는 순환 고리를 나타낸 그림."
+  caption: "함수 호출의 핵심: 모델은 '무엇을 부를지'만 정하고, 실제 실행은 우리 코드가 한다. 결과를 되먹여 도구가 필요 없어질 때까지 이 고리를 반복한다."
+  relative: false
+---
+
+<style>
+/* ── Tool Calling 포스트 전용 스타일 (tcl- 접두사) ── */
+.tcl-fig{
+  --tcl-indigo:#4f46e5; --tcl-amber:#d97706; --tcl-green:#16a34a; --tcl-rose:#e11d48;
+  --tcl-slate:#64748b; --tcl-violet:#7c3aed; --tcl-teal:#0d9488; --tcl-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .tcl-fig{
+  --tcl-indigo:#818cf8; --tcl-amber:#fbbf24; --tcl-green:#4ade80; --tcl-rose:#fb7185;
+  --tcl-slate:#94a3b8; --tcl-violet:#a78bfa; --tcl-teal:#2dd4bf; --tcl-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .tcl-fig{
+    --tcl-indigo:#818cf8; --tcl-amber:#fbbf24; --tcl-green:#4ade80; --tcl-rose:#fb7185;
+    --tcl-slate:#94a3b8; --tcl-violet:#a78bfa; --tcl-teal:#2dd4bf; --tcl-blue:#60a5fa;
+  }
+}
+.tcl-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.tcl-fig text{font-family:inherit}
+.tcl-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.tcl-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.tcl-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.tcl-toc ol{margin:0;padding-left:1.25rem}
+.tcl-toc li{margin:.22rem 0;font-size:.95rem}
+.tcl-toc a{text-decoration:none}
+.tcl-toc a:hover{text-decoration:underline}
+.tcl-pull{font-size:1.12rem;line-height:1.72}
+.tcl-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.tcl-note{border-left:4px solid var(--tcl-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.tcl-note strong{color:var(--tcl-blue,#2563eb)}
+.tcl-warn{border-left:4px solid var(--tcl-rose,#e11d48)}
+.tcl-warn strong{color:var(--tcl-rose,#e11d48)}
+.tcl-good{border-left:4px solid var(--tcl-teal,#0d9488)}
+.tcl-good strong{color:var(--tcl-teal,#0d9488)}
+.tcl-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.tcl-tbl th,.tcl-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.tcl-tbl th{background:var(--entry);font-weight:700}
+.tcl-tbl code{font-size:.86em}
+.tcl-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="tcl-pull">
+  <p>에이전트가 이상하게 굴 때, 열에 예닐곱은 <strong>모델이 멍청해서가 아닙니다.</strong> 도구 이름이 <code>send_user</code>와 <code>send_channel</code>처럼 헷갈리거나, 설명이 부실하거나, 에러가 그냥 빈 문자열로 돌아와서 <em>모델이 다음에 뭘 해야 할지 알 수 없게</em> 만든 겁니다.</p>
+  <footer>— 함수 호출에서 모델이 하는 일은 실행이 아니라 "결정"입니다. 그 결정을 잘 하도록 판을 깔아 주는 게 우리 몫입니다.</footer>
+</blockquote>
+
+<p>에이전트(agent)를 처음 만들어 본 junior 개발자가 자주 부딪히는 벽이 있습니다. 날씨 봇을 만들려고 <code>get_weather</code> 함수를 붙였습니다. 데모 질문 "서울 날씨 알려줘"엔 잘 답합니다. 그런데 "이번 주말에 우산 챙겨야 해?"라고 물으면 도구를 안 부르고 지어내거나, 엉뚱한 도시를 넣어 부릅니다. "모델이 부족한가?" 싶지만, 같은 모델이 다른 사람 코드에선 멀쩡히 잘 돕니다.</p>
+
+<p>차이는 대개 <strong>도구를 어떻게 설계했느냐</strong>에 있습니다. 함수 호출(tool calling, function calling이라고도 합니다)은 그냥 "LLM에 함수를 연결하는 기능"이 아니라, <em>모델과 우리 코드가 주고받는 하나의 프로토콜</em>입니다. 이 프로토콜의 규칙과 함정을 모르면, 아무리 좋은 모델을 붙여도 에이전트는 도구를 헛짚습니다.</p>
+
+<p>마침 이번 주(2026년 7월) 이 주제가 실무자 타임라인에서 다시 화제입니다. 도구 호출 능력을 재는 <strong>Berkeley Function Calling Leaderboard(BFCL)</strong>가 v4로 갱신되며 "이제는 단발 호출이 아니라 여러 도구를 계획해서 쓰는 agentic 능력을 본다"는 이야기가 돌고, Anthropic은 <em>advanced tool use</em>(도구 검색·프로그래밍적 도구 호출)를 정식으로 내놓으며 "도구 정의가 컨텍스트를 잡아먹는다"는 오래된 고민에 답을 냈습니다. 에이전트의 해라는 2026년에, 결국 병목은 "모델을 얼마나 잘 쓰느냐"가 아니라 "<strong>도구를 얼마나 잘 설계하느냐</strong>"로 옮겨 온 셈입니다.</p>
+
+<p>이 글은 그 함수 호출을 처음부터 짚습니다. 실제로 어떻게 도는지, 도구 정의는 왜 API 문서처럼 써야 하는지, 도구가 많아지면 무슨 세금이 붙는지, 병렬 호출과 에러는 어떻게 설계하는지, 그리고 "그래서 잘 되는지"를 BFCL·tau-bench로 어떻게 재는지 — 쉽고 자세하게 살펴봅니다.</p>
+
+<nav class="tcl-toc">
+  <div class="tcl-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">함수 호출은 실제로 어떻게 도는가</a></li>
+    <li><a href="#sec-2">도구 정의 = API 문서다</a></li>
+    <li><a href="#sec-3">도구가 많아질 때 붙는 두 가지 세금</a></li>
+    <li><a href="#sec-4">병렬 호출과 에러 설계</a></li>
+    <li><a href="#sec-5">실전 — 도구 호출 루프 만들기</a></li>
+    <li><a href="#sec-6">그래서 잘 되는지 어떻게 아나 (BFCL·tau-bench)</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 함수 호출은 실제로 어떻게 도는가</h2>
+
+<p>가장 먼저 오해부터 풉시다. <strong>LLM은 함수를 실행하지 않습니다.</strong> 이게 함수 호출의 전부를 관통하는 핵심입니다. 모델이 하는 일은 딱 하나예요 — "지금은 <code>get_weather</code>를 <code>{"city": "서울"}</code> 인자로 부르는 게 맞겠다"라는 <em>의도를 구조화된 데이터(JSON)로 뱉는 것</em>. 실제로 그 함수를 호출해 인터넷에서 날씨를 긁어 오는 건 <strong>우리 코드(런타임)</strong>가 합니다.</p>
+
+<p>왜 이렇게 나눌까요? 모델은 샌드박스 밖으로 나가 API를 때리거나 DB를 건드릴 수 없기 때문입니다. 그래서 역할을 쪼갭니다. 모델은 "무엇을, 어떤 인자로 부를지" 정하고(brain), 우리 코드는 "실제로 부르고, 결과를 받아 다시 모델에게 먹여 주는" 손발(hands) 노릇을 합니다. 이 왕복이 한 번으로 끝나지 않고 "더 부를 도구가 없다"고 모델이 판단할 때까지 반복되는데, 이걸 <strong>에이전트 루프(agentic loop)</strong>라고 부릅니다.</p>
+
+<figure class="tcl-fig">
+<svg viewBox="0 0 760 400" role="img" aria-label="함수 호출의 한 바퀴를 나타낸 순서도. 1) 사용자가 질문한다. 2) 모델이 도구를 실행하지 않고 tool_use 블록으로 어떤 함수를 어떤 인자로 부를지 JSON을 생성한다. 3) 우리 코드가 그 함수를 실제로 실행한다. 4) 실행 결과를 tool_result로 만들어 다시 모델의 대화 기록에 넣는다. 5) 모델이 더 부를 도구가 있으면 2번으로 돌아가고, 없으면 최종 답을 낸다. 실행은 항상 우리 코드가 하고 모델은 결정만 한다는 점을 강조한다.">
+  <rect x="20" y="24" width="200" height="56" rx="12" fill="none" stroke="var(--tcl-slate)" stroke-width="2"/>
+  <text x="120" y="50" text-anchor="middle" font-size="15" font-weight="700" fill="var(--tcl-slate)">① 사용자 질문</text>
+  <text x="120" y="70" text-anchor="middle" font-size="12.5" fill="var(--tcl-slate)">"주말에 우산 챙겨?"</text>
+
+  <rect x="20" y="120" width="200" height="72" rx="12" fill="none" stroke="var(--tcl-indigo)" stroke-width="2.5"/>
+  <text x="120" y="146" text-anchor="middle" font-size="15" font-weight="800" fill="var(--tcl-indigo)">② 모델: 결정만</text>
+  <text x="120" y="167" text-anchor="middle" font-size="12" fill="var(--tcl-indigo)">stop_reason="tool_use"</text>
+  <text x="120" y="184" text-anchor="middle" font-size="11.5" font-family="ui-monospace,monospace" fill="var(--tcl-indigo)">get_weather{city:"서울"}</text>
+
+  <rect x="290" y="120" width="200" height="72" rx="12" fill="none" stroke="var(--tcl-amber)" stroke-width="2.5"/>
+  <text x="390" y="146" text-anchor="middle" font-size="15" font-weight="800" fill="var(--tcl-amber)">③ 우리 코드: 실행</text>
+  <text x="390" y="167" text-anchor="middle" font-size="12.5" fill="var(--tcl-amber)">실제 API·DB 호출</text>
+  <text x="390" y="184" text-anchor="middle" font-size="11.5" font-family="ui-monospace,monospace" fill="var(--tcl-amber)">→ 8~14°C, 비 80%</text>
+
+  <rect x="560" y="120" width="180" height="72" rx="12" fill="none" stroke="var(--tcl-green)" stroke-width="2.5"/>
+  <text x="650" y="146" text-anchor="middle" font-size="15" font-weight="800" fill="var(--tcl-green)">④ tool_result</text>
+  <text x="650" y="167" text-anchor="middle" font-size="12.5" fill="var(--tcl-green)">결과를 대화에</text>
+  <text x="650" y="184" text-anchor="middle" font-size="12.5" fill="var(--tcl-green)">다시 넣는다</text>
+
+  <rect x="270" y="300" width="220" height="64" rx="12" fill="none" stroke="var(--tcl-teal)" stroke-width="2.5"/>
+  <text x="380" y="326" text-anchor="middle" font-size="15" font-weight="800" fill="var(--tcl-teal)">⑤ 최종 답변</text>
+  <text x="380" y="348" text-anchor="middle" font-size="12.5" fill="var(--tcl-teal)">"네, 우산 챙기세요 ☔"</text>
+
+  <!-- arrows -->
+  <line x1="120" y1="80" x2="120" y2="118" stroke="var(--tcl-slate)" stroke-width="2" marker-end="url(#tclar)"/>
+  <line x1="220" y1="156" x2="288" y2="156" stroke="var(--tcl-slate)" stroke-width="2" marker-end="url(#tclar)"/>
+  <line x1="490" y1="156" x2="558" y2="156" stroke="var(--tcl-slate)" stroke-width="2" marker-end="url(#tclar)"/>
+  <!-- loop back to model -->
+  <path d="M 650 192 L 650 250 L 120 250 L 120 194" fill="none" stroke="var(--tcl-green)" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#tclarg)"/>
+  <text x="385" y="243" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--tcl-green)">더 부를 도구가 있으면 ②로 반복 (loop)</text>
+  <!-- to final -->
+  <path d="M 120 250 L 120 332 L 268 332" fill="none" stroke="var(--tcl-teal)" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#tclart)"/>
+  <text x="150" y="322" font-size="12" font-weight="700" fill="var(--tcl-teal)">없으면 → 종료</text>
+
+  <defs>
+    <marker id="tclar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10 z" fill="var(--tcl-slate)"/></marker>
+    <marker id="tclarg" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10 z" fill="var(--tcl-green)"/></marker>
+    <marker id="tclart" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10 z" fill="var(--tcl-teal)"/></marker>
+  </defs>
+</svg>
+<figcaption>함수 호출의 한 바퀴. 모델은 <code>tool_use</code>로 "무엇을 부를지"만 정하고, 실행은 우리 코드가 한다. 결과를 <code>tool_result</code>로 되먹여, 모델이 "더 부를 도구 없음"이라고 할 때까지 ②→③→④를 반복한다.</figcaption>
+</figure>
+
+<p>이 그림에서 꼭 기억할 두 가지. 첫째, <strong>②와 ③은 다른 주체</strong>입니다 — 모델이 인자를 잘못 넣으면 그건 모델 탓이지만, 함수가 터지거나 엉뚱한 값을 돌려주면 그건 우리 코드 탓입니다. 둘째, <strong>③의 결과를 ④에서 다시 모델에게 돌려줘야</strong> 루프가 이어집니다. 이 되먹임을 빼먹으면 모델은 자기가 부른 함수의 결과를 영영 모릅니다(초보가 가장 많이 하는 실수입니다).</p>
+
+<h2 id="sec-2">2. 도구 정의 = API 문서다</h2>
+
+<p>모델은 도구의 <em>구현</em>을 못 봅니다. 오직 우리가 준 <strong>도구 정의(tool definition)</strong>만 보고 "이 도구가 뭘 하는지, 언제 써야 하는지, 인자가 뭔지" 판단합니다. 그래서 도구 정의는 사실상 <strong>모델에게 주는 API 문서</strong>입니다. 문서가 부실하면 아무리 똑똑한 개발자(모델)라도 API를 잘못 씁니다.</p>
+
+<p>도구 정의는 보통 JSON Schema로 씁니다. 세 부분이 핵심입니다 — <code>name</code>(무엇), <code>description</code>(언제·왜), <code>input_schema</code>(어떤 인자). Anthropic 문서 기준으로 하나 보겠습니다.</p>
+
+{{< highlight json >}}
+{
+  "name": "get_weather",
+  "description": "특정 도시의 현재 날씨와 강수 확률을 조회한다. 사용자가 날씨, 기온, 비/눈, 우산 여부 등을 물을 때 사용하라. 미래 예보가 아니라 '현재' 관측값을 반환한다.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "city": {
+        "type": "string",
+        "description": "도시 이름. 한국 도시는 한글로 (예: 서울, 부산)."
+      },
+      "unit": {
+        "type": "string",
+        "enum": ["celsius", "fahrenheit"],
+        "description": "온도 단위. 기본값 celsius."
+      }
+    },
+    "required": ["city"]
+  }
+}
+{{< /highlight >}}
+
+<p>여기서 정확도를 가르는 건 <code>description</code>입니다. Anthropic 엔지니어링 글은 대놓고 말합니다 — <em>"도구 설명의 품질이 에이전트가 도구를 올바르게 쓰는지를 결정하는 가장 큰 단일 변수"</em>라고요. 좋은 설명은 "무엇을 하는가"뿐 아니라 <strong>"언제 써야 하는가"와 "무엇을 반환하는가"</strong>까지 명시합니다. 위 예에서 "현재 관측값이지 미래 예보가 아니다"라는 한 줄이, 모델이 "주말 예보"를 이 도구로 착각하는 걸 막아 줍니다.</p>
+
+<div class="tcl-warn tcl-note"><strong>비슷한 이름은 재앙입니다.</strong> Anthropic이 관찰한 가장 흔한 실패가 <em>잘못된 도구 선택</em>과 <em>잘못된 인자</em>인데, 특히 <code>notification-send-user</code>와 <code>notification-send-channel</code>처럼 이름이 비슷할 때 심해집니다. 두 도구가 하는 일이 "거의 같은데 살짝 다르면" 모델은 매번 헷갈립니다. 규칙은 단순합니다 — <strong>"에이전트가 왜 A 대신 B를 골라야 하는지 한 문장으로 설명 못 하면, 경계가 불분명한 것"</strong>입니다. 합치거나, 확실히 다르게 만드세요. 어정쩡한 중간은 프로덕션에서 안 통합니다.</div>
+
+<p>도구를 "사람이 아니라 모델이 읽는 함수"로 보면 설계 감각이 잡힙니다. 사람에겐 편한 <code>list_users(filter)</code>의 자유 형식 <code>filter</code> 문자열이 모델에겐 지옥입니다(형식을 지어내니까요). 차라리 <code>status</code>, <code>created_after</code>처럼 <strong>구조화된 파라미터로 쪼개고 <code>enum</code>으로 선택지를 못 박는 편</strong>이 훨씬 안정적입니다. 애매한 자유도를 주지 말고, 밟을 수 있는 길만 깔아 주세요.</p>
+
+<h2 id="sec-3">3. 도구가 많아질 때 붙는 두 가지 세금</h2>
+
+<p>"도구를 많이 붙이면 만능 에이전트가 되겠지?" 초보의 흔한 착각입니다. 도구가 늘면 두 가지 <strong>세금</strong>이 붙습니다.</p>
+
+<p><strong>세금 ①: 토큰.</strong> 모든 도구 정의는 매 요청마다 컨텍스트(context, 모델이 한 번에 보는 입력)에 실려 갑니다. 도구가 많으면 사용자가 질문을 꺼내기도 전에 컨텍스트가 도구 설명으로 가득 찹니다. Anthropic 보고에 따르면 도구 정의가 <strong>5만 토큰 이상</strong>을 잡아먹는 경우가 흔하고, 극단적으로는 <strong>13만 4천 토큰</strong>까지 간 사례도 있습니다. 이건 그대로 비용·지연이고, 정작 대화에 쓸 공간을 깎아먹습니다.</p>
+
+<p><strong>세금 ②: 선택 정확도.</strong> 사람도 메뉴판이 세 장이면 못 고릅니다. 모델도 똑같아서, <strong>선택지가 늘수록 올바른 도구를 고를 확률이 떨어집니다.</strong> 도구 20개 중 하나를 고르는 것과 200개 중 하나를 고르는 건 난이도가 다릅니다.</p>
+
+<p>그래서 실무의 첫 처방은 화려한 기술이 아니라 <strong>줄이고 정리하기</strong>입니다.</p>
+
+<ul>
+  <li><strong>통합·차별화</strong> — 겹치는 도구는 합치고, 남길 거면 경계를 뾰족하게. "왜 이걸 쓰지?"에 한 문장으로 답할 수 있어야 합니다.</li>
+  <li><strong>네이밍 접두사</strong> — <code>calendar_create</code>, <code>calendar_list</code>처럼 도메인 접두사를 붙이면, 모델의 선택이 "어느 범주냐 → 그중 뭐냐" 두 단계로 쉬워집니다.</li>
+  <li><strong>필요할 때만 노출</strong> — 워크플로 단계별로 켜고 끄면 한 번에 보이는 도구 수 자체가 줄어듭니다.</li>
+</ul>
+
+<div class="tcl-note"><strong>동적 도구 로딩은 따로 있습니다.</strong> 도구 수백 개를 다뤄야 한다면, 정의를 전부 업프론트로 올리지 않고 필요한 것만 검색해 불러오는 <em>Tool Search</em>(<code>defer_loading</code>)나, 도구를 코드로 조율하는 <em>Programmatic Tool Calling</em> 같은 기법이 있습니다. Anthropic 벤치마크에서 프로그래밍적 도구 호출은 75개 도구를 쓰는 프로젝트 관리 에이전트의 청구 입력 토큰을 약 <strong>38%</strong> 줄였고, 도구가 10~49개인 경우 대체로 <strong>20~40%</strong>를 아꼈다고 합니다. 이 "컨텍스트 폭증" 자체를 깊게 다룬 이전 글(<a href="/posts/mcp-code-execution/">도구 메뉴판이 너무 길다</a>)이 있으니, 여기선 "도구가 많으면 세금이 붙는다"는 사실만 기억하고 넘어갑니다.</div>
+
+<h2 id="sec-4">4. 병렬 호출과 에러 설계</h2>
+
+<h3>병렬 호출 — 독립적인 일은 한 번에</h3>
+
+<p>"서울이랑 부산 날씨 둘 다 알려줘"라는 질문에, 모델이 <code>get_weather(서울)</code>을 부르고 → 결과 받고 → 다시 <code>get_weather(부산)</code>을 부르면 왕복이 두 번입니다. 느리죠. 요즘 모델은 <strong>서로 의존하지 않는 도구를 한 번에 여러 개 부를 수</strong> 있습니다. 한 응답에 <code>tool_use</code> 블록이 여러 개 담겨 오고, 우리 코드가 그걸 (가능하면) 동시에 실행합니다.</p>
+
+<figure class="tcl-fig">
+<svg viewBox="0 0 720 300" role="img" aria-label="직렬 도구 호출과 병렬 도구 호출을 비교한 타임라인. 위쪽 직렬 방식은 서울 날씨를 부르고 결과를 기다린 뒤 다시 부산 날씨를 불러 왕복이 두 번이라 시간이 길다. 아래쪽 병렬 방식은 서울과 부산 날씨를 한 응답에서 동시에 불러 왕복이 한 번이라 시간이 짧다. 서로 의존하지 않는 도구는 병렬로 부르는 것이 빠르다는 점을 보여 준다.">
+  <text x="30" y="40" font-size="15" font-weight="800" fill="var(--tcl-rose)">직렬 (느림) — 왕복 2회</text>
+  <rect x="30" y="54" width="150" height="40" rx="8" fill="none" stroke="var(--tcl-rose)" stroke-width="2"/>
+  <text x="105" y="79" text-anchor="middle" font-size="12.5" fill="var(--tcl-rose)">서울 호출→대기</text>
+  <line x1="180" y1="74" x2="228" y2="74" stroke="var(--tcl-rose)" stroke-width="2" marker-end="url(#tclr2)"/>
+  <rect x="230" y="54" width="150" height="40" rx="8" fill="none" stroke="var(--tcl-rose)" stroke-width="2"/>
+  <text x="305" y="79" text-anchor="middle" font-size="12.5" fill="var(--tcl-rose)">부산 호출→대기</text>
+  <line x1="380" y1="74" x2="428" y2="74" stroke="var(--tcl-rose)" stroke-width="2" marker-end="url(#tclr2)"/>
+  <rect x="430" y="54" width="120" height="40" rx="8" fill="none" stroke="var(--tcl-slate)" stroke-width="2"/>
+  <text x="490" y="79" text-anchor="middle" font-size="12.5" fill="var(--tcl-slate)">최종 답</text>
+
+  <text x="30" y="170" font-size="15" font-weight="800" fill="var(--tcl-green)">병렬 (빠름) — 왕복 1회</text>
+  <rect x="30" y="184" width="150" height="40" rx="8" fill="none" stroke="var(--tcl-green)" stroke-width="2"/>
+  <text x="105" y="209" text-anchor="middle" font-size="12.5" fill="var(--tcl-green)">서울 호출</text>
+  <rect x="30" y="232" width="150" height="40" rx="8" fill="none" stroke="var(--tcl-green)" stroke-width="2"/>
+  <text x="105" y="257" text-anchor="middle" font-size="12.5" fill="var(--tcl-green)">부산 호출</text>
+  <text x="200" y="235" font-size="12.5" font-weight="700" fill="var(--tcl-green)">동시에 실행</text>
+  <line x1="180" y1="228" x2="298" y2="228" stroke="var(--tcl-green)" stroke-width="2" marker-end="url(#tclg2)"/>
+  <line x1="180" y1="252" x2="298" y2="228" stroke="var(--tcl-green)" stroke-width="2" marker-end="url(#tclg2)"/>
+  <rect x="300" y="208" width="120" height="40" rx="8" fill="none" stroke="var(--tcl-slate)" stroke-width="2"/>
+  <text x="360" y="233" text-anchor="middle" font-size="12.5" fill="var(--tcl-slate)">최종 답</text>
+
+  <defs>
+    <marker id="tclr2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10 z" fill="var(--tcl-rose)"/></marker>
+    <marker id="tclg2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10 z" fill="var(--tcl-green)"/></marker>
+  </defs>
+</svg>
+<figcaption>서로 의존하지 않는 도구는 병렬로 부르는 게 빠르다. 한 응답에 <code>tool_use</code>가 여러 개 오면 동시에 실행한다. 한쪽 결과가 다른 쪽 입력이 되는 <em>의존 관계</em>일 때만 직렬이 맞다. (강제로 하나만 부르게 하려면 <code>disable_parallel_tool_use</code>)</figcaption>
+</figure>
+
+<h3>에러를 "값"으로 설계하라</h3>
+
+<p>초보 코드에서 도구가 실패하면 보통 예외가 터져 루프가 죽습니다. 하지만 함수 호출의 세계에선 <strong>에러도 모델에게 돌려주는 하나의 결과</strong>입니다. 핵심은, 모델이 그 에러를 읽고 <em>스스로 복구</em>할 수 있게 만드는 것입니다.</p>
+
+<p>그러려면 에러를 사람 말이 아니라 <strong>기계가 해석 가능한 구조</strong>로 돌려줘야 합니다. 아래 둘을 비교해 보세요.</p>
+
+{{< highlight python >}}
+# 나쁜 에러 — 모델이 뭘 해야 할지 알 수 없다
+return "Error: something went wrong"
+
+# 좋은 에러 — 무엇이·왜·다음에 뭘 할지가 담긴다
+return {
+    "error": "rate_limited",     # 무슨 오류인지 (기계가 분기 가능)
+    "message": "요청이 너무 잦습니다.",
+    "retry_after": 30,           # 30초 뒤 재시도하라는 신호
+}
+{{< /highlight >}}
+
+<p>아래처럼 돌려주면 모델은 "아, 30초 기다렸다 다시 부르면 되는구나"를 <em>추론</em>합니다. 도구 결과를 모델에게 되먹일 때 "이건 에러다"라는 표시(예: <code>is_error: true</code>)를 함께 주면 더 확실합니다. 정리하면 <strong>도구의 출력은 성공이든 실패든 "모델이 다음 행동을 결정하기에 충분한 정보"여야</strong> 합니다.</p>
+
+<h2 id="sec-5">5. 실전 — 도구 호출 루프 만들기</h2>
+
+<p>말보다 코드입니다. Anthropic SDK로 §1의 루프를 그대로 구현해 보겠습니다. 뼈대는 놀랄 만큼 단순합니다 — <em>"모델이 도구를 부르면 실행해서 결과를 되먹이고, 안 부를 때까지 반복"</em>.</p>
+
+{{< highlight python >}}
+import anthropic
+
+client = anthropic.Anthropic()  # ANTHROPIC_API_KEY 사용
+
+# 1) 도구 정의 — 모델이 읽는 'API 문서' (§2 참고)
+tools = [{
+    "name": "get_weather",
+    "description": "특정 도시의 현재 날씨와 강수 확률을 조회한다. "
+                   "날씨·기온·비/눈·우산 여부를 물을 때 사용. 현재 관측값만 반환한다.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "city": {"type": "string", "description": "도시 이름 (예: 서울)"},
+        },
+        "required": ["city"],
+    },
+}]
+
+# 2) 실제 실행부 — 이건 '우리 코드'의 몫 (모델이 아니라)
+def run_tool(name, args):
+    if name == "get_weather":
+        # 실제로는 여기서 날씨 API를 호출한다
+        return {"temp_c": 11, "rain_prob": 0.8}
+    return {"error": "unknown_tool", "message": f"모르는 도구: {name}"}
+
+messages = [{"role": "user", "content": "이번 주말 서울, 우산 챙겨야 해?"}]
+
+# 3) 에이전트 루프 — 모델이 도구를 안 부를 때까지 반복
+while True:
+    resp = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=1024,
+        tools=tools,
+        messages=messages,
+    )
+    messages.append({"role": "assistant", "content": resp.content})
+
+    if resp.stop_reason != "tool_use":
+        # 더 부를 도구가 없다 → 최종 답. 루프 종료
+        print(resp.content[-1].text)
+        break
+
+    # 응답에 담긴 tool_use 블록들을 실행해 결과를 되먹인다 (병렬 가능)
+    results = []
+    for block in resp.content:
+        if block.type == "tool_use":
+            out = run_tool(block.name, block.input)
+            results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,   # 어떤 호출의 결과인지 반드시 매칭
+                "content": str(out),
+            })
+    messages.append({"role": "user", "content": results})   # 결과를 대화에 추가
+{{< /highlight >}}
+
+<p>딱 세 덩어리입니다. <strong>도구 정의</strong>(모델이 읽는 문서), <strong>실행부 <code>run_tool</code></strong>(우리 코드가 실제로 하는 일), 그리고 <strong>루프</strong>(<code>stop_reason</code>이 <code>tool_use</code>인 동안 결과를 되먹임). 여기서 놓치기 쉬운 두 지점 — <code>tool_use_id</code>로 "어떤 호출의 결과인지"를 반드시 매칭해야 하고, 결과는 <code>assistant</code>가 아니라 <strong><code>user</code> 역할로</strong> 되먹입니다. OpenAI·Gemini도 이름만 다를 뿐(<code>tool_calls</code>/<code>function_call</code>) 구조는 똑같습니다 — <em>모델이 호출을 뱉고, 내가 실행하고, 결과를 되먹인다</em>.</p>
+
+<h2 id="sec-6">6. 그래서 잘 되는지 어떻게 아나 (BFCL·tau-bench)</h2>
+
+<p>도구를 잘 설계했는지 "느낌"으로 알 순 없습니다. 다행히 도구 호출 능력을 재는 표준 벤치마크가 있고, 여기서 쓰는 <em>측정 방식</em>을 이해하면 내 에이전트를 평가하는 감각도 생깁니다.</p>
+
+<h3>BFCL v4 — 무엇을, 어떻게 재나</h3>
+
+<p><strong>Berkeley Function Calling Leaderboard(BFCL)</strong>는 UC Berkeley Gorilla 프로젝트가 만든, 가장 널리 인용되는 도구 호출 벤치마크입니다. 재밌는 건 채점 방식이에요. 함수를 <em>실제로 실행하지 않고</em>, 모델이 생성한 호출을 <strong>추상 구문 트리(AST, abstract syntax tree)</strong>로 파싱해 함수 이름·필수 인자·값·타입이 정답과 맞는지 비교합니다(인자 순서는 무시). "제대로 된 호출을 만들었는가"를 실행 없이 결정적으로 검증하는 거죠.</p>
+
+<p>2026년 4월 나온 <strong>v4</strong>는 단발 호출을 넘어 <em>여러 도구를 계획해서 쓰는</em> agentic 능력까지 보도록 재편됐습니다. 대략 이런 구성입니다(가중치는 공개 리더보드 기준).</p>
+
+<figure class="tcl-fig">
+<svg viewBox="0 0 720 250" role="img" aria-label="BFCL v4 평가의 구성 비율을 나타낸 가로 막대. Agentic(여러 도구를 계획해 끝까지 수행)이 40퍼센트, Multi-Turn(여러 차례 대화에서 맥락 유지)이 30퍼센트, Live(실제 개발자 API 사례)가 10퍼센트, Non-Live(정적 테스트 케이스)가 10퍼센트, Hallucination(부를 도구가 없으면 안 부르기)이 10퍼센트를 차지한다. 단발 정확도보다 계획과 다회전, 그리고 '호출하지 않아야 할 때 참기'를 함께 본다는 점을 보여 준다.">
+  <g font-size="13.5">
+  <rect x="30" y="30" width="352" height="30" rx="5" fill="var(--tcl-indigo)"/>
+  <text x="40" y="50" fill="#fff" font-weight="700">Agentic — 여러 도구 계획·수행</text>
+  <text x="392" y="50" fill="var(--tcl-indigo)" font-weight="800">40%</text>
+
+  <rect x="30" y="72" width="264" height="30" rx="5" fill="var(--tcl-blue)"/>
+  <text x="40" y="92" fill="#fff" font-weight="700">Multi-Turn — 다회전 맥락 유지</text>
+  <text x="304" y="92" fill="var(--tcl-blue)" font-weight="800">30%</text>
+
+  <rect x="30" y="114" width="88" height="30" rx="5" fill="var(--tcl-teal)"/>
+  <text x="128" y="134" fill="var(--tcl-teal)" font-weight="700">Live — 실제 API 사례 <tspan font-weight="800">10%</tspan></text>
+
+  <rect x="30" y="156" width="88" height="30" rx="5" fill="var(--tcl-amber)"/>
+  <text x="128" y="176" fill="var(--tcl-amber)" font-weight="700">Non-Live — 정적 케이스 <tspan font-weight="800">10%</tspan></text>
+
+  <rect x="30" y="198" width="88" height="30" rx="5" fill="var(--tcl-rose)"/>
+  <text x="128" y="218" fill="var(--tcl-rose)" font-weight="700">Hallucination — 안 부를 때 참기 <tspan font-weight="800">10%</tspan></text>
+  </g>
+</svg>
+<figcaption>BFCL v4 평가 구성(공개 리더보드 기준). 단발 정확도보다 <strong>계획(agentic)·다회전(multi-turn)</strong>의 비중이 크고, "부를 도구가 없으면 <strong>안 부르는</strong>" hallucination 항목이 별도로 있다. v1은 AST 채점, v2는 기업/오픈소스 함수, v3는 다회전, v4는 종합 agentic 평가를 도입했다.</figcaption>
+</figure>
+
+<p>여기서 junior가 얻을 교훈이 있습니다. 좋은 도구 호출은 "부를 때 잘 부르는 것"만이 아니라 <strong>"안 부를 때 참는 것"</strong>도 포함합니다. 관련 도구가 없는데 억지로 뭔가를 부르는 게 바로 도구 환각(hallucination)이고, BFCL이 이걸 따로 재는 이유입니다.</p>
+
+<h3>tau-bench — 진짜 대화에서 끝까지 되나</h3>
+
+<p>단발 호출을 잘해도 실제 서비스는 다릅니다. 사용자는 말을 바꾸고, 정보를 조금씩 흘리고, 도메인엔 지켜야 할 정책이 있죠. <strong>tau-bench(τ-bench)</strong>는 Sierra가 만든 벤치마크로, LLM이 흉내 낸 사용자와 에이전트가 <em>여러 차례 대화</em>하며 도메인 API와 규칙을 쓰게 합니다. 채점은 영리하게도 <strong>대화가 끝난 뒤 DB의 최종 상태가 목표 상태와 같은지</strong>로 판정합니다(말이 아니라 결과로).</p>
+
+<p>tau-bench가 남긴 가장 중요한 개념이 <strong>pass^k</strong>입니다. 같은 과제를 <em>k번</em> 시켜서 <strong>매번</strong> 성공해야 점수를 주는 지표죠. 한 번 잘하는 것과 <em>열 번 중 열 번</em> 잘하는 건 프로덕션에서 완전히 다릅니다. 에이전트의 진짜 병목이 똑똑함이 아니라 <strong>신뢰성(consistency)</strong>이라는 걸 숫자로 못 박은 겁니다. 내 에이전트를 평가할 때도 이 감각을 빌려 오세요 — <em>한 번 돌려 보고 "된다"가 아니라, 라벨 붙인 작은 셋으로 여러 번 돌려 성공률과 그 편차를 보라</em>는 뜻입니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>결과를 되먹이지 않음</strong> — 함수를 실행하고 그 <code>tool_result</code>를 대화에 다시 넣지 않으면, 모델은 자기가 부른 결과를 모른 채 헛돕니다. 초보 1순위 버그입니다(§1·§5).</li>
+  <li><strong>도구를 무작정 늘리기</strong> — 많을수록 토큰이 불어나고 선택 정확도는 떨어집니다. 겹치는 도구는 합치고, 남길 건 경계를 뾰족하게(§3).</li>
+  <li><strong>이름·설명이 헷갈림</strong> — <code>get_data</code> 같은 모호한 이름, 비슷한 두 도구는 오호출을 부릅니다. "언제 쓰는지"를 설명에 명시하세요(§2).</li>
+  <li><strong>자유 형식 인자</strong> — 자유 문자열 <code>filter</code>는 모델이 형식을 지어냅니다. 구조화된 파라미터 + <code>enum</code>으로 선택지를 못 박으세요.</li>
+  <li><strong>에러를 예외로 죽이기</strong> — 실패를 사람 말 한 줄로 던지지 말고, <code>{"error": ..., "retry_after": ...}</code>처럼 모델이 복구할 수 있는 구조로 되먹이세요(§4).</li>
+  <li><strong>병렬 가능한 걸 직렬로</strong> — 서로 의존하지 않는 호출을 한 번에 처리하지 않으면 괜히 느립니다. 반대로 앞 결과가 뒤 입력이 되는 <em>의존 관계</em>를 병렬로 부르면 틀립니다.</li>
+  <li><strong>한 번 되면 "된다"고 착각</strong> — 도구 호출은 확률적입니다. pass^k 관점으로 여러 번 돌려 성공률과 편차를 재세요(§6).</li>
+  <li><strong>보안을 모델에 맡기기</strong> — 위험한 도구(삭제·결제·메일 발송)는 모델 판단만 믿지 말고, 최소 권한·읽기/쓰기 분리·사람 확인 같은 가드를 우리 코드에 두세요.</li>
+</ul>
+
+<div class="tcl-good tcl-note"><strong>한 줄 원칙.</strong> 도구는 "모델이 읽는 API"이고, 모델은 그 API의 <em>사용자</em>입니다. 사람 개발자에게 좋은 API(명확한 이름, 좁은 인자, 친절한 에러 메시지, 필요 없을 땐 안 부를 자유)가 모델에게도 좋은 도구입니다. 도구 설계가 막힐 땐 "내가 이 API 문서만 보고 처음 쓴다면?"을 떠올리세요.</div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>함수 호출(tool calling)에서 <strong>모델은 실행하지 않는다.</strong> 어떤 도구를 어떤 인자로 부를지 JSON으로 "정하기"만 하고, 실행은 우리 코드가 한다. 결과를 되먹여 도구가 필요 없을 때까지 반복하는 게 <strong>에이전트 루프</strong>다.</li>
+  <li>도구 정의는 <strong>모델에게 주는 API 문서</strong>다. <code>description</code>의 품질이 정확도의 최대 변수 — "무엇을·언제·무엇을 반환"까지 써라. 비슷한 이름의 도구는 오호출의 근원이다.</li>
+  <li>도구가 많으면 <strong>토큰(5만+ 토큰 흔함)</strong>과 <strong>선택 정확도</strong> 두 세금이 붙는다. 통합·네이밍·필요 시 노출로 줄여라. 수백 개면 Tool Search·Programmatic Tool Calling을 검토.</li>
+  <li>서로 의존하지 않는 호출은 <strong>병렬</strong>로. 에러는 예외로 죽이지 말고 <code>{"error":...,"retry_after":...}</code>처럼 <strong>모델이 복구할 수 있는 값</strong>으로 되먹여라.</li>
+  <li>루프의 뼈대는 단순하다 — <code>stop_reason=="tool_use"</code>인 동안 실행→<code>tool_result</code> 되먹임. <code>tool_use_id</code> 매칭을 잊지 마라.</li>
+  <li>평가: <strong>BFCL v4</strong>는 AST로 호출을 검증하고 agentic·다회전·<em>안 부르기(hallucination)</em>까지 본다. <strong>tau-bench</strong>는 DB 최종 상태로 채점하고 <strong>pass^k</strong>로 신뢰성을 잰다. 한 번 말고 여러 번 돌려 성공률을 봐라.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Anthropic, <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview" target="_blank" rel="noopener">Tool use with Claude (Overview)</a> — <code>tool_use</code>/<code>tool_result</code>·에이전트 루프·<code>stop_reason</code>의 공식 설명. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anthropic, <a href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank" rel="noopener">Writing effective tools for AI agents</a> — 도구 설명·네이밍·인자 설계의 베스트 프랙티스. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anthropic, <a href="https://www.anthropic.com/engineering/advanced-tool-use" target="_blank" rel="noopener">Introducing advanced tool use</a> — Tool Search·Programmatic Tool Calling·토큰 절감 수치(38%·20~40%)·오호출 실패 사례. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anthropic, <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/parallel-tool-use" target="_blank" rel="noopener">Parallel tool use</a> — 병렬 호출과 <code>disable_parallel_tool_use</code>. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>UC Berkeley Gorilla, <a href="https://gorilla.cs.berkeley.edu/leaderboard.html" target="_blank" rel="noopener">Berkeley Function Calling Leaderboard (BFCL) V4</a> — AST 채점·agentic/multi-turn/hallucination 구성. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Patil et al., <a href="https://openreview.net/forum?id=2GmDdhBdDk" target="_blank" rel="noopener">The Berkeley Function Calling Leaderboard (BFCL): From Tool Use to Agentic Evaluation</a> (ICML 2025) — BFCL 방법론 논문. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Yao, Shinn, Razavi, Narasimhan (Sierra), <a href="https://arxiv.org/abs/2406.12045" target="_blank" rel="noopener">τ-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains</a> (arXiv:2406.12045) — DB 상태 채점·<code>pass^k</code>. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Sierra, <a href="https://github.com/sierra-research/tau-bench" target="_blank" rel="noopener">tau-bench (GitHub)</a> — 코드·데이터. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>OpenAI, <a href="https://developers.openai.com/api/docs/guides/function-calling" target="_blank" rel="noopener">Function calling guide</a> — 다른 프로바이더의 같은 구조 비교. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

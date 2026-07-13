@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="함수 호출(tool calling) 설계를 나타낸 그림. 왼쪽 LLM이 도구를 직접 실행하지 않고 JSON으로 된 호출(tool_use)만 만들어 내면, 가운데 런타임이 실제 함수를 실행하고, 그 결과(tool_result)를 다시 LLM에게 돌려주는 순환 고리를 보여 준다. 모델은 '무엇을 부를지' 정하고, 실행은 우리 코드가 한다는 구조를 표현한다.">
+  <defs>
+    <linearGradient id="tcbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#132033"/>
+    </linearGradient>
+    <linearGradient id="tc-llm" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+    <linearGradient id="tc-run" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+    <linearGradient id="tc-res" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#tcbg)"/>
+
+  <text x="80" y="98" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">모델은 정하고,</text>
+  <text x="80" y="158" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">실행은 <tspan fill="#fbbf24">우리 코드</tspan>가 한다</text>
+  <text x="80" y="212" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="25" font-weight="500">함수 호출(tool calling) 설계와 평가 제대로 하기</text>
+
+  <!-- LLM box -->
+  <rect x="90" y="300" width="250" height="150" rx="18" fill="url(#tc-llm)"/>
+  <text x="215" y="358" fill="#0b1020" font-family="ui-sans-serif,system-ui,sans-serif" font-size="30" font-weight="800" text-anchor="middle">LLM</text>
+  <text x="215" y="398" fill="#0b1020" font-family="ui-monospace,monospace" font-size="19" font-weight="700" text-anchor="middle">tool_use 생성</text>
+  <text x="215" y="424" fill="#1e1b4b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="500" text-anchor="middle">무엇을 부를지 결정</text>
+
+  <!-- Runtime box -->
+  <rect x="475" y="300" width="250" height="150" rx="18" fill="url(#tc-run)"/>
+  <text x="600" y="358" fill="#3b2a06" font-family="ui-sans-serif,system-ui,sans-serif" font-size="30" font-weight="800" text-anchor="middle">런타임(우리 코드)</text>
+  <text x="600" y="398" fill="#3b2a06" font-family="ui-monospace,monospace" font-size="19" font-weight="700" text-anchor="middle">실제 함수 실행</text>
+  <text x="600" y="424" fill="#4a3405" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="500" text-anchor="middle">API·DB·검색 호출</text>
+
+  <!-- Result box -->
+  <rect x="860" y="300" width="250" height="150" rx="18" fill="url(#tc-res)"/>
+  <text x="985" y="358" fill="#052e16" font-family="ui-sans-serif,system-ui,sans-serif" font-size="30" font-weight="800" text-anchor="middle">tool_result</text>
+  <text x="985" y="398" fill="#052e16" font-family="ui-monospace,monospace" font-size="19" font-weight="700" text-anchor="middle">결과를 되먹임</text>
+  <text x="985" y="424" fill="#064e2b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="500" text-anchor="middle">모델 컨텍스트로</text>
+
+  <!-- arrows LLM -> runtime -> result -->
+  <line x1="340" y1="375" x2="470" y2="375" stroke="#cbd5e1" stroke-width="4" marker-end="url(#tca)"/>
+  <line x1="725" y1="375" x2="855" y2="375" stroke="#cbd5e1" stroke-width="4" marker-end="url(#tca)"/>
+  <!-- feedback loop result -> LLM -->
+  <path d="M 985 460 L 985 540 L 215 540 L 215 460" fill="none" stroke="#4ade80" stroke-width="4" stroke-dasharray="9 7" marker-end="url(#tcg)"/>
+  <text x="600" y="575" fill="#86efac" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="700" text-anchor="middle">도구가 없다고 할 때까지 이 고리를 반복한다 (agentic loop)</text>
+
+  <defs>
+    <marker id="tca" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1"/></marker>
+    <marker id="tcg" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/></marker>
+  </defs>
+</svg>

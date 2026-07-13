@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 440" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect x="0" y="0" width="820" height="440" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="30" y="42" font-size="22" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 · 2026-07-14</text>
+  <text x="30" y="68" font-size="14" fill="#64748b">주제 축: 장기 실행 에이전트의 신뢰성 · 지연 단축</text>
+
+  <!-- center -->
+  <ellipse cx="410" cy="250" rx="120" ry="46" fill="#eef2ff" stroke="#6366f1" stroke-width="2.5"/>
+  <text x="410" y="245" font-size="16" font-weight="700" fill="#3730a3" text-anchor="middle">장기 실행 에이전트</text>
+  <text x="410" y="266" font-size="13" fill="#4338ca" text-anchor="middle">reliable + low-latency</text>
+
+  <!-- lines -->
+  <g stroke="#cbd5e1" stroke-width="2">
+    <line x1="410" y1="204" x2="230" y2="130"/>
+    <line x1="410" y1="204" x2="590" y2="130"/>
+    <line x1="290" y1="250" x2="150" y2="300"/>
+    <line x1="530" y1="250" x2="670" y2="300"/>
+    <line x1="410" y1="296" x2="410" y2="360"/>
+  </g>
+
+  <!-- model: GPT-Live -->
+  <rect x="110" y="98" width="230" height="64" rx="10" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="124" y="122" font-size="14" font-weight="700" fill="#065f46">🤖 GPT-Live (7/8)</text>
+  <text x="124" y="142" font-size="12" fill="#047857">풀듀플렉스 음성 · 도구호출 결정</text>
+  <text x="124" y="157" font-size="12" fill="#047857">GPT-5.5 백엔드 · API 예정</text>
+
+  <!-- model: Gemini -->
+  <rect x="480" y="98" width="230" height="64" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="494" y="122" font-size="14" font-weight="700" fill="#1e40af">🤖 Gemini 3.5 Pro D-3</text>
+  <text x="494" y="142" font-size="12" fill="#1d4ed8">7/17 목표 · 2M 컨텍스트(설)</text>
+  <text x="494" y="157" font-size="12" fill="#1d4ed8">스펙 미확정 · 공식발표 없음</text>
+
+  <!-- paper GRACE -->
+  <rect x="30" y="290" width="245" height="72" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+  <text x="44" y="314" font-size="14" font-weight="700" fill="#92400e">📚 GRACE (2607.09175)</text>
+  <text x="44" y="334" font-size="12" fill="#b45309">지시문을 타입드 그래프로 관리</text>
+  <text x="44" y="351" font-size="12" fill="#b45309">pass³ 0.091 → 0.673</text>
+
+  <!-- paper tool-making -->
+  <rect x="545" y="290" width="245" height="72" rx="10" fill="#fae8ff" stroke="#a855f7" stroke-width="2"/>
+  <text x="559" y="314" font-size="14" font-weight="700" fill="#6b21a8">📚 Tool-Making (2607.08010)</text>
+  <text x="559" y="334" font-size="12" fill="#7e22ce">반복 SOP → 버전드 툴 사전컴파일</text>
+  <text x="559" y="351" font-size="12" fill="#7e22ce">p50 -42% · 오류 -53%</text>
+
+  <!-- tips -->
+  <rect x="285" y="372" width="250" height="46" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="410" y="392" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">🧑‍💻 실전 팁</text>
+  <text x="410" y="409" font-size="11.5" fill="#475569" text-anchor="middle">Codex 위임 모드 · CC 메모리 임포트 · 툴 사전컴파일</text>
+</svg>

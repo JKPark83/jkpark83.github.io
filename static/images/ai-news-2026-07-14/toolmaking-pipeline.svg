@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 420" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect x="0" y="0" width="820" height="420" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="30" y="40" font-size="21" font-weight="700" fill="#0f172a">Tool-Making: 반복 SOP 단계를 배포 전 툴로 컴파일</text>
+  <text x="30" y="64" font-size="13" fill="#64748b">Fulfillment Center 알람 트리아지 · 44-노드 SOP · 이종 메트릭 백엔드</text>
+
+  <!-- Before -->
+  <rect x="30" y="88" width="360" height="150" rx="12" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="48" y="114" font-size="15" font-weight="700" fill="#991b1b">이전: 런타임마다 코드 재생성</text>
+  <g font-size="12.5" fill="#7f1d1d">
+    <text x="48" y="140">요청 → LLM이 매번 같은 단계 코드 생성</text>
+    <text x="48" y="162">→ 실행 → 지연 누적 · 실행마다 편차</text>
+    <text x="48" y="184">→ 신뢰성·감사 어려움</text>
+  </g>
+  <rect x="48" y="198" width="324" height="28" rx="6" fill="#fee2e2"/>
+  <text x="210" y="217" font-size="12" fill="#b91c1c" text-anchor="middle" font-weight="700">run-to-run variance 큼</text>
+
+  <!-- After -->
+  <rect x="430" y="88" width="360" height="150" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="448" y="114" font-size="15" font-weight="700" fill="#065f46">이후: 검증된 버전드 툴 호출</text>
+  <g font-size="12.5" fill="#065f46">
+    <text x="448" y="140">배포 전: 트레이스 수집 → 스키마 관찰</text>
+    <text x="448" y="162">→ 툴 합성 → 라벨셋으로 수리·검증</text>
+    <text x="448" y="184">런타임: 툴 직접 호출, 필요 시만 코드 폴백</text>
+  </g>
+  <rect x="448" y="198" width="324" height="28" rx="6" fill="#d1fae5"/>
+  <text x="610" y="217" font-size="12" fill="#047857" text-anchor="middle" font-weight="700">간결한 구조화 verdict 반환</text>
+
+  <!-- arrow -->
+  <text x="410" y="170" font-size="26" fill="#10b981" text-anchor="middle">→</text>
+
+  <!-- results -->
+  <text x="30" y="278" font-size="15" font-weight="700" fill="#0f172a">프로덕션 결과</text>
+  <g>
+    <rect x="30" y="294" width="245" height="96" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <text x="152" y="332" font-size="34" font-weight="800" fill="#1d4ed8" text-anchor="middle">-42%</text>
+    <text x="152" y="362" font-size="13" fill="#1e40af" text-anchor="middle">p50 지연 (툴 호출)</text>
+
+    <rect x="288" y="294" width="245" height="96" rx="12" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+    <text x="410" y="332" font-size="34" font-weight="800" fill="#b45309" text-anchor="middle">-53%</text>
+    <text x="410" y="362" font-size="13" fill="#92400e" text-anchor="middle">end-to-end 오류율 (최대)</text>
+
+    <rect x="546" y="294" width="244" height="96" rx="12" fill="#fae8ff" stroke="#a855f7" stroke-width="2"/>
+    <text x="668" y="332" font-size="34" font-weight="800" fill="#7e22ce" text-anchor="middle">-62%</text>
+    <text x="668" y="356" font-size="13" fill="#6b21a8" text-anchor="middle">추가 p50 (직접호출</text>
+    <text x="668" y="374" font-size="13" fill="#6b21a8" text-anchor="middle">아키텍처, ablation)</text>
+  </g>
+</svg>

@@ -1,0 +1,106 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽은 정적 배칭이라 GPU 타임라인에 빈 칸이 많고 KV 캐시 메모리도 예약만 해 두고 놀아 낭비가 크다. 오른쪽은 continuous batching으로 빈 자리에 새 요청을 곧바로 끼워 넣어 GPU를 꽉 채우고, PagedAttention이 KV 캐시를 페이지 블록으로 촘촘히 담아 낭비를 없앤다. 그래서 같은 GPU로 처리량이 크게 오른다는 표지.">
+  <defs>
+    <linearGradient id="svc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#101f36"/>
+    </linearGradient>
+    <linearGradient id="svc-good" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+    <marker id="svc-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6ee7b7"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#svc-bg)"/>
+
+  <text x="600" y="86" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="46" font-weight="800">왜 vLLM은 20배 빠를까</text>
+  <text x="600" y="132" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24" font-weight="500">continuous batching · PagedAttention · RadixAttention</text>
+
+  <!-- LEFT: naive -->
+  <text x="300" y="196" text-anchor="middle" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="24" font-weight="800">순진한 서빙 (정적 배칭)</text>
+  <text x="300" y="224" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="16">GPU가 빈 칸으로 놀고, KV 메모리는 예약만</text>
+
+  <!-- GPU timeline grid with idle cells -->
+  <g font-family="system-ui,sans-serif">
+    <!-- rows = slots, cols = time steps -->
+    <!-- row1 -->
+    <rect x="110" y="250" width="46" height="30" rx="4" fill="#60a5fa"/>
+    <rect x="160" y="250" width="46" height="30" rx="4" fill="#60a5fa"/>
+    <rect x="210" y="250" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <rect x="260" y="250" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <rect x="310" y="250" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <rect x="360" y="250" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <!-- row2 -->
+    <rect x="110" y="286" width="46" height="30" rx="4" fill="#a78bfa"/>
+    <rect x="160" y="286" width="46" height="30" rx="4" fill="#a78bfa"/>
+    <rect x="210" y="286" width="46" height="30" rx="4" fill="#a78bfa"/>
+    <rect x="260" y="286" width="46" height="30" rx="4" fill="#a78bfa"/>
+    <rect x="310" y="286" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <rect x="360" y="286" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <!-- row3 -->
+    <rect x="110" y="322" width="46" height="30" rx="4" fill="#f59e0b"/>
+    <rect x="160" y="322" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <rect x="210" y="322" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <rect x="260" y="322" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <rect x="310" y="322" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <rect x="360" y="322" width="46" height="30" rx="4" fill="#1e293b" stroke="#334155"/>
+    <text x="300" y="380" text-anchor="middle" fill="#f87171" font-size="16" font-weight="700">빈 칸 = 놀고 있는 GPU</text>
+  </g>
+
+  <!-- wasted KV memory bar -->
+  <text x="300" y="424" text-anchor="middle" fill="#94a3b8" font-size="15">KV 캐시 메모리</text>
+  <rect x="110" y="436" width="380" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+  <rect x="114" y="440" width="120" height="32" rx="4" fill="#f59e0b"/>
+  <text x="300" y="462" text-anchor="middle" fill="#fca5a5" font-size="15" font-weight="700">60~80% 예약만 하고 낭비</text>
+
+  <!-- divider arrow -->
+  <line x1="560" y1="250" x2="640" y2="250" stroke="#6ee7b7" stroke-width="4" marker-end="url(#svc-ar)"/>
+  <text x="600" y="238" text-anchor="middle" fill="#6ee7b7" font-size="16" font-weight="700">최적화</text>
+
+  <!-- RIGHT: optimized -->
+  <text x="900" y="196" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="24" font-weight="800">서빙 엔진 (vLLM · SGLang)</text>
+  <text x="900" y="224" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="16">빈 자리에 곧바로 새 요청, 메모리는 페이지로</text>
+
+  <g font-family="system-ui,sans-serif">
+    <!-- fully packed grid -->
+    <rect x="710" y="250" width="46" height="30" rx="4" fill="#60a5fa"/>
+    <rect x="760" y="250" width="46" height="30" rx="4" fill="#60a5fa"/>
+    <rect x="810" y="250" width="46" height="30" rx="4" fill="#34d399"/>
+    <rect x="860" y="250" width="46" height="30" rx="4" fill="#34d399"/>
+    <rect x="910" y="250" width="46" height="30" rx="4" fill="#f472b6"/>
+    <rect x="960" y="250" width="46" height="30" rx="4" fill="#f472b6"/>
+
+    <rect x="710" y="286" width="46" height="30" rx="4" fill="#a78bfa"/>
+    <rect x="760" y="286" width="46" height="30" rx="4" fill="#a78bfa"/>
+    <rect x="810" y="286" width="46" height="30" rx="4" fill="#a78bfa"/>
+    <rect x="860" y="286" width="46" height="30" rx="4" fill="#fbbf24"/>
+    <rect x="910" y="286" width="46" height="30" rx="4" fill="#fbbf24"/>
+    <rect x="960" y="286" width="46" height="30" rx="4" fill="#fbbf24"/>
+
+    <rect x="710" y="322" width="46" height="30" rx="4" fill="#f59e0b"/>
+    <rect x="760" y="322" width="46" height="30" rx="4" fill="#22d3ee"/>
+    <rect x="810" y="322" width="46" height="30" rx="4" fill="#22d3ee"/>
+    <rect x="860" y="322" width="46" height="30" rx="4" fill="#22d3ee"/>
+    <rect x="910" y="322" width="46" height="30" rx="4" fill="#34d399"/>
+    <rect x="960" y="322" width="46" height="30" rx="4" fill="#34d399"/>
+    <text x="900" y="380" text-anchor="middle" fill="#6ee7b7" font-size="16" font-weight="700">빈 자리를 곧바로 채운다</text>
+  </g>
+
+  <text x="900" y="424" text-anchor="middle" fill="#94a3b8" font-size="15">KV 캐시 메모리 (페이지 블록)</text>
+  <rect x="710" y="436" width="380" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+  <g>
+    <rect x="714" y="440" width="60" height="32" rx="3" fill="#34d399"/>
+    <rect x="777" y="440" width="60" height="32" rx="3" fill="#22d3ee"/>
+    <rect x="840" y="440" width="60" height="32" rx="3" fill="#a78bfa"/>
+    <rect x="903" y="440" width="60" height="32" rx="3" fill="#f472b6"/>
+    <rect x="966" y="440" width="60" height="32" rx="3" fill="#fbbf24"/>
+    <rect x="1029" y="440" width="57" height="32" rx="3" fill="#34d399"/>
+  </g>
+  <text x="900" y="503" text-anchor="middle" fill="#6ee7b7" font-size="15" font-weight="700">낭비 &lt; 4% · 동시 요청 수 급증</text>
+
+  <!-- bottom banner -->
+  <rect x="180" y="540" width="840" height="56" rx="14" fill="#0e2033" stroke="#1e3a52"/>
+  <text x="600" y="576" text-anchor="middle" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="21" font-weight="700">같은 GPU, 최대 24배 처리량 — 스케줄러와 KV 캐시 관리의 힘</text>
+</svg>

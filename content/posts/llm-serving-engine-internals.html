@@ -1,0 +1,395 @@
+---
+title: "왜 vLLM은 20배 빠를까: LLM 서빙 엔진 속 continuous batching·PagedAttention·RadixAttention"
+date: 2026-07-15T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM 서빙", "vLLM", "SGLang", "PagedAttention", "continuous batching", "RadixAttention", "KV 캐시", "추론 최적화", "inference", "throughput"]
+categories: ["AI 엔지니어링"]
+summary: "같은 GPU, 같은 모델인데 HuggingFace로 직접 돌리면 초당 몇 요청이 고작이고 vLLM에 올리면 수십 배가 나옵니다. 마법이 아니라 두 가지 아이디어 덕분입니다. 하나는 요청을 토큰 단위로 끼워 넣는 continuous batching, 또 하나는 KV 캐시 메모리를 OS 페이징처럼 관리하는 PagedAttention이죠. 최근엔 프리픽스를 자동으로 재사용하는 SGLang의 RadixAttention까지 더해지면서 '2026년 vLLM vs SGLang' 벤치마크가 실무자 사이에서 다시 화제입니다. 이 글은 LLM 추론이 왜 느린지부터 시작해, 이 세 가지가 각각 어떤 낭비를 없애는지, vLLM으로 직접 서버를 띄우는 코드와 흔한 함정까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "llm-serving-engine-internals-cover.svg"
+  alt: "왼쪽은 정적 배칭이라 GPU 타임라인에 빈 칸이 많고 KV 캐시 메모리도 예약만 해 두고 놀아 60~80% 낭비된다. 오른쪽은 continuous batching으로 빈 자리에 새 요청을 곧바로 끼워 넣어 GPU를 꽉 채우고, PagedAttention이 KV 캐시를 페이지 블록으로 촘촘히 담아 낭비를 4% 아래로 줄인다. 그래서 같은 GPU로 최대 24배 처리량이 나온다."
+  caption: "순진하게 서빙하면 GPU도 KV 캐시 메모리도 놀린다. 서빙 엔진은 스케줄러(continuous batching)와 메모리 관리(PagedAttention)로 그 낭비를 없앤다."
+  relative: false
+---
+
+<style>
+/* ── LLM 서빙 엔진 포스트 전용 스타일 (svc- 접두사) ── */
+.svc-fig{
+  --svc-sky:#0284c7; --svc-amber:#d97706; --svc-green:#16a34a; --svc-rose:#e11d48;
+  --svc-slate:#64748b; --svc-violet:#7c3aed; --svc-teal:#0d9488; --svc-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .svc-fig{
+  --svc-sky:#38bdf8; --svc-amber:#fbbf24; --svc-green:#4ade80; --svc-rose:#fb7185;
+  --svc-slate:#94a3b8; --svc-violet:#a78bfa; --svc-teal:#2dd4bf; --svc-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .svc-fig{
+    --svc-sky:#38bdf8; --svc-amber:#fbbf24; --svc-green:#4ade80; --svc-rose:#fb7185;
+    --svc-slate:#94a3b8; --svc-violet:#a78bfa; --svc-teal:#2dd4bf; --svc-blue:#60a5fa;
+  }
+}
+.svc-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.svc-fig text{font-family:inherit}
+.svc-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.svc-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.svc-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.svc-toc ol{margin:0;padding-left:1.25rem}
+.svc-toc li{margin:.22rem 0;font-size:.95rem}
+.svc-toc a{text-decoration:none}
+.svc-toc a:hover{text-decoration:underline}
+.svc-pull{font-size:1.12rem;line-height:1.72}
+.svc-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.svc-note{border-left:4px solid var(--svc-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.svc-note strong{color:var(--svc-blue,#2563eb)}
+.svc-warn{border-left:4px solid var(--svc-rose,#e11d48)}
+.svc-warn strong{color:var(--svc-rose,#e11d48)}
+.svc-good{border-left:4px solid var(--svc-teal,#0d9488)}
+.svc-good strong{color:var(--svc-teal,#0d9488)}
+.svc-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.svc-tbl th,.svc-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.svc-tbl th{background:var(--entry);font-weight:700}
+.svc-tbl code{font-size:.86em}
+.svc-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="svc-pull">
+  <p>같은 GPU 한 장, 같은 모델. HuggingFace <code>model.generate()</code>로 직접 돌리면 초당 몇 요청이 고작인데, <strong>vLLM에 그대로 올리면 수십 배가 나옵니다.</strong> 모델을 손댄 것도, 더 좋은 GPU를 산 것도 아닙니다.</p>
+  <footer>— 달라진 건 딱 두 가지, <em>언제 어떤 요청을 GPU에 태울지</em>와 <em>KV 캐시 메모리를 어떻게 담을지</em>입니다.</footer>
+</blockquote>
+
+<p>모델 하나를 API로 서비스해 본 junior 개발자라면 한 번쯤 당황합니다. 로컬에서 <code>transformers</code>로 잘 돌던 모델을, 사용자 여러 명이 동시에 때리는 서버로 올렸더니 처리량(throughput)이 형편없습니다. GPU 사용률을 찍어 보면 더 이상합니다. 비싼 GPU가 <strong>대부분의 시간 동안 놀고 있습니다.</strong> 분명 일은 밀려 있는데 말이죠.</p>
+
+<p>그래서 다들 vLLM이나 SGLang 같은 <strong>서빙 엔진(serving engine)</strong>을 씁니다. 재미있는 건, 이 엔진들이 모델을 더 똑똑하게 만들어서 빠른 게 아니라는 점입니다. 똑같은 가중치를 똑같이 계산합니다. 대신 <em>요청을 스케줄링하는 방식</em>과 <em>메모리를 관리하는 방식</em>을 바꿔서, 놀고 있던 GPU를 꽉 채웁니다.</p>
+
+<p>이 주제가 이번 주에 다시 화제였습니다. 2026년판 "vLLM vs SGLang" H100 벤치마크 글들이 여럿 돌면서, SGLang의 <strong>RadixAttention</strong>이 프리픽스가 겹치는 RAG·멀티턴 워크로드에서 vLLM을 앞선다는 수치가 실무자 사이에서 오갔거든요. 그런데 그 비교를 제대로 읽으려면, 먼저 서빙 엔진이 <em>애초에 왜 빠른지</em>를 알아야 합니다. 이 글은 그 밑바닥을 처음부터 짚습니다.</p>
+
+<nav class="svc-toc">
+  <div class="svc-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">LLM 추론은 왜 느린가 — prefill과 decode, 그리고 KV 캐시</a></li>
+    <li><a href="#sec-2">순진한 서빙의 두 가지 낭비</a></li>
+    <li><a href="#sec-3">아이디어 1 — continuous batching (놀지 마라)</a></li>
+    <li><a href="#sec-4">아이디어 2 — PagedAttention (메모리를 페이지로)</a></li>
+    <li><a href="#sec-5">아이디어 3 — RadixAttention (프리픽스를 재사용하라)</a></li>
+    <li><a href="#sec-6">실전 — vLLM으로 직접 서버 띄우기</a></li>
+    <li><a href="#sec-7">vLLM vs SGLang, 언제 무엇을 (2026)</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. LLM 추론은 왜 느린가 — prefill과 decode, 그리고 KV 캐시</h2>
+
+<p>서빙 엔진이 뭘 최적화하는지 이해하려면, LLM이 텍스트를 만드는 과정을 두 단계로 나눠 봐야 합니다.</p>
+
+<ul>
+  <li><strong>prefill(프리필)</strong> — 입력 프롬프트 전체를 한 번에 읽어 들이는 단계입니다. 토큰이 500개면 500개를 병렬로 쭉 처리해 각 토큰의 내부 상태를 계산합니다. 연산량이 많지만 <em>한 방에</em> 끝나서 GPU를 잘 씁니다.</li>
+  <li><strong>decode(디코드)</strong> — 답을 <em>한 토큰씩</em> 만들어 내는 단계입니다. 다음 토큰 하나를 뽑고, 그걸 다시 입력에 붙여 또 하나를 뽑고… 이 자기회귀(autoregressive) 반복이 답 길이만큼 이어집니다. 매 스텝이 토큰 딱 하나짜리 연산이라, GPU 입장에선 일감이 너무 작아 대부분 놀게 됩니다.</li>
+</ul>
+
+<p>여기서 핵심 조연이 <strong>KV 캐시(KV cache)</strong>입니다. 트랜스포머는 새 토큰을 만들 때마다 앞에 나온 모든 토큰의 정보를 참조합니다(어텐션). 그때 필요한 게 각 토큰의 Key·Value 벡터인데, 매 스텝마다 처음부터 다시 계산하면 낭비가 엄청납니다. 그래서 한 번 계산한 K·V를 <strong>메모리에 저장해 두고 재사용</strong>합니다. 이게 KV 캐시입니다.</p>
+
+<p>문제는 이 캐시가 <strong>요청 하나마다, 토큰이 늘어날수록 계속 커진다</strong>는 점입니다. 예를 들어 13B 모델에서 시퀀스 하나의 KV 캐시가 수백 MB에 달할 수 있습니다. 동시에 처리하는 요청이 많아질수록 GPU 메모리에서 KV 캐시가 차지하는 몫이 폭발합니다. 그래서 <strong>"GPU에 요청을 몇 개나 동시에 올릴 수 있는가"는 사실상 "KV 캐시를 얼마나 알뜰하게 담느냐"로 결정됩니다.</strong> 이 문장을 기억해 두세요. 뒤에 나올 최적화 두 개가 전부 여기서 출발합니다.</p>
+
+<div class="svc-note"><strong>한 줄 요약.</strong> prefill은 GPU를 잘 쓰지만 짧고, decode는 GPU를 놀리면서 길게 이어집니다. 그리고 decode 내내 요청마다 KV 캐시가 GPU 메모리를 잡아먹습니다. 서빙 최적화 = <em>decode의 놀고 있는 GPU 채우기</em> + <em>KV 캐시 낭비 없애기</em>입니다.</div>
+
+<h2 id="sec-2">2. 순진한 서빙의 두 가지 낭비</h2>
+
+<p>이제 "순진하게" 서빙하면 어떤 일이 벌어지는지 봅시다. 사용자가 동시에 들어오니, 당연히 요청을 묶어서(batch) 한 번에 GPU에 태우고 싶습니다. 여기서 첫 번째 함정이 나옵니다.</p>
+
+<p><strong>낭비 ①: 정적 배칭(static batching)의 빈 자리.</strong> 순진한 방식은 요청 8개를 한 배치로 묶어 GPU에 올리고, <em>그 8개가 전부 끝날 때까지</em> 기다린 뒤 다음 배치를 받습니다. 그런데 답 길이는 제각각입니다. 어떤 요청은 20토큰 만에 끝나고, 어떤 요청은 500토큰을 뱉습니다. 짧은 요청이 먼저 끝나도 그 자리는 <strong>배치 전체가 끝날 때까지 빈 채로 놀게 됩니다.</strong> 새 요청이 대기줄에서 기다리고 있어도 끼워 넣지 못합니다. GPU 사용률이 바닥을 치는 주범이 이겁니다.</p>
+
+<p><strong>낭비 ②: KV 캐시 메모리의 과다 예약과 파편화.</strong> KV 캐시는 요청이 진행되며 점점 커지는데, 순진한 시스템은 이 캐시를 <em>메모리에 하나의 연속된 큰 덩어리로</em> 잡습니다. 얼마나 길어질지 미리 모르니, "최대 2048토큰까지 갈 수도 있으니 일단 2048토큰 분량을 통째로 예약"해 둡니다. 실제로는 30토큰만 쓰고 끝나도 나머지는 붙잡아 둔 채 낭비되죠. 게다가 요청들이 들쭉날쭉 들어오고 나가면서 메모리 사이사이에 못 쓰는 빈틈(파편화, fragmentation)이 생깁니다.</p>
+
+<p>원조 vLLM 논문은 이 낭비를 측정했습니다. 순진한 할당 방식(초기 Orca 등)에서는 <strong>KV 캐시로 잡은 메모리의 20~40%만 실제 토큰에 쓰이고, 60~80%가 예약·파편화로 버려졌습니다.</strong> 절반 넘게 그냥 놀린 겁니다. 메모리가 곧 동시 처리 요청 수인데, 그 메모리의 절반 이상을 버리고 있었던 거죠.</p>
+
+<p>이 두 낭비를 각각 겨냥한 게 바로 <strong>continuous batching</strong>(낭비 ①)과 <strong>PagedAttention</strong>(낭비 ②)입니다. 하나씩 봅시다.</p>
+
+<h2 id="sec-3">3. 아이디어 1 — continuous batching (놀지 마라)</h2>
+
+<p><strong>continuous batching(연속 배칭)</strong>, 다른 말로 iteration-level scheduling(반복 단위 스케줄링)의 발상은 단순합니다. "배치 하나가 전부 끝날 때까지 기다리지 말고, <em>토큰 생성 스텝 한 번이 끝날 때마다</em> 배치를 다시 짜자."</p>
+
+<p>즉 매 스텝마다 스케줄러가 확인합니다. 방금 끝난 요청이 있으면 배치에서 빼내 곧바로 사용자에게 돌려주고, <strong>비게 된 그 자리에 대기줄의 새 요청을 즉시 끼워 넣습니다.</strong> 요청 단위가 아니라 반복(iteration) 단위로 스케줄링한다고 해서 iteration-level scheduling이라 부릅니다. 이 아이디어는 2022년 <strong>Orca</strong> 논문(OSDI '22)이 처음 제시했고, vLLM이 이를 받아 표준으로 굳혔습니다.</p>
+
+<figure class="svc-fig">
+<svg viewBox="0 0 780 360" role="img" aria-label="정적 배칭과 continuous batching의 GPU 타임라인 비교. 위쪽 정적 배칭은 요청 네 개를 한 배치로 묶고, 짧게 끝난 요청의 자리가 배치 전체가 끝날 때까지 빈 칸으로 남아 GPU가 논다. 아래쪽 continuous batching은 요청이 끝나 비는 자리에 대기줄의 새 요청을 매 스텝 곧바로 끼워 넣어 타임라인이 빈틈 없이 채워진다.">
+  <text x="20" y="28" fill="var(--svc-rose)" font-size="16" font-weight="800">정적 배칭 — 짧게 끝난 자리가 논다</text>
+  <!-- static: 4 rows, time on x -->
+  <g font-size="12">
+    <!-- axis -->
+    <line x1="120" y1="46" x2="120" y2="150" stroke="var(--svc-slate)" stroke-width="1"/>
+    <line x1="120" y1="150" x2="720" y2="150" stroke="var(--svc-slate)" stroke-width="1"/>
+    <text x="420" y="168" fill="var(--svc-slate)" font-size="11" text-anchor="middle">시간 →</text>
+    <!-- R1 short -->
+    <text x="40" y="62" fill="currentColor">요청 A</text>
+    <rect x="120" y="52" width="150" height="18" rx="3" fill="var(--svc-sky)"/>
+    <rect x="270" y="52" width="330" height="18" rx="3" fill="none" stroke="var(--svc-rose)" stroke-dasharray="4 3"/>
+    <!-- R2 long -->
+    <text x="40" y="86" fill="currentColor">요청 B</text>
+    <rect x="120" y="76" width="480" height="18" rx="3" fill="var(--svc-violet)"/>
+    <!-- R3 mid -->
+    <text x="40" y="110" fill="currentColor">요청 C</text>
+    <rect x="120" y="100" width="250" height="18" rx="3" fill="var(--svc-amber)"/>
+    <rect x="370" y="100" width="230" height="18" rx="3" fill="none" stroke="var(--svc-rose)" stroke-dasharray="4 3"/>
+    <!-- R4 short -->
+    <text x="40" y="134" fill="currentColor">요청 D</text>
+    <rect x="120" y="124" width="110" height="18" rx="3" fill="var(--svc-teal)"/>
+    <rect x="230" y="124" width="370" height="18" rx="3" fill="none" stroke="var(--svc-rose)" stroke-dasharray="4 3"/>
+    <text x="618" y="100" fill="var(--svc-rose)" font-size="11">← 다음 배치는</text>
+    <text x="618" y="115" fill="var(--svc-rose)" font-size="11">여기까지 대기</text>
+  </g>
+
+  <text x="20" y="220" fill="var(--svc-teal)" font-size="16" font-weight="800">continuous batching — 빈 자리를 곧바로 채운다</text>
+  <g font-size="12">
+    <line x1="120" y1="238" x2="120" y2="342" stroke="var(--svc-slate)" stroke-width="1"/>
+    <line x1="120" y1="342" x2="720" y2="342" stroke="var(--svc-slate)" stroke-width="1"/>
+    <text x="420" y="358" fill="var(--svc-slate)" font-size="11" text-anchor="middle">시간 →</text>
+    <text x="40" y="254" fill="currentColor">슬롯 1</text>
+    <rect x="120" y="244" width="150" height="18" rx="3" fill="var(--svc-sky)"/>
+    <rect x="272" y="244" width="200" height="18" rx="3" fill="var(--svc-green)"/>
+    <rect x="474" y="244" width="126" height="18" rx="3" fill="var(--svc-blue)"/>
+    <text x="40" y="278" fill="currentColor">슬롯 2</text>
+    <rect x="120" y="268" width="480" height="18" rx="3" fill="var(--svc-violet)"/>
+    <text x="40" y="302" fill="currentColor">슬롯 3</text>
+    <rect x="120" y="292" width="250" height="18" rx="3" fill="var(--svc-amber)"/>
+    <rect x="372" y="292" width="228" height="18" rx="3" fill="var(--svc-green)"/>
+    <text x="40" y="326" fill="currentColor">슬롯 4</text>
+    <rect x="120" y="316" width="110" height="18" rx="3" fill="var(--svc-teal)"/>
+    <rect x="232" y="316" width="170" height="18" rx="3" fill="var(--svc-green)"/>
+    <rect x="404" y="316" width="196" height="18" rx="3" fill="var(--svc-blue)"/>
+    <text x="612" y="304" fill="var(--svc-teal)" font-size="11">빈틈 거의</text>
+    <text x="612" y="319" fill="var(--svc-teal)" font-size="11">없음</text>
+  </g>
+</svg>
+<figcaption>정적 배칭(위)은 짧게 끝난 요청 자리가 배치가 다 끝날 때까지 빈 채로 논다. continuous batching(아래)은 매 스텝 비는 자리에 새 요청(초록·파랑)을 곧바로 끼워 넣어 GPU를 꽉 채운다.</figcaption>
+</figure>
+
+<p>효과는 극적입니다. Orca 논문은 iteration-level scheduling으로 기존 시스템 대비 최대 36.9배 높은 처리량을 보고했고, Anyscale의 실측 글은 continuous batching만으로 처리량이 최대 23배 올랐다고 정리합니다. 배치 크기를 아무리 키워도 정적 배칭에서는 "짧은 요청이 긴 요청을 기다리는" 낭비가 사라지지 않는데, continuous batching이 그 구조적 낭비를 없앤 겁니다.</p>
+
+<div class="svc-good"><strong>왜 이렇게 효과가 클까.</strong> decode 단계는 원래 GPU를 놀립니다(토큰 하나짜리 연산이라). 그 노는 연산 자원에 <em>다른 요청들을 동시에 얹으면</em> 거의 공짜로 처리량이 붙습니다. continuous batching은 그 "얹을 요청"을 매 스텝 최대한 확보하는 장치입니다.</div>
+
+<h2 id="sec-4">4. 아이디어 2 — PagedAttention (메모리를 페이지로)</h2>
+
+<p>continuous batching으로 "빈 자리에 새 요청을 넣자"고 했지만, 넣으려면 그 요청의 KV 캐시를 담을 <strong>메모리가 있어야</strong> 합니다. 그런데 2장에서 봤듯 순진한 방식은 KV 캐시를 큰 연속 덩어리로 과다 예약해서, 정작 메모리가 금방 동납니다. 여기서 vLLM의 간판 기술 <strong>PagedAttention</strong>이 등장합니다.</p>
+
+<p>발상의 원천은 운영체제(OS)의 <strong>가상 메모리와 페이징</strong>입니다. OS는 프로그램에게 메모리를 하나의 연속된 공간처럼 보여 주지만, 실제로는 뒤에서 <em>작은 페이지(page) 단위로 쪼개</em> 물리 메모리 여기저기에 흩어 담습니다. PagedAttention은 이걸 KV 캐시에 그대로 적용합니다.</p>
+
+<ul>
+  <li>KV 캐시를 <strong>고정 크기 블록(block)</strong>(예: 토큰 16개 분량)으로 잘게 나눕니다.</li>
+  <li>요청이 길어지면 <strong>필요할 때마다 블록을 하나씩</strong> 새로 할당합니다. 미리 2048토큰을 통째로 예약하지 않습니다.</li>
+  <li>블록들은 물리 메모리에서 <strong>연속일 필요가 없습니다.</strong> 논리적 순서를 블록 테이블(page table 격)이 기억해 두니, 흩어져 있어도 됩니다.</li>
+</ul>
+
+<figure class="svc-fig">
+<svg viewBox="0 0 780 340" role="img" aria-label="순진한 KV 캐시 할당과 PagedAttention 비교. 왼쪽은 요청마다 최대 길이만큼 연속된 큰 메모리를 통째로 예약해 실제로 쓰는 부분은 일부뿐이고 나머지는 예약 낭비와 파편화로 버려진다. 오른쪽 PagedAttention은 KV 캐시를 작은 블록으로 쪼개 필요할 때마다 하나씩 할당하고 블록 테이블이 순서를 기억하므로 물리 메모리에 흩어 담아도 되어 낭비가 거의 없다.">
+  <!-- left naive -->
+  <text x="30" y="28" fill="var(--svc-rose)" font-size="15" font-weight="800">순진한 할당 — 연속 예약</text>
+  <g font-size="11">
+    <!-- req A reservation -->
+    <rect x="30" y="44" width="150" height="30" rx="4" fill="var(--svc-sky)"/>
+    <rect x="180" y="44" width="180" height="30" rx="4" fill="none" stroke="var(--svc-rose)" stroke-dasharray="4 3"/>
+    <text x="105" y="63" fill="#fff" font-size="11" text-anchor="middle">A 실제 사용</text>
+    <text x="270" y="63" fill="var(--svc-rose)" text-anchor="middle">A 예약 낭비</text>
+    <!-- req B -->
+    <rect x="30" y="82" width="90" height="30" rx="4" fill="var(--svc-violet)"/>
+    <rect x="120" y="82" width="240" height="30" rx="4" fill="none" stroke="var(--svc-rose)" stroke-dasharray="4 3"/>
+    <text x="75" y="101" fill="#fff" font-size="11" text-anchor="middle">B 사용</text>
+    <text x="240" y="101" fill="var(--svc-rose)" text-anchor="middle">B 예약 낭비</text>
+    <!-- fragmentation gap -->
+    <rect x="30" y="120" width="330" height="22" rx="4" fill="none" stroke="var(--svc-slate)" stroke-dasharray="2 3"/>
+    <text x="195" y="135" fill="var(--svc-slate)" text-anchor="middle">사이사이 파편화된 빈틈 — 새 요청이 못 들어감</text>
+    <text x="30" y="168" fill="var(--svc-rose)" font-size="12" font-weight="700">→ 메모리의 60~80%가 놀고 있음</text>
+  </g>
+
+  <line x1="392" y1="40" x2="392" y2="300" stroke="var(--svc-slate)" stroke-width="1" stroke-dasharray="3 4"/>
+
+  <!-- right paged -->
+  <text x="416" y="28" fill="var(--svc-teal)" font-size="15" font-weight="800">PagedAttention — 블록 단위</text>
+  <g font-size="10">
+    <!-- physical memory pool of blocks -->
+    <text x="416" y="52" fill="var(--svc-slate)" font-size="11">물리 메모리 (블록 풀)</text>
+    <!-- grid of blocks, colored by owner, interleaved -->
+    <rect x="416" y="60" width="42" height="26" rx="3" fill="var(--svc-sky)"/><text x="437" y="77" fill="#fff" text-anchor="middle">A1</text>
+    <rect x="462" y="60" width="42" height="26" rx="3" fill="var(--svc-violet)"/><text x="483" y="77" fill="#fff" text-anchor="middle">B1</text>
+    <rect x="508" y="60" width="42" height="26" rx="3" fill="var(--svc-sky)"/><text x="529" y="77" fill="#fff" text-anchor="middle">A2</text>
+    <rect x="554" y="60" width="42" height="26" rx="3" fill="var(--svc-amber)"/><text x="575" y="77" fill="#fff" text-anchor="middle">C1</text>
+    <rect x="600" y="60" width="42" height="26" rx="3" fill="var(--svc-violet)"/><text x="621" y="77" fill="#fff" text-anchor="middle">B2</text>
+    <rect x="646" y="60" width="42" height="26" rx="3" fill="var(--svc-sky)"/><text x="667" y="77" fill="#fff" text-anchor="middle">A3</text>
+
+    <rect x="416" y="92" width="42" height="26" rx="3" fill="var(--svc-amber)"/><text x="437" y="109" fill="#fff" text-anchor="middle">C2</text>
+    <rect x="462" y="92" width="42" height="26" rx="3" fill="var(--svc-green)"/><text x="483" y="109" fill="#fff" text-anchor="middle">D1</text>
+    <rect x="508" y="92" width="42" height="26" rx="3" fill="var(--svc-violet)"/><text x="529" y="109" fill="#fff" text-anchor="middle">B3</text>
+    <rect x="554" y="92" width="42" height="26" rx="3" fill="none" stroke="var(--svc-slate)"/><text x="575" y="109" fill="var(--svc-slate)" text-anchor="middle">빈</text>
+    <rect x="600" y="92" width="42" height="26" rx="3" fill="var(--svc-green)"/><text x="621" y="109" fill="#fff" text-anchor="middle">D2</text>
+    <rect x="646" y="92" width="42" height="26" rx="3" fill="none" stroke="var(--svc-slate)"/><text x="667" y="109" fill="var(--svc-slate)" text-anchor="middle">빈</text>
+  </g>
+  <!-- block table -->
+  <g font-size="10">
+    <text x="416" y="146" fill="var(--svc-slate)" font-size="11">블록 테이블(요청 A의 논리 순서)</text>
+    <rect x="416" y="154" width="52" height="24" rx="3" fill="var(--svc-sky)" opacity="0.25" stroke="var(--svc-sky)"/><text x="442" y="170" fill="currentColor" text-anchor="middle">A1</text>
+    <text x="474" y="170" fill="var(--svc-slate)">→</text>
+    <rect x="488" y="154" width="52" height="24" rx="3" fill="var(--svc-sky)" opacity="0.25" stroke="var(--svc-sky)"/><text x="514" y="170" fill="currentColor" text-anchor="middle">A2</text>
+    <text x="546" y="170" fill="var(--svc-slate)">→</text>
+    <rect x="560" y="154" width="52" height="24" rx="3" fill="var(--svc-sky)" opacity="0.25" stroke="var(--svc-sky)"/><text x="586" y="170" fill="currentColor" text-anchor="middle">A3</text>
+    <text x="416" y="200" fill="var(--svc-teal)" font-size="12" font-weight="700">→ 흩어져 있어도 순서만 알면 OK · 낭비 &lt; 4%</text>
+  </g>
+</svg>
+<figcaption>순진한 할당(왼쪽)은 요청마다 최대 길이를 통째로 예약해 절반 넘게 버린다. PagedAttention(오른쪽)은 KV 캐시를 작은 블록으로 쪼개 필요할 때 하나씩 할당하고, 블록 테이블이 순서를 기억하므로 물리 메모리에 흩어 담아도 된다.</figcaption>
+</figure>
+
+<p>결과는 놀랍습니다. vLLM 논문에 따르면 PagedAttention은 KV 캐시 낭비를 <strong>4% 아래로</strong> 떨어뜨렸습니다(순진한 방식은 60~80% 낭비). 낭비가 사라지니 같은 GPU에 훨씬 많은 요청을 동시에 올릴 수 있고, 그만큼 continuous batching이 채울 "빈 자리"도 넉넉해집니다. 두 기술이 맞물려 vLLM은 초기 HuggingFace Transformers 대비 <strong>최대 24배</strong> 처리량을 냈습니다. 이 조합이 오늘날 거의 모든 서빙 엔진의 표준이 됐습니다.</p>
+
+<div class="svc-note"><strong>보너스 — 공유가 공짜가 된다.</strong> KV 캐시를 블록으로 관리하면, 여러 요청이 <em>같은 앞부분</em>을 쓸 때 그 블록을 그대로 공유할 수 있습니다(OS의 copy-on-write처럼). 병렬 샘플링이나 같은 시스템 프롬프트를 쓰는 요청들이 대표적이죠. 이 "공유" 아이디어를 극단까지 밀어붙인 게 다음 절의 RadixAttention입니다.</div>
+
+<h2 id="sec-5">5. 아이디어 3 — RadixAttention (프리픽스를 재사용하라)</h2>
+
+<p>실무 워크로드를 보면, 요청들이 <strong>앞부분을 자주 공유</strong>합니다. 긴 시스템 프롬프트를 모든 요청에 똑같이 붙이거나, few-shot 예시가 매번 동일하거나, 멀티턴 대화에서 앞선 대화가 계속 반복되거나, RAG에서 같은 문서 조각이 여러 질문에 다시 등장하거나. 이 공유되는 앞부분(prefix)의 KV 캐시를 <em>매번 다시 계산</em>하는 건 명백한 낭비입니다.</p>
+
+<p>SGLang의 <strong>RadixAttention</strong>은 이 프리픽스 재사용을 <strong>자동으로</strong> 해 줍니다. 핵심 자료구조는 이름 그대로 <strong>radix tree(래딕스 트리)</strong>입니다. 처리한 시퀀스들의 KV 캐시를 토큰 단위로 트리에 보관하되, 공유되는 앞부분은 트리에서 <em>한 경로로 합쳐</em> 둡니다. 새 요청이 오면 트리를 따라 내려가며 "어디까지 이미 계산돼 있나"를 찾아, 겹치는 프리픽스는 계산을 건너뛰고 캐시를 그대로 씁니다. 메모리가 부족하면 LRU(least recently used) 방식으로 오래된 가지를 evict 합니다.</p>
+
+<figure class="svc-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="RadixAttention의 프리픽스 공유. 여러 요청이 같은 시스템 프롬프트로 시작하면 radix tree에서 그 앞부분이 하나의 공유 경로로 합쳐지고, 각 요청은 갈라지는 뒷부분만 새로 계산한다. 공유 프리픽스의 KV 캐시는 한 번만 계산해 재사용하므로 prefill 비용과 첫 토큰 지연이 줄어든다.">
+  <!-- shared prefix node -->
+  <rect x="40" y="120" width="220" height="56" rx="10" fill="var(--svc-teal)" opacity="0.25" stroke="var(--svc-teal)" stroke-width="2"/>
+  <text x="150" y="145" fill="currentColor" font-size="13" text-anchor="middle" font-weight="700">공유 프리픽스</text>
+  <text x="150" y="164" fill="var(--svc-slate)" font-size="11" text-anchor="middle">"당신은 친절한 상담원…" (한 번만 계산)</text>
+
+  <!-- branches -->
+  <line x1="260" y1="140" x2="330" y2="70" stroke="var(--svc-slate)" stroke-width="1.5"/>
+  <line x1="260" y1="148" x2="330" y2="148" stroke="var(--svc-slate)" stroke-width="1.5"/>
+  <line x1="260" y1="156" x2="330" y2="226" stroke="var(--svc-slate)" stroke-width="1.5"/>
+
+  <rect x="330" y="48" width="330" height="44" rx="9" fill="var(--svc-sky)" opacity="0.2" stroke="var(--svc-sky)"/>
+  <text x="345" y="75" fill="currentColor" font-size="12">요청 1: "환불 규정 알려줘" <tspan fill="var(--svc-sky)">← 이 부분만 계산</tspan></text>
+  <rect x="330" y="126" width="330" height="44" rx="9" fill="var(--svc-violet)" opacity="0.2" stroke="var(--svc-violet)"/>
+  <text x="345" y="153" fill="currentColor" font-size="12">요청 2: "배송 언제 와요?" <tspan fill="var(--svc-violet)">← 이 부분만 계산</tspan></text>
+  <rect x="330" y="204" width="330" height="44" rx="9" fill="var(--svc-amber)" opacity="0.2" stroke="var(--svc-amber)"/>
+  <text x="345" y="231" fill="currentColor" font-size="12">요청 3: "쿠폰 어디서 써요?" <tspan fill="var(--svc-amber)">← 이 부분만 계산</tspan></text>
+
+  <text x="150" y="216" fill="var(--svc-teal)" font-size="12" text-anchor="middle" font-weight="700">radix tree</text>
+  <text x="150" y="234" fill="var(--svc-slate)" font-size="11" text-anchor="middle">겹치는 앞부분은</text>
+  <text x="150" y="250" fill="var(--svc-slate)" font-size="11" text-anchor="middle">한 경로로 합쳐 재사용</text>
+</svg>
+<figcaption>RadixAttention은 요청들이 공유하는 시스템 프롬프트·대화 앞부분을 radix tree의 한 경로로 합쳐, 그 KV 캐시를 한 번만 계산하고 재사용한다. 각 요청은 갈라지는 뒷부분만 새로 계산하면 된다.</figcaption>
+</figure>
+
+<p>SGLang 논문(2023)은 이 구조로 당시 최고 수준 시스템 대비 <strong>최대 6.4배</strong> 높은 처리량을 보고했습니다. 특히 agent 제어, 논리 추론, few-shot, JSON 디코딩, RAG처럼 프리픽스가 크게 겹치는 워크로드에서 이득이 컸습니다.</p>
+
+<div class="svc-warn"><strong>혼동 주의 — 서버 프리픽스 캐싱 vs API 프롬프트 캐싱.</strong> RadixAttention은 <em>서빙 엔진이 GPU 메모리 안에서 자동으로</em> KV 캐시를 재사용하는 기술입니다. Anthropic·OpenAI API에서 <code>cache_control</code>로 명시하는 프롬프트 캐싱과는 층위가 다릅니다. 다만 원리는 같습니다 — "겹치는 앞부분을 다시 계산하지 마라". 참고로 vLLM도 <code>--enable-prefix-caching</code>으로 자동 프리픽스 캐싱을 지원합니다. RadixAttention은 그중에서도 토큰 단위 트리로 매칭이 촘촘한 구현이라고 보면 됩니다.</div>
+
+<h2 id="sec-6">6. 실전 — vLLM으로 직접 서버 띄우기</h2>
+
+<p>이론은 됐고, 실제로 얼마나 쉬운지 봅시다. vLLM의 큰 장점 하나는 <strong>OpenAI 호환 API 서버</strong>를 명령어 한 줄로 띄운다는 점입니다. 기존에 OpenAI SDK로 짠 코드를 <code>base_url</code>만 바꿔 그대로 붙일 수 있습니다.</p>
+
+<p>먼저 설치하고 서버를 실행합니다. 위에서 배운 최적화들은 <em>기본으로 켜져</em> 있습니다. continuous batching과 PagedAttention은 끄는 옵션을 찾는 게 더 어렵죠.</p>
+
+{{< highlight bash >}}
+pip install vllm
+
+# OpenAI 호환 서버 실행 (continuous batching·PagedAttention 기본 ON)
+vllm serve Qwen/Qwen3-8B \
+  --enable-prefix-caching \      # 자동 프리픽스 캐싱 켜기 (반복 시스템 프롬프트에 유리)
+  --max-model-len 8192 \         # 최대 컨텍스트 길이
+  --gpu-memory-utilization 0.90  # GPU 메모리의 90%까지 KV 캐시에 사용
+{{< /highlight >}}
+
+<p>이제 클라이언트에서 부릅니다. 진짜로 OpenAI SDK 그대로입니다.</p>
+
+{{< highlight python >}}
+from openai import OpenAI
+
+# base_url만 로컬 vLLM 서버로 돌린다. api_key는 아무 값이나 OK.
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="EMPTY")
+
+resp = client.chat.completions.create(
+    model="Qwen/Qwen3-8B",
+    messages=[{"role": "user", "content": "continuous batching을 한 문장으로 설명해줘"}],
+)
+print(resp.choices[0].message.content)
+{{< /highlight >}}
+
+<p>처리량을 체감하려면 요청을 <strong>동시에 많이</strong> 던져 봐야 합니다. 여기가 핵심인데, 순진한 서버라면 100개를 동시에 던지면 거의 순차 처리되지만, vLLM은 continuous batching으로 이들을 촘촘히 묶어 처리합니다. 아래는 감을 잡기 위한 간단한 부하 스크립트입니다.</p>
+
+{{< highlight python >}}
+import asyncio, time
+from openai import AsyncOpenAI
+
+client = AsyncOpenAI(base_url="http://localhost:8000/v1", api_key="EMPTY")
+
+async def one(i):
+    r = await client.chat.completions.create(
+        model="Qwen/Qwen3-8B",
+        messages=[{"role": "user", "content": f"{i}번 질문: 파이썬 리스트와 튜플의 차이는?"}],
+        max_tokens=128,
+    )
+    return r.usage.completion_tokens
+
+async def main(n=100):
+    t = time.perf_counter()
+    # 100개를 '동시에' 던진다 → 서버가 continuous batching으로 함께 처리
+    toks = await asyncio.gather(*[one(i) for i in range(n)])
+    dt = time.perf_counter() - t
+    print(f"{n}개 요청 / {sum(toks)} 토큰 / {dt:.1f}s → {sum(toks)/dt:.0f} tok/s")
+
+asyncio.run(main())
+{{< /highlight >}}
+
+<p>동시 요청 수(<code>n</code>)를 1 → 10 → 100으로 올려 보면, 순진한 서버는 처리량이 거의 평평한데 vLLM은 어느 지점까지 쭉 오르는 걸 보게 됩니다. 바로 그 차이가 이 글에서 설명한 두 아이디어의 힘입니다.</p>
+
+<div class="svc-good"><strong>SGLang도 거의 똑같습니다.</strong> <code>pip install "sglang[all]"</code> 후 <code>python -m sglang.launch_server --model-path Qwen/Qwen3-8B</code>로 띄우면 역시 OpenAI 호환 API가 열립니다. RadixAttention은 기본으로 켜져 있어, 시스템 프롬프트가 반복되는 워크로드라면 별도 설정 없이 이득을 봅니다.</div>
+
+<h2 id="sec-7">7. vLLM vs SGLang, 언제 무엇을 (2026)</h2>
+
+<p>이제 이번 주 화제였던 벤치마크 이야기로 돌아갑시다. 2026년 여러 비교 글을 종합하면 큰 그림은 이렇습니다. 아래 수치는 특정 블로그의 H100 벤치마크값이라 <strong>워크로드·설정에 따라 달라진다</strong>는 점을 꼭 감안하세요.</p>
+
+<div class="svc-tblwrap">
+<table class="svc-tbl">
+  <thead><tr><th>상황</th><th>추천</th><th>이유</th></tr></thead>
+  <tbody>
+    <tr><td>프리픽스가 크게 겹침<br>(RAG · 멀티턴 · 공용 시스템 프롬프트)</td><td><strong>SGLang</strong></td><td>RadixAttention의 자동 프리픽스 재사용이 prefill 비용을 크게 줄임. 한 H100 비교에서 프리픽스 공유 시 vLLM 대비 약 29% 높은 처리량(예: 16,200 vs 12,500 tok/s), 프리픽스 집약 워크로드에선 최대 수 배까지.</td></tr>
+    <tr><td>모델을 자주 바꿔 끼움 · 넓은 하드웨어(그리고 생태계) 필요</td><td><strong>vLLM</strong></td><td>지원 모델·백엔드(NVIDIA·AMD·TPU 등)와 기여자 층이 가장 두껍고, 기능 업데이트가 빠름. 별 약 70K로 사실상 표준.</td></tr>
+    <tr><td>고유(중복 없는) 프롬프트 위주</td><td>둘 다 비슷</td><td>프리픽스가 안 겹치면 RadixAttention 이득이 거의 없어 기본 성능 싸움이 됨.</td></tr>
+    <tr><td>단일 모델을 최대 throughput으로 고정 서빙</td><td>TensorRT-LLM도 후보</td><td>NVIDIA에 특화해 커널 최적화가 깊음(대신 유연성·이식성은 떨어짐).</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>정리하면, <strong>SGLang은 프리픽스 재사용이 큰 워크로드에서 빛나고, vLLM은 생태계·유연성·범용성의 기본값</strong>입니다. 둘 다 continuous batching + 페이지 방식 KV 관리라는 토대는 공유합니다. 차이는 주로 프리픽스 캐싱을 얼마나 공격적으로, 어떤 자료구조로 하느냐에서 갈립니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"vLLM 올렸는데 왜 안 빨라지죠?" — 요청을 순차로 던지고 있진 않나요.</strong> continuous batching은 <em>동시에</em> 밀려드는 요청이 있어야 진가가 납니다. <code>for</code> 문으로 하나 보내고 응답 기다리고 또 보내면, 배치에 채울 게 없어 그냥 느립니다. 부하를 병렬로 넣으세요.</li>
+  <li><strong><code>--gpu-memory-utilization</code>을 너무 낮게 잡으면 KV 캐시 공간이 좁아집니다.</strong> 이 값이 KV 캐시로 쓸 메모리를 정하고, 그게 곧 동시 처리 가능 요청 수입니다. 여유가 있으면 0.9 안팎까지 올려 동시성을 확보하세요(단, 다른 프로세스와 GPU를 공유하면 OOM 주의).</li>
+  <li><strong>프리픽스 캐싱은 "앞부분이 실제로 같을 때"만 듣습니다.</strong> 시스템 프롬프트에 매 요청 타임스탬프·랜덤 ID를 맨 앞에 넣으면 프리픽스가 매번 달라져 캐시가 통째로 깨집니다. <em>변하는 값은 뒤로, 고정된 값은 앞으로</em> 두세요.</li>
+  <li><strong>throughput과 latency는 다릅니다.</strong> 배치를 키우면 처리량은 오르지만 개별 요청의 응답 시간(특히 첫 토큰까지)은 늘 수 있습니다. 사용자 대면 챗봇이면 지연을, 대량 배치 처리면 처리량을 우선하는 식으로 목표를 정하고 설정을 맞추세요.</li>
+  <li><strong>continuous batching이 있어도 prefill이 길면 튈 수 있습니다.</strong> 아주 긴 프롬프트의 prefill이 한 스텝을 오래 잡으면 다른 요청들의 디코딩이 잠깐 밀립니다. chunked prefill(긴 prefill을 잘게 쪼개 디코딩과 섞는 기법) 옵션이 이를 완화합니다. 긴 컨텍스트를 다룬다면 켜 볼 만합니다.</li>
+  <li><strong>벤치마크 숫자를 그대로 믿지 마세요.</strong> "SGLang이 29% 빠르다" 같은 수치는 특정 모델·입력 길이·프리픽스 공유율에서 나온 값입니다. 여러분의 실제 트래픽 분포로 <em>직접 재보는 것</em>이 유일하게 믿을 수 있는 비교입니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>서빙 엔진이 빠른 건 모델이 똑똑해져서가 아니라, GPU와 KV 캐시 메모리의 낭비를 없애서</strong>입니다. 같은 가중치, 같은 계산, 다른 스케줄링·메모리 관리.</li>
+  <li><strong>LLM 추론</strong>은 prefill(입력 한 번에)과 decode(토큰 하나씩)로 나뉘고, decode는 GPU를 놀립니다. 그 내내 요청마다 <strong>KV 캐시</strong>가 메모리를 잡아먹습니다.</li>
+  <li><strong>continuous batching</strong>(Orca → vLLM)은 매 토큰 스텝마다 배치를 다시 짜, 끝난 요청 자리에 새 요청을 곧바로 끼워 넣어 GPU를 채웁니다. 최대 20배대 처리량.</li>
+  <li><strong>PagedAttention</strong>(vLLM)은 KV 캐시를 OS 페이징처럼 작은 블록으로 관리해, 낭비 60~80%를 4% 아래로 줄입니다. 그만큼 동시 요청이 늘어납니다.</li>
+  <li><strong>RadixAttention</strong>(SGLang)은 겹치는 프리픽스를 radix tree로 자동 재사용해, 반복 시스템 프롬프트·RAG·멀티턴에서 prefill을 크게 아낍니다.</li>
+  <li>실무 선택: <strong>프리픽스가 많이 겹치면 SGLang</strong>, <strong>생태계·유연성이 우선이면 vLLM</strong>. 둘 다 OpenAI 호환 API를 한 줄로 띄웁니다. 그리고 <em>반드시 직접 벤치마크</em>하세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Kwon 외, <a href="https://arxiv.org/abs/2309.06180" target="_blank" rel="noopener">Efficient Memory Management for Large Language Model Serving with PagedAttention</a> (SOSP '23, arXiv:2309.06180) — PagedAttention·vLLM 원조 논문, KV 캐시 낭비 &lt;4%·최대 24배 처리량. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>vLLM, <a href="https://blog.vllm.ai/2023/06/20/vllm.html" target="_blank" rel="noopener">Easy, Fast, and Cheap LLM Serving with PagedAttention</a> — 공식 소개 글, 개념과 벤치마크. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Yu 외, <a href="https://www.usenix.org/conference/osdi22/presentation/yu" target="_blank" rel="noopener">Orca: A Distributed Serving System for Transformer-Based Generative Models</a> (OSDI '22) — iteration-level scheduling(continuous batching) 원조. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Anyscale, <a href="https://www.anyscale.com/blog/continuous-batching-llm-inference" target="_blank" rel="noopener">Achieve 23x LLM Inference Throughput &amp; Reduce p50 Latency</a> — continuous batching 실측 정리. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Zheng 외, <a href="https://arxiv.org/abs/2312.07104" target="_blank" rel="noopener">SGLang: Efficient Execution of Structured Language Model Programs</a> (arXiv:2312.07104) — RadixAttention, 최대 6.4배 처리량. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>LMSYS, <a href="https://www.lmsys.org/blog/2024-01-17-sglang/" target="_blank" rel="noopener">Fast and Expressive LLM Inference with RadixAttention and SGLang</a> — RadixAttention 설명 블로그. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Particula Tech, <a href="https://particula.tech/blog/sglang-vs-vllm-inference-engine-comparison" target="_blank" rel="noopener">SGLang vs vLLM in 2026: Benchmarks, Architecture, and When to Use Each</a> — 2026 H100 비교·선택 기준. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Spheron, <a href="https://www.spheron.network/blog/llm-serving-optimization-continuous-batching-paged-attention/" target="_blank" rel="noopener">LLM Serving Optimization: Continuous Batching, PagedAttention, and Chunked Prefill on H100 (2026)</a> — chunked prefill 포함 실무 정리. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>vLLM 공식 문서, <a href="https://docs.vllm.ai/en/latest/" target="_blank" rel="noopener">vLLM Documentation</a> · SGLang, <a href="https://github.com/sgl-project/sglang" target="_blank" rel="noopener">sgl-project/sglang</a> — 설치·서버 실행·옵션. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

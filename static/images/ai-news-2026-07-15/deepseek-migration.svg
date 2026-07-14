@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" font-family="'Helvetica Neue',Arial,sans-serif">
+  <rect width="720" height="470" fill="#0f1524"/>
+  <text x="360" y="34" text-anchor="middle" fill="#e8edf7" font-size="19" font-weight="700">DeepSeek 레거시 모델명 마이그레이션 (7/24 하드컷)</text>
+
+  <!-- timeline -->
+  <line x1="70" y1="78" x2="650" y2="78" stroke="#39496b" stroke-width="2"/>
+  <circle cx="130" cy="78" r="6" fill="#5b8def"/>
+  <text x="130" y="104" text-anchor="middle" fill="#b9c6de" font-size="11.5">4/24 V4 출시</text>
+  <text x="130" y="120" text-anchor="middle" fill="#8ea0c0" font-size="10.5">별칭 유지 시작</text>
+  <circle cx="360" cy="78" r="6" fill="#d6b24f"/>
+  <text x="360" y="104" text-anchor="middle" fill="#ffe9a8" font-size="11.5">오늘 7/15 (D-9)</text>
+  <text x="360" y="120" text-anchor="middle" fill="#8ea0c0" font-size="10.5">지금 코드 점검</text>
+  <circle cx="610" cy="78" r="7" fill="#e0574f"/>
+  <text x="610" y="104" text-anchor="middle" fill="#ffd7d3" font-size="11.5">7/24 15:59 UTC</text>
+  <text x="610" y="120" text-anchor="middle" fill="#8ea0c0" font-size="10.5">별칭 호출 = 에러</text>
+
+  <!-- mapping table -->
+  <text x="60" y="168" fill="#8ea0c0" font-size="12">레거시 별칭</text>
+  <text x="360" y="168" text-anchor="middle" fill="#8ea0c0" font-size="12">→ 마이그레이션 대상</text>
+
+  <!-- row 1 -->
+  <rect x="52" y="180" width="230" height="52" rx="8" fill="#22314f" stroke="#e0574f" stroke-width="1.4"/>
+  <text x="167" y="204" text-anchor="middle" fill="#ffd7d3" font-size="14" font-family="monospace">deepseek-chat</text>
+  <text x="167" y="222" text-anchor="middle" fill="#9fb0cc" font-size="10.5">non-thinking</text>
+  <text x="315" y="212" fill="#7f90ad" font-size="20">→</text>
+  <rect x="345" y="180" width="315" height="52" rx="8" fill="#1b3a2e" stroke="#54c69a" stroke-width="1.4"/>
+  <text x="502" y="204" text-anchor="middle" fill="#d2ffe9" font-size="13" font-family="monospace">deepseek-v4-flash</text>
+  <text x="502" y="222" text-anchor="middle" fill="#9fc9b6" font-size="10.5">동급·저가 / 또는 v4-pro로 업그레이드</text>
+
+  <!-- row 2 -->
+  <rect x="52" y="244" width="230" height="66" rx="8" fill="#22314f" stroke="#e0574f" stroke-width="1.4"/>
+  <text x="167" y="268" text-anchor="middle" fill="#ffd7d3" font-size="13" font-family="monospace">deepseek-reasoner</text>
+  <text x="167" y="286" text-anchor="middle" fill="#9fb0cc" font-size="10.5">thinking</text>
+  <text x="167" y="302" text-anchor="middle" fill="#ffb84a" font-size="10.5">⚠ 별칭은 flash로 라우팅</text>
+  <text x="315" y="282" fill="#7f90ad" font-size="20">→</text>
+  <rect x="345" y="244" width="315" height="66" rx="8" fill="#3a2320" stroke="#ffb84a" stroke-width="1.6"/>
+  <text x="502" y="268" text-anchor="middle" fill="#ffe0b0" font-size="12.5">강한 CoT 필요 → 직접</text>
+  <text x="502" y="288" text-anchor="middle" fill="#ffd7a0" font-size="13" font-family="monospace">deepseek-v4-pro + thinking</text>
+  <text x="502" y="304" text-anchor="middle" fill="#c9a877" font-size="10.5">단순 별칭 교체 시 flash급 추론에 갇힘</text>
+
+  <!-- bottom action -->
+  <rect x="52" y="330" width="608" height="112" rx="10" fill="#141c30" stroke="#39496b" stroke-width="1.2"/>
+  <text x="72" y="356" fill="#cfe0ff" font-size="13" font-weight="700">지금 할 일 (D-9)</text>
+  <text x="72" y="380" fill="#b9c6de" font-size="12">1. 코드·설정·프롬프트에서 문자열 검색: deepseek-chat / deepseek-reasoner</text>
+  <text x="72" y="402" fill="#b9c6de" font-size="12">2. flash/pro로 치환 · reasoner는 pro+thinking 여부 판단 · base_url·키·포맷은 그대로</text>
+  <text x="72" y="424" fill="#b9c6de" font-size="12">3. Claude Code류는 Anthropic 포맷 엔드포인트 api.deepseek.com/anthropic 활용 가능</text>
+</svg>

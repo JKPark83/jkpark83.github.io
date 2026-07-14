@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="'Helvetica Neue',Arial,sans-serif">
+  <rect width="720" height="400" fill="#0f1524"/>
+  <text x="360" y="32" text-anchor="middle" fill="#e8edf7" font-size="18" font-weight="700">Compliance Trap — 메모리를 "어떻게 소비"하나 (E-P-R)</text>
+  <text x="360" y="54" text-anchor="middle" fill="#8ea0c0" font-size="12">충돌 메모리는 첫 결정 지점에서 채택되고, 반복 노출로 증폭되며, 회복은 약하다</text>
+
+  <!-- three phases -->
+  <!-- Entry -->
+  <rect x="40" y="90" width="200" height="150" rx="10" fill="#22314f" stroke="#c98be0" stroke-width="1.6"/>
+  <text x="140" y="118" text-anchor="middle" fill="#efd8ff" font-size="14" font-weight="700">Entry (진입)</text>
+  <text x="140" y="142" text-anchor="middle" fill="#b9c6de" font-size="11.5">첫 노출된 결정 지점에서</text>
+  <text x="140" y="160" text-anchor="middle" fill="#b9c6de" font-size="11.5">과제상 틀린 메모리도</text>
+  <text x="140" y="178" text-anchor="middle" fill="#ff9d9d" font-size="12" font-weight="700">그대로 채택</text>
+  <text x="140" y="210" text-anchor="middle" fill="#8ea0c0" font-size="10.5">← 주된 실패 시작점</text>
+
+  <text x="252" y="170" fill="#7f90ad" font-size="22">→</text>
+
+  <!-- Propagation -->
+  <rect x="272" y="90" width="200" height="150" rx="10" fill="#22314f" stroke="#e0a04f" stroke-width="1.6"/>
+  <text x="372" y="118" text-anchor="middle" fill="#ffe0b0" font-size="14" font-weight="700">Propagation (전파)</text>
+  <text x="372" y="142" text-anchor="middle" fill="#b9c6de" font-size="11.5">반복 노출이 초기 오류를</text>
+  <text x="372" y="160" text-anchor="middle" fill="#ffb84a" font-size="12" font-weight="700">증폭</text>
+  <text x="372" y="188" text-anchor="middle" fill="#b9c6de" font-size="11.5">한 번 따르면 이후 궤적을</text>
+  <text x="372" y="206" text-anchor="middle" fill="#b9c6de" font-size="11.5">계속 끌고 감</text>
+
+  <text x="484" y="170" fill="#7f90ad" font-size="22">→</text>
+
+  <!-- Recovery -->
+  <rect x="504" y="90" width="200" height="150" rx="10" fill="#22314f" stroke="#e0574f" stroke-width="1.6"/>
+  <text x="604" y="118" text-anchor="middle" fill="#ffd7d3" font-size="14" font-weight="700">Recovery (회복)</text>
+  <text x="604" y="142" text-anchor="middle" fill="#b9c6de" font-size="11.5">정답 경로를 벗어난 뒤</text>
+  <text x="604" y="160" text-anchor="middle" fill="#ff9d9d" font-size="12" font-weight="700">되돌아오기 약함</text>
+  <text x="604" y="192" text-anchor="middle" fill="#b9c6de" font-size="11.5">모델 무관 순응률은 비슷,</text>
+  <text x="604" y="210" text-anchor="middle" fill="#b9c6de" font-size="11.5">순응 후 성공률 급락</text>
+
+  <!-- takeaway -->
+  <rect x="40" y="266" width="664" height="102" rx="10" fill="#141c30" stroke="#39496b" stroke-width="1.2"/>
+  <text x="60" y="292" fill="#cfe0ff" font-size="13" font-weight="700">함정</text>
+  <text x="60" y="315" fill="#b9c6de" font-size="12">강한 에이전트일수록 순응 1회당 잃는 기본 역량이 커 절대 손실이 더 크다.</text>
+  <text x="60" y="337" fill="#b9c6de" font-size="12">→ 메모리는 검색 품질·최종 성공률만이 아니라 <tspan fill="#8fd6ff">궤적 전체의 "소비 과정"</tspan>으로 평가해야 한다.</text>
+  <text x="60" y="359" fill="#8ea0c0" font-size="11">벤치마크: WebArena · MemTrapBench (arXiv 2607.10608)</text>
+</svg>

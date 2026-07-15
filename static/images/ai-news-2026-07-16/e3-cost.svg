@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 420" width="100%" font-family="'Segoe UI',system-ui,'Apple SD Gothic Neo',sans-serif">
+  <rect width="820" height="420" fill="#ffffff" rx="14"/>
+  <text x="40" y="44" fill="#0f172a" font-size="22" font-weight="700">E3: 실행 전 난이도 추정 → 리소스 절감</text>
+  <text x="40" y="70" fill="#64748b" font-size="14">MSE-Bench 121개 편집 과제 · gpt-4o · 성공률 100% 유지 (arXiv 2607.13034)</text>
+
+  <!-- axis baseline (100% = 기존 방식) -->
+  <line x1="200" y1="110" x2="200" y2="360" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="200" y="384" text-anchor="middle" fill="#94a3b8" font-size="12">기존 대비 0%</text>
+  <line x1="740" y1="110" x2="740" y2="360" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 4"/>
+  <text x="740" y="384" text-anchor="middle" fill="#94a3b8" font-size="12">-100%</text>
+
+  <!-- bars: reduction from left(200) growing right toward 740 -->
+  <!-- scale: 540px span = 100% -->
+  <!-- cost 85% -> width 459 -->
+  <g>
+    <rect x="200" y="128" width="459" height="46" rx="6" fill="#7c3aed"/>
+    <text x="212" y="157" fill="#ffffff" font-size="15" font-weight="600">비용</text>
+    <text x="649" y="157" text-anchor="end" fill="#ffffff" font-size="17" font-weight="700">-85%</text>
+  </g>
+  <!-- tokens 91% -> 491 -->
+  <g>
+    <rect x="200" y="196" width="491" height="46" rx="6" fill="#9333ea"/>
+    <text x="212" y="225" fill="#ffffff" font-size="15" font-weight="600">토큰</text>
+    <text x="681" y="225" text-anchor="end" fill="#ffffff" font-size="17" font-weight="700">-91%</text>
+  </g>
+  <!-- files 92% -> 497 -->
+  <g>
+    <rect x="200" y="264" width="497" height="46" rx="6" fill="#a855f7"/>
+    <text x="212" y="293" fill="#ffffff" font-size="15" font-weight="600">검사 파일</text>
+    <text x="687" y="293" text-anchor="end" fill="#ffffff" font-size="17" font-weight="700">-92%</text>
+  </g>
+
+  <text x="40" y="151" fill="#334155" font-size="13"></text>
+  <text x="40" y="405" fill="#64748b" font-size="12.5">핵심: 쉬운 과제는 파일을 덜 읽고 덜 추론 → 정확도 손해 없이 비용만 절감 (E3 = Estimate·Execute·Expand)</text>
+</svg>

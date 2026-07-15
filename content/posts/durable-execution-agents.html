@@ -1,0 +1,392 @@
+---
+title: "중간에 죽어도 처음부터 다시 하지 않는 법: 내구성 있는 실행(durable execution)으로 에이전트 살리기"
+date: 2026-07-16T07:30:00+09:00
+draft: false
+tags: ["AI", "durable execution", "내구성 있는 실행", "에이전트", "agent", "reliability", "신뢰성", "checkpoint", "체크포인트", "LangGraph", "Temporal", "replay", "idempotency", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "데모는 잘 되는데 프로덕션 에이전트는 왜 자꾸 무너질까요? 이유는 대개 '모델이 멍청해서'가 아니라, 단계가 많아질수록 성공률이 곱셈으로 깎이고, 한 단계에서 프로세스가 죽으면 지금까지의 진행과 이미 쓴 토큰이 통째로 날아가기 때문입니다. 내구성 있는 실행(durable execution)은 각 단계를 마칠 때마다 상태를 저장해 두었다가, 죽으면 마지막 지점부터 이어서 실행하게 만드는 기법입니다. 게임의 세이브 지점처럼요. 이 글은 왜 이게 2026년 에이전트 인프라의 핵심으로 떠올랐는지, 저널 리플레이와 DB 체크포인트라는 두 갈래는 무엇이 다른지, LangGraph로 죽었다 살아나는 에이전트를 어떻게 만드는지, 그리고 '리플레이가 당신을 태우는' 결정성·부수효과 함정까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+cover:
+  image: "durable-execution-agents-cover.svg"
+  alt: "에이전트가 여러 단계를 거치다가 4단계에서 프로세스가 죽지만, 처음부터 다시 시작하지 않고 마지막으로 저장된 체크포인트(3단계 직후)부터 다시 이어서 실행하는 그림. 완료된 단계는 다시 실행하지 않고 저장된 결과를 그대로 쓴다."
+  caption: "내구성 있는 실행의 핵심: 각 단계를 마칠 때마다 상태를 저장해 두고, 중간에 죽으면 처음이 아니라 마지막 저장 지점부터 이어서 실행한다. 이미 끝난 단계는 다시 돌리지 않는다."
+  relative: false
+---
+
+<style>
+/* ── Durable Execution 포스트 전용 스타일 (dex- 접두사) ── */
+.dex-fig{
+  --dex-indigo:#4f46e5; --dex-amber:#d97706; --dex-green:#16a34a; --dex-rose:#e11d48;
+  --dex-slate:#64748b; --dex-violet:#7c3aed; --dex-teal:#0d9488; --dex-blue:#2563eb; --dex-sky:#0284c7;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .dex-fig{
+  --dex-indigo:#818cf8; --dex-amber:#fbbf24; --dex-green:#4ade80; --dex-rose:#fb7185;
+  --dex-slate:#94a3b8; --dex-violet:#a78bfa; --dex-teal:#2dd4bf; --dex-blue:#60a5fa; --dex-sky:#38bdf8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .dex-fig{
+    --dex-indigo:#818cf8; --dex-amber:#fbbf24; --dex-green:#4ade80; --dex-rose:#fb7185;
+    --dex-slate:#94a3b8; --dex-violet:#a78bfa; --dex-teal:#2dd4bf; --dex-blue:#60a5fa; --dex-sky:#38bdf8;
+  }
+}
+.dex-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.dex-fig text{font-family:inherit}
+.dex-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.dex-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.dex-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.dex-toc ol{margin:0;padding-left:1.25rem}
+.dex-toc li{margin:.22rem 0;font-size:.95rem}
+.dex-toc a{text-decoration:none}
+.dex-toc a:hover{text-decoration:underline}
+.dex-pull{font-size:1.12rem;line-height:1.72}
+.dex-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.dex-note{border-left:4px solid var(--dex-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.dex-note strong{color:var(--dex-blue,#2563eb)}
+.dex-warn{border-left:4px solid var(--dex-rose,#e11d48)}
+.dex-warn strong{color:var(--dex-rose,#e11d48)}
+.dex-good{border-left:4px solid var(--dex-teal,#0d9488)}
+.dex-good strong{color:var(--dex-teal,#0d9488)}
+.dex-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.dex-tbl th,.dex-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.dex-tbl th{background:var(--entry);font-weight:700}
+.dex-tbl code{font-size:.86em}
+.dex-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="dex-pull">
+  <p>데모에서 잘 돌던 에이전트가 프로덕션에서 무너지는 이유는 대개 <strong>모델이 갑자기 멍청해져서가 아닙니다.</strong> 8단계짜리 작업의 7번째에서 서버가 재배포되거나 API가 잠깐 삐끗해 프로세스가 죽으면, 지금까지의 진행과 <em>이미 지불한 토큰</em>이 통째로 날아가고, 재시작하면 처음부터 다시 시작하기 때문입니다.</p>
+  <footer>— 내구성 있는 실행은 "죽지 않게" 만드는 기술이 아니라, "죽어도 <strong>이어서</strong> 할 수 있게" 만드는 기술입니다.</footer>
+</blockquote>
+
+<p>여러 단계를 거치는 에이전트(agent)를 처음 프로덕션에 올린 junior 개발자가 반드시 부딪히는 벽이 있습니다. 로컬에서, 데모에서, 짧은 작업에서는 멀쩡합니다. 그런데 "리서치해서 초안 쓰고, 검토하고, 승인 기다렸다가, 메일 보내고, 기록 남기는" 식으로 <strong>오래 걸리고 단계가 많은</strong> 작업을 실제 트래픽에서 돌리기 시작하면, 어느 순간부터 이상하게 자주 실패합니다. 절반쯤 하다 만 주문, 두 번 나간 결제, 사라진 진행 상황.</p>
+
+<p>이게 개별 버그처럼 보이지만, 사실은 <strong>구조적인 문제</strong>입니다. 그리고 2026년 들어 이 문제를 정면으로 다루는 이름이 하나 자리를 잡았습니다 — <strong>내구성 있는 실행(durable execution)</strong>입니다. 이번 주(2026년 7월)에도 실무자 뉴스레터에서 "에이전트 신뢰성(reliability)과 컴퓨트 경제학"이 화두로 다시 올라왔고, LangGraph·Pydantic AI·OpenAI Agents SDK 같은 주류 프레임워크가 앞다투어 durable execution을 1급 기능으로 품는 흐름이 이어지고 있습니다. Temporal이 "에이전틱 AI를 프로덕션으로"라는 명분으로 2026년 2월 $50억 밸류에 $3억을 조달한 것도 같은 맥락이고요.</p>
+
+<p>왜 갑자기 다들 이 이야기를 할까요? 그리고 우리 에이전트에는 어떻게 적용할까요? 그 문제부터, 두 가지 구현 방식, LangGraph로 직접 해보는 실전, 그리고 초보를 태우는 함정까지 — 쉽고 자세하게 짚어 보겠습니다.</p>
+
+<nav class="dex-toc">
+  <div class="dex-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 에이전트는 프로덕션에서 무너지나</a></li>
+    <li><a href="#sec-2">내구성 있는 실행이란 무엇인가</a></li>
+    <li><a href="#sec-3">두 갈래 — 저널 리플레이 vs DB 체크포인트</a></li>
+    <li><a href="#sec-4">실전 — LangGraph로 죽었다 살아나는 에이전트</a></li>
+    <li><a href="#sec-5">리플레이가 당신을 태우는 지점 (결정성·부수효과)</a></li>
+    <li><a href="#sec-6">언제 무엇을 쓰나</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 에이전트는 프로덕션에서 무너지나</h2>
+
+<p>먼저 왜 "단계가 많으면" 위험한지 숫자로 봅시다. 각 단계가 <strong>99%</strong> 확률로 성공한다고 해봅시다. 꽤 믿음직하죠. 그런데 단계는 곱셈으로 엮입니다. 전체가 성공하려면 <em>모든</em> 단계가 성공해야 하니까요.</p>
+
+<ul>
+  <li>5단계: 0.99<sup>5</sup> ≈ <strong>95.1%</strong></li>
+  <li>10단계: 0.99<sup>10</sup> ≈ <strong>90.4%</strong></li>
+  <li>단계당 성공률이 95%로 조금만 떨어지면? 10단계면 0.95<sup>10</sup> ≈ <strong>59.9%</strong> — 열에 넷은 실패</li>
+</ul>
+
+<p>이걸 <strong>신뢰성 복리(compounding)</strong>라고 부릅니다. 단계 하나하나는 멀쩡한데, 길게 이으면 전체가 무너지는 겁니다. LLM 호출, 도구 실행, 외부 API — 하나하나가 확률적으로 삐끗할 여지가 있고, 오래 도는 에이전트일수록 그 여지가 쌓입니다.</p>
+
+<figure class="dex-fig">
+<svg viewBox="0 0 720 260" role="img" aria-label="단계 수가 늘어날수록 전체 성공률이 떨어지는 것을 나타낸 막대그래프. 단계당 99퍼센트 성공률일 때 1단계는 99퍼센트, 5단계는 약 95퍼센트, 10단계는 약 90퍼센트로 완만히 떨어진다. 단계당 성공률이 95퍼센트로 낮아지면 10단계에서 약 60퍼센트까지 급격히 떨어진다. 단계가 많은 에이전트일수록 전체 신뢰성이 곱셈으로 깎인다는 점을 보여 준다.">
+  <line x1="60" y1="30" x2="60" y2="200" stroke="var(--dex-slate)" stroke-width="1.5"/>
+  <line x1="60" y1="200" x2="700" y2="200" stroke="var(--dex-slate)" stroke-width="1.5"/>
+  <text x="30" y="35" font-size="11" fill="var(--dex-slate)">100%</text>
+  <text x="30" y="120" font-size="11" fill="var(--dex-slate)">50%</text>
+  <text x="34" y="204" font-size="11" fill="var(--dex-slate)">0%</text>
+
+  <!-- 99% per step group (green) -->
+  <rect x="90"  y="32"  width="46" height="168" rx="4" fill="var(--dex-green)" opacity="0.9"/>
+  <rect x="170" y="45"  width="46" height="155" rx="4" fill="var(--dex-green)" opacity="0.9"/>
+  <rect x="250" y="62"  width="46" height="138" rx="4" fill="var(--dex-green)" opacity="0.9"/>
+  <text x="113" y="26" font-size="11.5" font-weight="700" fill="var(--dex-green)" text-anchor="middle">99%</text>
+  <text x="193" y="39" font-size="11.5" font-weight="700" fill="var(--dex-green)" text-anchor="middle">95%</text>
+  <text x="273" y="56" font-size="11.5" font-weight="700" fill="var(--dex-green)" text-anchor="middle">90%</text>
+
+  <!-- 95% per step group (rose) -->
+  <rect x="420" y="42"  width="46" height="158" rx="4" fill="var(--dex-rose)" opacity="0.9"/>
+  <rect x="500" y="80"  width="46" height="120" rx="4" fill="var(--dex-rose)" opacity="0.9"/>
+  <rect x="580" y="98"  width="46" height="102" rx="4" fill="var(--dex-rose)" opacity="0.9"/>
+  <text x="443" y="36" font-size="11.5" font-weight="700" fill="var(--dex-rose)" text-anchor="middle">95%</text>
+  <text x="523" y="74" font-size="11.5" font-weight="700" fill="var(--dex-rose)" text-anchor="middle">77%</text>
+  <text x="603" y="92" font-size="11.5" font-weight="700" fill="var(--dex-rose)" text-anchor="middle">60%</text>
+
+  <text x="193" y="222" font-size="12.5" font-weight="700" fill="var(--dex-green)" text-anchor="middle">단계당 99% 성공</text>
+  <text x="523" y="222" font-size="12.5" font-weight="700" fill="var(--dex-rose)" text-anchor="middle">단계당 95% 성공</text>
+  <text x="113" y="245" font-size="11" fill="var(--dex-slate)" text-anchor="middle">1단계</text>
+  <text x="193" y="245" font-size="11" fill="var(--dex-slate)" text-anchor="middle">5단계</text>
+  <text x="273" y="245" font-size="11" fill="var(--dex-slate)" text-anchor="middle">10단계</text>
+  <text x="443" y="245" font-size="11" fill="var(--dex-slate)" text-anchor="middle">1단계</text>
+  <text x="523" y="245" font-size="11" fill="var(--dex-slate)" text-anchor="middle">5단계</text>
+  <text x="603" y="245" font-size="11" fill="var(--dex-slate)" text-anchor="middle">10단계</text>
+</svg>
+<figcaption>신뢰성 복리. 단계당 성공률이 아무리 높아도 곱셈으로 엮이면 전체는 빠르게 깎인다. 단계가 많은 에이전트는 태생적으로 "가끔 실패하는" 게 정상이고, 그래서 <strong>실패를 없애는 것</strong>보다 <strong>실패해도 이어서 하는 것</strong>이 현실적인 목표가 된다.</figcaption>
+</figure>
+
+<p>여기서 두 번째 문제가 나옵니다. 그냥 실패도 아프지만, <strong>"진행 중에 프로세스가 통째로 죽는"</strong> 실패는 특히 아픕니다. 이유는 세 가지입니다.</p>
+
+<ul>
+  <li><strong>진행 상황이 메모리에만 있다.</strong> 8단계 중 7단계까지의 결과가 대부분 프로세스 메모리(변수)에 들어 있습니다. 프로세스가 죽으면 그대로 증발합니다.</li>
+  <li><strong>이미 쓴 토큰을 또 쓴다.</strong> 재시작하면 처음부터 다시 도니까, 앞 단계의 비싼 LLM 호출을 <em>다시 지불</em>합니다. 긴 에이전트일수록 이 낭비가 큽니다.</li>
+  <li><strong>부수효과가 중복된다.</strong> 앞에서 이미 결제를 했거나 메일을 보냈는데, 처음부터 다시 돌면 <em>또</em> 결제하고 <em>또</em> 메일을 보냅니다.</li>
+</ul>
+
+<p>그래서 오래 도는 에이전트에는 "재시도(retry)"만으로는 부족합니다. 재시도는 "다시 처음부터"이기 쉽거든요. 필요한 건 "<strong>마지막으로 멀쩡했던 지점부터 이어서</strong>"입니다. 그게 내구성 있는 실행이 주는 것입니다.</p>
+
+<h2 id="sec-2">2. 내구성 있는 실행이란 무엇인가</h2>
+
+<p><strong>내구성 있는 실행(durable execution)</strong>은 워크플로의 각 단계 결과를 <em>실행하는 즉시</em> 바깥의 저장소(DB, 로그)에 기록해 두고, 프로세스가 죽었다 살아나면 그 기록을 이용해 <strong>마지막 성공 지점부터 이어서</strong> 실행하는 방식입니다. 한마디로 <em>충돌에 강한(crash-tolerant) 함수 실행</em>이죠.</p>
+
+<p>가장 쉬운 비유는 <strong>게임의 세이브 지점(save point)</strong>입니다. 보스전에서 죽어도 마을 입구가 아니라 보스 앞 체크포인트에서 다시 시작하잖아요. 이미 깬 던전을 다시 깨지 않고요. durable execution은 에이전트에 이 세이브 지점을 자동으로 깔아 주는 것입니다.</p>
+
+<p>이걸 성립시키는 두 가지 핵심 성질이 있습니다. 이름만 기억해도 절반은 이해한 겁니다.</p>
+
+<div class="dex-note dex-good">
+  <p><strong>① 상태 지속성(state persistence)</strong> — 각 단계가 끝날 때마다 그 결과를 프로세스 바깥(DB 등)에 저장합니다. 그래서 프로세스가 죽어도 진행 상황이 살아남습니다.</p>
+  <p style="margin-top:.5rem"><strong>② 정확히 한 번(exactly-once) 실행 의미론</strong> — 재개했을 때 <em>이미 끝난 단계는 다시 실행하지 않고</em> 저장된 결과를 그대로 돌려줍니다. 그래서 결제·메일 같은 부수효과가 딱 한 번만 일어납니다.</p>
+</div>
+
+<p>이 둘이 합쳐지면, 겉으로 보기엔 "한 번도 멈추지 않고 끝까지 실행된 것처럼" 보이는 워크플로가 됩니다. 실제로는 중간에 세 번 죽었다 살아났더라도요. 개발자 입장에서는 그냥 평범한 함수를 쓰는 것처럼 코드를 짜는데, 런타임이 뒤에서 저장·재개를 알아서 해주는 겁니다.</p>
+
+<div class="dex-note"><strong>참고.</strong> "재시도(retry)"와 헷갈리기 쉽습니다. 재시도는 <em>실패한 것을 다시</em> 하는 것이고, durable execution은 <em>성공한 것을 다시 하지 않는</em> 것입니다. 좋은 시스템은 둘 다 합니다 — 실패한 단계는 재시도하되, 성공한 단계는 저장된 결과로 건너뜁니다.</p></div>
+
+<h2 id="sec-3">3. 두 갈래 — 저널 리플레이 vs DB 체크포인트</h2>
+
+<p>"각 단계 결과를 저장했다가 이어서 실행한다"는 아이디어를 구현하는 방식은 크게 두 갈래입니다. 도구를 고를 때 이 차이를 알아야 하니 짚고 갑시다.</p>
+
+<figure class="dex-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="내구성 있는 실행의 두 가지 구현 방식을 비교한 그림. 위쪽 저널 기반 리플레이 방식은 완료한 각 단계를 이벤트 저널에 기록하고, 크래시 후 재개하면 함수를 처음부터 다시 실행하되 이미 저널에 있는 단계는 실제로 재실행하지 않고 저장된 결과를 즉시 돌려주며 저장된 곳 다음부터만 진짜로 실행한다. 아래쪽 데이터베이스 체크포인트 방식은 각 노드가 끝날 때마다 상태 전체를 데이터베이스에 저장하고, 크래시 후에는 마지막으로 저장된 상태를 불러와 그 다음 노드부터 실행한다. Temporal과 Restate는 저널 방식, LangGraph와 DBOS는 체크포인트 방식에 가깝다는 점을 보여 준다.">
+  <!-- Journal replay -->
+  <text x="30" y="34" font-size="15" font-weight="800" fill="var(--dex-indigo)">저널 기반 리플레이 (Temporal · Restate)</text>
+  <rect x="30" y="48" width="90" height="46" rx="8" fill="none" stroke="var(--dex-green)" stroke-width="2"/>
+  <text x="75" y="70" font-size="12" font-weight="700" fill="var(--dex-green)" text-anchor="middle">단계 A</text>
+  <text x="75" y="86" font-size="10.5" fill="var(--dex-green)" text-anchor="middle">저널에 기록</text>
+  <rect x="140" y="48" width="90" height="46" rx="8" fill="none" stroke="var(--dex-green)" stroke-width="2"/>
+  <text x="185" y="70" font-size="12" font-weight="700" fill="var(--dex-green)" text-anchor="middle">단계 B</text>
+  <text x="185" y="86" font-size="10.5" fill="var(--dex-green)" text-anchor="middle">저널에 기록</text>
+  <rect x="250" y="48" width="90" height="46" rx="8" fill="none" stroke="var(--dex-amber)" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <text x="295" y="70" font-size="12" font-weight="700" fill="var(--dex-amber)" text-anchor="middle">단계 C</text>
+  <text x="295" y="86" font-size="10.5" fill="var(--dex-amber)" text-anchor="middle">여기서 진짜 실행</text>
+  <line x1="120" y1="71" x2="138" y2="71" stroke="var(--dex-slate)" stroke-width="1.5" marker-end="url(#dexar)"/>
+  <line x1="230" y1="71" x2="248" y2="71" stroke="var(--dex-slate)" stroke-width="1.5" marker-end="url(#dexar)"/>
+  <text x="420" y="60" font-size="11.5" fill="var(--dex-slate)">재개 시: 함수를 처음부터 다시 호출하되</text>
+  <text x="420" y="78" font-size="11.5" fill="var(--dex-slate)">A·B는 저널 값 즉시 반환(재실행 X),</text>
+  <text x="420" y="96" font-size="11.5" fill="var(--dex-slate)">C부터 실제로 실행</text>
+
+  <line x1="30" y1="128" x2="730" y2="128" stroke="var(--dex-slate)" stroke-width="1" stroke-dasharray="3 4" opacity="0.5"/>
+
+  <!-- DB checkpoint -->
+  <text x="30" y="166" font-size="15" font-weight="800" fill="var(--dex-teal)">DB 체크포인트 (LangGraph · DBOS)</text>
+  <rect x="30" y="182" width="90" height="46" rx="8" fill="none" stroke="var(--dex-green)" stroke-width="2"/>
+  <text x="75" y="204" font-size="12" font-weight="700" fill="var(--dex-green)" text-anchor="middle">노드 A</text>
+  <rect x="140" y="182" width="90" height="46" rx="8" fill="none" stroke="var(--dex-green)" stroke-width="2"/>
+  <text x="185" y="204" font-size="12" font-weight="700" fill="var(--dex-green)" text-anchor="middle">노드 B</text>
+  <rect x="250" y="182" width="90" height="46" rx="8" fill="none" stroke="var(--dex-amber)" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <text x="295" y="204" font-size="12" font-weight="700" fill="var(--dex-amber)" text-anchor="middle">노드 C</text>
+  <line x1="120" y1="205" x2="138" y2="205" stroke="var(--dex-slate)" stroke-width="1.5" marker-end="url(#dexar)"/>
+  <line x1="230" y1="205" x2="248" y2="205" stroke="var(--dex-slate)" stroke-width="1.5" marker-end="url(#dexar)"/>
+  <!-- db cylinder -->
+  <ellipse cx="185" cy="262" rx="34" ry="8" fill="var(--dex-sky)" opacity="0.85"/>
+  <rect x="151" y="262" width="68" height="30" fill="var(--dex-sky)" opacity="0.85"/>
+  <ellipse cx="185" cy="292" rx="34" ry="8" fill="var(--dex-sky)"/>
+  <text x="185" y="283" font-size="10.5" font-weight="700" fill="#052e16" text-anchor="middle">체크포인트 DB</text>
+  <path d="M 75 228 L 75 250 L 155 262" fill="none" stroke="var(--dex-sky)" stroke-width="1.6" marker-end="url(#dexas)"/>
+  <path d="M 185 228 L 185 252" fill="none" stroke="var(--dex-sky)" stroke-width="1.6" marker-end="url(#dexas)"/>
+  <text x="420" y="200" font-size="11.5" fill="var(--dex-slate)">각 노드가 끝날 때마다 상태 전체를 DB에 저장.</text>
+  <text x="420" y="218" font-size="11.5" fill="var(--dex-slate)">재개 시: 마지막 저장 상태를 불러와</text>
+  <text x="420" y="236" font-size="11.5" fill="var(--dex-slate)">그 다음 노드부터 실행.</text>
+
+  <defs>
+    <marker id="dexar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="var(--dex-slate)"/></marker>
+    <marker id="dexas" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="var(--dex-sky)"/></marker>
+  </defs>
+</svg>
+<figcaption>같은 목표, 다른 방식. <strong>저널 리플레이</strong>는 완료 단계를 이벤트로 남기고, 재개 때 함수를 처음부터 다시 호출하되 이미 저널에 있는 단계는 재실행 없이 저장값을 돌려준다. <strong>DB 체크포인트</strong>는 각 단계(노드)마다 상태 전체를 DB에 저장하고, 재개 때 마지막 상태를 불러와 다음 단계부터 잇는다.</figcaption>
+</figure>
+
+<p><strong>저널 기반 리플레이(journal-based replay)</strong> — Temporal, Restate가 대표적입니다. 워크플로가 실행한 모든 단계를 "이벤트 히스토리(event history)"라는 저널에 차곡차곡 기록합니다. 크래시 후 재개하면 워크플로 함수를 <em>처음부터 다시 실행</em>하는데, 이때 저널에 이미 있는 단계는 진짜로 돌리지 않고 <strong>저장된 결과를 즉시 반환</strong>합니다. 그러다 저널에 없는 첫 단계를 만나면 그때부터 실제로 실행합니다.</p>
+
+<p>여기서 아주 중요한 규칙이 하나 나옵니다. 함수를 "처음부터 다시 실행"해도 매번 <em>똑같은 길</em>을 가야 저널과 아귀가 맞습니다. 그래서 LLM 호출처럼 <strong>매번 결과가 달라지는(비결정적) 작업</strong>은 반드시 "액티비티(activity)" 같은 단계로 감싸서, 그 결과를 저널에 남기고 재실행 때는 절대 다시 부르지 않게 해야 합니다. (5장에서 이 지점을 자세히 봅니다.)</p>
+
+<p><strong>DB 체크포인트(database checkpointing)</strong> — LangGraph, DBOS가 대표적입니다. 워크플로를 노드(node) 단위로 쪼개고, 각 노드가 끝날 때마다 <em>상태 전체를 DB에 저장</em>합니다. 크래시 후에는 함수를 처음부터 돌리는 게 아니라, 마지막으로 저장된 상태를 불러와 <strong>그 다음 노드부터</strong> 실행합니다. 리플레이 방식보다 직관적이지만, "노드 하나의 경계"가 곧 세이브 지점이라, 노드 안에서 죽으면 그 노드는 통째로 다시 돕니다.</p>
+
+<p>둘은 경쟁 관계가 아니라 <strong>겹쳐 쓰기도</strong> 합니다. 실제로 견고한 시스템은 안쪽에서 LangGraph가 에이전트의 추론·도구 계획을 담당하고, 바깥에서 Temporal이 전체 워크플로를 감싸 재시도·상태 내구성·장기 조율을 맡는 식으로 조합하곤 합니다.</p>
+
+<h2 id="sec-4">4. 실전 — LangGraph로 죽었다 살아나는 에이전트</h2>
+
+<p>말로만 하면 감이 안 오니, LangGraph로 직접 만들어 봅시다. LangGraph에서는 <strong>체크포인터(checkpointer)</strong>를 붙이는 순간 durable execution이 켜집니다. 별도 마법이 아니라, "노드마다 상태를 저장하는 저장소"를 꽂아 주는 것뿐입니다.</p>
+
+<p>핵심 개념 두 가지만 알면 됩니다.</p>
+<ul>
+  <li><strong>checkpointer</strong> — 상태를 저장할 곳. 개발용 <code>InMemorySaver</code>, 로컬 <code>SqliteSaver</code>, 프로덕션용 <code>PostgresSaver</code> 등이 있습니다. (메모리 세이버는 프로세스가 죽으면 같이 죽으니 <em>진짜</em> 내구성은 없습니다 — 개념 확인용입니다.)</li>
+  <li><strong>thread_id</strong> — "이 대화/작업 한 건"을 식별하는 키. 같은 <code>thread_id</code>로 다시 호출하면, 그 지점의 저장된 상태를 이어받습니다. 세이브 파일 이름이라고 생각하면 됩니다.</li>
+</ul>
+
+<p>먼저 기본형입니다. 체크포인터를 붙이고, <code>thread_id</code>를 넘겨 실행합니다.</p>
+
+{{< highlight python >}}
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import InMemorySaver
+# 프로덕션이라면: from langgraph.checkpoint.postgres import PostgresSaver
+
+# builder = StateGraph(...) 로 노드/엣지를 구성했다고 하자.
+checkpointer = InMemorySaver()
+graph = builder.compile(checkpointer=checkpointer)   # ← 이 한 줄로 durable 모드
+
+config = {"configurable": {"thread_id": "order-4127"}}  # 작업 1건의 세이브 키
+graph.invoke({"order": order}, config)                  # 노드가 끝날 때마다 상태가 저장된다
+{{< /highlight >}}
+
+<p>이제 이 작업이 3번째 노드까지 마치고 4번째에서 프로세스가 죽었다고 합시다. 다시 켠 뒤 <strong>같은 <code>thread_id</code>로 다시 호출</strong>하면, LangGraph는 저장된 상태(3번째까지의 결과)를 불러와 4번째부터 이어서 실행합니다.</p>
+
+{{< highlight python >}}
+# 프로세스를 새로 켠 뒤 — 같은 config(thread_id)로 다시 호출
+graph.invoke(None, config)   # 입력이 None이어도, 저장된 지점부터 이어서 실행된다
+{{< /highlight >}}
+
+<p>여기서 실전 노브가 하나 있습니다. "얼마나 자주, 얼마나 꼼꼼히 저장할지"를 고르는 <strong>durability 모드</strong>입니다. LangGraph는 세 가지를 제공합니다.</p>
+
+<div class="dex-tblwrap">
+<table class="dex-tbl">
+  <thead><tr><th>모드</th><th>언제 저장하나</th><th>성격</th></tr></thead>
+  <tbody>
+    <tr><td><code>"exit"</code></td><td>워크플로가 끝날 때만 저장</td><td>가장 빠름 · 내구성 가장 약함 (중간에 죽으면 진행분 날아감)</td></tr>
+    <tr><td><code>"async"</code></td><td>다음 단계가 도는 동안 <em>비동기로</em> 저장</td><td>성능·내구성 균형 (저장 직전 크래시 시 그 단계는 유실될 소지)</td></tr>
+    <tr><td><code>"sync"</code></td><td>다음 단계 시작 <em>전에</em> 동기로 저장 완료</td><td>가장 안전 · 약간의 오버헤드 (모든 단계가 반드시 기록됨)</td></tr>
+  </tbody>
+</table>
+</div>
+
+{{< highlight python >}}
+# 돈이 오가거나 절대 유실되면 안 되는 작업이면 sync로.
+graph.invoke({"order": order}, config, durability="sync")
+{{< /highlight >}}
+
+<p>정리하면 이렇습니다. 체크포인터를 붙이고 → 작업마다 <code>thread_id</code>를 주고 → 중요도에 맞는 durability 모드를 고른다. 이 세 가지가 LangGraph durable execution의 뼈대입니다. 그런데 이대로 프로덕션에 올리면 <strong>조용히 당하는 함정</strong>이 있습니다. 다음 장이 이 글에서 제일 중요합니다.</p>
+
+<h2 id="sec-5">5. 리플레이가 당신을 태우는 지점 (결정성·부수효과)</h2>
+
+<p>durable execution을 처음 쓰는 사람이 반드시 데는 함정이 있습니다. 이름하여 <strong>리플레이 위험(replay risk)</strong>입니다. 핵심을 한 문장으로 못박겠습니다.</p>
+
+<div class="dex-note dex-warn">
+  <p><strong>재개는 "죽은 줄 다음부터"가 아니라 "그 단계(노드)를 통째로 다시"입니다.</strong> 체크포인트 이후의 노드가 다시 돌 때, 그 안의 LLM 호출·API 요청·결제 같은 <em>부수효과(side effect)도 같이 다시 실행</em>됩니다. 소스 코드의 다음 줄부터 이어지는 게 아닙니다.</p>
+</div>
+
+<p>왜 이게 무섭냐면, 코드가 "맞아 보이는데도" 중복이 나기 때문입니다. 예를 들어 한 노드 안에서 "① 결제하고 → ② 사람 승인을 기다린다(interrupt)"고 짰다고 합시다. 승인이 오면 그 노드가 <em>다시</em> 실행되는데, interrupt 앞의 "① 결제"가 <strong>또</strong> 나갑니다. 사용자 눈엔 안 보이는 이중 결제가 생기는 거죠. 실제로 LangGraph의 human-in-the-loop에서 흔히 보고되는 함정입니다.</p>
+
+<figure class="dex-fig">
+<svg viewBox="0 0 720 250" role="img" aria-label="부수효과를 노드 안에 그냥 두었을 때와 task로 감쌌을 때를 비교한 그림. 위쪽은 한 노드 안에서 결제를 한 뒤 승인을 기다리는데, 재개하면 노드가 통째로 다시 실행되어 결제가 두 번 나가는 잘못된 경우다. 아래쪽은 결제를 task로 감싸 결과를 저장해 두었기 때문에, 재개해도 결제는 다시 실행되지 않고 저장된 결과를 돌려받아 딱 한 번만 나가는 올바른 경우다.">
+  <!-- BAD -->
+  <text x="30" y="30" font-size="14" font-weight="800" fill="var(--dex-rose)">✗ 부수효과를 노드 안에 그냥 둠</text>
+  <rect x="30" y="44" width="330" height="60" rx="10" fill="none" stroke="var(--dex-rose)" stroke-width="2"/>
+  <text x="55" y="70" font-size="12.5" font-weight="700" fill="var(--dex-rose)">노드: 결제하기 → interrupt(승인 대기)</text>
+  <text x="55" y="90" font-size="11.5" fill="var(--dex-slate)">재개 = 노드 통째 재실행 → 결제가 또 나감</text>
+  <text x="380" y="66" font-size="22" fill="var(--dex-rose)">💳💳</text>
+  <text x="380" y="92" font-size="11.5" font-weight="700" fill="var(--dex-rose)">이중 결제!</text>
+
+  <!-- GOOD -->
+  <text x="30" y="150" font-size="14" font-weight="800" fill="var(--dex-teal)">✓ 부수효과를 task로 감쌈</text>
+  <rect x="30" y="164" width="330" height="60" rx="10" fill="none" stroke="var(--dex-teal)" stroke-width="2"/>
+  <text x="55" y="190" font-size="12.5" font-weight="700" fill="var(--dex-teal)">task(결제하기) → interrupt(승인 대기)</text>
+  <text x="55" y="210" font-size="11.5" fill="var(--dex-slate)">재개 시 task는 저장된 결과 반환 → 재실행 X</text>
+  <text x="392" y="196" font-size="22" fill="var(--dex-teal)">💳</text>
+  <text x="392" y="216" font-size="11.5" font-weight="700" fill="var(--dex-teal)">딱 한 번</text>
+</svg>
+<figcaption>같은 로직, 다른 결과. 부수효과(결제·메일·파일 쓰기·비결정 연산)를 노드에 날것으로 두면 재개 때 중복 실행된다. <code>task</code>로 감싸 결과를 저장해 두면, 재개 때는 다시 실행하지 않고 저장된 값을 돌려받아 <strong>정확히 한 번</strong>만 일어난다.</figcaption>
+</figure>
+
+<p>해법은 두 가지 원칙으로 요약됩니다.</p>
+
+<p><strong>원칙 1 — 부수효과와 비결정 연산은 <code>task</code>로 감싼다.</strong> LangGraph의 함수형 API에서는 <code>@task</code>로 감싼 함수의 결과가 체크포인트에 저장됩니다. 재개하면 그 task는 다시 실행되지 않고 저장된 결과를 즉시 돌려줍니다. 결제·메일 발송·외부 API 호출·랜덤값·현재 시각처럼 "다시 하면 안 되거나 매번 값이 달라지는" 건 전부 task로 감싸세요.</p>
+
+{{< highlight python >}}
+from langgraph.func import entrypoint, task
+from langgraph.checkpoint.memory import InMemorySaver
+
+@task
+def call_llm(prompt: str) -> str:
+    # 매번 값이 달라지는 LLM 호출 → task로 감싸 결과를 고정 저장
+    return llm.invoke(prompt).content
+
+@task
+def charge_card(user_id: str, amount: int) -> str:
+    # '딱 한 번'이어야 하는 결제 → 반드시 task로
+    return payments.charge(user_id, amount)   # 재개 시 재실행되지 않음
+
+@entrypoint(checkpointer=InMemorySaver())
+def workflow(order: dict) -> str:
+    plan   = call_llm(f"주문 처리 계획을 세워라: {order}").result()
+    receipt = charge_card(order["user"], order["amount"]).result()
+    # 여기서 프로세스가 죽어도, 재개하면 call_llm·charge_card는
+    # '다시 실행되지 않고' 저장된 결과를 그대로 돌려받는다.
+    return f"완료: {receipt}"
+{{< /highlight >}}
+
+<p><strong>원칙 2 — 그래도 부수효과는 멱등(idempotent)하게 설계한다.</strong> 멱등이란 "같은 요청을 여러 번 보내도 결과가 한 번 보낸 것과 같은" 성질입니다. task로 감싸는 것과 별개로, 결제·발송 API 자체에 <strong>멱등 키(idempotency key)</strong>를 붙여 두면 어떤 이유로 두 번 불려도 실제로는 한 번만 처리됩니다. durable execution은 "가능한 한 다시 안 부르게" 해주지만, 재시도가 얽히는 분산 환경에서 <em>절대</em> 두 번 안 부른다고 보장하긴 어렵습니다. 그래서 안전망을 하나 더 두는 겁니다.</p>
+
+{{< highlight python >}}
+# 결제 API에 멱등 키를 함께 보낸다 (thread_id·단계명으로 고유 키를 만든다)
+payments.charge(
+    user_id, amount,
+    idempotency_key=f"order-4127:charge",  # 같은 키면 두 번째 요청은 무시된다
+)
+{{< /highlight >}}
+
+<div class="dex-note"><strong>기억할 것.</strong> "체크포인트가 있다 = 안전하다"가 아닙니다. 체크포인트는 <em>상태를 저장</em>할 뿐, 노드 안의 부수효과가 저절로 재실행-안전해지는 건 아닙니다. <strong>노드(단계)의 경계를 리플레이 경계로 의식해서 설계</strong>해야 비로소 안전해집니다.</p></div>
+
+<h2 id="sec-6">6. 언제 무엇을 쓰나</h2>
+
+<p>그럼 무조건 Temporal 같은 무거운 걸 깔아야 할까요? 아닙니다. 작업의 성격에 맞춰 고르면 됩니다.</p>
+
+<div class="dex-tblwrap">
+<table class="dex-tbl">
+  <thead><tr><th>상황</th><th>추천</th><th>이유</th></tr></thead>
+  <tbody>
+    <tr><td>짧고 단발성 · 부수효과 없음 (요약·분류 한 방)</td><td>아무것도 안 해도 됨</td><td>죽으면 그냥 다시 부르면 그만. 내구성 오버엔지니어링.</td></tr>
+    <tr><td>다단계 에이전트 · 사람 승인(HITL) · 중간 저장 필요</td><td>LangGraph 체크포인터</td><td>프레임워크에 이미 내장. 코드 몇 줄로 충분.</td></tr>
+    <tr><td>수 분~수 일 장기 실행 · 재시도·타임아웃·스케줄 조율 · 엄격한 exactly-once</td><td>Temporal / Restate 같은 durable 워크플로 엔진</td><td>내구성 실행이 본업인 인프라. 운영 도구·가시성까지 제공.</td></tr>
+    <tr><td>복잡한 에이전트 추론 + 견고한 바깥 오케스트레이션 둘 다</td><td>조합 (LangGraph를 Temporal 액티비티 안에서)</td><td>안쪽은 유연한 추론, 바깥은 강한 내구성.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>참고로 2026년에는 이 조합이 표준처럼 자리 잡는 중입니다. Pydantic AI는 에이전트를 <code>TemporalAgent</code>로 감싸면 I/O 작업이 자동으로 (비결정) 액티비티로 오프로딩돼 durable 에이전트가 되고, OpenAI Agents SDK도 Temporal 연동이 2026년 3월 정식(GA)으로 풀렸습니다. 프레임워크가 알아서 "부수효과를 액티비티로 감싸는" 일을 대신해 주는 방향으로 가고 있는 거죠.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>InMemorySaver를 프로덕션에 쓴다.</strong> 이름 그대로 메모리에 저장하니 프로세스가 죽으면 같이 죽습니다. 진짜 내구성은 <code>PostgresSaver</code> 같은 외부 저장소에서만 나옵니다. 개발·데모용으로만 쓰세요.</li>
+  <li><strong>부수효과를 노드에 날것으로 둔다.</strong> 이 글 5장의 핵심. 재개 때 결제·메일이 중복됩니다. <code>task</code>로 감싸고, API엔 멱등 키를 붙이세요.</li>
+  <li><strong>비결정 코드를 리플레이 경로에 둔다.</strong> 저널 리플레이(Temporal)에서는 <code>random</code>·현재 시각·정렬 안 된 딕셔너리 순회처럼 매번 달라지는 코드가 리플레이를 깨뜨립니다. 이런 건 반드시 액티비티/task 안으로 넣으세요.</li>
+  <li><strong>thread_id를 재사용하거나 겹치게 쓴다.</strong> 서로 다른 작업이 같은 <code>thread_id</code>를 쓰면 상태가 뒤섞입니다. 작업 1건 = 고유 thread_id를 지키세요.</li>
+  <li><strong>노드를 너무 크게 짠다.</strong> 한 노드에 여러 부수효과를 몰아넣으면, 재개 시 그 노드가 통째로 다시 돌며 전부 재실행됩니다. 부수효과 하나 = task 하나로 잘게 나누는 게 안전합니다.</li>
+  <li><strong>durability 모드를 안 따진다.</strong> 기본값이 항상 최선은 아닙니다. 돈·외부 부수효과가 걸린 작업은 <code>sync</code>로, 유실돼도 그만인 작업은 성능을 위해 <code>async</code>/<code>exit</code>로 — 의식적으로 고르세요.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>다단계 에이전트는 <strong>신뢰성 복리</strong> 때문에 태생적으로 가끔 실패한다(단계당 95%×10단계 ≈ 60%). 그리고 진행 중 크래시는 <strong>진행분·토큰·부수효과</strong>를 통째로 날린다. 목표는 "안 죽기"가 아니라 "<strong>죽어도 이어서 하기</strong>"다.</li>
+  <li><strong>내구성 있는 실행(durable execution)</strong>은 각 단계 결과를 저장(상태 지속성)해 두고, 재개 시 끝난 단계는 다시 안 돌린다(exactly-once). 게임 세이브 지점과 같다.</li>
+  <li>구현은 두 갈래 — <strong>저널 리플레이</strong>(Temporal·Restate: 처음부터 다시 부르되 저널값 반환)와 <strong>DB 체크포인트</strong>(LangGraph·DBOS: 노드마다 상태 저장, 다음부터 잇기). 겹쳐 쓰기도 한다.</li>
+  <li>LangGraph는 <strong>checkpointer</strong>를 붙이고 작업마다 <strong>thread_id</strong>를 주면 durable 모드가 켜진다. 중요도에 따라 <code>exit</code>/<code>async</code>/<code>sync</code> durability를 고른다.</li>
+  <li>제일 큰 함정은 <strong>리플레이 위험</strong> — 재개는 "노드 통째 재실행"이라 부수효과가 중복된다. 부수효과·비결정 연산은 <code>task</code>로 감싸고, 결제·발송 API엔 <strong>멱등 키</strong>를 붙여 안전망을 둬라.</li>
+  <li>선택 기준: 짧으면 그냥 재시도, 다단계·승인이면 LangGraph 체크포인터, 장기·엄격한 조율이면 Temporal 같은 엔진, 둘 다면 조합.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Docs by LangChain, <a href="https://docs.langchain.com/oss/python/langgraph/durable-execution" target="_blank" rel="noopener">Durable execution (LangGraph)</a> — checkpointer·durability 모드(exit/async/sync)·task로 부수효과 감싸기의 공식 문서. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>LangChain, <a href="https://reference.langchain.com/python/langgraph/types/Durability" target="_blank" rel="noopener">Durability (API Reference)</a> — 세 durability 모드의 정확한 정의. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Mehul Parmar, <a href="https://medium.com/@mehul_parmar/the-hidden-replay-risk-in-langgraph-how-durable-execution-can-burn-you-1d966141e71a" target="_blank" rel="noopener">The Hidden Replay Risk in LangGraph</a> — 재개 시 노드 통째 재실행·부수효과 중복 함정. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Diagrid, <a href="https://www.diagrid.io/blog/checkpoints-are-not-durable-execution-why-langgraph-crewai-google-adk-and-others-fall-short-for-production-agent-workflows" target="_blank" rel="noopener">Why Checkpoints Aren't Durable Execution</a> — 체크포인트와 durable execution의 차이·한계. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Temporal, <a href="https://temporal.io/blog/build-durable-ai-agents-pydantic-ai-and-temporal" target="_blank" rel="noopener">Build durable AI agents with Pydantic AI and Temporal</a> — 저널 리플레이·액티비티로 비결정 작업 감싸기·<code>TemporalAgent</code>. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Temporal, <a href="https://temporal.io/blog/announcing-openai-agents-sdk-integration" target="_blank" rel="noopener">Production-ready agents with the OpenAI Agents SDK + Temporal</a> — 2026년 3월 GA 연동·activity_as_tool. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Temporal, <a href="https://temporal.io/news/temporal-raises-300M-to-make-agentic-ai-real-for-companies" target="_blank" rel="noopener">Temporal raises $300M to make agentic AI real</a> — 2026-02 Series D($5B)·에이전트 내구성 인프라 맥락. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Inngest, <a href="https://www.inngest.com/blog/durable-execution-key-to-harnessing-ai-agents" target="_blank" rel="noopener">Durable Execution: The Key to Harnessing AI Agents in Production</a> — 상태 지속성·exactly-once로 토큰 재지불 방지. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Restate + Pydantic, <a href="https://pydantic.dev/articles/restate-durable-execution-pydanticai" target="_blank" rel="noopener">Build durable agents with Restate and Pydantic AI</a> — 또 다른 저널 방식 엔진 예시. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="내구성 있는 실행(durable execution)을 나타낸 그림. 에이전트가 여러 단계를 거치다가 4단계에서 프로세스가 죽지만, 처음부터 다시 시작하지 않고 마지막으로 저장된 체크포인트(3단계 직후)부터 다시 이어서 실행한다는 구조를 보여 준다. 완료된 단계는 다시 실행하지 않고 저장된 결과를 그대로 쓴다.">
+  <defs>
+    <linearGradient id="dxbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#131f33"/>
+    </linearGradient>
+    <linearGradient id="dx-done" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+    <linearGradient id="dx-run" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+    <linearGradient id="dx-dead" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#dxbg)"/>
+
+  <text x="80" y="98" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">중간에 죽어도,</text>
+  <text x="80" y="158" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800"><tspan fill="#4ade80">처음부터</tspan> 다시 하지 않는다</text>
+  <text x="80" y="212" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="25" font-weight="500">내구성 있는 실행(durable execution)으로 에이전트 살리기</text>
+
+  <!-- step chain -->
+  <!-- step 1 done -->
+  <rect x="80" y="330" width="150" height="96" rx="16" fill="url(#dx-done)"/>
+  <text x="155" y="372" fill="#052e16" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">① 검색</text>
+  <text x="155" y="402" fill="#064e2b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="600" text-anchor="middle">✓ 저장됨</text>
+  <!-- step 2 done -->
+  <rect x="272" y="330" width="150" height="96" rx="16" fill="url(#dx-done)"/>
+  <text x="347" y="372" fill="#052e16" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">② 요약</text>
+  <text x="347" y="402" fill="#064e2b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="600" text-anchor="middle">✓ 저장됨</text>
+  <!-- step 3 done + checkpoint -->
+  <rect x="464" y="330" width="150" height="96" rx="16" fill="url(#dx-done)"/>
+  <text x="539" y="372" fill="#052e16" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">③ 결제</text>
+  <text x="539" y="402" fill="#064e2b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="600" text-anchor="middle">✓ 저장됨</text>
+  <!-- step 4 crash -->
+  <rect x="656" y="330" width="150" height="96" rx="16" fill="url(#dx-dead)"/>
+  <text x="731" y="368" fill="#4c0519" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">④ 메일 발송</text>
+  <text x="731" y="400" fill="#4c0519" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="800" text-anchor="middle">⚡ 크래시</text>
+  <!-- step 5 pending -->
+  <rect x="848" y="330" width="150" height="96" rx="16" fill="none" stroke="#475569" stroke-width="2.5" stroke-dasharray="7 6"/>
+  <text x="923" y="372" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">⑤ 마무리</text>
+  <text x="923" y="402" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="600" text-anchor="middle">대기</text>
+
+  <!-- arrows between steps -->
+  <line x1="230" y1="378" x2="270" y2="378" stroke="#cbd5e1" stroke-width="3.5" marker-end="url(#dxa)"/>
+  <line x1="422" y1="378" x2="462" y2="378" stroke="#cbd5e1" stroke-width="3.5" marker-end="url(#dxa)"/>
+  <line x1="614" y1="378" x2="654" y2="378" stroke="#cbd5e1" stroke-width="3.5" marker-end="url(#dxa)"/>
+  <line x1="806" y1="378" x2="846" y2="378" stroke="#475569" stroke-width="3.5" stroke-dasharray="6 5" marker-end="url(#dxs)"/>
+
+  <!-- checkpoint marker after step 3 -->
+  <circle cx="635" cy="330" r="9" fill="#38bdf8"/>
+  <text x="635" y="300" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="800" text-anchor="middle">마지막 체크포인트</text>
+
+  <!-- resume arrow: from crash back to checkpoint, NOT to start -->
+  <path d="M 731 426 L 731 520 L 635 520 L 635 342" fill="none" stroke="#4ade80" stroke-width="4" stroke-dasharray="10 7" marker-end="url(#dxg)"/>
+  <text x="600" y="560" fill="#86efac" font-family="ui-sans-serif,system-ui,sans-serif" font-size="21" font-weight="700" text-anchor="middle">다시 켜면 ①②③은 건너뛰고 ④부터 이어서 실행한다 (토큰·결제 재실행 없음)</text>
+
+  <defs>
+    <marker id="dxa" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1"/></marker>
+    <marker id="dxs" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker>
+    <marker id="dxg" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/></marker>
+  </defs>
+</svg>

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 430" font-family="-apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="720" height="430" fill="#ffffff"/>
+  <text x="24" y="34" fill="#0f172a" font-size="20" font-weight="700">평생(lifelong) 평균 pass rate — Terminal-Bench 2.0</text>
+  <text x="24" y="56" fill="#475569" font-size="13">2단계 연속학습: 최적화 후 새 과제가 들어와도 이득이 유지·누적되는가</text>
+
+  <!-- baseline gridlines -->
+  <g stroke="#e2e8f0" stroke-width="1">
+    <line x1="240" y1="110" x2="690" y2="110"/>
+    <line x1="240" y1="170" x2="690" y2="170"/>
+    <line x1="240" y1="230" x2="690" y2="230"/>
+    <line x1="240" y1="290" x2="690" y2="290"/>
+    <line x1="240" y1="350" x2="690" y2="350"/>
+  </g>
+  <g fill="#94a3b8" font-size="11">
+    <text x="205" y="114">80%</text>
+    <text x="205" y="174">70%</text>
+    <text x="205" y="234">60%</text>
+    <text x="205" y="294">50%</text>
+    <text x="205" y="354">40%</text>
+  </g>
+
+  <!-- bars: scale 40%..80% => y = 350 - (v-40)*6 ; each 1% = 6px, 40%=350 80%=110 -->
+  <!-- RELAI-VCL 76.4 -> 350-(36.4*6)=350-218.4=131.6 -->
+  <rect x="270" y="132" width="70" height="218" rx="4" fill="#059669"/>
+  <text x="305" y="122" fill="#065f46" font-size="15" font-weight="700" text-anchor="middle">76.4</text>
+  <text x="305" y="372" fill="#334155" font-size="12" font-weight="600" text-anchor="middle">RELAI-VCL</text>
+  <text x="305" y="390" fill="#059669" font-size="10" text-anchor="middle">회귀 통제 O</text>
+
+  <!-- GEPA 66.0 -> 350-(26*6)=350-156=194 -->
+  <rect x="380" y="194" width="70" height="156" rx="4" fill="#64748b"/>
+  <text x="415" y="184" fill="#334155" font-size="15" font-weight="700" text-anchor="middle">66.0</text>
+  <text x="415" y="372" fill="#334155" font-size="12" font-weight="600" text-anchor="middle">GEPA</text>
+  <text x="415" y="390" fill="#94a3b8" font-size="10" text-anchor="middle">신규과제서 하락</text>
+
+  <!-- Meta Harness 64.6 -> 350-(24.6*6)=350-147.6=202.4 -->
+  <rect x="490" y="202" width="70" height="148" rx="4" fill="#94a3b8"/>
+  <text x="525" y="192" fill="#334155" font-size="15" font-weight="700" text-anchor="middle">64.6</text>
+  <text x="525" y="372" fill="#334155" font-size="12" font-weight="600" text-anchor="middle">Meta Harness</text>
+  <text x="525" y="390" fill="#94a3b8" font-size="10" text-anchor="middle">추가 최적화 정체</text>
+
+  <!-- baseline 58.7 -> 350-(18.7*6)=350-112.2=237.8 -->
+  <rect x="600" y="238" width="70" height="112" rx="4" fill="#cbd5e1"/>
+  <text x="635" y="228" fill="#334155" font-size="15" font-weight="700" text-anchor="middle">58.7</text>
+  <text x="635" y="372" fill="#334155" font-size="12" font-weight="600" text-anchor="middle">Baseline</text>
+
+  <text x="24" y="416" fill="#94a3b8" font-size="11">동일 최적화 예산 기준. 출처: arXiv 2607.14004 (직접 생성 차트)</text>
+</svg>

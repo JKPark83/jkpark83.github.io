@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 340" font-family="-apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="760" height="340" fill="#0b1220"/>
+  <text x="24" y="34" fill="#f8fafc" font-size="19" font-weight="700">Agent Builder 시사점 — 1인 감독 루프가 병목이다</text>
+  <text x="24" y="56" fill="#94a3b8" font-size="12">채택 실태 논문(2607.14037): 실제 협업은 대부분 "한 명이 리뷰/수정"하는 single-human oversight</text>
+
+  <!-- nodes -->
+  <g>
+    <rect x="30" y="120" width="150" height="80" rx="10" fill="#111c33" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="105" y="150" fill="#bae6fd" font-size="14" font-weight="700" text-anchor="middle">에이전트</text>
+    <text x="105" y="172" fill="#cbd5e1" font-size="11" text-anchor="middle">PR 자동 생성</text>
+    <text x="105" y="188" fill="#64748b" font-size="10" text-anchor="middle">병렬로 얼마든지</text>
+  </g>
+
+  <g>
+    <rect x="305" y="120" width="150" height="80" rx="10" fill="#111c33" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="380" y="150" fill="#fcd34d" font-size="14" font-weight="700" text-anchor="middle">사람 1명</text>
+    <text x="380" y="172" fill="#cbd5e1" font-size="11" text-anchor="middle">리뷰 · 수정 · 승인</text>
+    <text x="380" y="188" fill="#f59e0b" font-size="10" text-anchor="middle">← 진짜 병목</text>
+  </g>
+
+  <g>
+    <rect x="580" y="120" width="150" height="80" rx="10" fill="#111c33" stroke="#34d399" stroke-width="1.5"/>
+    <text x="655" y="150" fill="#a7f3d0" font-size="14" font-weight="700" text-anchor="middle">머지</text>
+    <text x="655" y="172" fill="#cbd5e1" font-size="11" text-anchor="middle">메인에 반영</text>
+  </g>
+
+  <!-- arrows -->
+  <defs>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <line x1="180" y1="160" x2="300" y2="160" stroke="#64748b" stroke-width="2" marker-end="url(#ah)"/>
+  <line x1="455" y1="160" x2="575" y2="160" stroke="#64748b" stroke-width="2" marker-end="url(#ah)"/>
+
+  <!-- takeaways -->
+  <text x="24" y="248" fill="#e2e8f0" font-size="13" font-weight="700">설계 포인트</text>
+  <text x="24" y="272" fill="#cbd5e1" font-size="12">· 모델 성능이 아니라 "리뷰 처리량"이 상한 → PR을 작게·설명 가능하게 쪼개라</text>
+  <text x="24" y="294" fill="#cbd5e1" font-size="12">· 한 명이 승인 가능한 diff 크기·리스크로 자동 분할하는 라우팅을 앞단에 둬라</text>
+  <text x="24" y="316" fill="#cbd5e1" font-size="12">· 소규모 팀(1~5명)일수록 참여율이 높다 — 감독 프로세스부터 설계</text>
+</svg>

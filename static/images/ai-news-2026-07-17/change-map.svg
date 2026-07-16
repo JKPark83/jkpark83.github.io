@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" font-family="-apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="760" height="440" fill="#0f172a"/>
+  <text x="24" y="36" fill="#f8fafc" font-size="22" font-weight="700">오늘의 AI 변화 지도 · 2026-07-17</text>
+  <text x="24" y="60" fill="#94a3b8" font-size="13">축: 실무 신호 강도(위=바로 적용) · 성격(왼=모델/툴, 오른=에이전트 엔지니어링)</text>
+
+  <!-- axes -->
+  <line x1="380" y1="80" x2="380" y2="410" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <line x1="40" y1="245" x2="720" y2="245" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <text x="52" y="100" fill="#64748b" font-size="12">모델 · 툴링</text>
+  <text x="628" y="100" fill="#64748b" font-size="12">에이전트 엔지니어링</text>
+
+  <!-- Gemini (model, low signal today - delayed) -->
+  <g>
+    <rect x="70" y="300" width="200" height="72" rx="10" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="84" y="326" fill="#fecaca" font-size="15" font-weight="700">Gemini 3.5 Pro</text>
+    <text x="84" y="346" fill="#cbd5e1" font-size="12">3번째 마감 불발 · 스톱갭 검토</text>
+    <text x="84" y="363" fill="#94a3b8" font-size="11">API/가격/모델카드 여전히 없음</text>
+  </g>
+
+  <!-- Claude Code (tooling, mid signal) -->
+  <g>
+    <rect x="70" y="150" width="200" height="72" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="84" y="176" fill="#bae6fd" font-size="15" font-weight="700">Claude Code v2.1.x</text>
+    <text x="84" y="196" fill="#cbd5e1" font-size="12">서브에이전트 기본 백그라운드</text>
+    <text x="84" y="213" fill="#94a3b8" font-size="11">--safe-mode 격리 디버깅</text>
+  </g>
+
+  <!-- Adoption paper (agent eng, high signal) -->
+  <g>
+    <rect x="470" y="130" width="230" height="82" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="484" y="156" fill="#ddd6fe" font-size="15" font-weight="700">에이전틱 코딩 채택 실태</text>
+    <text x="484" y="176" fill="#cbd5e1" font-size="12">2,361 repo · 25,264 PR 분석</text>
+    <text x="484" y="193" fill="#94a3b8" font-size="11">중앙값 3개월 1~2 PR · 1인 감독</text>
+    <text x="484" y="208" fill="#64748b" font-size="10">arXiv 2607.14037</text>
+  </g>
+
+  <!-- Optimizer paper (agent eng, high signal) -->
+  <g>
+    <rect x="470" y="300" width="230" height="82" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+    <text x="484" y="326" fill="#a7f3d0" font-size="15" font-weight="700">옵티마이저는 복리되는가</text>
+    <text x="484" y="346" fill="#cbd5e1" font-size="12">회귀 통제 있어야 이득 누적</text>
+    <text x="484" y="363" fill="#94a3b8" font-size="11">RELAI-VCL 평생 평균 76.4%</text>
+    <text x="484" y="378" fill="#64748b" font-size="10">arXiv 2607.14004</text>
+  </g>
+
+  <!-- connectors -->
+  <line x1="270" y1="186" x2="470" y2="171" stroke="#475569" stroke-width="1.2"/>
+  <line x1="270" y1="336" x2="470" y2="341" stroke="#475569" stroke-width="1.2"/>
+  <text x="300" y="250" fill="#64748b" font-size="11">오늘의 실무 무게중심 → 오른쪽(에이전트)</text>
+</svg>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 370" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="760" height="370" fill="#0f172a"/>
+  <text x="24" y="34" fill="#f1f5f9" font-size="18" font-weight="700">런어웨이 통제 장치 비교 — 두 도구가 같은 문제를 잡았다</text>
+
+  <!-- Claude Code card -->
+  <rect x="24" y="56" width="346" height="288" rx="14" fill="#0b1f33" stroke="#38bdf8" stroke-width="2"/>
+  <text x="44" y="88" fill="#7dd3fc" font-size="15" font-weight="700">🟦 Claude Code v2.1.212</text>
+  <g font-size="13" fill="#dbeafe">
+    <text x="44" y="122">▸ 세션당 subagent 상한 (기본 200)</text>
+    <text x="60" y="142" fill="#93c5fd" font-size="11.5">CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION</text>
+    <text x="60" y="158" fill="#64748b" font-size="11.5">/clear 로 예산 리셋</text>
+
+    <text x="44" y="188">▸ 세션당 WebSearch 상한 (기본 200)</text>
+    <text x="60" y="208" fill="#93c5fd" font-size="11.5">CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION</text>
+
+    <text x="44" y="240">▸ 2분 초과 MCP 호출 자동 백그라운드</text>
+    <text x="60" y="260" fill="#93c5fd" font-size="11.5">CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS</text>
+
+    <text x="44" y="292">▸ /fork → 별도 백그라운드 세션</text>
+    <text x="60" y="312" fill="#64748b" font-size="11.5">인세션 서브에이전트는 /subtask 로 분리</text>
+  </g>
+
+  <!-- Codex card -->
+  <rect x="390" y="56" width="346" height="288" rx="14" fill="#0d2417" stroke="#22c55e" stroke-width="2"/>
+  <text x="410" y="88" fill="#4ade80" font-size="15" font-weight="700">🟩 OpenAI Codex</text>
+  <g font-size="13" fill="#dcfce7">
+    <text x="410" y="122">▸ rollout 토큰 예산 추적</text>
+    <text x="426" y="142" fill="#86efac" font-size="11.5">스레드 전반 사용량 · 잔여 예산 알림</text>
+    <text x="426" y="158" fill="#64748b" font-size="11.5">소진 시 턴 자동 중단(abort)</text>
+
+    <text x="410" y="188">▸ 멀티 에이전트 위임 레벨 설정</text>
+    <text x="426" y="208" fill="#86efac" font-size="11.5">disabled / explicit-request / proactive</text>
+    <text x="426" y="224" fill="#64748b" font-size="11.5">thread·turn 단위로 조절</text>
+
+    <text x="410" y="256">▸ 서브에이전트 오류를 부모로 전파</text>
+    <text x="426" y="276" fill="#64748b" font-size="11.5">실패를 "빈 성공"으로 삼키지 않음</text>
+
+    <text x="410" y="308">▸ 원격 환경서 AGENTS.md 탐색 유지</text>
+  </g>
+
+  <text x="24" y="362" fill="#64748b" font-size="11">출처: code.claude.com/docs/en/changelog, developers.openai.com/codex/changelog (2026-07 확인) · 값은 각 도구 문서 기준</text>
+</svg>

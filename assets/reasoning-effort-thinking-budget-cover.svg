@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="추론 예산(reasoning budget)을 나타낸 그림. 리즈닝 모델이 생각하는 토큰 수가 늘어날수록 정확도가 처음에는 올라가지만, 어느 지점(스위트 스팟)을 지나면 오히려 정확도가 떨어지고 비용과 지연만 늘어나는 '오버씽킹' 구간으로 들어간다는 곡선을 보여 준다.">
+  <defs>
+    <linearGradient id="rbgbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="rbgcurve" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="0.5" stop-color="#4ade80"/>
+      <stop offset="1" stop-color="#fb7185"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#rbgbg)"/>
+
+  <text x="80" y="96" font-family="system-ui,sans-serif" font-size="46" font-weight="800" fill="#f1f5f9">추론 예산(reasoning budget)</text>
+  <text x="80" y="150" font-family="system-ui,sans-serif" font-size="27" font-weight="500" fill="#a5b4fc">얼마나 &lt;생각&gt;하게 만들지가 곧 품질·비용·지연을 가른다</text>
+
+  <!-- axes -->
+  <line x1="150" y1="520" x2="1080" y2="520" stroke="#475569" stroke-width="2"/>
+  <line x1="150" y1="230" x2="150" y2="520" stroke="#475569" stroke-width="2"/>
+  <text x="150" y="565" font-family="system-ui,sans-serif" font-size="20" fill="#94a3b8">생각(reasoning) 토큰 →</text>
+  <text x="70" y="228" font-family="system-ui,sans-serif" font-size="20" fill="#94a3b8" transform="rotate(-90 70 228)">정확도 →</text>
+
+  <!-- curve: rise, peak, decline -->
+  <path d="M150 500 C 360 500, 470 300, 620 285 C 720 275, 780 300, 1060 420"
+        fill="none" stroke="url(#rbgcurve)" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- sweet spot marker -->
+  <circle cx="620" cy="285" r="12" fill="#4ade80"/>
+  <line x1="620" y1="285" x2="620" y2="520" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.7"/>
+  <text x="620" y="260" font-family="system-ui,sans-serif" font-size="22" font-weight="700" fill="#4ade80" text-anchor="middle">스위트 스팟</text>
+
+  <!-- overthinking zone shading -->
+  <rect x="700" y="230" width="380" height="290" fill="#fb7185" opacity="0.10"/>
+  <text x="890" y="330" font-family="system-ui,sans-serif" font-size="24" font-weight="700" fill="#fb7185" text-anchor="middle">오버씽킹 구간</text>
+  <text x="890" y="362" font-family="system-ui,sans-serif" font-size="18" fill="#fda4af" text-anchor="middle">비용·지연 ↑, 정확도 ↓</text>
+
+  <!-- underthink label -->
+  <text x="255" y="470" font-family="system-ui,sans-serif" font-size="18" fill="#7dd3fc" text-anchor="middle">부족</text>
+
+  <!-- knobs footer -->
+  <text x="80" y="612" font-family="ui-monospace,monospace" font-size="19" fill="#c7d2fe">reasoning_effort · thinkingBudget · budget_tokens</text>
+</svg>

@@ -1,0 +1,449 @@
+---
+title: "생각을 얼마나 시킬까: 리즈닝 모델의 '추론 예산(reasoning budget)'을 다루는 법"
+date: 2026-07-17T07:30:00+09:00
+draft: false
+tags: ["AI", "reasoning budget", "추론 예산", "thinking budget", "reasoning effort", "test-time compute", "테스트타임 컴퓨트", "overthinking", "오버씽킹", "budget forcing", "리즈닝 모델", "reasoning model", "LLM", "추론 최적화"]
+categories: ["AI 엔지니어링"]
+summary: "리즈닝 모델(reasoning model)은 답을 내기 전에 눈에 보이지 않는 '생각 토큰'을 잔뜩 씁니다. 문제는 이 생각을 많이 시킨다고 답이 계속 좋아지지 않는다는 것입니다. 어느 지점을 넘으면 정확도는 그대로거나 오히려 떨어지는데 비용과 지연만 몇 배로 늘죠 — 40자짜리 작업에 1,200 생각 토큰을 태워 비용이 30배가 된 사례처럼요. 이번 주(2026년 7월) GPT-5.6가 none부터 max까지 여섯 단계의 reasoning effort와 '지속되는 추론'을 정식 출시하면서, '생각을 얼마나 시킬지'를 코드로 조절하는 일이 다시 화두가 됐습니다. 이 글은 추론 예산이라는 개념, 정확도-토큰 곡선의 스위트 스팟과 오버씽킹 구간, OpenAI·Gemini·Claude 세 곳의 조절 손잡이, budget forcing으로 직접 늘리고 줄이는 법, 그리고 난이도에 따라 예산을 자동으로 배분하는 실전 패턴까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+cover:
+  image: "reasoning-effort-thinking-budget-cover.svg"
+  alt: "리즈닝 모델이 쓰는 생각 토큰이 늘어날수록 정확도가 처음에는 올라가 스위트 스팟에서 정점을 찍지만, 그 지점을 지나면 정확도가 다시 떨어지고 비용과 지연만 늘어나는 오버씽킹 구간으로 들어가는 곡선."
+  caption: "생각(reasoning) 토큰은 무조건 많을수록 좋은 게 아닙니다. 정점(스위트 스팟)까지는 정확도가 오르지만, 그 뒤로는 정확도가 떨어지고 비용·지연만 늘어나는 오버씽킹 구간이 있습니다. reasoning_effort·thinkingBudget·budget_tokens는 이 다이얼을 코드로 돌리는 손잡이입니다."
+  relative: false
+---
+
+<style>
+/* ── Reasoning Budget 포스트 전용 스타일 (rbg- 접두사) ── */
+.rbg-fig{
+  --rbg-indigo:#4f46e5; --rbg-amber:#d97706; --rbg-green:#16a34a; --rbg-rose:#e11d48;
+  --rbg-slate:#64748b; --rbg-violet:#7c3aed; --rbg-teal:#0d9488; --rbg-blue:#2563eb; --rbg-sky:#0284c7;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .rbg-fig{
+  --rbg-indigo:#818cf8; --rbg-amber:#fbbf24; --rbg-green:#4ade80; --rbg-rose:#fb7185;
+  --rbg-slate:#94a3b8; --rbg-violet:#a78bfa; --rbg-teal:#2dd4bf; --rbg-blue:#60a5fa; --rbg-sky:#38bdf8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .rbg-fig{
+    --rbg-indigo:#818cf8; --rbg-amber:#fbbf24; --rbg-green:#4ade80; --rbg-rose:#fb7185;
+    --rbg-slate:#94a3b8; --rbg-violet:#a78bfa; --rbg-teal:#2dd4bf; --rbg-blue:#60a5fa; --rbg-sky:#38bdf8;
+  }
+}
+.rbg-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.rbg-fig text{font-family:inherit}
+.rbg-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.rbg-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.rbg-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.rbg-toc ol{margin:0;padding-left:1.25rem}
+.rbg-toc li{margin:.22rem 0;font-size:.95rem}
+.rbg-toc a{text-decoration:none}
+.rbg-toc a:hover{text-decoration:underline}
+.rbg-pull{font-size:1.12rem;line-height:1.72}
+.rbg-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.rbg-note{border-left:4px solid var(--rbg-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.rbg-note strong{color:var(--rbg-blue,#2563eb)}
+.rbg-warn{border-left:4px solid var(--rbg-rose,#e11d48)}
+.rbg-warn strong{color:var(--rbg-rose,#e11d48)}
+.rbg-good{border-left:4px solid var(--rbg-teal,#0d9488)}
+.rbg-good strong{color:var(--rbg-teal,#0d9488)}
+.rbg-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.rbg-tbl th,.rbg-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.rbg-tbl th{background:var(--entry);font-weight:700}
+.rbg-tbl code{font-size:.86em}
+.rbg-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="rbg-pull">
+  <p>리즈닝 모델에게 "더 깊이 생각해"라고 시키는 건 공짜가 아닙니다. <strong>눈에 보이지 않는 생각 토큰에 매 호출마다 돈과 시간을 지불</strong>하고 있고, 어느 지점을 넘으면 그 돈으로 산 건 더 나은 답이 아니라 <em>더 늦고 더 비싼 같은 답</em>입니다.</p>
+  <footer>— "얼마나 똑똑한가"만큼 "얼마나 생각하게 둘 것인가"가 엔지니어링 문제입니다.</footer>
+</blockquote>
+
+<p>리즈닝 모델(reasoning model)을 처음 붙여 본 junior 개발자가 흔히 겪는 일이 있습니다. 데모는 놀랍습니다. 어려운 수학 문제도, 복잡한 코드 디버깅도 척척 풀죠. 그런데 실제 서비스에 올리고 청구서를 받아 보면 눈을 의심하게 됩니다. 분명 짧은 답이 나왔는데 비용은 예상의 몇 배고, 응답은 답답할 만큼 느립니다.</p>
+
+<p>원인은 대개 하나입니다. 리즈닝 모델은 답을 내기 전에 <strong>속으로 길게 생각</strong>하고, 그 생각도 전부 토큰이라 <strong>돈이 나갑니다.</strong> 실제로 한 팀은 40자짜리 짧은 텍스트를 처리하는 데 Claude의 extended thinking을 켰다가, 입력 30 토큰·출력 18 토큰인데 <strong>생각 토큰만 1,200개</strong>가 붙어 비용이 예상의 30배가 나온 사례를 보고했습니다. o3에 500 토큰짜리 답을 요청해도 뒤에서 2,000~5,000개의 reasoning 토큰이 소모되기도 합니다.</p>
+
+<p>더 얄궂은 건, 이렇게 많이 생각한다고 답이 꼭 좋아지지도 않는다는 점입니다. 이걸 <strong>오버씽킹(overthinking)</strong>이라고 부릅니다. 그래서 요즘 AI 엔지니어링의 화두 하나는 "모델을 얼마나 <em>생각하게 둘 것인가</em>"를 코드로 조절하는 일입니다. 이번 주(2026년 7월 9일) OpenAI가 GPT-5.6를 정식 출시하면서 <code>none</code>부터 <code>max</code>까지 여섯 단계의 reasoning effort와 호출 사이에 추론 상태를 이어 가는 <em>persisted reasoning</em>을 API 전면에 내놓은 것도 같은 흐름입니다. 이 글에서는 그 손잡이들을 하나씩 잡아 보겠습니다.</p>
+
+<nav class="rbg-toc">
+  <div class="rbg-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">리즈닝 모델은 왜 비싸고 느린가</a></li>
+    <li><a href="#sec-2">추론 예산이란 무엇인가 — 정확도-토큰 곡선</a></li>
+    <li><a href="#sec-3">세 가지 손잡이 — OpenAI · Gemini · Claude</a></li>
+    <li><a href="#sec-4">budget forcing — 직접 늘리고 줄이기</a></li>
+    <li><a href="#sec-5">실전 — 난이도에 따라 예산 자동 배분</a></li>
+    <li><a href="#sec-6">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-7">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 리즈닝 모델은 왜 비싸고 느린가</h2>
+
+<p>먼저 용어부터 정리합시다. <strong>리즈닝 모델</strong>은 최종 답을 쓰기 전에 <strong>사고 과정(chain-of-thought)</strong>을 스스로 길게 펼치도록 훈련된 모델입니다. OpenAI의 o 계열·GPT-5 계열, Google Gemini의 thinking 모드, Anthropic Claude의 extended thinking이 모두 여기에 해당합니다. 사람으로 치면 답을 말하기 전에 머릿속으로 이것저것 따져 보는 단계를 <em>글로 적어 내려가는</em> 셈입니다.</p>
+
+<p>여기서 junior 개발자가 놓치기 쉬운 핵심이 하나 있습니다. 이 "머릿속 계산"도 <strong>전부 출력 토큰</strong>이라는 점입니다. 화면에 최종 답만 보여도, 그 답을 만들기 위해 생성한 생각 토큰(reasoning token, thinking token이라고도 합니다)은 <strong>과금 대상</strong>이고, 생성하는 데 <strong>실제 시간</strong>이 걸립니다. 보이지 않을 뿐 엄연히 존재하는 비용입니다.</p>
+
+<div class="rbg-note"><strong>왜 토큰 하나가 시간을 잡아먹나?</strong> LLM은 토큰을 한 번에 하나씩, 순차적으로 만들어 냅니다(autoregressive). 생각 토큰이 3,000개면 최종 답을 시작하기도 전에 토큰 3,000개를 순서대로 뽑아야 합니다. 그래서 생각이 길어질수록 <strong>첫 글자가 나오기까지의 지연</strong>이 그대로 늘어납니다.</div>
+
+<p>정리하면 리즈닝 모델의 비용·지연은 <strong>보이는 답 길이가 아니라, 보이지 않는 생각 길이가 좌우</strong>합니다. 그리고 이 생각 길이는 우리가 어느 정도 <em>조절할 수 있는</em> 값입니다. 그 조절값이 바로 이 글의 주제인 <strong>추론 예산(reasoning budget)</strong>입니다.</p>
+
+<h2 id="sec-2">2. 추론 예산이란 무엇인가 — 정확도-토큰 곡선</h2>
+
+<p><strong>추론 예산</strong>은 말 그대로 "이 문제에 생각 토큰을 최대 얼마까지 쓰게 할 것인가"를 정하는 상한선(또는 강도)입니다. 예산을 늘리면 모델이 더 오래 궁리하고, 줄이면 빨리 결론으로 갑니다.</p>
+
+<p>자연스러운 직관은 "예산을 많이 줄수록 정확해지겠지"입니다. 절반은 맞습니다. 하지만 2026년 들어 여러 연구가 이 직관의 나머지 절반을 깼습니다. 생각 토큰과 정확도의 관계는 <strong>계속 오르는 직선이 아니라, 정점을 찍고 다시 내려오는 언덕</strong>에 가깝습니다.</p>
+
+<figure class="rbg-fig">
+<svg viewBox="0 0 720 320" role="img" aria-label="생각 토큰 수에 따른 정확도 곡선. 토큰이 적은 왼쪽은 생각이 부족해 정확도가 낮고, 가운데 스위트 스팟에서 정확도가 정점을 찍는다. 그 오른쪽은 오버씽킹 구간으로, 토큰을 더 써도 정확도는 오히려 떨어지고 비용과 지연만 늘어난다.">
+  <line x1="60" y1="40" x2="60" y2="250" stroke="var(--rbg-slate)" stroke-width="1.5"/>
+  <line x1="60" y1="250" x2="690" y2="250" stroke="var(--rbg-slate)" stroke-width="1.5"/>
+  <text x="20" y="46" font-size="11" fill="var(--rbg-slate)">정확도</text>
+  <text x="600" y="272" font-size="11" fill="var(--rbg-slate)">생각 토큰 →</text>
+
+  <!-- underthink zone -->
+  <rect x="60" y="40" width="150" height="210" fill="var(--rbg-sky)" opacity="0.07"/>
+  <!-- overthink zone -->
+  <rect x="430" y="40" width="260" height="210" fill="var(--rbg-rose)" opacity="0.08"/>
+
+  <!-- curve -->
+  <path d="M60 240 C 160 240, 230 90, 340 82 C 400 78, 430 95, 690 200"
+        fill="none" stroke="var(--rbg-green)" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- peak marker -->
+  <circle cx="340" cy="82" r="7" fill="var(--rbg-green)"/>
+  <line x1="340" y1="82" x2="340" y2="250" stroke="var(--rbg-green)" stroke-width="1.3" stroke-dasharray="4 4" opacity="0.7"/>
+  <text x="340" y="66" font-size="12.5" font-weight="700" fill="var(--rbg-green)" text-anchor="middle">스위트 스팟</text>
+
+  <text x="135" y="150" font-size="12" font-weight="700" fill="var(--rbg-sky)" text-anchor="middle">생각 부족</text>
+  <text x="135" y="168" font-size="10.5" fill="var(--rbg-slate)" text-anchor="middle">성급한 결론</text>
+
+  <text x="560" y="120" font-size="12" font-weight="700" fill="var(--rbg-rose)" text-anchor="middle">오버씽킹 구간</text>
+  <text x="560" y="138" font-size="10.5" fill="var(--rbg-slate)" text-anchor="middle">정확도 ↓ · 비용/지연 ↑</text>
+  <text x="560" y="153" font-size="10.5" fill="var(--rbg-slate)" text-anchor="middle">맞던 답을 뒤집기도</text>
+</svg>
+<figcaption>생각 토큰과 정확도의 관계. 왼쪽은 생각이 모자라 틀리고, 정점(스위트 스팟)을 지나면 토큰을 더 태워도 정확도는 안 오르거나 오히려 떨어집니다. 스위트 스팟의 위치는 문제 난이도마다 다릅니다.</figcaption>
+</figure>
+
+<p>연구들이 관찰한 구체적인 현상은 이렇습니다. 한 연구는 대략 <strong>7,000 토큰을 넘어서면</strong> 모델이 새로운 정답을 발견하기보다 <em>이미 맞힌 답을 뒤집을</em> 확률이 더 높아지는 "오버씽킹 구간"에 들어간다고 봤습니다. AIME 같은 수학 벤치마크에서도 생각 토큰을 늘릴수록 평균 정확도가 오히려 <strong>떨어지는</strong> 구간이 관찰됐고, 쉬운 문제일수록 그 하락 지점이 더 일찍 찾아왔습니다. 반대로 어떤 기법은 "Wait", "Hmm" 같은 <em>자기 되짚기 토큰</em>을 억제해 사고 길이를 <strong>27~51%</strong>나 줄였는데도 정확도는 그대로였습니다.</p>
+
+<p>핵심 교훈은 이렇습니다. <strong>생각 토큰은 무조건 많이 주는 게 아니라, 문제 난이도에 맞게 주는 자원입니다.</strong> 쉬운 문제에 큰 예산을 주면 비용만 태우고 오히려 틀릴 수 있고, 어려운 문제에 예산을 조이면 성급하게 틀립니다. 그래서 "얼마를 줄까"가 엔지니어링 결정이 됩니다.</p>
+
+<h2 id="sec-3">3. 세 가지 손잡이 — OpenAI · Gemini · Claude</h2>
+
+<p>다행히 주요 API는 저마다 예산을 조절하는 손잡이를 제공합니다. 접근 방식이 조금씩 달라서, 세 가지를 나란히 보면 감이 잡힙니다.</p>
+
+<figure class="rbg-fig">
+<svg viewBox="0 0 720 300" role="img" aria-label="세 API의 추론 예산 손잡이 비교. OpenAI는 reasoning_effort로 none부터 max까지 단계를 고르는 방식, Gemini는 thinkingBudget으로 토큰 숫자를 직접 지정하며 0은 끄기, -1은 동적 모드. Claude는 budget_tokens로 최소 1024부터 토큰 목표치를 지정하는 방식이다.">
+  <!-- OpenAI card -->
+  <rect x="20" y="30" width="215" height="240" rx="12" fill="none" stroke="var(--rbg-blue)" stroke-width="2"/>
+  <text x="127" y="58" font-size="14" font-weight="800" fill="var(--rbg-blue)" text-anchor="middle">OpenAI (GPT-5.6)</text>
+  <text x="127" y="80" font-size="11" fill="var(--rbg-slate)" text-anchor="middle">reasoning_effort</text>
+  <text x="127" y="98" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">— 단계를 고른다 —</text>
+  <g font-size="11.5" fill="var(--rbg-blue)">
+    <text x="40" y="124">• none</text>
+    <text x="40" y="146">• minimal</text>
+    <text x="40" y="168">• low</text>
+    <text x="40" y="190">• medium <tspan fill="var(--rbg-slate)" font-size="9.5">(기본값)</tspan></text>
+    <text x="40" y="212">• high</text>
+    <text x="40" y="234">• xhigh</text>
+    <text x="40" y="256">• max <tspan fill="var(--rbg-slate)" font-size="9.5">(최고 강도)</tspan></text>
+  </g>
+
+  <!-- Gemini card -->
+  <rect x="252" y="30" width="215" height="240" rx="12" fill="none" stroke="var(--rbg-teal)" stroke-width="2"/>
+  <text x="359" y="58" font-size="14" font-weight="800" fill="var(--rbg-teal)" text-anchor="middle">Gemini 2.5</text>
+  <text x="359" y="80" font-size="11" fill="var(--rbg-slate)" text-anchor="middle">thinkingBudget</text>
+  <text x="359" y="98" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">— 토큰 수를 적는다 —</text>
+  <g font-size="11.5" fill="var(--rbg-teal)">
+    <text x="272" y="126">0 = 생각 끄기</text>
+    <text x="272" y="150">−1 = 동적(모델이 알아서)</text>
+    <text x="272" y="174">1,024~8,192 = 중~고강도</text>
+    <text x="272" y="198">24,576 = 최대 (Flash)</text>
+  </g>
+  <text x="359" y="232" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">숫자를 직접 지정하므로</text>
+  <text x="359" y="248" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">상한을 눈으로 통제</text>
+
+  <!-- Claude card -->
+  <rect x="484" y="30" width="215" height="240" rx="12" fill="none" stroke="var(--rbg-violet)" stroke-width="2"/>
+  <text x="591" y="58" font-size="14" font-weight="800" fill="var(--rbg-violet)" text-anchor="middle">Claude</text>
+  <text x="591" y="80" font-size="11" fill="var(--rbg-slate)" text-anchor="middle">extended thinking</text>
+  <text x="591" y="98" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">— budget_tokens —</text>
+  <g font-size="11.5" fill="var(--rbg-violet)">
+    <text x="504" y="126">최소 1,024 토큰</text>
+    <text x="504" y="150">max_tokens 보다 작게</text>
+    <text x="504" y="174">"목표치"이지 상한 아님</text>
+    <text x="504" y="198">32k 초과는 배치 권장</text>
+  </g>
+  <text x="591" y="232" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">작게 시작해</text>
+  <text x="591" y="248" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">조금씩 늘리는 게 정석</text>
+</svg>
+<figcaption>세 API의 추론 예산 손잡이. OpenAI는 강도 단계를 고르고, Gemini와 Claude는 토큰 숫자를 지정합니다. 이름과 단위는 달라도 "생각을 얼마나 시킬지"를 정한다는 목적은 같습니다.</figcaption>
+</figure>
+
+<h3>OpenAI — reasoning_effort 단계 고르기</h3>
+
+<p>OpenAI는 토큰 숫자 대신 <strong>강도 단계</strong>를 고르게 합니다. GPT-5.6 기준으로 <code>none · minimal · low · medium · high · xhigh</code>에 더해, 이번에 가장 어려운 작업용 <code>max</code>가 추가됐습니다. GPT-5.5의 기본값은 <code>medium</code>입니다. 숫자를 직접 정할 필요 없이 "이 정도로 생각해"만 알려 주면 되는 방식입니다.</p>
+
+{{< highlight python >}}
+from openai import OpenAI
+client = OpenAI()
+
+# 라우팅·분류·간단 추출처럼 가벼운 작업 → 낮은 강도로 빠르고 싸게
+resp = client.responses.create(
+    model="gpt-5.6",
+    reasoning={"effort": "low"},          # none/minimal/low/medium/high/xhigh/max
+    input="이 문의를 '환불/배송/기타' 중 하나로 분류만 해줘: ...",
+)
+
+# 어려운 디버깅·다단계 설계 → 높은 강도로 품질 우선
+resp = client.responses.create(
+    model="gpt-5.6",
+    reasoning={"effort": "high"},         # 필요할 때만 올린다
+    input="이 동시성 버그의 근본 원인을 단계별로 진단해줘: ...",
+)
+{{< /highlight >}}
+
+<div class="rbg-note"><strong>고르는 기준.</strong> 추출·라우팅·분류·간단한 재작성이면 <code>low</code>(또는 <code>minimal</code>), 문제를 진단하거나 선택지를 비교하거나 계획을 세우고 코드를 따져야 하면 <code>medium</code>~<code>high</code>. <code>max</code>는 정말 품질이 전부인 가장 어려운 작업에만 아껴 씁니다. 지연에 민감한 자동완성·실시간 UI라면 <code>none</code>/<code>minimal</code>이 정답입니다.</div>
+
+<h3>Gemini — thinkingBudget 토큰으로 지정</h3>
+
+<p>Gemini 2.5는 반대로 <strong>토큰 숫자를 직접</strong> 적습니다. 상한이 눈에 보여 통제가 직관적입니다. 특수값 두 개만 외우면 됩니다 — <code>0</code>은 생각을 아예 끄고(가장 빠르고 쌈), <code>-1</code>은 <strong>동적 모드</strong>로 모델이 문제 난이도를 보고 스스로 정합니다. 2.5 Flash 기준 최대는 24,576 토큰입니다.</p>
+
+{{< highlight python >}}
+from google import genai
+from google.genai import types
+
+client = genai.Client()
+
+resp = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="다음 SQL 쿼리가 왜 느린지 분석하고 인덱스를 제안해줘: ...",
+    config=types.GenerateContentConfig(
+        thinking_config=types.ThinkingConfig(
+            thinking_budget=2048,   # 0=끄기, -1=동적, 여기선 2048 토큰 상한
+        )
+    ),
+)
+{{< /highlight >}}
+
+<h3>Claude — budget_tokens로 목표치 지정</h3>
+
+<p>Claude의 extended thinking은 <code>budget_tokens</code>로 목표치를 줍니다. 두 가지만 기억하면 됩니다. <strong>최소 1,024</strong>이고, 반드시 <code>max_tokens</code>보다 작아야 합니다. 그리고 이 값은 딱딱한 상한이 아니라 <strong>목표(target)</strong>라서, 쉬운 문제면 예산을 다 안 쓰기도 합니다. 그래서 공식 권장도 "작게 시작해 조금씩 올려 가며 스위트 스팟을 찾으라"입니다.</p>
+
+{{< highlight python >}}
+import anthropic
+client = anthropic.Anthropic()
+
+msg = client.messages.create(
+    model="claude-sonnet-4-6",
+    max_tokens=4096,                      # thinking + 최종 답의 총합보다 커야 함
+    thinking={
+        "type": "enabled",
+        "budget_tokens": 2048,            # 최소 1024, max_tokens 보다 작게
+    },
+    messages=[{"role": "user", "content": "이 증명의 논리적 허점을 찾아줘: ..."}],
+)
+{{< /highlight >}}
+
+<div class="rbg-warn rbg-note"><strong>흔한 함정.</strong> <code>budget_tokens</code>를 <code>max_tokens</code>와 같거나 크게 잡으면 최종 답을 쓸 토큰이 남지 않습니다. <code>max_tokens</code> = 생각 예산 + 실제 답 길이 + 여유로 넉넉히 잡으세요. 또 32k를 넘기는 큰 예산은 요청이 오래 걸려 타임아웃에 걸리기 쉬우니 배치 처리가 권장됩니다.</div>
+
+<h2 id="sec-4">4. budget forcing — 직접 늘리고 줄이기</h2>
+
+<p>API 손잡이가 없는 오픈 모델을 직접 서빙하거나, 예산을 더 세밀하게 다루고 싶을 때 쓰는 고전적인 기법이 <strong>budget forcing</strong>입니다. 2025년 s1 논문(Muennighoff 외)이 제안한, 놀랄 만큼 단순한 방법입니다.</p>
+
+<p>아이디어는 이렇습니다. 리즈닝 모델은 생각을 마칠 때 특별한 <strong>사고 종료 토큰</strong>(예: <code>&lt;/think&gt;</code>)을 냅니다. budget forcing은 이 경계를 인위적으로 건드립니다.</p>
+
+<ul>
+  <li><strong>줄이기</strong>: 정해 둔 토큰 수에 도달하면 사고를 <strong>강제로 끝내고</strong> 종료 토큰을 밀어 넣어 곧장 답을 쓰게 합니다.</li>
+  <li><strong>늘리기</strong>: 모델이 생각을 끝내려 하면 종료 토큰을 막고 대신 <strong>"Wait"를 덧붙여</strong> 생각을 이어 가게 합니다. 그러면 모델이 자기 답을 다시 점검하다가 틀린 단계를 바로잡기도 합니다.</li>
+</ul>
+
+<figure class="rbg-fig">
+<svg viewBox="0 0 720 240" role="img" aria-label="budget forcing의 두 방향. 위쪽은 생각을 늘리는 경우로, 모델이 사고를 끝내려 할 때 종료 토큰을 막고 Wait를 덧붙여 다시 생각하게 한다. 아래쪽은 생각을 줄이는 경우로, 정해진 토큰 수에 도달하면 사고를 강제 종료하고 곧바로 답을 쓰게 한다.">
+  <!-- extend row -->
+  <text x="30" y="46" font-size="12.5" font-weight="800" fill="var(--rbg-teal)">늘리기</text>
+  <rect x="30" y="58" width="150" height="34" rx="6" fill="none" stroke="var(--rbg-slate)" stroke-width="1.5"/>
+  <text x="105" y="80" font-size="10.5" fill="var(--rbg-slate)" text-anchor="middle">…생각 중…</text>
+  <text x="192" y="80" font-size="16" fill="var(--rbg-rose)" text-anchor="middle">✕</text>
+  <rect x="205" y="58" width="95" height="34" rx="6" fill="none" stroke="var(--rbg-rose)" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <text x="252" y="80" font-size="10" fill="var(--rbg-rose)" text-anchor="middle">&lt;/think&gt; 막음</text>
+  <rect x="315" y="58" width="80" height="34" rx="6" fill="var(--rbg-teal)" opacity="0.85"/>
+  <text x="355" y="80" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">"Wait"</text>
+  <text x="410" y="80" font-size="14" fill="var(--rbg-slate)">→</text>
+  <rect x="430" y="58" width="160" height="34" rx="6" fill="none" stroke="var(--rbg-teal)" stroke-width="1.5"/>
+  <text x="510" y="80" font-size="10.5" fill="var(--rbg-teal)" text-anchor="middle">다시 점검·재검토</text>
+
+  <line x1="30" y1="118" x2="690" y2="118" stroke="var(--rbg-slate)" stroke-width="0.7" opacity="0.4"/>
+
+  <!-- cut row -->
+  <text x="30" y="158" font-size="12.5" font-weight="800" fill="var(--rbg-amber)">줄이기</text>
+  <rect x="30" y="170" width="150" height="34" rx="6" fill="none" stroke="var(--rbg-slate)" stroke-width="1.5"/>
+  <text x="105" y="192" font-size="10.5" fill="var(--rbg-slate)" text-anchor="middle">…생각 중…</text>
+  <text x="205" y="192" font-size="10.5" fill="var(--rbg-amber)" text-anchor="middle">예산 소진</text>
+  <text x="270" y="192" font-size="14" fill="var(--rbg-slate)">→</text>
+  <rect x="290" y="170" width="140" height="34" rx="6" fill="var(--rbg-amber)" opacity="0.85"/>
+  <text x="360" y="192" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">&lt;/think&gt; 강제 주입</text>
+  <text x="440" y="192" font-size="14" fill="var(--rbg-slate)">→</text>
+  <rect x="460" y="170" width="130" height="34" rx="6" fill="none" stroke="var(--rbg-amber)" stroke-width="1.5"/>
+  <text x="525" y="192" font-size="10.5" fill="var(--rbg-amber)" text-anchor="middle">곧장 답 쓰기</text>
+</svg>
+<figcaption>budget forcing. 사고 종료 토큰(<code>&lt;/think&gt;</code>)의 경계를 조작해, 생각을 더 시키거나(Wait 덧붙이기) 짧게 끊습니다(종료 토큰 강제 주입). 오픈 모델을 직접 서빙할 때 유용합니다.</figcaption>
+</figure>
+
+<p>개념을 코드로 옮기면 이런 모습입니다. vLLM 같은 엔진으로 오픈 리즈닝 모델을 서빙한다고 할 때, 생각을 늘리는 쪽을 단순화하면 이렇게 됩니다.</p>
+
+{{< highlight python >}}
+# budget forcing '늘리기'의 핵심 아이디어 (개념 코드)
+MAX_WAITS = 2          # 최대 몇 번까지 더 생각하게 밀어붙일지
+think_end = "</think>"
+
+prompt = build_prompt(question) + "<think>"
+waits = 0
+while True:
+    # 사고 종료 토큰 직전까지 생성 (stop 시퀀스로 </think> 앞에서 멈춤)
+    out = model.generate(prompt, stop=[think_end])
+    prompt += out.text
+    if waits < MAX_WAITS:
+        # 끝내려는 걸 막고 'Wait'를 붙여 다시 생각하게 한다
+        prompt += " Wait"
+        waits += 1
+    else:
+        # 예산 소진 → 종료 토큰을 넣고 최종 답을 받는다
+        prompt += think_end
+        answer = model.generate(prompt)
+        break
+{{< /highlight >}}
+
+<div class="rbg-note"><strong>언제 쓰나.</strong> OpenAI·Gemini·Claude처럼 손잡이를 제공하는 상용 API라면 굳이 이걸 손으로 구현할 필요는 없습니다. budget forcing은 <strong>손잡이가 없는 오픈 모델</strong>(예: 자체 서빙하는 R1 계열)을 다룰 때, 또는 "Wait 몇 번" 같은 정밀한 제어가 필요할 때 진가를 발휘합니다.</div>
+
+<h2 id="sec-5">5. 실전 — 난이도에 따라 예산 자동 배분</h2>
+
+<p>여기까지 왔으면 자연스러운 다음 질문이 나옵니다. "그럼 요청마다 예산을 어떻게 정하지?" 모든 요청에 <code>high</code>를 박으면 비용이 터지고, 전부 <code>low</code>로 두면 어려운 요청에서 틀립니다. 정답은 <strong>요청의 난이도를 먼저 가늠하고, 거기에 맞는 예산을 배분</strong>하는 것입니다. 이 패턴을 흔히 <strong>적응형 예산(adaptive budget)</strong> 또는 라우팅이라고 부릅니다.</p>
+
+<figure class="rbg-fig">
+<svg viewBox="0 0 720 300" role="img" aria-label="난이도에 따라 추론 예산을 배분하는 결정 트리. 들어온 요청을 먼저 난이도로 분류해, 단순 조회나 분류면 생각을 끄거나 낮은 강도로, 다단계 추론이나 코드 진단이면 중간 강도로, 수학 증명이나 복잡한 계획처럼 어려우면 높은 강도로 보낸다. 확신이 낮으면 예산을 올려 재시도한다.">
+  <rect x="285" y="20" width="150" height="42" rx="8" fill="none" stroke="var(--rbg-indigo)" stroke-width="2"/>
+  <text x="360" y="40" font-size="12" font-weight="700" fill="var(--rbg-indigo)" text-anchor="middle">요청 들어옴</text>
+  <text x="360" y="55" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">난이도 분류</text>
+
+  <line x1="360" y1="62" x2="130" y2="110" stroke="var(--rbg-slate)" stroke-width="1.3"/>
+  <line x1="360" y1="62" x2="360" y2="110" stroke="var(--rbg-slate)" stroke-width="1.3"/>
+  <line x1="360" y1="62" x2="590" y2="110" stroke="var(--rbg-slate)" stroke-width="1.3"/>
+
+  <!-- easy -->
+  <rect x="45" y="110" width="170" height="66" rx="8" fill="none" stroke="var(--rbg-sky)" stroke-width="2"/>
+  <text x="130" y="132" font-size="11.5" font-weight="700" fill="var(--rbg-sky)" text-anchor="middle">쉬움</text>
+  <text x="130" y="150" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">조회·분류·추출</text>
+  <text x="130" y="166" font-size="10.5" font-weight="700" fill="var(--rbg-sky)" text-anchor="middle">effort=low / budget=0</text>
+
+  <!-- medium -->
+  <rect x="275" y="110" width="170" height="66" rx="8" fill="none" stroke="var(--rbg-teal)" stroke-width="2"/>
+  <text x="360" y="132" font-size="11.5" font-weight="700" fill="var(--rbg-teal)" text-anchor="middle">보통</text>
+  <text x="360" y="150" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">다단계 추론·코드 진단</text>
+  <text x="360" y="166" font-size="10.5" font-weight="700" fill="var(--rbg-teal)" text-anchor="middle">effort=medium</text>
+
+  <!-- hard -->
+  <rect x="505" y="110" width="170" height="66" rx="8" fill="none" stroke="var(--rbg-rose)" stroke-width="2"/>
+  <text x="590" y="132" font-size="11.5" font-weight="700" fill="var(--rbg-rose)" text-anchor="middle">어려움</text>
+  <text x="590" y="150" font-size="10" fill="var(--rbg-slate)" text-anchor="middle">증명·복잡한 계획</text>
+  <text x="590" y="166" font-size="10.5" font-weight="700" fill="var(--rbg-rose)" text-anchor="middle">effort=high/max</text>
+
+  <line x1="360" y1="176" x2="360" y2="212" stroke="var(--rbg-slate)" stroke-width="1.3" stroke-dasharray="4 4"/>
+  <rect x="235" y="212" width="250" height="54" rx="8" fill="var(--rbg-amber)" opacity="0.12" stroke="var(--rbg-amber)" stroke-width="1.5"/>
+  <text x="360" y="234" font-size="11" font-weight="700" fill="var(--rbg-amber)" text-anchor="middle">확신 낮음 / 검증 실패?</text>
+  <text x="360" y="252" font-size="10.5" fill="var(--rbg-slate)" text-anchor="middle">예산 한 단계 올려 재시도(escalate)</text>
+</svg>
+<figcaption>적응형 예산 라우팅. 요청을 난이도로 분류해 예산을 다르게 주고, 결과의 확신이 낮으면 예산을 올려 다시 시도합니다. 쉬운 요청에 큰 예산을 태우지 않으면서도 어려운 요청은 놓치지 않는 균형점입니다.</figcaption>
+</figure>
+
+<p>가장 실용적인 형태는 "일단 싸게 시도하고, 미덥지 않으면 예산을 올려 재시도"하는 <strong>에스컬레이션(escalation)</strong> 패턴입니다. 대부분의 요청은 쉬운 쪽에 몰려 있으니, 이렇게만 해도 평균 비용이 크게 내려갑니다.</p>
+
+{{< highlight python >}}
+def solve_with_adaptive_budget(question: str) -> str:
+    # 1단계: 낮은 강도로 싸고 빠르게 먼저 시도
+    ans, confident = try_solve(question, effort="low")
+    if confident:
+        return ans                       # 대부분 여기서 끝난다 (싸게)
+
+    # 2단계: 미덥지 않으면 예산을 올려 재시도
+    ans, confident = try_solve(question, effort="medium")
+    if confident:
+        return ans
+
+    # 3단계: 그래도 아니면 최고 강도 (드물게 발생 → 비용 통제됨)
+    ans, _ = try_solve(question, effort="high")
+    return ans
+
+def try_solve(question, effort):
+    resp = client.responses.create(
+        model="gpt-5.6",
+        reasoning={"effort": effort},
+        input=f"{question}\n\n확신이 없으면 답 끝에 [UNSURE]를 붙여라.",
+    )
+    text = resp.output_text
+    return text, "[UNSURE]" not in text   # 자기 신고를 확신 신호로 사용
+{{< /highlight >}}
+
+<div class="rbg-good rbg-note"><strong>왜 효과적인가.</strong> 실제 트래픽은 쉬운 요청이 압도적으로 많습니다. 그 요청들은 1단계에서 싸게 끝나고, 진짜 어려운 소수만 비싼 단계로 올라갑니다. "전부 high"와 비교하면 품질은 비슷하게 지키면서 평균 비용·지연을 크게 줄일 수 있습니다. Gemini의 <code>thinking_budget=-1</code>(동적 모드)은 이 아이디어를 모델 안에 내장한 버전이라고 볼 수 있습니다.</div>
+
+<h2 id="sec-6">6. 흔한 실수 · 팁</h2>
+
+<div class="rbg-tblwrap">
+<table class="rbg-tbl">
+  <thead><tr><th>실수</th><th>무슨 일이 벌어지나</th><th>대신 이렇게</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>모든 요청에 최고 강도</td>
+      <td>쉬운 요청까지 생각 토큰을 잔뜩 태워 비용·지연 폭증, 오버씽킹으로 되레 틀리기도</td>
+      <td>기본은 낮게, 어려운 요청만 올리는 적응형 예산·에스컬레이션</td>
+    </tr>
+    <tr>
+      <td>생각 토큰을 비용에서 빼먹음</td>
+      <td>보이는 답만 보고 원가를 계산 → 청구서에서 몇 배 차이로 놀람</td>
+      <td>응답의 <code>usage</code>에서 reasoning/thinking 토큰을 꼭 로깅·모니터링</td>
+    </tr>
+    <tr>
+      <td><code>budget_tokens ≥ max_tokens</code></td>
+      <td>생각하다 예산을 다 써서 최종 답을 쓸 토큰이 없음 → 답이 잘리거나 빔</td>
+      <td><code>max_tokens</code>를 생각 예산 + 답 길이 + 여유로 넉넉히</td>
+    </tr>
+    <tr>
+      <td>쉬운 작업에 리즈닝 모델</td>
+      <td>포맷팅·단순 추출에도 수천 생각 토큰 → 40자 작업 비용 30배 사례</td>
+      <td>가벼운 작업은 <code>effort=none/minimal</code> 또는 일반(비추론) 모델</td>
+    </tr>
+    <tr>
+      <td>지연에 민감한 경로에 큰 예산</td>
+      <td>생각 토큰이 순차 생성돼 첫 응답까지 몇 초씩 지연</td>
+      <td>실시간 UI·자동완성은 예산을 끄거나 최소로</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="rbg-note"><strong>팁: 예산은 "튜닝 대상"입니다.</strong> 한 번 정하고 잊지 마세요. 대표 요청 몇십 개를 골라 예산을 <code>low → medium → high</code>로 바꿔 가며 정확도와 비용을 같이 재 보면, 우리 서비스의 스위트 스팟이 보입니다. 정확도가 더 안 오르기 시작하는 지점 바로 앞이 대개 최적입니다.</div>
+
+<h2 id="sec-7">7. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>리즈닝 모델의 비용·지연은 보이지 않는 생각 토큰이 좌우합니다.</strong> 짧은 답에도 수천 토큰을 태울 수 있어, 쉬운 작업에 잘못 쓰면 비용이 수십 배로 뜁니다.</li>
+  <li><strong>생각은 많을수록 좋은 게 아닙니다.</strong> 정확도-토큰 곡선에는 정점(스위트 스팟)이 있고, 그 뒤 오버씽킹 구간에서는 정확도가 떨어지고 비용만 늘어납니다.</li>
+  <li><strong>세 API의 손잡이:</strong> OpenAI <code>reasoning_effort</code>(none~max 단계), Gemini <code>thinkingBudget</code>(토큰 수, 0=끄기·−1=동적), Claude <code>budget_tokens</code>(최소 1024, max_tokens보다 작게).</li>
+  <li><strong>budget forcing</strong>은 사고 종료 토큰을 조작해(Wait 덧붙이기 / 강제 종료) 예산을 직접 늘리고 줄이는 기법으로, 손잡이 없는 오픈 모델에 유용합니다.</li>
+  <li><strong>실전 정답은 적응형 예산.</strong> 낮은 예산으로 먼저 시도하고, 확신이 낮을 때만 예산을 올려 재시도하면 품질을 지키면서 평균 비용을 크게 낮춥니다.</li>
+  <li>예산은 한 번 정하고 끝이 아니라, 대표 요청으로 정확도·비용을 재 가며 <strong>튜닝하는 값</strong>입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://developers.openai.com/api/docs/guides/reasoning" target="_blank" rel="noopener">OpenAI — Reasoning models (reasoning_effort 가이드)</a></li>
+  <li><a href="https://openai.com/index/gpt-5-6/" target="_blank" rel="noopener">OpenAI — GPT-5.6 (max effort · persisted reasoning, 2026-07-09)</a></li>
+  <li><a href="https://ai.google.dev/gemini-api/docs/thinking" target="_blank" rel="noopener">Google — Gemini API Thinking (thinkingBudget)</a></li>
+  <li><a href="https://firebase.google.com/docs/ai-logic/thinking" target="_blank" rel="noopener">Firebase AI Logic — Thinking (0=끄기, −1=동적, 범위)</a></li>
+  <li><a href="https://platform.claude.com/docs/en/build-with-claude/extended-thinking" target="_blank" rel="noopener">Anthropic — Extended thinking (budget_tokens, 최소 1024)</a></li>
+  <li><a href="https://arxiv.org/abs/2501.19393" target="_blank" rel="noopener">Muennighoff et al. — s1: Simple test-time scaling (budget forcing)</a></li>
+  <li><a href="https://arxiv.org/abs/2506.04210" target="_blank" rel="noopener">Does Thinking More Always Help? Mirage of Test-Time Scaling in Reasoning Models</a></li>
+  <li><a href="https://arxiv.org/abs/2604.10739" target="_blank" rel="noopener">When More Thinking Hurts: Overthinking in LLM Test-Time Compute Scaling</a></li>
+  <li><a href="https://huggingface.co/blog/aufklarer/ai-trends-2026-test-time-reasoning-reflective-agen" target="_blank" rel="noopener">Hugging Face — AI Trends 2026: Test-Time Reasoning</a></li>
+</ul>

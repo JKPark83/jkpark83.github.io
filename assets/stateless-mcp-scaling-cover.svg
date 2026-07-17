@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="stateless MCP를 나타낸 그림. 왼쪽 '이전(stateful)'에서는 세션 상태 때문에 클라이언트가 특정 서버 인스턴스에 고정(sticky)돼야 해서 나머지 서버가 놀고, 오른쪽 '이후(stateless)'에서는 세션이 사라져 라운드로빈 로드 밸런서가 어떤 요청이든 아무 서버 인스턴스로나 보낼 수 있어 수평 확장이 쉬워진다는 구조를 보여 준다.">
+  <defs>
+    <linearGradient id="smbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#141d33"/>
+    </linearGradient>
+    <linearGradient id="sm-old" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+    <linearGradient id="sm-new" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+    <linearGradient id="sm-srv" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#smbg)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">MCP가 <tspan fill="#fb7185">세션</tspan>을 버렸다</text>
+  <text x="80" y="156" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">이제 MCP 서버를 <tspan fill="#4ade80">아무 서버에나</tspan> 붙인다</text>
+  <text x="80" y="208" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="500">stateless MCP — 2026-07-28 스펙으로 원격 서버를 수평 확장하기</text>
+
+  <!-- 이전 (stateful, sticky) -->
+  <text x="300" y="288" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">이전 · stateful (sticky)</text>
+  <rect x="140" y="316" width="120" height="56" rx="12" fill="none" stroke="#64748b" stroke-width="2"/>
+  <text x="200" y="351" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="700" text-anchor="middle">client</text>
+  <!-- sticky arrow pinned to server A only -->
+  <path d="M262 344 H320" stroke="#fb7185" stroke-width="3.5" fill="none" marker-end="url(#ah-old)"/>
+  <text x="322" y="336" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" font-weight="700">고정</text>
+  <!-- servers -->
+  <rect x="340" y="312" width="120" height="46" rx="10" fill="url(#sm-srv)"/>
+  <text x="400" y="341" fill="#0b1220" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="800" text-anchor="middle">서버 A</text>
+  <rect x="340" y="366" width="120" height="46" rx="10" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="400" y="395" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="700" text-anchor="middle">서버 B (놀고)</text>
+  <rect x="340" y="420" width="120" height="46" rx="10" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="400" y="449" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="700" text-anchor="middle">서버 C (놀고)</text>
+  <text x="300" y="506" fill="#fca5a5" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="600" text-anchor="middle">Mcp-Session-Id · 세션 저장소 필요</text>
+  <text x="300" y="532" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="500" text-anchor="middle">세션이 서버 A에만 있어 확장이 막힌다</text>
+
+  <!-- divider -->
+  <line x1="600" y1="270" x2="600" y2="560" stroke="#334155" stroke-width="2" stroke-dasharray="3 6"/>
+
+  <!-- 이후 (stateless) -->
+  <text x="900" y="288" fill="#4ade80" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">이후 · stateless (round-robin)</text>
+  <rect x="668" y="356" width="110" height="52" rx="12" fill="none" stroke="#64748b" stroke-width="2"/>
+  <text x="723" y="388" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="700" text-anchor="middle">client</text>
+  <rect x="800" y="350" width="70" height="64" rx="10" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+  <text x="835" y="378" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13" font-weight="700" text-anchor="middle">LB</text>
+  <text x="835" y="397" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" text-anchor="middle">라운드</text>
+  <text x="835" y="411" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" text-anchor="middle">로빈</text>
+  <path d="M780 382 H798" stroke="#94a3b8" stroke-width="3" fill="none" marker-end="url(#ah-new)"/>
+  <!-- fan out to all three -->
+  <path d="M872 372 C 920 350, 960 330, 1000 328" stroke="#4ade80" stroke-width="3" fill="none" marker-end="url(#ah-new)"/>
+  <path d="M872 382 H1000" stroke="#4ade80" stroke-width="3" fill="none" marker-end="url(#ah-new)"/>
+  <path d="M872 392 C 920 414, 960 434, 1000 436" stroke="#4ade80" stroke-width="3" fill="none" marker-end="url(#ah-new)"/>
+  <rect x="1002" y="308" width="118" height="42" rx="10" fill="url(#sm-new)"/>
+  <text x="1061" y="335" fill="#052e16" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="800" text-anchor="middle">서버 A</text>
+  <rect x="1002" y="362" width="118" height="42" rx="10" fill="url(#sm-new)"/>
+  <text x="1061" y="389" fill="#052e16" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="800" text-anchor="middle">서버 B</text>
+  <rect x="1002" y="416" width="118" height="42" rx="10" fill="url(#sm-new)"/>
+  <text x="1061" y="443" fill="#052e16" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="800" text-anchor="middle">서버 C</text>
+  <text x="900" y="506" fill="#86efac" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="600" text-anchor="middle">세션 없음 · sticky 불필요</text>
+  <text x="900" y="532" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="500" text-anchor="middle">어떤 요청이든 아무 인스턴스로나 간다</text>
+
+  <text x="600" y="596" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="500" text-anchor="middle">SEP-2575 · initialize 핸드셰이크와 Mcp-Session-Id를 걷어내 프로토콜 코어를 무상태로</text>
+
+  <defs>
+    <marker id="ah-old" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#fb7185"/></marker>
+    <marker id="ah-new" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#4ade80"/></marker>
+  </defs>
+</svg>

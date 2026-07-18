@@ -1,0 +1,426 @@
+---
+title: "에이전트가 짠 코드를 어디서 돌릴까: 믿을 수 없는 코드를 안전하게 실행하는 샌드박스 격리"
+date: 2026-07-19T07:30:00+09:00
+draft: false
+tags: ["AI", "sandbox", "샌드박스", "code execution", "코드 실행", "agent", "에이전트", "Firecracker", "microVM", "gVisor", "E2B", "Modal", "Daytona", "isolation", "격리", "LLM 보안", "container escape", "prompt injection"]
+categories: ["AI 엔지니어링"]
+summary: "코드를 스스로 짜고 실행하는 에이전트가 흔해지면서, '그 코드를 대체 어디서 돌리느냐'가 진짜 엔지니어링 문제가 됐습니다. LLM이 뱉은 코드는 신뢰할 수 없는 입력이고, 아무 격리 없이 호스트에서 실행하면 파일 삭제·크레덴셜 탈취·외부 유출로 이어집니다 — 2026년 7월 Hugging Face가 공개한, 자율 에이전트가 코드 실행 취약점을 파고들어 내부 인프라를 뚫은 사건이 바로 그 경고였죠. 이 글은 왜 격리가 필요한지(위협 모델)부터, 같은 프로세스 → 컨테이너 → gVisor → Firecracker microVM으로 이어지는 격리 스펙트럼, gVisor와 microVM이 실제로 무엇을 어떻게 막는지, E2B·Modal·Daytona·Vercel 같은 샌드박스 서비스의 트레이드오프, 그리고 네트워크 deny-by-default를 포함한 실전 하드닝까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+cover:
+  image: "agent-code-execution-sandbox-cover.svg"
+  alt: "에이전트 코드 실행 샌드박스의 격리 스펙트럼. 왼쪽 약한 격리에서 오른쪽 강한 격리로 갈수록 안전해진다. 같은 프로세스(eval)와 컨테이너는 호스트 커널을 공유해 위험하고, gVisor는 유저스페이스 커널로 시스템 콜을 가로채며, Firecracker microVM은 전용 커널과 KVM 하드웨어 경계로 가장 강하게 격리한다."
+  caption: "LLM이 짠 코드는 '믿을 수 없는 입력'입니다. 호스트 커널을 공유할수록 탈출 한 번에 전부 뚫리고, 전용 커널을 줄수록 안전하지만 무겁고 느립니다. 샌드박스 선택은 이 스펙트럼 위에서 균형점을 고르는 일입니다."
+  relative: false
+---
+
+<style>
+/* ── Agent Code Execution Sandbox 포스트 전용 스타일 (acx- 접두사) ── */
+.acx-fig{
+  --acx-indigo:#4f46e5; --acx-amber:#d97706; --acx-green:#16a34a; --acx-rose:#e11d48;
+  --acx-slate:#64748b; --acx-violet:#7c3aed; --acx-teal:#0d9488; --acx-blue:#2563eb; --acx-lime:#65a30d;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .acx-fig{
+  --acx-indigo:#818cf8; --acx-amber:#fbbf24; --acx-green:#4ade80; --acx-rose:#fb7185;
+  --acx-slate:#94a3b8; --acx-violet:#a78bfa; --acx-teal:#2dd4bf; --acx-blue:#60a5fa; --acx-lime:#a3e635;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .acx-fig{
+    --acx-indigo:#818cf8; --acx-amber:#fbbf24; --acx-green:#4ade80; --acx-rose:#fb7185;
+    --acx-slate:#94a3b8; --acx-violet:#a78bfa; --acx-teal:#2dd4bf; --acx-blue:#60a5fa; --acx-lime:#a3e635;
+  }
+}
+.acx-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.acx-fig text{font-family:inherit}
+.acx-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.acx-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.acx-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.acx-toc ol{margin:0;padding-left:1.25rem}
+.acx-toc li{margin:.22rem 0;font-size:.95rem}
+.acx-toc a{text-decoration:none}
+.acx-toc a:hover{text-decoration:underline}
+.acx-pull{font-size:1.12rem;line-height:1.72}
+.acx-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.acx-note{border-left:4px solid var(--acx-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.acx-note strong{color:var(--acx-blue,#2563eb)}
+.acx-warn{border-left:4px solid var(--acx-rose,#e11d48)}
+.acx-warn strong{color:var(--acx-rose,#e11d48)}
+.acx-good{border-left:4px solid var(--acx-teal,#0d9488)}
+.acx-good strong{color:var(--acx-teal,#0d9488)}
+.acx-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.acx-tbl th,.acx-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.acx-tbl th{background:var(--entry);font-weight:700}
+.acx-tbl code{font-size:.86em}
+.acx-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="acx-pull">
+  <p>에이전트에게 "코드를 짜서 실행해 봐"라고 시키는 순간, 우리는 <strong>믿을 수 없는 프로그램을 우리 인프라 안에서 실행</strong>하는 겁니다. 문제는 "무엇을 짜느냐"가 아니라 <em>"그게 대체 어디서 도느냐"</em>입니다.</p>
+  <footer>— 모델은 아무리 똑똑해도, 실행 경계(execution boundary)가 뚫리면 끝입니다.</footer>
+</blockquote>
+
+<nav class="acx-toc" aria-label="목차">
+  <div class="acx-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 '샌드박스'가 화제인가</a></li>
+    <li><a href="#sec-2">위협 모델: LLM이 짠 코드가 할 수 있는 나쁜 짓</a></li>
+    <li><a href="#sec-3">격리의 스펙트럼: 프로세스부터 microVM까지</a></li>
+    <li><a href="#sec-4">gVisor: 유저스페이스 커널로 syscall을 가로채기</a></li>
+    <li><a href="#sec-5">Firecracker: 전용 커널을 주는 microVM</a></li>
+    <li><a href="#sec-6">실전: 샌드박스 서비스 고르기와 코드</a></li>
+    <li><a href="#sec-7">하드닝 체크리스트 (네트워크 deny-by-default)</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 '샌드박스'가 화제인가</h2>
+
+<p>요즘 에이전트는 답만 말하지 않습니다. 데이터를 분석해 달라고 하면 직접 파이썬 코드를 짜서 돌리고, 버그를 고치라고 하면 테스트를 실행하고, 웹을 조사하라고 하면 셸 명령을 칩니다. 코드 인터프리터, 코딩 에이전트, "computer use"가 다 이런 패턴입니다. 편리하죠. 그런데 여기엔 조용한 전제가 하나 깔려 있습니다 — <strong>그 코드가 실제로 어딘가에서 실행된다</strong>는 것.</p>
+
+<p>이게 왜 무서운지는 2026년 7월, Hugging Face가 공개한 보안 사건이 아주 잘 보여 줍니다. 자율 에이전트 프레임워크가 원격 데이터셋 로더의 <strong>코드 실행 취약점</strong>과 설정 템플릿 인젝션을 파고들어, 데이터 처리 워커에서 허가받지 않은 코드를 실행했습니다. 거기서부터 권한을 올리고, 클라우드·클러스터 크레덴셜을 긁어모으고, 주말 내내 내부 인프라를 옆으로 타고 다녔죠. 공격 측은 <em>수천 개의 짧게 살았다 사라지는 샌드박스</em> 위에서 수만 건의 행동을 자동으로 실행했다고 합니다. 사건을 조사한 쪽도, 17,000건이 넘는 공격 로그를 LLM 분석 에이전트로 돌려 몇 시간 만에 타임라인을 복원했고요.</p>
+
+<p>같은 주에 보안 진영에서는 "당신의 AI 에이전트는 <strong>셸을 든 내부자(insider threat with a shell)</strong>"라는 표현이 돌았습니다. 프롬프트 인젝션 한 방, 문서에 숨겨진 악의적 지시 한 줄이면, 파일·네트워크·크레덴셜에 접근 권한을 가진 에이전트가 그대로 명령을 실행해 버린다는 겁니다. 요점은 분명합니다. <strong>임의 코드 실행(arbitrary code execution)이 가능한 순간, "실행 경계"가 시스템에서 가장 지켜야 할 자산이 됩니다.</strong></p>
+
+<p>그래서 "에이전트가 짠 코드를 어디서, 어떻게 격리해서 돌릴 것인가"가 2026년 내내 실무의 뜨거운 주제였습니다. E2B·Modal·Daytona·Vercel 같은 샌드박스 서비스가 벤치마크로 맞붙었고, Anthropic은 아예 "두뇌(에이전트 루프)는 우리 쪽에, 손발(코드 실행)은 너희 인프라에"라는 self-hosted 샌드박스를 공개하며 Cloudflare·Daytona·Modal·Vercel을 파트너로 세웠죠. 이 글은 그 밑바닥, 즉 <strong>격리가 실제로 어떻게 동작하는지</strong>를 junior 개발자 눈높이에서 풀어 봅니다.</p>
+
+<h2 id="sec-2">2. 위협 모델: LLM이 짠 코드가 할 수 있는 나쁜 짓</h2>
+
+<p>먼저 사고방식을 하나 바꿔야 합니다. <strong>LLM이 생성한 코드는 "믿을 수 없는 입력(untrusted input)"입니다.</strong> 사용자가 폼에 입력한 문자열을 SQL에 그대로 넣지 않는 것처럼, 모델이 뱉은 코드도 그대로 실행하면 안 됩니다. 모델이 나빠서가 아니라, <em>그 코드를 조종하는 게 누구인지 모르기 때문</em>입니다. 프롬프트 인젝션으로 외부 문서·웹페이지·도구 결과에 숨은 지시가 모델을 움직이면, 코드는 얼마든지 악의적으로 바뀔 수 있습니다.</p>
+
+<p>격리 없이 호스트에서 실행하면 무슨 일이 벌어질까요? 크게 네 가지입니다.</p>
+
+<ul>
+  <li><strong>파일시스템 파괴·유출</strong> — <code>rm -rf</code>로 데이터를 날리거나, <code>/etc</code>·<code>~/.aws/credentials</code>·<code>.env</code> 같은 민감 파일을 읽어 갑니다.</li>
+  <li><strong>네트워크 유출(egress)</strong> — 읽어 낸 비밀을 공격자 서버로 <code>curl</code> 한 방에 보냅니다. 내부망을 훑는 SSRF도 여기 포함됩니다. 데이터 유출은 가장 피해가 큰 벡터인데, <strong>네트워크를 막는 것만으로 즉시 차단</strong>됩니다.</li>
+  <li><strong>크레덴셜 탈취</strong> — 프로세스 환경변수, 클라우드 메타데이터 서비스(<code>169.254.169.254</code>), 마운트된 토큰을 훔쳐 권한을 확대합니다. Hugging Face 사건이 정확히 이 경로였죠.</li>
+  <li><strong>리소스 고갈</strong> — 무한 루프, fork 폭탄, 메모리 폭식으로 호스트를 마비시킵니다(가용성 공격).</li>
+</ul>
+
+<p>여기에 하나 더, 가장 무서운 게 <strong>탈출(escape)</strong>입니다. 여러 사용자의 코드를 같은 머신에서 돌린다면, 한 샌드박스가 격리를 뚫고 나가 <em>옆 테넌트</em>의 데이터에 닿는 순간 서비스 전체가 무너집니다. 그래서 격리의 강함은 결국 "탈출이 얼마나 어려운가"로 판가름 납니다. 표준 컨테이너처럼 호스트 커널을 공유하는 방식이 에이전트 코드 실행에 부족하다고 말하는 이유가 이것입니다 — 커널 버그 하나면 벽이 사라지니까요.</p>
+
+<div class="acx-note"><strong>핵심 원칙:</strong> 격리 설계의 기본값은 "<strong>deny by default</strong>"입니다. 파일도 네트워크도 권한도, 필요한 것만 열어 주고 나머지는 전부 막습니다. 열어 줄 것을 고르는 게 아니라, <em>막지 못한 것</em>이 곧 공격 표면입니다.</div>
+
+<h2 id="sec-3">3. 격리의 스펙트럼: 프로세스부터 microVM까지</h2>
+
+<p>격리는 "있다/없다"의 이분법이 아니라 스펙트럼입니다. 아래로 갈수록 안전하지만, 대체로 더 무겁고 느립니다. 핵심 질문은 딱 하나 — <strong>"호스트 커널을 공유하느냐, 전용 커널을 주느냐"</strong>입니다.</p>
+
+<figure class="acx-fig">
+<svg viewBox="0 0 760 430" role="img" aria-label="코드 실행 격리의 다섯 단계를 위에서 아래로 나열한 그림. 위쪽일수록 약한 격리, 아래쪽일수록 강한 격리다. 1단계 같은 프로세스는 eval/exec로 호스트에서 직접 실행해 격리가 없고 절대 금지. 2단계 서브프로세스와 OS 사용자 분리는 여전히 약하다. 3단계 컨테이너는 seccomp와 네임스페이스로 막지만 호스트 커널을 공유해 탈출 위험이 남는다. 4단계 gVisor는 유저스페이스 커널로 시스템 콜을 가로채 공격 표면을 줄인다. 5단계 Firecracker와 Kata 같은 microVM은 KVM으로 전용 커널과 하드웨어 경계를 준다. 오른쪽에는 커널 공유 구간과 전용 커널 구간을 표시한다.">
+  <defs>
+    <marker id="acxar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--acx-slate)"/>
+    </marker>
+  </defs>
+
+  <!-- vertical axis arrow -->
+  <line x1="40" y1="40" x2="40" y2="400" stroke="var(--acx-slate)" stroke-width="2" marker-end="url(#acxar2)"/>
+  <text x="34" y="34" text-anchor="start" font-size="12.5" fill="var(--acx-rose)" font-weight="700">약한 격리</text>
+  <text x="34" y="418" text-anchor="start" font-size="12.5" fill="var(--acx-green)" font-weight="700">강한 격리</text>
+
+  <!-- level 1 -->
+  <rect x="80" y="44" width="470" height="58" rx="10" fill="none" stroke="var(--acx-rose)" stroke-width="2.5"/>
+  <text x="96" y="70" font-size="15" font-weight="800" fill="var(--acx-rose)">① 같은 프로세스 — eval() / exec()</text>
+  <text x="96" y="90" font-size="12.5" fill="var(--acx-slate)">격리 0. 호스트에서 그대로 실행. 데모에서도 쓰지 마세요.</text>
+  <text x="640" y="78" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--acx-rose)">호스트 커널</text>
+  <text x="640" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--acx-rose)">공유</text>
+
+  <!-- level 2 -->
+  <rect x="80" y="112" width="470" height="58" rx="10" fill="none" stroke="var(--acx-amber)" stroke-width="2"/>
+  <text x="96" y="138" font-size="15" font-weight="800" fill="var(--acx-amber)">② 서브프로세스 · OS 사용자 분리</text>
+  <text x="96" y="158" font-size="12.5" fill="var(--acx-slate)">권한 낮춘 별도 프로세스. 여전히 커널을 공유해 약함.</text>
+
+  <!-- level 3 -->
+  <rect x="80" y="180" width="470" height="58" rx="10" fill="none" stroke="var(--acx-amber)" stroke-width="2"/>
+  <text x="96" y="206" font-size="15" font-weight="800" fill="var(--acx-amber)">③ 컨테이너 — Docker + seccomp/namespace</text>
+  <text x="96" y="226" font-size="12.5" fill="var(--acx-slate)">실무 최소선. 그래도 커널 버그 하나면 탈출 가능.</text>
+
+  <line x1="600" y1="44" x2="600" y2="238" stroke="var(--acx-rose)" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+  <!-- level 4 -->
+  <rect x="80" y="248" width="470" height="58" rx="10" fill="none" stroke="var(--acx-lime)" stroke-width="2.5"/>
+  <text x="96" y="274" font-size="15" font-weight="800" fill="var(--acx-lime)">④ gVisor — 유저스페이스 커널</text>
+  <text x="96" y="294" font-size="12.5" fill="var(--acx-slate)">syscall을 가로채 호스트 커널 접촉을 최소화. 약간 느림.</text>
+
+  <!-- level 5 -->
+  <rect x="80" y="316" width="470" height="66" rx="10" fill="none" stroke="var(--acx-green)" stroke-width="3"/>
+  <text x="96" y="342" font-size="15" font-weight="800" fill="var(--acx-green)">⑤ microVM — Firecracker · Kata</text>
+  <text x="96" y="362" font-size="12.5" fill="var(--acx-slate)">KVM으로 전용 커널 + 하드웨어 경계. 가장 강함.</text>
+  <text x="96" y="378" font-size="12" fill="var(--acx-slate)">(WASM은 별도 갈래 — 언어 제약 대신 능력 기반 격리)</text>
+  <text x="640" y="345" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--acx-green)">전용 커널</text>
+  <text x="640" y="362" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--acx-green)">/ VM 경계</text>
+</svg>
+<figcaption>격리 스펙트럼. ①②는 사실상 쓰면 안 되고, ③ 컨테이너가 실무 최소선입니다. 믿을 수 없는 코드를 멀티테넌트로 돌린다면 ④ gVisor나 ⑤ microVM이 정답입니다. 위로 갈수록 빠르고 싸지만 뚫리기 쉽고, 아래로 갈수록 안전하지만 무겁습니다.</figcaption>
+</figure>
+
+<p>먼저 절대 하면 안 되는 것부터. 파이썬 <code>eval()</code>·<code>exec()</code>나 자바스크립트 <code>eval</code>로 모델이 준 코드를 그냥 실행하는 건 격리가 아예 없는 겁니다. "데모니까 괜찮겠지"도 위험합니다. 아래는 <strong>나쁜 예시</strong>입니다.</p>
+
+{{< highlight python >}}
+# ❌ 절대 하지 마세요 — 모델이 짠 코드를 호스트에서 그대로 실행
+code = llm.generate("사용자 CSV를 분석하는 파이썬 코드를 짜 줘")
+exec(code)   # rm -rf, 크레덴셜 읽기, 외부 유출… 뭐든 가능
+{{< /highlight >}}
+
+<p>컨테이너(③)는 실무의 최소선입니다. Linux 네임스페이스로 프로세스·파일시스템·네트워크를 갈라 주고, seccomp로 위험한 시스템 콜을 걸러 냅니다. 하지만 모든 컨테이너는 <strong>호스트 커널을 공유</strong>합니다. 커널에 취약점이 하나 있으면 컨테이너 벽을 넘어 호스트로, 나아가 옆 컨테이너로 갈 수 있죠. "믿을 수 없는 코드"를 여러 테넌트가 나눠 쓰는 상황에선 이 공유 커널이 약한 고리입니다. 그래서 두 가지 강화 방향이 나옵니다 — 커널로 가는 통로를 좁히는 <strong>gVisor</strong>, 아예 커널을 따로 주는 <strong>microVM</strong>.</p>
+
+<h2 id="sec-4">4. gVisor: 유저스페이스 커널로 syscall을 가로채기</h2>
+
+<p>gVisor는 구글이 만든 "application kernel(애플리케이션 커널)"입니다. 아이디어가 재밌어요. 컨테이너 안 프로그램이 <code>read()</code> 같은 시스템 콜을 부르면, 그 호출이 진짜 리눅스 커널로 가는 게 아니라 <strong>Sentry</strong>라는 프로그램으로 갑니다. Sentry는 Go로 리눅스 시스템 콜 인터페이스를 처음부터 다시 구현한, 일종의 <em>가짜(대리) 커널</em>입니다. 유저스페이스에서 돌면서 게스트 코드가 호스트 커널을 직접 만지지 못하게 중간에서 다 받아 처리합니다.</p>
+
+<p>왜 이게 더 안전할까요? 공격 표면이 확 줄기 때문입니다. 리눅스 커널에는 시스템 콜이 약 350개 있고, 각각이 잠재적 취약점입니다. gVisor를 쓰면 게스트는 그 350개를 직접 부를 수 없고, Sentry가 대신 처리한 뒤 <strong>최대 68개</strong>의 호스트 시스템 콜만 씁니다. 게스트가 만질 수 있는 진짜 커널 표면이 350에서 68로 줄어드는 셈이죠. 커널 버그를 노리는 공격이 훨씬 어려워집니다.</p>
+
+<figure class="acx-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="컨테이너, gVisor, microVM의 구조를 나란히 비교한 그림. 왼쪽 일반 컨테이너는 앱이 시스템 콜을 호스트 커널에 직접 던져 공격 표면이 넓다. 가운데 gVisor는 앱과 호스트 커널 사이에 Sentry라는 유저스페이스 커널이 끼어들어 시스템 콜을 가로채고, 호스트 커널로는 약 68개만 통과시킨다. 오른쪽 microVM은 게스트가 전용 게스트 커널을 가지고, 그 아래 KVM 하드웨어 가상화 경계가 호스트 커널과 분리한다.">
+  <!-- container -->
+  <text x="130" y="30" text-anchor="middle" font-size="14" font-weight="800" fill="var(--acx-amber)">③ 일반 컨테이너</text>
+  <rect x="40" y="46" width="180" height="46" rx="8" fill="none" stroke="var(--acx-slate)" stroke-width="1.8"/>
+  <text x="130" y="74" text-anchor="middle" font-size="13" fill="var(--acx-slate)">믿을 수 없는 앱</text>
+  <line x1="130" y1="92" x2="130" y2="150" stroke="var(--acx-rose)" stroke-width="2.5" marker-end="url(#acxar3)"/>
+  <text x="130" y="128" text-anchor="middle" font-size="11.5" fill="var(--acx-rose)">syscall 직행 (~350)</text>
+  <rect x="40" y="150" width="180" height="120" rx="8" fill="none" stroke="var(--acx-rose)" stroke-width="2.5"/>
+  <text x="130" y="205" text-anchor="middle" font-size="14" font-weight="800" fill="var(--acx-rose)">호스트 커널</text>
+  <text x="130" y="226" text-anchor="middle" font-size="11.5" fill="var(--acx-slate)">공격 표면 넓음</text>
+
+  <!-- gVisor -->
+  <text x="380" y="30" text-anchor="middle" font-size="14" font-weight="800" fill="var(--acx-lime)">④ gVisor</text>
+  <rect x="290" y="46" width="180" height="40" rx="8" fill="none" stroke="var(--acx-slate)" stroke-width="1.8"/>
+  <text x="380" y="71" text-anchor="middle" font-size="13" fill="var(--acx-slate)">믿을 수 없는 앱</text>
+  <line x1="380" y1="86" x2="380" y2="104" stroke="var(--acx-slate)" stroke-width="2" marker-end="url(#acxar3)"/>
+  <rect x="290" y="104" width="180" height="46" rx="8" fill="none" stroke="var(--acx-lime)" stroke-width="2.5"/>
+  <text x="380" y="126" text-anchor="middle" font-size="13" font-weight="800" fill="var(--acx-lime)">Sentry</text>
+  <text x="380" y="143" text-anchor="middle" font-size="11" fill="var(--acx-slate)">유저스페이스 커널</text>
+  <line x1="380" y1="150" x2="380" y2="182" stroke="var(--acx-green)" stroke-width="2.5" marker-end="url(#acxar3)"/>
+  <text x="380" y="171" text-anchor="middle" font-size="11.5" fill="var(--acx-green)">~68개만</text>
+  <rect x="290" y="182" width="180" height="88" rx="8" fill="none" stroke="var(--acx-slate)" stroke-width="1.8"/>
+  <text x="380" y="230" text-anchor="middle" font-size="14" font-weight="800" fill="var(--acx-slate)">호스트 커널</text>
+  <text x="380" y="250" text-anchor="middle" font-size="11" fill="var(--acx-slate)">표면 좁힘</text>
+
+  <!-- microVM -->
+  <text x="630" y="30" text-anchor="middle" font-size="14" font-weight="800" fill="var(--acx-green)">⑤ microVM</text>
+  <rect x="540" y="46" width="180" height="38" rx="8" fill="none" stroke="var(--acx-slate)" stroke-width="1.8"/>
+  <text x="630" y="70" text-anchor="middle" font-size="13" fill="var(--acx-slate)">믿을 수 없는 앱</text>
+  <rect x="540" y="90" width="180" height="42" rx="8" fill="none" stroke="var(--acx-green)" stroke-width="2.5"/>
+  <text x="630" y="110" text-anchor="middle" font-size="13" font-weight="800" fill="var(--acx-green)">전용 게스트 커널</text>
+  <text x="630" y="126" text-anchor="middle" font-size="11" fill="var(--acx-slate)">각 VM마다 하나씩</text>
+  <rect x="540" y="140" width="180" height="34" rx="8" fill="var(--acx-green)" fill-opacity="0.12" stroke="var(--acx-green)" stroke-width="2" stroke-dasharray="5 3"/>
+  <text x="630" y="162" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--acx-green)">KVM · 하드웨어 경계</text>
+  <rect x="540" y="182" width="180" height="88" rx="8" fill="none" stroke="var(--acx-slate)" stroke-width="1.8"/>
+  <text x="630" y="230" text-anchor="middle" font-size="14" font-weight="800" fill="var(--acx-slate)">호스트 커널</text>
+  <text x="630" y="250" text-anchor="middle" font-size="11" fill="var(--acx-slate)">직접 접촉 없음</text>
+
+  <defs>
+    <marker id="acxar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--acx-slate)"/>
+    </marker>
+  </defs>
+  <text x="380" y="300" text-anchor="middle" font-size="12" fill="var(--acx-slate)">왼쪽에서 오른쪽으로 갈수록 게스트가 호스트 커널을 만질 통로가 좁아진다</text>
+</svg>
+<figcaption>같은 "격리"라도 구조가 다릅니다. 컨테이너는 syscall이 호스트 커널로 직행하고, gVisor는 Sentry가 가로채 68개만 통과시키며, microVM은 전용 커널과 KVM 하드웨어 경계로 호스트 커널과 아예 분리합니다.</figcaption>
+</figure>
+
+<p>공짜는 아닙니다. 모든 시스템 콜이 Sentry를 거치니 오버헤드가 붙습니다. 2019년 USENIX 연구에선 시스템 콜 종류에 따라 네이티브보다 <strong>2~11배 느린</strong> 경우가 측정됐습니다. 이후 gVisor는 기존 <code>ptrace</code> 방식을 대체하는 <strong>Systrap</strong> 플랫폼(2023)을 기본값으로 도입해 이 syscall 가로채기 성능을 크게 개선했습니다. 그래도 "커널을 많이 두드리는" I/O 집약 워크로드에선 microVM보다 느릴 수 있다는 점은 기억해 두세요. gVisor는 쿠버네티스와도 잘 붙어서, 기존 컨테이너 파이프라인에 격리를 한 겹 더 올리고 싶을 때 특히 매력적입니다.</p>
+
+<h2 id="sec-5">5. Firecracker: 전용 커널을 주는 microVM</h2>
+
+<p>더 센 격리는 아예 <strong>가상 머신</strong>을 주는 겁니다. 단, 무겁고 느린 옛날 VM이 아니라 <em>초경량</em> VM이요. Firecracker는 AWS가 Lambda와 Fargate의 격리를 위해 만든 오픈소스 VMM(virtual machine monitor)입니다. 리눅스 KVM 하드웨어 가상화 위에서 "microVM"을 띄우는데, 각 microVM이 <strong>자기만의 커널</strong>을 갖습니다. 게스트 코드가 아무리 날뛰어도, 호스트 커널이 아니라 <em>자기 VM 안의 커널</em>만 만질 수 있죠. 그 아래엔 CPU가 강제하는 하드웨어 경계(KVM)가 있어서, 공유 커널 방식이 겪는 탈출을 원천적으로 어렵게 만듭니다.</p>
+
+<p>"VM이면 느리고 무겁지 않나?" 하는 걱정을, Firecracker는 숫자로 지웁니다. 검증된 수치를 볼까요.</p>
+
+<figure class="acx-fig">
+<svg viewBox="0 0 760 220" role="img" aria-label="Firecracker microVM의 핵심 수치 네 개를 카드로 보여 주는 그림. 첫째 유저 코드 시작까지 약 125밀리초. 둘째 microVM 하나당 메모리 오버헤드 5MiB 미만. 셋째 호스트 한 대에서 초당 최대 150개 생성. 넷째 KVM 기반 전용 커널로 하드웨어 격리.">
+  <rect x="30" y="40" width="165" height="140" rx="14" fill="none" stroke="var(--acx-green)" stroke-width="2.5"/>
+  <text x="112" y="98" text-anchor="middle" font-size="34" font-weight="800" fill="var(--acx-green)">~125ms</text>
+  <text x="112" y="128" text-anchor="middle" font-size="13.5" fill="var(--acx-slate)">유저 코드</text>
+  <text x="112" y="147" text-anchor="middle" font-size="13.5" fill="var(--acx-slate)">시작까지</text>
+
+  <rect x="215" y="40" width="165" height="140" rx="14" fill="none" stroke="var(--acx-blue)" stroke-width="2.5"/>
+  <text x="297" y="98" text-anchor="middle" font-size="32" font-weight="800" fill="var(--acx-blue)">&lt; 5 MiB</text>
+  <text x="297" y="128" text-anchor="middle" font-size="13.5" fill="var(--acx-slate)">microVM 하나당</text>
+  <text x="297" y="147" text-anchor="middle" font-size="13.5" fill="var(--acx-slate)">메모리 오버헤드</text>
+
+  <rect x="400" y="40" width="165" height="140" rx="14" fill="none" stroke="var(--acx-violet)" stroke-width="2.5"/>
+  <text x="482" y="98" text-anchor="middle" font-size="32" font-weight="800" fill="var(--acx-violet)">150 /초</text>
+  <text x="482" y="128" text-anchor="middle" font-size="13.5" fill="var(--acx-slate)">호스트 한 대에서</text>
+  <text x="482" y="147" text-anchor="middle" font-size="13.5" fill="var(--acx-slate)">최대 생성 속도</text>
+
+  <rect x="585" y="40" width="165" height="140" rx="14" fill="none" stroke="var(--acx-teal)" stroke-width="2.5"/>
+  <text x="667" y="96" text-anchor="middle" font-size="26" font-weight="800" fill="var(--acx-teal)">KVM</text>
+  <text x="667" y="128" text-anchor="middle" font-size="13.5" fill="var(--acx-slate)">전용 커널 +</text>
+  <text x="667" y="147" text-anchor="middle" font-size="13.5" fill="var(--acx-slate)">하드웨어 격리</text>
+
+  <text x="380" y="206" text-anchor="middle" font-size="12" fill="var(--acx-slate)">출처: AWS · Firecracker 공식 문서 / Amazon Science 논문</text>
+</svg>
+<figcaption>Firecracker microVM의 핵심 수치. 125ms 안에 뜨고, 하나당 메모리는 5MiB도 안 되며, 한 서버에서 초당 150개까지 찍어 낼 수 있습니다. "VM은 무겁다"는 통념을 깨는 지점이라, 짧게 살았다 사라지는(ephemeral) 에이전트 샌드박스에 딱 맞습니다.</figcaption>
+</figure>
+
+<p>Firecracker는 안전을 위해 일부러 기능을 뺐습니다. 불필요한 가상 장치와 게스트 기능을 제거해 메모리도 줄이고 공격 표면도 줄였죠. 여기에 <strong>jailer</strong>라는 동반 프로그램이 microVM을 리눅스 유저스페이스 보안 장벽으로 한 번 더 감싸, 가상화 경계가 뚫려도 두 번째 방어선이 남게 합니다. Kata Containers도 비슷하게 "컨테이너처럼 쓰지만 속은 경량 VM"인 접근이고요. 실무 컨센서스는 대체로 이렇습니다 — <strong>믿을 수 없는 코드를 프로덕션 멀티테넌트로 돌린다면, microVM(Firecracker·Kata)이 사실상 안전한 최소선</strong>입니다.</p>
+
+<h2 id="sec-6">6. 실전: 샌드박스 서비스 고르기와 코드</h2>
+
+<p>다행히 이걸 직접 다 만들 필요는 없습니다. Firecracker나 gVisor를 매니지드로 감싸 "샌드박스 API"로 파는 서비스가 여럿입니다. 2026년 기준 자주 비교되는 선택지를 정리하면 이렇습니다.</p>
+
+<div class="acx-tblwrap">
+<table class="acx-tbl">
+  <thead>
+    <tr><th>서비스</th><th>격리 방식</th><th>대략 콜드 스타트</th><th>특징 · 메모</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>E2B</strong></td>
+      <td>Firecracker microVM</td>
+      <td>~150ms</td>
+      <td>에이전트 코드 실행 전용. Python·JS SDK. 누적 5억+ 샌드박스 실행, Fortune 100의 88% 사용을 표방. Perplexity·Hugging Face·Groq 등 사용.</td>
+    </tr>
+    <tr>
+      <td><strong>Modal</strong></td>
+      <td>gVisor</td>
+      <td>가변</td>
+      <td>추론·학습·배치까지 아우르는 넓은 플랫폼. 샌드박스 안에서 <strong>GPU</strong>를 쓸 수 있는 거의 유일한 선택지.</td>
+    </tr>
+    <tr>
+      <td><strong>Daytona</strong></td>
+      <td>하드닝된 OCI 컨테이너 (seccomp·namespace)</td>
+      <td>~27–90ms</td>
+      <td>콜드 스타트가 가장 빠른 편. 2026년 6월 프로덕션 코드베이스를 클로즈드 소스로 전환(보안 사유).</td>
+    </tr>
+    <tr>
+      <td><strong>Vercel Sandbox</strong></td>
+      <td>microVM 기반</td>
+      <td>가변</td>
+      <td>웹/JS 생태계 친화. Anthropic self-hosted 샌드박스 파트너 중 하나.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>표에서 읽어야 할 트레이드오프가 보입니다. <strong>콜드 스타트 vs 격리 강도</strong>가 핵심 축입니다. 컨테이너 기반(Daytona)은 빠르지만 커널 공유를 네트워크 정책·seccomp로 보완하는 방식이고, microVM 기반(E2B)은 조금 느려도 하드웨어 경계를 얻습니다. 여기에 GPU가 필요하면(Modal), 가격이 필요하면, SDK 편의성이 필요하면… 요구에 따라 답이 갈립니다. 참고로 CPU 단가는 E2B·Daytona가 vCPU-시간당 약 $0.05로 엇비슷하고, GPU를 쓰는 Modal은 대략 3배 배수가 붙습니다.</p>
+
+<p>실제 사용은 놀랄 만큼 간단합니다. E2B의 파이썬 SDK로, 모델이 짠 코드를 <strong>격리된 샌드박스 안에서</strong> 실행하는 예를 보죠.</p>
+
+{{< highlight python >}}
+from e2b_code_interpreter import Sandbox
+
+# 1) 짧게 살았다 사라지는 microVM 샌드박스를 띄운다 (호스트와 완전히 분리)
+with Sandbox(timeout=60) as sandbox:            # 60초 지나면 강제 종료 → 무한 루프 방어
+    code = llm.generate("업로드된 CSV의 월별 매출 합계를 구하는 파이썬 코드")
+
+    # 2) 모델이 짠 코드를 '호스트가 아니라' 샌드박스 안에서 실행
+    execution = sandbox.run_code(code)
+
+    # 3) 결과만 회수한다 — 표준출력, 에러, 생성된 차트(파일) 등
+    if execution.error:
+        print("샌드박스 안에서 실패:", execution.error.name)
+    else:
+        print(execution.logs.stdout)
+# with 블록을 벗어나면 샌드박스는 통째로 파기된다 → 남는 상태 없음
+{{< /highlight >}}
+
+<p>포인트는 세 가지입니다. ① 실행은 호스트가 아니라 <strong>격리된 microVM 안</strong>에서 일어납니다. ② <code>timeout</code>으로 리소스 고갈(무한 루프)을 원천 차단합니다. ③ 샌드박스는 <strong>일회용(ephemeral)</strong>이라, 작업이 끝나면 통째로 버려 상태가 남지 않습니다. 혹시 그 안에서 나쁜 짓을 했더라도, 폭발 반경이 그 microVM 하나로 갇힙니다.</p>
+
+<div class="acx-note"><strong>왜 매니지드를 쓰나:</strong> Firecracker를 직접 운영하려면 KVM 튜닝, 커널 이미지 관리, 스냅샷/풀링, 네트워크 격리, 오토스케일을 다 떠안아야 합니다. 하루 수천~수만 개의 일회용 샌드박스를 안정적으로 찍어 내는 건 그 자체로 인프라 프로젝트예요. 그래서 대부분은 매니지드 서비스로 시작하고, 규모·비용·규정 때문에 필요할 때만 self-host로 내려갑니다.</div>
+
+<h2 id="sec-7">7. 하드닝 체크리스트 (네트워크 deny-by-default)</h2>
+
+<p>샌드박스를 골랐다고 끝이 아닙니다. <strong>격리 계층은 벽일 뿐, 문을 어떻게 여닫을지는 우리가 설정</strong>합니다. 가장 중요한 건 앞서 말한 네트워크입니다. 데이터 유출이 가장 큰 피해인데, 그 통로가 네트워크니까요. 기본을 "전부 차단"으로 두고 꼭 필요한 목적지만 허용 목록(allowlist)에 올리세요.</p>
+
+{{< highlight yaml >}}
+# 샌드박스 하드닝 개념 예시 — 서비스마다 설정 키는 다르지만 원칙은 같다
+network:
+  egress: deny            # 기본값은 전부 차단 (데이터 유출 1순위 차단)
+  allowlist:              # 정말 필요한 곳만 연다
+    - "pypi.org"          # 예: 패키지 설치가 꼭 필요하면 그 도메인만
+  block:
+    - "169.254.169.254"   # 클라우드 메타데이터 = 크레덴셜 훔치는 단골 경로, 반드시 차단
+
+filesystem:
+  root: read-only         # 시스템 파일은 읽기 전용
+  writable: ["/tmp/work"] # 쓰기는 작업 폴더 한 곳만
+  secrets: none           # .env, 토큰, 키를 샌드박스 안에 절대 넣지 않는다
+
+resources:
+  cpu: "1"                # CPU·메모리 상한 → fork 폭탄/메모리 폭식 방어
+  memory: "512Mi"
+  timeout: 60s            # 벽시계 타임아웃 → 무한 루프 방어
+{{< /highlight >}}
+
+<p>여기에 실무 규칙 몇 가지를 더합니다.</p>
+
+<ul>
+  <li><strong>크레덴셜은 샌드박스 안에 두지 않는다.</strong> API 키가 필요하면, 샌드박스가 아니라 <em>우리 코드(오케스트레이터)</em>가 대신 호출하고 결과만 넘겨 줍니다. 샌드박스는 비밀을 몰라야 훔쳐 갈 것도 없습니다.</li>
+  <li><strong>테넌트마다 샌드박스를 분리한다.</strong> 사용자 A의 코드와 B의 코드를 같은 샌드박스에서 돌리지 마세요. 일회용으로 매번 새로 띄웁니다.</li>
+  <li><strong>입력뿐 아니라 출력도 검사한다.</strong> 샌드박스가 뱉은 결과를 그대로 사용자에게 보여 주거나 다음 도구에 먹이기 전에, 민감정보·이상 패턴을 한 번 거릅니다.</li>
+  <li><strong>사람 승인 게이트를 둔다.</strong> 파일 삭제·결제·외부 전송처럼 되돌리기 어려운 행동은 자동 실행하지 말고 확인을 받습니다. 프롬프트 인젝션에 대한 마지막 안전망입니다.</li>
+</ul>
+
+<div class="acx-good"><strong>기억할 문장:</strong> "샌드박스를 쓴다"는 격리 계층을 고르는 일이 절반, <strong>네트워크·파일·크레덴셜·리소스를 deny-by-default로 좁히는 일</strong>이 나머지 절반입니다. 강한 microVM을 써도 네트워크를 활짝 열어 두면 유출은 그대로 일어납니다.</div>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<div class="acx-tblwrap">
+<table class="acx-tbl">
+  <thead>
+    <tr><th>실수</th><th>무슨 일이 벌어지나</th><th>대신 이렇게</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>데모라서 <code>exec()</code>로 실행</td>
+      <td>데모 코드가 그대로 프로덕션으로 승격 → 첫 프롬프트 인젝션에 뚫림</td>
+      <td>처음부터 컨테이너 이상으로 격리. 격리는 나중에 붙이는 기능이 아니라 기본값</td>
+    </tr>
+    <tr>
+      <td>표준 컨테이너면 충분하다고 믿음</td>
+      <td>호스트 커널 공유 → 커널 취약점 하나로 탈출·크로스테넌트</td>
+      <td>멀티테넌트·믿을 수 없는 코드엔 gVisor 또는 microVM</td>
+    </tr>
+    <tr>
+      <td>네트워크를 열어 둔 채 격리만 강화</td>
+      <td>유출 통로가 열려 있어, 강한 microVM도 소용없음</td>
+      <td>egress를 deny-by-default로. 메타데이터 IP는 반드시 차단</td>
+    </tr>
+    <tr>
+      <td>크레덴셜을 샌드박스에 주입</td>
+      <td>탈취 시 그대로 권한 확대(Hugging Face 사건 경로)</td>
+      <td>비밀은 오케스트레이터가 쥐고, 샌드박스엔 결과만 전달</td>
+    </tr>
+    <tr>
+      <td>타임아웃·리소스 상한 없음</td>
+      <td>무한 루프·메모리 폭식으로 가용성 붕괴, 비용 폭증</td>
+      <td>CPU·메모리·벽시계 타임아웃을 항상 설정</td>
+    </tr>
+    <tr>
+      <td>샌드박스를 재사용(상태 유지)</td>
+      <td>이전 작업의 잔여물·오염이 다음 작업에 새어 나감</td>
+      <td>작업마다 일회용으로 새로 띄우고 끝나면 파기</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="acx-warn"><strong>주의:</strong> "콜드 스타트가 제일 빠른 게 최고"라는 함정에 빠지지 마세요. 27ms짜리 하드닝 컨테이너가 150ms짜리 microVM보다 항상 나은 게 아닙니다. <em>무엇을 실행하느냐</em>가 먼저입니다 — 신뢰할 수 있는 내부 코드라면 컨테이너로 충분하고, 완전히 믿을 수 없는 코드를 멀티테넌트로 돌린다면 몇십 ms를 더 내고 하드웨어 경계를 사는 게 맞습니다.</div>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>에이전트가 코드를 실행하는 순간, 실행 경계가 최우선 보안 자산이 됩니다.</strong> LLM이 짠 코드는 프롬프트 인젝션으로 조종될 수 있는 "믿을 수 없는 입력"입니다.</li>
+  <li><strong>위협은 넷 — 파일 파괴/유출, 네트워크 egress, 크레덴셜 탈취, 리소스 고갈</strong>, 그리고 최악은 격리를 뚫는 탈출입니다. Hugging Face 2026-07 사건이 코드 실행 취약점 → 크레덴셜 탈취 → 측면 이동의 교과서적 경로였습니다.</li>
+  <li><strong>격리는 스펙트럼입니다.</strong> <code>eval()</code>(금지) → 컨테이너(실무 최소선) → gVisor(유저스페이스 커널, syscall 표면 350→68) → Firecracker/Kata microVM(전용 커널 + KVM 하드웨어 경계, 가장 강함).</li>
+  <li><strong>Firecracker</strong>는 ~125ms에 뜨고, microVM당 &lt;5MiB, 초당 150개 생성이 가능해 "VM은 무겁다"는 통념을 깹니다. 일회용 에이전트 샌드박스에 적합합니다.</li>
+  <li><strong>직접 만들지 말고 매니지드부터.</strong> E2B(microVM)·Modal(gVisor·GPU)·Daytona(하드닝 컨테이너)·Vercel 중 <em>격리 강도 vs 콜드 스타트 vs GPU/가격</em>으로 고릅니다.</li>
+  <li><strong>격리 계층만큼 설정이 중요합니다.</strong> 네트워크 deny-by-default, 메타데이터 IP 차단, 크레덴셜 미주입, 리소스 상한·타임아웃, 일회용 샌드박스, 되돌리기 어려운 행동엔 사람 승인 게이트.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://huggingface.co/blog/security-incident-july-2026" target="_blank" rel="noopener">Hugging Face — Security incident disclosure (2026-07, 자율 에이전트 침입 사건)</a></li>
+  <li><a href="https://securityboulevard.com/2026/07/your-ai-agent-is-an-insider-threat-with-a-shell/" target="_blank" rel="noopener">Security Boulevard — Your AI Agent is an Insider Threat With a Shell (2026-07)</a></li>
+  <li><a href="https://firecracker-microvm.github.io/" target="_blank" rel="noopener">Firecracker — 공식 사이트 (microVM, KVM, 125ms)</a></li>
+  <li><a href="https://aws.amazon.com/blogs/aws/firecracker-lightweight-virtualization-for-serverless-computing/" target="_blank" rel="noopener">AWS — Firecracker: Lightweight Virtualization for Serverless</a></li>
+  <li><a href="https://assets.amazon.science/96/c6/302e527240a3b1f86c86c3e8fc3d/firecracker-lightweight-virtualization-for-serverless-applications.pdf" target="_blank" rel="noopener">Amazon Science — Firecracker: Lightweight Virtualization (논문, &lt;5MiB·150/s)</a></li>
+  <li><a href="https://gvisor.dev/docs/architecture_guide/security/" target="_blank" rel="noopener">gVisor — Security Model (Sentry, ~68 syscalls)</a></li>
+  <li><a href="https://gvisor.dev/blog/2023/04/28/systrap-release/" target="_blank" rel="noopener">gVisor — Releasing Systrap: A high-performance platform (2023)</a></li>
+  <li><a href="https://northflank.com/blog/how-to-sandbox-ai-agents" target="_blank" rel="noopener">Northflank — How to sandbox AI agents in 2026 (microVM·gVisor 전략)</a></li>
+  <li><a href="https://modal.com/resources/best-code-execution-sandboxes-ai-agents" target="_blank" rel="noopener">Modal — Best Code Execution Sandboxes for AI Agents (2026)</a></li>
+  <li><a href="https://northflank.com/blog/daytona-vs-e2b-ai-code-execution-sandboxes" target="_blank" rel="noopener">Northflank — Daytona vs E2B: AI code execution sandboxes (2026)</a></li>
+  <li><a href="https://e2b.dev/" target="_blank" rel="noopener">E2B — The Enterprise AI Agent Cloud (Firecracker 기반 샌드박스)</a></li>
+  <li><a href="https://blog.cloudflare.com/claude-managed-agents/" target="_blank" rel="noopener">Cloudflare — Claude Managed Agents on Cloudflare (self-hosted 샌드박스)</a></li>
+</ul>

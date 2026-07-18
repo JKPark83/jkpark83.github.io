@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="AI 에이전트 코드 실행 샌드박스의 격리 스펙트럼. 왼쪽 약한 격리에서 오른쪽 강한 격리로 갈수록 안전해진다. 같은 프로세스(eval)와 컨테이너는 호스트 커널을 공유해 위험하고, gVisor는 유저스페이스 커널로 시스템 콜을 가로채며, Firecracker microVM은 전용 커널과 하드웨어 경계로 가장 강하게 격리한다.">
+  <defs>
+    <linearGradient id="acxbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="acxbar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fb7185"/>
+      <stop offset="0.5" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#4ade80"/>
+    </linearGradient>
+    <marker id="acxar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#acxbg)"/>
+
+  <text x="80" y="92" font-family="system-ui,sans-serif" font-size="45" font-weight="800" fill="#f1f5f9">에이전트 코드 실행 샌드박스</text>
+  <text x="80" y="140" font-family="system-ui,sans-serif" font-size="26" font-weight="500" fill="#a5b4fc">믿을 수 없는 코드를, 안전하게 실행하는 격리 계층</text>
+
+  <!-- untrusted code chip -->
+  <rect x="80" y="196" width="300" height="70" rx="14" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+  <text x="230" y="230" text-anchor="middle" font-family="ui-monospace,monospace" font-size="21" font-weight="700" fill="#fb7185">LLM이 짠 코드</text>
+  <text x="230" y="254" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" fill="#fda4af">= 믿을 수 없는 입력</text>
+  <line x1="380" y1="231" x2="470" y2="231" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#acxar)"/>
+  <text x="560" y="226" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#cbd5e1">파일 삭제 · 크레덴셜</text>
+  <text x="560" y="250" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#cbd5e1">탈취 · 외부 유출</text>
+
+  <!-- spectrum bar -->
+  <rect x="80" y="330" width="1040" height="22" rx="11" fill="url(#acxbar)"/>
+  <text x="80" y="386" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#fb7185">← 약한 격리</text>
+  <text x="1120" y="386" text-anchor="end" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#4ade80">강한 격리 →</text>
+
+  <!-- 4 stages -->
+  <g font-family="system-ui,sans-serif">
+    <!-- 1 -->
+    <rect x="80" y="410" width="230" height="150" rx="14" fill="#1e293b" stroke="#fb7185" stroke-width="2"/>
+    <text x="195" y="446" text-anchor="middle" font-size="20" font-weight="800" fill="#fda4af">같은 프로세스</text>
+    <text x="195" y="474" text-anchor="middle" font-size="15" fill="#cbd5e1">eval / exec</text>
+    <text x="195" y="512" text-anchor="middle" font-size="14" fill="#94a3b8">호스트에 직접</text>
+    <text x="195" y="532" text-anchor="middle" font-size="14" fill="#f87171">절대 금지</text>
+
+    <!-- 2 -->
+    <rect x="342" y="410" width="230" height="150" rx="14" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+    <text x="457" y="446" text-anchor="middle" font-size="20" font-weight="800" fill="#fcd34d">컨테이너</text>
+    <text x="457" y="474" text-anchor="middle" font-size="15" fill="#cbd5e1">Docker + seccomp</text>
+    <text x="457" y="512" text-anchor="middle" font-size="14" fill="#94a3b8">커널 공유</text>
+    <text x="457" y="532" text-anchor="middle" font-size="14" fill="#94a3b8">탈출 위험 남음</text>
+
+    <!-- 3 -->
+    <rect x="604" y="410" width="230" height="150" rx="14" fill="#1e293b" stroke="#a3e635" stroke-width="2"/>
+    <text x="719" y="446" text-anchor="middle" font-size="20" font-weight="800" fill="#bef264">gVisor</text>
+    <text x="719" y="474" text-anchor="middle" font-size="15" fill="#cbd5e1">유저스페이스 커널</text>
+    <text x="719" y="512" text-anchor="middle" font-size="14" fill="#94a3b8">syscall 가로채기</text>
+    <text x="719" y="532" text-anchor="middle" font-size="14" fill="#94a3b8">350→68개로 축소</text>
+
+    <!-- 4 -->
+    <rect x="866" y="410" width="254" height="150" rx="14" fill="#14532d" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="993" y="446" text-anchor="middle" font-size="20" font-weight="800" fill="#86efac">microVM</text>
+    <text x="993" y="474" text-anchor="middle" font-size="15" fill="#d1fae5">Firecracker · Kata</text>
+    <text x="993" y="512" text-anchor="middle" font-size="14" fill="#a7f3d0">전용 커널 · KVM</text>
+    <text x="993" y="532" text-anchor="middle" font-size="14" fill="#a7f3d0">125ms · 하드웨어 경계</text>
+  </g>
+
+  <text x="80" y="606" font-family="system-ui,sans-serif" font-size="15" fill="#64748b">호스트 커널을 공유할수록 탈출 한 번에 전부 뚫린다 · 전용 커널을 줄수록 안전하지만 무겁고 느리다</text>
+</svg>

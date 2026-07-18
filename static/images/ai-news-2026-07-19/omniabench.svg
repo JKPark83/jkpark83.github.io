@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="OmniaBench Overall Pass@1 비교">
+  <rect x="0" y="0" width="760" height="420" rx="14" fill="#f8fafc"/>
+  <text x="380" y="40" text-anchor="middle" fill="#0f172a" font-size="21" font-weight="700">OmniaBench — 일반 에이전트 Overall Pass@1</text>
+  <text x="380" y="64" text-anchor="middle" fill="#64748b" font-size="13">1,431개 태스크(644개 챌린지 서브셋) · 값은 arXiv 2607.14989 초록 기준</text>
+
+  <!-- axis -->
+  <line x1="120" y1="340" x2="700" y2="340" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="120" y1="110" x2="120" y2="340" stroke="#94a3b8" stroke-width="2"/>
+  <!-- gridlines -->
+  <g stroke="#e2e8f0" stroke-width="1">
+    <line x1="120" y1="110" x2="700" y2="110"/>
+    <line x1="120" y1="167" x2="700" y2="167"/>
+    <line x1="120" y1="225" x2="700" y2="225"/>
+    <line x1="120" y1="282" x2="700" y2="282"/>
+  </g>
+  <g fill="#64748b" font-size="12" text-anchor="end">
+    <text x="112" y="345">0</text>
+    <text x="112" y="287">25</text>
+    <text x="112" y="230">50</text>
+    <text x="112" y="172">75</text>
+    <text x="112" y="115">100</text>
+  </g>
+
+  <!-- bars: scale 230px = 100 -->
+  <!-- Claude-Sonnet-5 58.54 -> 134.6px -->
+  <rect x="200" y="205" width="120" height="135" rx="6" fill="#6d28d9"/>
+  <text x="260" y="197" text-anchor="middle" fill="#0f172a" font-size="17" font-weight="700">58.54</text>
+  <text x="260" y="362" text-anchor="middle" fill="#334155" font-size="13" font-weight="600">Claude-Sonnet-5</text>
+
+  <!-- GPT-5.6-Sol 57.14 -> 131.4px -->
+  <rect x="420" y="208" width="120" height="132" rx="6" fill="#0e7490"/>
+  <text x="480" y="200" text-anchor="middle" fill="#0f172a" font-size="17" font-weight="700">57.14</text>
+  <text x="480" y="362" text-anchor="middle" fill="#334155" font-size="13" font-weight="600">GPT-5.6-Sol</text>
+
+  <!-- target line at 100 -->
+  <line x1="120" y1="110" x2="700" y2="110" stroke="#ef4444" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="694" y="104" text-anchor="end" fill="#ef4444" font-size="12" font-weight="600">완벽 = 100</text>
+
+  <text x="380" y="400" text-anchor="middle" fill="#475569" font-size="13">→ 실패 지점: 계획 수립 · 제약 유지 · 적응적 수정</text>
+</svg>

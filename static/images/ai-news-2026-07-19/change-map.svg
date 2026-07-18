@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 470" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="오늘의 AI 변화 지도">
+  <rect x="0" y="0" width="820" height="470" rx="16" fill="#0f172a"/>
+  <text x="410" y="38" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="700">오늘의 AI 변화 지도 — 2026-07-19</text>
+  <text x="410" y="62" text-anchor="middle" fill="#94a3b8" font-size="13">오픈 모델이 프런티어를 추격하는 동안, 에이전트는 여전히 '제약 유지'에서 넘어진다</text>
+
+  <!-- center theme -->
+  <rect x="300" y="200" width="220" height="70" rx="12" fill="#f59e0b"/>
+  <text x="410" y="230" text-anchor="middle" fill="#1e293b" font-size="15" font-weight="700">축: 저비용 성능 ↑</text>
+  <text x="410" y="252" text-anchor="middle" fill="#1e293b" font-size="15" font-weight="700">에이전트 신뢰성 ↔</text>
+
+  <!-- lines -->
+  <g stroke="#475569" stroke-width="2">
+    <line x1="410" y1="200" x2="180" y2="130"/>
+    <line x1="520" y1="235" x2="660" y2="130"/>
+    <line x1="300" y1="235" x2="150" y2="320"/>
+    <line x1="520" y1="235" x2="680" y2="320"/>
+    <line x1="410" y1="270" x2="410" y2="360"/>
+  </g>
+
+  <!-- Kimi K3 -->
+  <rect x="60" y="90" width="230" height="72" rx="10" fill="#1e40af"/>
+  <text x="75" y="114" fill="#bfdbfe" font-size="12" font-weight="700">🤖 모델</text>
+  <text x="75" y="134" fill="#f8fafc" font-size="15" font-weight="700">Kimi K3 (Moonshot)</text>
+  <text x="75" y="153" fill="#cbd5e1" font-size="12">2.8T MoE · 1M ctx · 오픈웨이트 7/27</text>
+
+  <!-- OmniaBench -->
+  <rect x="540" y="90" width="235" height="72" rx="10" fill="#6d28d9"/>
+  <text x="555" y="114" fill="#ddd6fe" font-size="12" font-weight="700">📚 논문 · Eval</text>
+  <text x="555" y="134" fill="#f8fafc" font-size="15" font-weight="700">OmniaBench</text>
+  <text x="555" y="153" fill="#e9d5ff" font-size="12">프런티어도 Pass@1 58%대 (1,431 태스크)</text>
+
+  <!-- SearchOS -->
+  <rect x="30" y="300" width="240" height="72" rx="10" fill="#0e7490"/>
+  <text x="45" y="324" fill="#a5f3fc" font-size="12" font-weight="700">🛠 오픈소스 · 논문</text>
+  <text x="45" y="344" fill="#f8fafc" font-size="15" font-weight="700">SearchOS-V1</text>
+  <text x="45" y="363" fill="#cffafe" font-size="12">검색 진행상태를 '명시적 공유 상태'로</text>
+
+  <!-- Codex -->
+  <rect x="565" y="300" width="225" height="72" rx="10" fill="#166534"/>
+  <text x="580" y="324" fill="#bbf7d0" font-size="12" font-weight="700">🟩 Codex 팁</text>
+  <text x="580" y="344" fill="#f8fafc" font-size="15" font-weight="700">서브에이전트 계층화</text>
+  <text x="580" y="363" fill="#dcfce7" font-size="12">읽기작업 병렬 · 요약만 반환</text>
+
+  <!-- Claude Code -->
+  <rect x="285" y="385" width="250" height="65" rx="10" fill="#1d4ed8"/>
+  <text x="300" y="408" fill="#bfdbfe" font-size="12" font-weight="700">🟦 Claude Code 팁</text>
+  <text x="300" y="428" fill="#f8fafc" font-size="15" font-weight="700">Kimi K3로 서브태스크 라우팅</text>
+  <text x="300" y="445" fill="#dbeafe" font-size="11">ANTHROPIC_BASE_URL 스위치</text>
+</svg>

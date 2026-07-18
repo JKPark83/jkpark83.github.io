@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="SearchOS 명시적 공유 상태 패턴">
+  <rect x="0" y="0" width="800" height="400" rx="14" fill="#0b1120"/>
+  <text x="400" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">Agent Builder 시사점 — 진행상태를 '밖으로' 꺼내라</text>
+  <text x="400" y="60" text-anchor="middle" fill="#94a3b8" font-size="12">SearchOS-V1 패턴 · 출처 arXiv 2607.15257 / github.com/antins-labs/SearchOS</text>
+
+  <!-- before -->
+  <rect x="40" y="110" width="200" height="120" rx="10" fill="#7f1d1d"/>
+  <text x="140" y="140" text-anchor="middle" fill="#fecaca" font-size="13" font-weight="700">❌ 암묵적 진행상태</text>
+  <text x="140" y="168" text-anchor="middle" fill="#fee2e2" font-size="12">컨텍스트 안에만 존재</text>
+  <text x="140" y="190" text-anchor="middle" fill="#fee2e2" font-size="12">서브에이전트끼리</text>
+  <text x="140" y="210" text-anchor="middle" fill="#fee2e2" font-size="12">같은 검색 반복 · 루프</text>
+
+  <!-- arrow -->
+  <line x1="245" y1="170" x2="300" y2="170" stroke="#facc15" stroke-width="3"/>
+  <polygon points="300,162 316,170 300,178" fill="#facc15"/>
+
+  <!-- explicit shared state box -->
+  <rect x="325" y="90" width="300" height="220" rx="10" fill="#134e4a" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="475" y="118" text-anchor="middle" fill="#5eead4" font-size="14" font-weight="700">✅ 명시적 · 영속 · 공유 상태</text>
+  <rect x="345" y="135" width="260" height="42" rx="7" fill="#0f766e"/>
+  <text x="475" y="162" text-anchor="middle" fill="#f0fdfa" font-size="13" font-weight="600">Task Frontier (미해결 목표)</text>
+  <rect x="345" y="185" width="260" height="42" rx="7" fill="#0f766e"/>
+  <text x="475" y="212" text-anchor="middle" fill="#f0fdfa" font-size="13" font-weight="600">Evidence Graph (근거 그래프)</text>
+  <rect x="345" y="235" width="260" height="42" rx="7" fill="#0f766e"/>
+  <text x="475" y="262" text-anchor="middle" fill="#f0fdfa" font-size="13" font-weight="600">Coverage Map (커버리지 지도)</text>
+  <text x="475" y="298" text-anchor="middle" fill="#99f6e4" font-size="11">+ 툴 미들웨어가 근거를 자동 기록</text>
+
+  <!-- arrow -->
+  <line x1="630" y1="200" x2="672" y2="200" stroke="#facc15" stroke-width="3"/>
+  <polygon points="672,192 688,200 672,208" fill="#facc15"/>
+
+  <!-- result -->
+  <rect x="670" y="150" width="115" height="100" rx="10" fill="#1e3a8a"/>
+  <text x="727" y="180" text-anchor="middle" fill="#bfdbfe" font-size="12" font-weight="700">결과</text>
+  <text x="727" y="204" text-anchor="middle" fill="#dbeafe" font-size="11">루프 제거</text>
+  <text x="727" y="224" text-anchor="middle" fill="#dbeafe" font-size="11">파이프라인</text>
+  <text x="727" y="242" text-anchor="middle" fill="#dbeafe" font-size="11">병렬 스케줄</text>
+
+  <text x="400" y="352" text-anchor="middle" fill="#cbd5e1" font-size="13">실전 적용: 멀티스텝 에이전트의 "무엇을 이미 했나"를 프롬프트가 아니라 외부 저장소(그래프/맵)에 둔다</text>
+  <text x="400" y="376" text-anchor="middle" fill="#64748b" font-size="12">→ 컨텍스트가 날아가도 진행상태는 살아있고, 중복 호출·토큰 낭비가 준다</text>
+</svg>

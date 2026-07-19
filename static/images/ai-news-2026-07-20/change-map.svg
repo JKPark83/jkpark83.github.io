@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="430" fill="#0f172a"/>
+  <text x="380" y="34" fill="#f8fafc" font-size="20" font-weight="700" text-anchor="middle">오늘의 AI 변화 지도 · 2026-07-20</text>
+  <text x="380" y="56" fill="#94a3b8" font-size="13" text-anchor="middle">두 축: 코딩 에이전트 툴링 성숙 ↔ 에이전트 기억·평가의 견고성</text>
+
+  <!-- left cluster: coding agent tooling -->
+  <rect x="30" y="86" width="330" height="300" rx="12" fill="#111f3a" stroke="#1e3a5f"/>
+  <text x="195" y="112" fill="#7dd3fc" font-size="15" font-weight="700" text-anchor="middle">🛠 코딩 에이전트 툴링</text>
+
+  <rect x="52" y="128" width="286" height="72" rx="8" fill="#0b1b33" stroke="#2563eb"/>
+  <text x="66" y="150" fill="#e0f2fe" font-size="13.5" font-weight="700">Claude Code v2.1.214–215</text>
+  <text x="66" y="170" fill="#cbd5e1" font-size="12">EndConversation 툴 · 진행 heartbeat</text>
+  <text x="66" y="188" fill="#fca5a5" font-size="12">/verify·/code-review 자동실행 중단 → 명시 호출</text>
+
+  <rect x="52" y="212" width="286" height="66" rx="8" fill="#0b1b33" stroke="#2563eb"/>
+  <text x="66" y="234" fill="#e0f2fe" font-size="13.5" font-weight="700">Codex changelog</text>
+  <text x="66" y="254" fill="#cbd5e1" font-size="12">GPT-5.6 컨텍스트 272K 정정</text>
+  <text x="66" y="272" fill="#cbd5e1" font-size="12">위험 명령(rm) 탐지 강화 · 거부 사유 명확화</text>
+
+  <rect x="52" y="290" width="286" height="66" rx="8" fill="#0b1b33" stroke="#3b4c6b"/>
+  <text x="66" y="312" fill="#e0f2fe" font-size="13.5" font-weight="700">Gemini 3.5 Pro</text>
+  <text x="66" y="332" fill="#fbbf24" font-size="12">루머 7/17 지났지만 공개 GA·모델카드 없음</text>
+  <text x="66" y="350" fill="#cbd5e1" font-size="12">→ gemini-3.5-pro 하드코딩 금지</text>
+
+  <!-- right cluster: memory & eval -->
+  <rect x="400" y="86" width="330" height="300" rx="12" fill="#12203a" stroke="#3f2d5f"/>
+  <text x="565" y="112" fill="#c4b5fd" font-size="15" font-weight="700" text-anchor="middle">🧠 기억 · 평가의 견고성</text>
+
+  <rect x="422" y="128" width="286" height="72" rx="8" fill="#1a1330" stroke="#7c3aed"/>
+  <text x="436" y="150" fill="#ede9fe" font-size="13.5" font-weight="700">OpenViking (volcengine)</text>
+  <text x="436" y="170" fill="#cbd5e1" font-size="12">기억·RAG·스킬을 파일시스템 패러다임으로</text>
+  <text x="436" y="188" fill="#cbd5e1" font-size="12">L0/L1/L2 온디맨드 컨텍스트 · Apache-2.0</text>
+
+  <rect x="422" y="212" width="286" height="66" rx="8" fill="#1a1330" stroke="#7c3aed"/>
+  <text x="436" y="234" fill="#ede9fe" font-size="13.5" font-weight="700">Optimizer 복리? (2607.14004)</text>
+  <text x="436" y="254" fill="#cbd5e1" font-size="12">Terminal-Bench 2.0 지속학습 평가</text>
+  <text x="436" y="272" fill="#86efac" font-size="12">회귀 제어가 있어야 최적화가 복리로 쌓임</text>
+
+  <rect x="422" y="290" width="286" height="66" rx="8" fill="#1a1330" stroke="#7c3aed"/>
+  <text x="436" y="312" fill="#ede9fe" font-size="13.5" font-weight="700">DeepStress (2607.13920)</text>
+  <text x="436" y="332" fill="#cbd5e1" font-size="12">근거 품질을 합성 통제해 검색 에이전트 스트레스</text>
+  <text x="436" y="350" fill="#cbd5e1" font-size="12">테스트 → 신뢰성 격차 정량화</text>
+
+  <!-- connector -->
+  <line x1="360" y1="236" x2="400" y2="236" stroke="#64748b" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="380" y="228" fill="#94a3b8" font-size="11" text-anchor="middle">연결</text>
+
+  <text x="380" y="410" fill="#64748b" font-size="11.5" text-anchor="middle">자체 제작 SVG · 값/출처는 본문 각 항목 링크 참조</text>
+</svg>

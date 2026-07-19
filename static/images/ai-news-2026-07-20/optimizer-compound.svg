@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="360" fill="#0f172a"/>
+  <text x="40" y="40" fill="#f8fafc" font-size="19" font-weight="700">에이전트 최적화는 복리로 쌓이는가?</text>
+  <text x="40" y="62" fill="#94a3b8" font-size="13">Terminal-Bench 2.0 · 지속학습(lifelong) 평균 Pass Rate (%)</text>
+
+  <!-- gridlines -->
+  <line x1="220" y1="90" x2="220" y2="300" stroke="#334155" stroke-width="1"/>
+  <line x1="360" y1="90" x2="360" y2="300" stroke="#1e293b" stroke-width="1"/>
+  <line x1="500" y1="90" x2="500" y2="300" stroke="#1e293b" stroke-width="1"/>
+  <line x1="640" y1="90" x2="640" y2="300" stroke="#1e293b" stroke-width="1"/>
+  <text x="220" y="318" fill="#64748b" font-size="11" text-anchor="middle">0</text>
+  <text x="360" y="318" fill="#64748b" font-size="11" text-anchor="middle">30</text>
+  <text x="500" y="318" fill="#64748b" font-size="11" text-anchor="middle">60</text>
+  <text x="640" y="318" fill="#64748b" font-size="11" text-anchor="middle">90</text>
+
+  <!-- bars: scale x = 220 + val*4.667 (90->640 over 100) -->
+  <!-- RELAI-VCL 76.4 -> width 356 -->
+  <rect x="220" y="100" width="356" height="34" rx="4" fill="#22c55e"/>
+  <text x="42" y="122" fill="#e2e8f0" font-size="13.5" font-weight="700">RELAI-VCL</text>
+  <text x="586" y="122" fill="#bbf7d0" font-size="13.5" font-weight="700">76.4</text>
+
+  <!-- GEPA 66.0 -> width 308 -->
+  <rect x="220" y="148" width="308" height="34" rx="4" fill="#60a5fa"/>
+  <text x="42" y="170" fill="#e2e8f0" font-size="13.5">GEPA</text>
+  <text x="538" y="170" fill="#bfdbfe" font-size="13.5" font-weight="700">66.0</text>
+
+  <!-- Meta Harness 64.6 -> width 301 -->
+  <rect x="220" y="196" width="301" height="34" rx="4" fill="#60a5fa"/>
+  <text x="42" y="218" fill="#e2e8f0" font-size="13.5">Meta Harness</text>
+  <text x="531" y="218" fill="#bfdbfe" font-size="13.5" font-weight="700">64.6</text>
+
+  <!-- baseline 58.7 -> width 274 -->
+  <rect x="220" y="244" width="274" height="34" rx="4" fill="#64748b"/>
+  <text x="42" y="266" fill="#e2e8f0" font-size="13.5">Baseline</text>
+  <text x="504" y="266" fill="#cbd5e1" font-size="13.5" font-weight="700">58.7</text>
+
+  <text x="40" y="346" fill="#86efac" font-size="12">핵심: 회귀 제어(regression control)를 최적화 루프에 넣은 RELAI-VCL만 성능이 복리로 누적. 값 출처 arXiv 2607.14004.</text>
+</svg>

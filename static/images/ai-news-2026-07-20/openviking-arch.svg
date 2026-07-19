@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="380" fill="#0f172a"/>
+  <text x="380" y="34" fill="#f8fafc" font-size="18" font-weight="700" text-anchor="middle">OpenViking: 파일시스템 패러다임 컨텍스트 DB</text>
+  <text x="380" y="55" fill="#94a3b8" font-size="12.5" text-anchor="middle">기억·리소스·스킬을 하나의 파일 트리로 통합 → 계층별 온디맨드 로딩</text>
+
+  <!-- inputs -->
+  <rect x="30" y="90" width="150" height="52" rx="8" fill="#1a1330" stroke="#7c3aed"/>
+  <text x="105" y="112" fill="#ede9fe" font-size="13" text-anchor="middle" font-weight="700">Memory</text>
+  <text x="105" y="130" fill="#cbd5e1" font-size="11" text-anchor="middle">대화·경험</text>
+
+  <rect x="30" y="152" width="150" height="52" rx="8" fill="#1a1330" stroke="#7c3aed"/>
+  <text x="105" y="174" fill="#ede9fe" font-size="13" text-anchor="middle" font-weight="700">Resources</text>
+  <text x="105" y="192" fill="#cbd5e1" font-size="11" text-anchor="middle">지식 RAG</text>
+
+  <rect x="30" y="214" width="150" height="52" rx="8" fill="#1a1330" stroke="#7c3aed"/>
+  <text x="105" y="236" fill="#ede9fe" font-size="13" text-anchor="middle" font-weight="700">Skills</text>
+  <text x="105" y="254" fill="#cbd5e1" font-size="11" text-anchor="middle">재사용 능력</text>
+
+  <!-- arrow to filesystem -->
+  <path d="M180 178 L228 178" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 z" fill="#64748b"/></marker></defs>
+
+  <!-- filesystem tree box -->
+  <rect x="236" y="96" width="220" height="176" rx="10" fill="#111f3a" stroke="#2563eb"/>
+  <text x="346" y="120" fill="#7dd3fc" font-size="13.5" text-anchor="middle" font-weight="700">파일시스템 트리</text>
+  <text x="256" y="150" fill="#cbd5e1" font-size="12" font-family="monospace">/context</text>
+  <text x="270" y="172" fill="#cbd5e1" font-size="12" font-family="monospace">├─ memory/</text>
+  <text x="270" y="194" fill="#cbd5e1" font-size="12" font-family="monospace">├─ resources/</text>
+  <text x="270" y="216" fill="#cbd5e1" font-size="12" font-family="monospace">└─ skills/</text>
+  <text x="256" y="250" fill="#93c5fd" font-size="11">디렉터리 위치 + 의미 검색 = 재귀 검색</text>
+
+  <!-- arrow to tiers -->
+  <path d="M456 184 L504 184" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- tiers -->
+  <rect x="512" y="96" width="218" height="52" rx="8" fill="#0b1b33" stroke="#22c55e"/>
+  <text x="524" y="118" fill="#bbf7d0" font-size="13" font-weight="700">L0 · 항상 로드</text>
+  <text x="524" y="137" fill="#cbd5e1" font-size="11">핵심 지침 · 최소 컨텍스트</text>
+
+  <rect x="512" y="158" width="218" height="52" rx="8" fill="#0b1b33" stroke="#60a5fa"/>
+  <text x="524" y="180" fill="#bfdbfe" font-size="13" font-weight="700">L1 · 필요 시 로드</text>
+  <text x="524" y="199" fill="#cbd5e1" font-size="11">관련 기억·리소스 요약</text>
+
+  <rect x="512" y="220" width="218" height="52" rx="8" fill="#0b1b33" stroke="#a78bfa"/>
+  <text x="524" y="242" fill="#ddd6fe" font-size="13" font-weight="700">L2 · 정밀 조회</text>
+  <text x="524" y="261" fill="#cbd5e1" font-size="11">세부 원문 · 온디맨드 확장</text>
+
+  <text x="380" y="312" fill="#e2e8f0" font-size="12.5" text-anchor="middle">벡터 RAG의 파편화 대신, 계층 로딩으로 컨텍스트 비용을 줄이는 게 목표.</text>
+  <text x="380" y="336" fill="#94a3b8" font-size="11.5" text-anchor="middle">프로젝트 자체 평가: 평균 정확도 66.87% · 검색 지연 0.19s · 인덱싱 비용 LightRAG의 13.8% (OpenViking 0.3.22 문서)</text>
+  <text x="380" y="360" fill="#64748b" font-size="11" text-anchor="middle">자체 제작 SVG · 구조 출처: OpenViking README/문서 · 수치는 프로젝트 자체 발표(재현 검증 권장)</text>
+</svg>

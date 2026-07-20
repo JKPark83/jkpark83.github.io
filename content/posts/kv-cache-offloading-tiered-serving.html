@@ -1,0 +1,359 @@
+---
+title: "GPU에서 쫓겨난 KV 캐시, 버리지 마라: CPU·디스크·이웃 노드로 내려 두고 다시 쓰는 KV 캐시 오프로딩"
+date: 2026-07-21T07:30:00+09:00
+draft: false
+tags: ["AI", "KV 캐시", "KV cache", "KV cache offloading", "오프로딩", "prefix caching", "접두사 캐싱", "LMCache", "CacheBlend", "vLLM", "llm-d", "inference", "추론", "serving", "서빙", "TTFT", "prefill", "context engineering", "컨텍스트 엔지니어링", "LLM", "agent", "에이전트"]
+categories: ["AI 엔지니어링"]
+summary: "긴 문서를 물고 도는 에이전트를 서빙하면 GPU 메모리가 순식간에 KV 캐시로 가득 찹니다. 자리가 부족하면 서버는 캐시를 버리고, 다음 요청에서 똑같은 prefill을 처음부터 다시 계산하죠 — 요청당 GPU 시간의 대부분이 여기 들어갑니다. KV 캐시 오프로딩은 이 버려지던 캐시를 CPU DRAM·NVMe·이웃 노드로 내려 보관했다가 다시 끌어올려 재사용하는 기법입니다. 2026년 6월 말 나온 KV 캐시 관리 서베이와 잇단 논문, vLLM 0.11의 KV Offloading Connector와 LMCache의 프로덕션 채택으로 다시 뜨거워진 이 주제를, 왜 재계산이 낭비인지부터 vLLM·LMCache 실전 설정, 접두사를 넘어서는 CacheBlend, 흔한 함정까지 junior 개발자 눈높이로 풀었습니다."
+ShowToc: true
+cover:
+  image: "kv-cache-offloading-tiered-serving-cover.svg"
+  alt: "GPU HBM은 빠르지만 좁고 비싸고, 아래로 내려갈수록 CPU DRAM·로컬 NVMe SSD·원격 저장소 순으로 느리지만 넓고 싸진다. GPU에서 자리가 없어 쫓겨난 KV 캐시를 버리고 나중에 다시 계산하는 대신, 아래 계층으로 내려 보관했다가 필요할 때 다시 끌어올려 재사용한다. 위쪽 두 GPU 노드는 점선으로 이어져 KV 캐시를 서로 나눠 쓴다."
+  caption: "KV 캐시 오프로딩의 핵심: GPU에서 쫓겨난 KV 캐시를 버리고 재계산하는 대신, CPU·디스크·이웃 노드로 내려 두었다가 다시 끌어와 prefill을 건너뛴다."
+  relative: false
+---
+
+<style>
+/* ── KV 캐시 오프로딩 포스트 전용 스타일 (kvo- 접두사) ── */
+.kvo-fig{
+  --kvo-indigo:#4f46e5; --kvo-amber:#d97706; --kvo-green:#16a34a; --kvo-rose:#e11d48;
+  --kvo-slate:#64748b; --kvo-violet:#7c3aed; --kvo-teal:#0d9488; --kvo-blue:#2563eb; --kvo-sky:#0284c7; --kvo-pink:#db2777;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .kvo-fig{
+  --kvo-indigo:#818cf8; --kvo-amber:#fbbf24; --kvo-green:#4ade80; --kvo-rose:#fb7185;
+  --kvo-slate:#94a3b8; --kvo-violet:#a78bfa; --kvo-teal:#2dd4bf; --kvo-blue:#60a5fa; --kvo-sky:#38bdf8; --kvo-pink:#f472b6;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .kvo-fig{
+    --kvo-indigo:#818cf8; --kvo-amber:#fbbf24; --kvo-green:#4ade80; --kvo-rose:#fb7185;
+    --kvo-slate:#94a3b8; --kvo-violet:#a78bfa; --kvo-teal:#2dd4bf; --kvo-blue:#60a5fa; --kvo-sky:#38bdf8; --kvo-pink:#f472b6;
+  }
+}
+.kvo-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.kvo-fig text{font-family:inherit}
+.kvo-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.kvo-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.kvo-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.kvo-toc ol{margin:0;padding-left:1.25rem}
+.kvo-toc li{margin:.22rem 0;font-size:.95rem}
+.kvo-toc a{text-decoration:none}
+.kvo-toc a:hover{text-decoration:underline}
+.kvo-pull{border-left:4px solid var(--kvo-indigo,#4f46e5);margin:1.8rem 0;padding:.2rem 0 .2rem 1.2rem}
+.kvo-pull p{margin:.2rem 0}
+.kvo-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.kvo-note{border-left:4px solid var(--kvo-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.kvo-note strong{color:var(--kvo-blue,#2563eb)}
+.kvo-warn{border-left:4px solid var(--kvo-rose,#e11d48)}
+.kvo-warn strong{color:var(--kvo-rose,#e11d48)}
+.kvo-good{border-left:4px solid var(--kvo-teal,#0d9488)}
+.kvo-good strong{color:var(--kvo-teal,#0d9488)}
+.kvo-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.kvo-tbl th,.kvo-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.kvo-tbl th{background:var(--entry);font-weight:700}
+.kvo-tbl code{font-size:.86em}
+.kvo-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="kvo-pull">
+  <p>KV 캐시는 이제 "요청이 끝나면 사라지는 임시 텐서"가 아니라, 서빙 시스템 전체가 관리해야 하는 <strong>일급 메모리 자원</strong>입니다.</p>
+  <footer>— 2026년 6월 말 나온 KV 캐시 관리 서베이가 던진 한 문장. 오프로딩은 이 관점의 자연스러운 결론입니다.</footer>
+</blockquote>
+
+<p>LLM을 직접 서빙해 봤다면 이런 경험이 있을 겁니다. 긴 문서를 붙여 넣거나, 도구를 여러 번 호출하며 대화가 길어질수록 응답의 <strong>첫 글자가 나오기까지 시간(TTFT, time-to-first-token)</strong>이 눈에 띄게 느려집니다. 심하면 GPU 메모리가 꽉 차서 요청이 밀리기 시작하죠. 범인은 대개 하나입니다. 바로 <strong>KV 캐시(KV cache)</strong>입니다.</p>
+
+<p>KV 캐시는 모델이 이미 읽은 토큰들의 attention 계산 결과(key·value 텐서)를 저장해 둔 것입니다. 덕분에 다음 토큰을 만들 때 앞 내용을 처음부터 다시 계산하지 않아도 되죠. 문제는 이 캐시가 <strong>문맥 길이에 비례해 무섭게 커진다</strong>는 점입니다. 컨텍스트가 길어지면 GPU에 담을 수 있는 동시 요청 수가 뚝 떨어지고, 자리가 부족해지면 서버는 캐시를 <strong>버립니다</strong>. 그리고 다음 요청에서 똑같은 내용을 <strong>처음부터 다시 계산(prefill)</strong>하죠. 긴 컨텍스트 에이전트에서는 이 prefill이 요청당 GPU 시간의 대부분을 잡아먹는다는 분석도 있습니다.</p>
+
+<p>여기서 한 가지 질문이 떠오릅니다. <em>"이왕 계산한 캐시를 왜 버리지? GPU에 자리가 없으면, 옆에 있는 훨씬 넓은 CPU 메모리나 디스크에 잠깐 내려 두면 안 되나?"</em> 바로 이 발상이 <strong>KV 캐시 오프로딩(KV cache offloading)</strong>입니다. 이번 달(2026년 7월)에는 KV 캐시 관리를 다룬 논문이 쏟아졌고, 그 흐름을 정리한 <a href="https://arxiv.org/abs/2607.02574" target="_blank" rel="noopener">서베이</a>까지 나오면서 다시 실무의 뜨거운 화두가 됐습니다. <code>vLLM</code> 0.11에 KV Offloading Connector가 들어오고, <a href="https://github.com/lmcache/lmcache" target="_blank" rel="noopener">LMCache</a>(별 1.08만) 같은 오프로딩 레이어가 GKE·CoreWeave·Cohere 등 프로덕션에 자리 잡은 것도 이 관심에 불을 지폈고요.</p>
+
+<p>이 글은 왜 캐시를 버리고 재계산하는 게 낭비인지, 오프로딩이 어떻게 작동하고 언제 이득인지, <code>vLLM</code>·<code>LMCache</code>로 실제로 어떻게 켜는지, 그리고 "접두사만 재사용"의 한계를 넘어서는 방법과 흔한 함정까지 junior 개발자 눈높이로 하나씩 풀어 보겠습니다.</p>
+
+<nav class="kvo-toc">
+  <div class="kvo-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">문제 — KV 캐시가 GPU를 잡아먹는다</a></li>
+    <li><a href="#sec-2">배경 — KV 캐시·prefill·접두사 캐싱 30초 복습</a></li>
+    <li><a href="#sec-3">오프로딩 — 버리는 대신 아래 계층으로 내린다</a></li>
+    <li><a href="#sec-4">노드를 넘어 공유하기</a></li>
+    <li><a href="#sec-5">접두사를 넘어서 — CacheBlend와 RAG 청크 재사용</a></li>
+    <li><a href="#sec-6">지도 한 장 — KV 캐시 관리의 4축·5아키타입</a></li>
+    <li><a href="#sec-7">실전 — vLLM + LMCache 최소 설정</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 — TL;DR</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 문제 — KV 캐시가 GPU를 잡아먹는다</h2>
+
+<p>LLM 서빙은 두 단계로 나뉩니다. 먼저 프롬프트 전체를 한 번에 읽어 KV 캐시를 만드는 <strong>prefill</strong> 단계, 그다음 토큰을 한 개씩 뽑아내는 <strong>decode</strong> 단계입니다. prefill은 프롬프트의 모든 토큰을 병렬로 처리하니 연산이 집약적이고, 바로 이 단계가 TTFT를 결정합니다.</p>
+
+<p>에이전트 시대의 워크로드는 이 prefill에 유독 불리합니다. 시스템 프롬프트, 도구 정의, 검색된 문서, 지난 대화가 쌓여 입력이 5만~50만 토큰까지 가는데, 정작 출력은 몇백 토큰뿐인 경우가 흔하죠. 입력과 출력이 100:1이면, GPU 시간의 대부분이 "읽는 데(prefill)" 쓰입니다. 한 실무 가이드는 이런 비율에서 prefill이 요청당 GPU 시간의 약 85~95%를 차지한다고 봅니다.</p>
+
+<p>그런데 KV 캐시는 GPU의 고대역폭 메모리(HBM)를 차지합니다. HBM은 빠르지만 좁고 비쌉니다. 요청이 몰려 캐시가 HBM을 다 채우면, 서버는 오래된 요청의 캐시를 <strong>쫓아냅니다(evict)</strong>. 문제는 그 요청이 잠시 뒤 다시 활성화되면(예: 도구 호출 결과가 돌아와 대화가 이어지면) 캐시가 이미 사라져, 그 긴 문맥을 <strong>처음부터 다시 prefill</strong>해야 한다는 것입니다. 이미 한 번 한 계산을, 자리가 없다는 이유로 버리고 또 하는 셈이죠.</p>
+
+<p>정리하면 낭비는 두 종류입니다. ① 같은 접두사(프롬프트 앞부분)를 여러 요청이 공유하는데 매번 다시 계산하는 낭비, ② 한 요청의 캐시가 쫓겨났다가 되돌아올 때 다시 계산하는 낭비. 오프로딩은 이 둘을 모두 겨냥합니다.</p>
+
+<h2 id="sec-2">2. 배경 — KV 캐시·prefill·접두사 캐싱 30초 복습</h2>
+
+<p>이미 널리 쓰이는 최적화가 하나 있습니다. <strong>접두사 캐싱(prefix caching)</strong>입니다. 두 요청의 프롬프트가 앞부분(접두사)을 공유하면, 그 부분의 KV 캐시를 한 번만 계산해 두고 재사용하는 기법이죠. <code>vLLM</code>의 automatic prefix caching, <code>SGLang</code>의 RadixAttention이 대표적입니다. 시스템 프롬프트나 긴 문서가 여러 요청에 똑같이 들어가는 상황에서 위력적입니다.</p>
+
+<p>하지만 접두사 캐싱에는 태생적 한계가 셋 있습니다.</p>
+
+<ul>
+  <li><strong>GPU 안에서만</strong> — 캐시는 HBM에 있습니다. HBM이 차서 쫓겨나면 그대로 사라집니다.</li>
+  <li><strong>같은 GPU에서만</strong> — 그 캐시는 계산한 바로 그 GPU에만 있습니다. 옆 노드로 요청이 라우팅되면 소용없습니다.</li>
+  <li><strong>접두사만</strong> — 프롬프트의 <em>맨 앞</em>부터 일치해야 합니다. 중간에 낀 문서 조각은 위치가 조금만 달라도 재사용이 안 됩니다.</li>
+</ul>
+
+<p>오프로딩은 이 한계 중 첫 두 개를, 뒤에 나올 CacheBlend는 세 번째를 풉니다. 핵심 아이디어는 단순합니다. <strong>메모리에는 계층(hierarchy)이 있다</strong>는 것. GPU HBM은 가장 빠르지만 가장 좁고, CPU DRAM은 그보다 느리지만 훨씬 넓고, 로컬 NVMe SSD와 원격 저장소로 갈수록 더 느리지만 더 넓고 쌉니다. 쫓겨난 KV 캐시를 버리지 말고, 이 아래 계층에 내려 두었다가 다시 쓰자는 겁니다.</p>
+
+<h2 id="sec-3">3. 오프로딩 — 버리는 대신 아래 계층으로 내린다</h2>
+
+<p>오프로딩의 판단 기준은 딱 하나로 요약됩니다. <strong>"다시 계산하는 것보다, 아래 계층에서 끌어오는 게 더 싼가?"</strong></p>
+
+<p>prefill로 KV를 다시 만들려면 GPU 연산(FLOPs)이 듭니다. 반대로 CPU DRAM에 저장해 둔 KV를 끌어오려면 PCIe 버스로 데이터를 전송하는 시간이 듭니다. 그래서 승부는 <strong>프롬프트 길이</strong>에서 갈립니다. 프롬프트가 짧으면 재계산이 워낙 싸서 오프로딩이 이득이 없고, 프롬프트가 길수록 재계산 비용이 가파르게 늘어 "끌어오기"가 압도적으로 유리해집니다.</p>
+
+<figure class="kvo-fig">
+<svg viewBox="0 0 720 340" role="img" aria-label="가로축은 프롬프트 길이, 세로축은 KV 캐시를 준비하는 데 걸리는 시간을 나타낸다. 재계산(prefill) 곡선은 프롬프트가 길어질수록 가파르게 위로 치솟는다. 반면 CPU에서 캐시를 로드하는 선은 완만하게 천천히 올라간다. 두 선은 중간의 교차점에서 만나며, 그 오른쪽 긴 프롬프트 영역에서는 로드가 재계산보다 훨씬 싸다. 왼쪽 짧은 프롬프트 영역에서는 재계산이 더 싸거나 비슷하다.">
+  <!-- axes -->
+  <line x1="70" y1="280" x2="680" y2="280" stroke="var(--kvo-slate)" stroke-width="1.6"/>
+  <line x1="70" y1="280" x2="70" y2="40" stroke="var(--kvo-slate)" stroke-width="1.6"/>
+  <text x="375" y="322" text-anchor="middle" fill="currentColor" font-size="15" opacity=".8">프롬프트 길이 (토큰) →</text>
+  <text x="30" y="160" text-anchor="middle" fill="currentColor" font-size="15" opacity=".8" transform="rotate(-90 30 160)">KV 준비 시간 →</text>
+
+  <!-- recompute curve (steep) -->
+  <path d="M70,268 Q360,250 470,150 T680,52" fill="none" stroke="var(--kvo-rose)" stroke-width="3"/>
+  <text x="612" y="70" fill="var(--kvo-rose)" font-size="15" font-weight="700">재계산 (prefill)</text>
+
+  <!-- load curve (gentle) -->
+  <path d="M70,262 L680,190" fill="none" stroke="var(--kvo-teal)" stroke-width="3"/>
+  <text x="560" y="212" fill="var(--kvo-teal)" font-size="15" font-weight="700">CPU에서 로드</text>
+
+  <!-- crossover -->
+  <circle cx="408" cy="219" r="6" fill="var(--kvo-amber)"/>
+  <line x1="408" y1="219" x2="408" y2="280" stroke="var(--kvo-amber)" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="408" y="300" text-anchor="middle" fill="var(--kvo-amber)" font-size="13" font-weight="700">교차점</text>
+
+  <!-- regions -->
+  <text x="235" y="115" text-anchor="middle" fill="currentColor" font-size="13" opacity=".7">짧은 프롬프트:</text>
+  <text x="235" y="134" text-anchor="middle" fill="currentColor" font-size="13" opacity=".7">재계산이 싸다</text>
+  <text x="560" y="150" text-anchor="middle" fill="currentColor" font-size="13" opacity=".7">긴 프롬프트: 로드가 이득</text>
+</svg>
+<figcaption>재계산은 프롬프트가 길수록 비용이 가파르게 치솟지만, 저장된 KV를 로드하는 비용은 완만합니다. 교차점 오른쪽(긴 컨텍스트)에서 오프로딩이 크게 이깁니다. <code>vLLM</code> 0.11의 KV Offloading Connector는 CPU에서 KV를 로드해 프롬프트 크기에 따라 TTFT를 2~22배까지 줄였다고 보고합니다.</figcaption>
+</figure>
+
+<p>실제 수치로도 확인됩니다. <code>vLLM</code> 팀이 0.11에서 선보인 <a href="https://blog.vllm.ai/2026/01/08/kv-offloading-connector.html" target="_blank" rel="noopener">KV Offloading Connector</a>는 CPU DRAM에 KV를 내려 두었다가 로드하는 방식으로, 프롬프트 크기에 따라 TTFT를 <strong>2~22배</strong> 줄였습니다. 프롬프트가 클수록 이득이 커진다는 것도 그림과 정확히 일치하죠.</p>
+
+<div class="kvo-note kvo-good">
+  <strong>핵심.</strong> 오프로딩은 "GPU 메모리를 아끼는" 기법이기도 하지만, 본질은 "이미 한 계산을 두 번 하지 않는" 기법입니다. GPU에 여유가 있어도, 쫓겨날 캐시를 CPU에 받아 두면 나중에 재계산을 건너뛸 수 있습니다.
+</div>
+
+<p>계층별 성격을 표로 정리하면 이렇습니다.</p>
+
+<div class="kvo-tblwrap">
+<table class="kvo-tbl">
+  <thead><tr><th>계층</th><th>속도(대역폭)</th><th>용량</th><th>역할</th></tr></thead>
+  <tbody>
+    <tr><td><strong>GPU HBM</strong></td><td>가장 빠름</td><td>가장 좁음(수십 GB)</td><td>지금 활성인 요청의 KV</td></tr>
+    <tr><td><strong>CPU DRAM</strong></td><td>PCIe로 전송(빠름)</td><td>넓음(수백 GB)</td><td>쫓겨난·자주 쓰는 KV의 2차 캐시</td></tr>
+    <tr><td><strong>로컬 NVMe SSD</strong></td><td>느림</td><td>매우 넓음(TB급)</td><td>대용량 접두사·문서 KV 보관</td></tr>
+    <tr><td><strong>원격 저장소</strong></td><td>가장 느림(네트워크)</td><td>사실상 무제한</td><td>노드 간 공유·영속 저장</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="sec-4">4. 노드를 넘어 공유하기</h2>
+
+<p>오프로딩이 "위아래(GPU↔CPU↔디스크)"로 캐시를 옮기는 이야기라면, 그다음 단계는 "옆으로", 즉 <strong>노드 사이의 공유</strong>입니다. 여기서 <a href="https://github.com/lmcache/lmcache" target="_blank" rel="noopener">LMCache</a> 같은 전용 레이어가 등장합니다.</p>
+
+<p>그림을 그려 봅시다. 같은 인기 문서에 대한 질문이 두 요청으로 들어오는데, 로드 밸런서가 하나는 GPU 노드 A로, 다른 하나는 노드 B로 보냈다고 합시다. 접두사 캐싱만으로는 노드 A가 계산한 캐시를 노드 B가 쓸 방법이 없습니다. 각자 처음부터 prefill하죠. LMCache는 KV 캐시를 GPU 바깥의 <strong>공유 저장소</strong>(CPU DRAM 풀, 디스크, 원격 백엔드)로 빼내, 여러 서빙 엔진이 그 캐시를 <strong>나눠 쓰게</strong> 합니다.</p>
+
+<figure class="kvo-fig">
+<svg viewBox="0 0 720 330" role="img" aria-label="가운데에 공유 KV 저장소(LMCache)가 있고, 위에는 GPU 노드 A와 GPU 노드 B가 있다. 노드 A로 첫 요청이 들어와 긴 문서를 prefill한 뒤 그 KV 캐시를 아래 공유 저장소에 저장한다. 잠시 뒤 같은 문서에 대한 두 번째 요청이 노드 B로 들어오는데, 노드 B는 다시 계산하지 않고 공유 저장소에서 KV 캐시를 그대로 끌어와 곧바로 답한다.">
+  <!-- store -->
+  <rect x="250" y="215" width="220" height="70" rx="12" fill="var(--kvo-violet)" opacity="0.16"/>
+  <rect x="250" y="215" width="220" height="70" rx="12" fill="none" stroke="var(--kvo-violet)" stroke-width="2"/>
+  <text x="360" y="245" text-anchor="middle" fill="currentColor" font-size="16" font-weight="700">공유 KV 저장소</text>
+  <text x="360" y="267" text-anchor="middle" fill="currentColor" font-size="13" opacity=".75">LMCache · CPU/디스크/원격</text>
+
+  <!-- node A -->
+  <rect x="70" y="45" width="200" height="66" rx="10" fill="var(--kvo-pink)" opacity="0.14"/>
+  <rect x="70" y="45" width="200" height="66" rx="10" fill="none" stroke="var(--kvo-pink)" stroke-width="1.8"/>
+  <text x="170" y="72" text-anchor="middle" fill="currentColor" font-size="15" font-weight="700">GPU 노드 A</text>
+  <text x="170" y="94" text-anchor="middle" fill="currentColor" font-size="12.5" opacity=".75">요청 ①: 문서 prefill</text>
+
+  <!-- node B -->
+  <rect x="450" y="45" width="200" height="66" rx="10" fill="var(--kvo-sky)" opacity="0.14"/>
+  <rect x="450" y="45" width="200" height="66" rx="10" fill="none" stroke="var(--kvo-sky)" stroke-width="1.8"/>
+  <text x="550" y="72" text-anchor="middle" fill="currentColor" font-size="15" font-weight="700">GPU 노드 B</text>
+  <text x="550" y="94" text-anchor="middle" fill="currentColor" font-size="12.5" opacity=".75">요청 ②: 같은 문서</text>
+
+  <!-- A stores -->
+  <path d="M200,111 L300,215" fill="none" stroke="var(--kvo-pink)" stroke-width="2.2" marker-end="url(#kvo-arr)"/>
+  <text x="205" y="175" fill="var(--kvo-pink)" font-size="13" font-weight="700">저장(put)</text>
+
+  <!-- B loads -->
+  <path d="M420,215 L520,111" fill="none" stroke="var(--kvo-teal)" stroke-width="2.2" marker-end="url(#kvo-arr2)"/>
+  <text x="470" y="175" fill="var(--kvo-teal)" font-size="13" font-weight="700">끌어옴(get)</text>
+
+  <text x="360" y="315" text-anchor="middle" fill="currentColor" font-size="13" opacity=".65">노드 B는 재계산 없이 곧바로 응답 → TTFT 급감</text>
+
+  <defs>
+    <marker id="kvo-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--kvo-pink)"/></marker>
+    <marker id="kvo-arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--kvo-teal)"/></marker>
+  </defs>
+</svg>
+<figcaption>노드 A가 한 번 계산한 KV를 공유 저장소에 넣어 두면, 같은 문맥을 받은 노드 B가 재계산 없이 끌어와 씁니다. LMCache는 한 벤치마크에서 128K 컨텍스트 워크로드의 TTFT를 노드 간 공유로 11초에서 1.5초로 줄였다고 보고합니다.</figcaption>
+</figure>
+
+<p>이 "노드 간 공유"가 실제로 위력을 내려면, 로드 밸런서가 <strong>캐시를 의식(KV-aware)</strong>해야 합니다. 같은 문맥을 이미 가진 노드로 요청을 몰아주는 라우팅이죠. 그래서 <a href="https://llm-d.ai/blog/native-kv-cache-offloading-to-any-file-system-with-llm-d" target="_blank" rel="noopener">llm-d</a> 같은 프로젝트는 KV 캐시 오프로딩을 KV-aware 라우팅, PD 분리와 묶어 쿠버네티스 위에서 함께 굴립니다. LMCache 자체도 vanilla <code>vLLM</code> 대비 지연을 3~10배 줄였다는 보고가 있고, 최근 벤치마크에서는 TTFT를 평균 약 13배(3.98초 → 0.29초), p99 꼬리 지연을 10배 이상(13.55초 → 1.30초) 개선했다고 합니다. 물론 이런 수치는 워크로드에 크게 좌우되니, 참고용 상한으로 보는 게 안전합니다.</p>
+
+<h2 id="sec-5">5. 접두사를 넘어서 — CacheBlend와 RAG 청크 재사용</h2>
+
+<p>이제 접두사 캐싱의 세 번째 한계, "맨 앞부터 일치해야 한다"를 봅시다. RAG를 떠올리면 왜 이게 아픈지 바로 와닿습니다.</p>
+
+<p>RAG 프롬프트는 보통 <code>[시스템 프롬프트][문서 A][문서 B][문서 C][질문]</code> 꼴입니다. 그런데 검색 결과라 매번 문서의 <strong>조합과 순서가 바뀝니다.</strong> 어제는 A·B·C였는데 오늘은 B·D·A인 식이죠. 접두사 캐싱은 맨 앞 시스템 프롬프트까지만 재사용하고, 그 뒤 문서들은 "위치가 달라졌다"는 이유로 전부 다시 계산합니다. 정작 문서 B의 내용은 똑같은데도요.</p>
+
+<p><a href="https://blog.lmcache.ai/en/2025/03/31/cacheblend-best-paper-acm-eurosys25-enabling-100-kv-cache-hit-rate-in-rag/" target="_blank" rel="noopener">CacheBlend</a>(ACM EuroSys'25 Best Paper)가 이 지점을 노립니다. 아이디어는 이렇습니다. 각 문서 조각의 KV 캐시를 <strong>위치와 무관하게</strong> 미리 계산해 저장해 둡니다. 요청이 오면 접두사든 아니든 저장된 KV를 일단 <strong>가져다 붙이고</strong>, 조각들이 서로 맞물리는 경계에서 어긋나는 <strong>일부 토큰만 골라 다시 계산(selective recompute)</strong>해 품질을 복원합니다.</p>
+
+<figure class="kvo-fig">
+<svg viewBox="0 0 720 300" role="img" aria-label="같은 RAG 프롬프트를 두 방식으로 처리하는 비교. 프롬프트는 시스템 프롬프트, 문서 B, 문서 D, 문서 A, 질문 순서로 이어진 다섯 블록이다. 위쪽 접두사 캐싱에서는 맨 앞 시스템 프롬프트 블록만 초록색으로 재사용되고, 그 뒤 문서 B, D, A와 질문은 모두 주황색으로 다시 계산된다. 아래쪽 CacheBlend에서는 시스템 프롬프트와 문서 B, D, A까지 대부분이 초록색으로 재사용되고, 블록 경계의 아주 일부 토큰과 질문만 주황색으로 선택 재계산된다.">
+  <!-- top: prefix caching -->
+  <text x="20" y="58" fill="currentColor" font-size="14" font-weight="700">접두사 캐싱</text>
+  <g>
+    <rect x="150" y="35" width="110" height="40" rx="6" fill="var(--kvo-green)" opacity="0.75"/>
+    <text x="205" y="60" text-anchor="middle" fill="#052e16" font-size="12.5" font-weight="700">시스템</text>
+    <rect x="266" y="35" width="90" height="40" rx="6" fill="var(--kvo-amber)" opacity="0.85"/>
+    <text x="311" y="60" text-anchor="middle" fill="#3a1d00" font-size="12.5" font-weight="700">문서 B</text>
+    <rect x="362" y="35" width="90" height="40" rx="6" fill="var(--kvo-amber)" opacity="0.85"/>
+    <text x="407" y="60" text-anchor="middle" fill="#3a1d00" font-size="12.5" font-weight="700">문서 D</text>
+    <rect x="458" y="35" width="90" height="40" rx="6" fill="var(--kvo-amber)" opacity="0.85"/>
+    <text x="503" y="60" text-anchor="middle" fill="#3a1d00" font-size="12.5" font-weight="700">문서 A</text>
+    <rect x="554" y="35" width="80" height="40" rx="6" fill="var(--kvo-amber)" opacity="0.85"/>
+    <text x="594" y="60" text-anchor="middle" fill="#3a1d00" font-size="12.5" font-weight="700">질문</text>
+  </g>
+  <text x="20" y="105" fill="currentColor" font-size="11.5" opacity=".6">→ 재사용은 맨 앞 한 블록뿐</text>
+
+  <!-- bottom: CacheBlend -->
+  <text x="20" y="188" fill="currentColor" font-size="14" font-weight="700">CacheBlend</text>
+  <g>
+    <rect x="150" y="165" width="110" height="40" rx="6" fill="var(--kvo-green)" opacity="0.75"/>
+    <text x="205" y="190" text-anchor="middle" fill="#052e16" font-size="12.5" font-weight="700">시스템</text>
+    <rect x="266" y="165" width="90" height="40" rx="6" fill="var(--kvo-green)" opacity="0.75"/>
+    <text x="311" y="190" text-anchor="middle" fill="#052e16" font-size="12.5" font-weight="700">문서 B</text>
+    <rect x="362" y="165" width="90" height="40" rx="6" fill="var(--kvo-green)" opacity="0.75"/>
+    <text x="407" y="190" text-anchor="middle" fill="#052e16" font-size="12.5" font-weight="700">문서 D</text>
+    <rect x="458" y="165" width="90" height="40" rx="6" fill="var(--kvo-green)" opacity="0.75"/>
+    <text x="503" y="190" text-anchor="middle" fill="#052e16" font-size="12.5" font-weight="700">문서 A</text>
+    <rect x="554" y="165" width="80" height="40" rx="6" fill="var(--kvo-amber)" opacity="0.85"/>
+    <text x="594" y="190" text-anchor="middle" fill="#3a1d00" font-size="12.5" font-weight="700">질문</text>
+    <!-- boundary recompute ticks -->
+    <rect x="262" y="165" width="8" height="40" fill="var(--kvo-amber)"/>
+    <rect x="358" y="165" width="8" height="40" fill="var(--kvo-amber)"/>
+    <rect x="454" y="165" width="8" height="40" fill="var(--kvo-amber)"/>
+  </g>
+  <text x="20" y="235" fill="currentColor" font-size="11.5" opacity=".6">→ 문서 조각까지 재사용, 경계의 일부 토큰만 재계산</text>
+
+  <!-- legend -->
+  <rect x="150" y="262" width="14" height="14" rx="3" fill="var(--kvo-green)" opacity="0.75"/>
+  <text x="170" y="274" fill="currentColor" font-size="12">재사용(저장된 KV)</text>
+  <rect x="330" y="262" width="14" height="14" rx="3" fill="var(--kvo-amber)" opacity="0.85"/>
+  <text x="350" y="274" fill="currentColor" font-size="12">재계산</text>
+</svg>
+<figcaption>접두사 캐싱은 맨 앞 한 블록만 재사용하지만, CacheBlend는 위치가 바뀐 문서 조각의 KV까지 끌어다 쓰고 경계의 일부 토큰만 다시 계산합니다. 그 결과 품질을 지키면서 TTFT를 2.2~3.3배 줄이고 처리량을 2.8~5배 높였습니다.</figcaption>
+</figure>
+
+<p>효과는 뚜렷합니다. CacheBlend는 품질을 거의 그대로 유지하면서 TTFT를 <strong>2.2~3.3배</strong> 줄이고 처리량을 <strong>2.8~5배</strong> 높였습니다. RAG처럼 "같은 조각이 다른 순서로 계속 등장하는" 워크로드에서 캐시 적중률을 크게 끌어올리는 게 핵심이죠. CacheBlend는 LMCache와 <code>vLLM</code> Production Stack에 들어 있어, 개념만 이해하면 옵션을 켜는 수준으로 쓸 수 있습니다.</p>
+
+<h2 id="sec-6">6. 지도 한 장 — KV 캐시 관리의 4축·5아키타입</h2>
+
+<p>여기까지 오면 도구가 많아 헷갈리기 시작합니다. 접두사 캐싱, CPU 오프로딩, 노드 간 공유, CacheBlend, PD 분리… 이걸 한 장의 지도로 정리한 게 이번에 화제가 된 <a href="https://arxiv.org/abs/2607.02574" target="_blank" rel="noopener">서베이</a>(2026년 6월 30일)입니다. 30여 개 시스템을 <strong>네 개의 축</strong>으로 분류하죠.</p>
+
+<ul>
+  <li><strong>locality(위치)</strong> — KV를 어디에 두나? GPU만? CPU·디스크까지?</li>
+  <li><strong>lifetime(수명)</strong> — 요청이 끝나면 버리나, 영속적으로 남기나?</li>
+  <li><strong>ownership(소유)</strong> — 캐시를 누가 소유·관리하나? 엔진이? 별도 저장 서비스가?</li>
+  <li><strong>substrate(기반)</strong> — 어떤 매체에 얹나? DRAM·SSD·오브젝트 스토리지·원격 풀?</li>
+</ul>
+
+<p>이 축들이 조합돼 <strong>다섯 가지 아키타입</strong>이 나옵니다. ① 엔진 안에서 페이지로 관리하는 <em>local-paged</em>(가장 기본, <code>vLLM</code>의 PagedAttention), ② prefill/decode를 갈라 KV를 넘기는 <em>disaggregated-pipeline</em>(PD 분리), ③ 공유 저장소에 캐시를 두는 <em>shared-store</em>(LMCache의 노드 간 공유), ④ 여러 노드의 메모리를 하나로 묶는 <em>memory-pool</em>, ⑤ 이들을 계층으로 섞은 <em>hybrid-tier</em>입니다.</p>
+
+<div class="kvo-note">
+  <strong>왜 유용한가.</strong> 새 도구를 만날 때마다 "이건 어느 축에서 무엇을 바꾸는가?"로 물으면 정리가 됩니다. 예컨대 오프로딩은 <em>locality</em>를 GPU 밖으로 넓히고 <em>lifetime</em>을 길게 늘린 것, 노드 간 공유는 거기에 <em>ownership</em>을 엔진에서 공유 저장소로 옮긴 것으로 읽힙니다.
+</div>
+
+<h2 id="sec-7">7. 실전 — vLLM + LMCache 최소 설정</h2>
+
+<p>개념을 잡았으니 직접 켜 봅시다. 가장 흔한 형태는 <code>vLLM</code> 서빙 엔진에 <code>LMCache</code>를 붙여 <strong>CPU DRAM을 KV 2차 저장소</strong>로 쓰는 구성입니다. (구체적인 옵션 이름은 버전마다 바뀌니, 실제로는 각 프로젝트 문서를 함께 확인하세요.)</p>
+
+{{< highlight bash >}}
+# 1) 서빙 엔진과 KV 오프로딩 레이어를 함께 설치
+pip install vllm lmcache
+
+# 2) LMCache가 CPU DRAM을 KV 2차 저장소로 쓰도록 환경 변수 설정
+export LMCACHE_CHUNK_SIZE=256          # KV를 256토큰 청크 단위로 저장/전송
+export LMCACHE_LOCAL_CPU=True          # CPU DRAM 백엔드 켜기
+export LMCACHE_MAX_LOCAL_CPU_SIZE=40   # CPU에 최대 40GB까지 KV 보관
+{{< /highlight >}}
+
+<p>그다음 <code>vLLM</code>을 띄울 때, KV 전송을 LMCache 커넥터에 위임한다고 알려 줍니다. <code>kv_role</code>을 <code>kv_both</code>로 두면 이 인스턴스가 KV를 <strong>저장도 하고 로드도</strong> 합니다.</p>
+
+{{< highlight bash >}}
+vllm serve meta-llama/Llama-3.1-8B-Instruct \
+  --kv-transfer-config \
+  '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
+{{< /highlight >}}
+
+<p>이제 같은 긴 프롬프트로 두 번 요청해 보면, 두 번째 요청의 TTFT가 눈에 띄게 짧아집니다. 첫 요청이 만든 KV가 CPU로 오프로딩됐다가, 두 번째 요청에서 재계산 없이 로드되기 때문이죠. 여러 노드가 KV를 공유하게 하려면 CPU 대신 원격 백엔드(예: 별도 LMCache 서버나 오브젝트 스토리지)를 가리키도록 백엔드 설정만 바꾸면 됩니다.</p>
+
+<p>동작을 확인하는 습관도 중요합니다. LMCache는 KV 캐시 적중률·저장/로드량 같은 지표를 내보내니, <strong>캐시 적중률(hit rate)</strong>을 대시보드에 꼭 띄워 두세요. 적중률이 실제로 오르는지가 오프로딩이 일하고 있다는 가장 확실한 증거입니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<div class="kvo-note kvo-warn">
+  <strong>함정 ①: 여유 있는 GPU에 무조건 켠다.</strong> 오프로딩은 공짜가 아닙니다. HBM에 여유가 충분한 워크로드에서는 전송·관리 오버헤드만 3~5% 더해지고 이득은 없다는 벤치마크가 있습니다. 오프로딩은 "긴 컨텍스트 + 캐시 재사용/재활성화가 잦은" 상황에서 빛납니다.
+</div>
+
+<div class="kvo-note kvo-warn">
+  <strong>함정 ②: 대역폭을 잊는다.</strong> 오프로딩의 승부는 결국 "전송 vs 재계산"입니다. CPU↔GPU는 PCIe, 노드↔노드는 네트워크(예: 25GbE) 대역폭에 묶입니다. 저장 매체가 느리거나 네트워크가 좁으면, 로드가 재계산보다 오히려 느려질 수 있습니다. <a href="#sec-3">3장</a>의 교차점이 오른쪽으로 밀리는 셈이죠.
+</div>
+
+<div class="kvo-note kvo-warn">
+  <strong>함정 ③: 캐시 무효화를 대충 한다.</strong> KV 캐시는 <strong>모델·양자화·토크나이저·프롬프트 내용</strong>에 종속됩니다. 모델을 바꾸거나 미세하게 다른 설정으로 만든 KV를 잘못 재사용하면 <em>조용히</em> 엉뚱한 출력이 나옵니다. 캐시 키에 모델 버전 등 식별자를 반드시 포함하세요.
+</div>
+
+<div class="kvo-note kvo-warn">
+  <strong>함정 ④: 접두사를 불안정하게 만든다.</strong> 시스템 프롬프트 맨 앞에 타임스탬프처럼 매번 바뀌는 값을 넣으면, 그 뒤 전체 캐시가 무효화됩니다. 자주 바뀌는 값은 프롬프트 <em>뒤쪽</em>으로 미루고, 앞부분은 최대한 고정하세요. 오프로딩을 켜도 이 원칙은 그대로 중요합니다.
+</div>
+
+<div class="kvo-note kvo-good">
+  <strong>팁: 비접두사 재사용은 품질을 확인하며 켜라.</strong> CacheBlend 계열은 강력하지만 "일부만 재계산"이라는 근사(approximation)입니다. 대부분 품질 저하가 미미하지만, 정확도가 예민한 작업이라면 재계산 비율을 조금 높이거나 A/B로 출력 품질을 반드시 검증하세요.
+</div>
+
+<h2 id="sec-9">9. 마무리 — TL;DR</h2>
+
+<ul>
+  <li><strong>문제</strong> — 긴 컨텍스트·에이전트 워크로드에서는 prefill이 GPU 시간의 대부분을 먹는데, GPU 자리가 없으면 KV 캐시를 버리고 <strong>같은 계산을 또</strong> 합니다.</li>
+  <li><strong>오프로딩</strong> — 쫓겨날 KV를 버리지 말고 CPU DRAM·NVMe·원격 저장소 같은 <strong>아래 계층에 내려 두었다가</strong> 다시 끌어와 재사용합니다. 재계산보다 로드가 싸면 이득입니다.</li>
+  <li><strong>판단 기준</strong> — "재계산 vs 전송". 프롬프트가 길수록 오프로딩이 유리하고, 짧으면 오히려 손해입니다. <code>vLLM</code> 0.11 커넥터는 프롬프트 크기에 따라 TTFT를 2~22배 줄였습니다.</li>
+  <li><strong>노드 간 공유</strong> — LMCache 같은 공유 저장소로 KV를 빼면 여러 노드가 캐시를 나눠 씁니다. KV-aware 라우팅과 함께 쓸 때 위력이 납니다.</li>
+  <li><strong>접두사를 넘어</strong> — CacheBlend는 위치가 바뀐 문서 조각까지 재사용하고 경계 토큰만 재계산해, RAG 적중률을 끌어올립니다(TTFT 2.2~3.3배↓).</li>
+  <li><strong>지도</strong> — 새 도구는 locality·lifetime·ownership·substrate 네 축으로 읽으면 정리됩니다. KV 캐시는 이제 임시 텐서가 아니라 <strong>관리 대상 자원</strong>입니다.</li>
+  <li><strong>주의</strong> — HBM에 여유가 많으면 오버헤드만 늘고, 대역폭이 좁으면 손해입니다. 캐시 무효화(모델·설정 종속)와 접두사 안정성을 반드시 챙기세요.</li>
+</ul>
+
+<h2 id="sec-ref">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2607.02574" target="_blank" rel="noopener">From Tensor Buffer to Distributed Memory Hierarchy: A Survey of KV Cache Management for LLM Serving</a> — 2026년 6월 30일, KV 캐시 관리 서베이(4축·5아키타입)</li>
+  <li><a href="https://blog.vllm.ai/2026/01/08/kv-offloading-connector.html" target="_blank" rel="noopener">Inside vLLM's New KV Offloading Connector</a> — vLLM 0.11 KV Offloading Connector, TTFT 2~22배 개선</li>
+  <li><a href="https://github.com/lmcache/lmcache" target="_blank" rel="noopener">LMCache (GitHub)</a> — 계층형 KV 오프로딩·노드 간 공유 레이어(별 1.08만)</li>
+  <li><a href="https://arxiv.org/abs/2510.09665" target="_blank" rel="noopener">LMCache: An Efficient KV Cache Layer for Enterprise-Scale LLM Inference</a> — LMCache 논문</li>
+  <li><a href="https://blog.lmcache.ai/en/2025/03/31/cacheblend-best-paper-acm-eurosys25-enabling-100-kv-cache-hit-rate-in-rag/" target="_blank" rel="noopener">CacheBlend (EuroSys'25 Best Paper)</a> — 비접두사 KV 재사용 + 선택 재계산</li>
+  <li><a href="https://dl.acm.org/doi/10.1145/3790254" target="_blank" rel="noopener">CacheBlend: Fast LLM Serving for RAG with Cached Knowledge Fusion (ACM TOCS)</a> — CacheBlend 정식 논문</li>
+  <li><a href="https://llm-d.ai/blog/native-kv-cache-offloading-to-any-file-system-with-llm-d" target="_blank" rel="noopener">Native KV Cache Offloading to Any Filesystem with llm-d</a> — 파일시스템 백엔드 오프로딩</li>
+  <li><a href="https://github.com/vllm-project/production-stack/blob/main/tutorials/05-offload-kv-cache.md" target="_blank" rel="noopener">vLLM Production Stack — KV Cache Offloading 튜토리얼</a> — 실전 설정 예시</li>
+  <li><a href="https://www.spheron.network/blog/context-engineering-production-ai-agents-kv-cache-long-context/" target="_blank" rel="noopener">Context Engineering for Production AI Agents: KV Cache & Long-Context Economics</a> — prefill 비중·비용 관점</li>
+  <li><a href="https://www.backend.ai/blog/2026-04-how-to-save-gpu-memory-in-llm-serving-kv-cache-offloading" target="_blank" rel="noopener">LLM 서빙에서 GPU 메모리를 아끼는 법: KV 캐시 오프로딩의 원리와 조건</a> — 오프로딩이 이득인 조건 정리 <em>(한국어)</em></li>
+</ul>

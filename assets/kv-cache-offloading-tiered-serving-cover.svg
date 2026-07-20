@@ -1,0 +1,78 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GPU 메모리는 좁고 빠르지만 비싸고, 아래로 내려갈수록 CPU DRAM, 로컬 NVMe SSD, 원격 저장소 순으로 느리지만 넓고 싸진다. GPU에서 자리가 부족해 쫓겨난 KV 캐시를 버리고 나중에 다시 계산하는 대신, 아래 계층으로 내려 보관해 두었다가 필요할 때 다시 끌어올려 재사용한다. 위쪽 두 GPU 노드는 점선으로 이어져 KV 캐시를 서로 나눠 쓴다.">
+  <defs>
+    <linearGradient id="kvo-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#111f38"/>
+    </linearGradient>
+    <linearGradient id="kvo-t1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f472b6"/><stop offset="1" stop-color="#db2777"/>
+    </linearGradient>
+    <linearGradient id="kvo-t2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="kvo-t3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="kvo-t4" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/>
+    </linearGradient>
+    <marker id="kvo-down" viewBox="0 0 10 10" refX="5" refY="9" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,0 L5,10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="kvo-up" viewBox="0 0 10 10" refX="5" refY="1" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M5,0 L10,10 L0,10 z" fill="#6ee7b7"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#kvo-bg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#f1f5f9" font-family="system-ui,sans-serif" font-size="46" font-weight="800">GPU에서 쫓겨난 KV 캐시, 버리지 마라</text>
+  <text x="600" y="120" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="23" font-weight="500">KV 캐시 오프로딩 · 계층형 메모리 · 노드 간 공유</text>
+
+  <!-- two GPU nodes sharing at top -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="150" y="158" width="180" height="58" rx="10" fill="#1e293b" stroke="#f472b6" stroke-width="1.8"/>
+    <text x="240" y="185" text-anchor="middle" fill="#f9a8d4" font-size="17" font-weight="700">GPU 노드 A</text>
+    <text x="240" y="206" text-anchor="middle" fill="#cbd5e1" font-size="13">HBM · KV 슬롯</text>
+
+    <rect x="870" y="158" width="180" height="58" rx="10" fill="#1e293b" stroke="#f472b6" stroke-width="1.8"/>
+    <text x="960" y="185" text-anchor="middle" fill="#f9a8d4" font-size="17" font-weight="700">GPU 노드 B</text>
+    <text x="960" y="206" text-anchor="middle" fill="#cbd5e1" font-size="13">HBM · KV 슬롯</text>
+
+    <line x1="330" y1="187" x2="870" y2="187" stroke="#38bdf8" stroke-width="2" stroke-dasharray="7 6"/>
+    <text x="600" y="178" text-anchor="middle" fill="#7dd3fc" font-size="15" font-weight="600">KV 캐시 공유 (cross-node)</text>
+  </g>
+
+  <!-- tier staircase -->
+  <g font-family="system-ui,sans-serif" font-weight="700">
+    <rect x="360" y="252" width="300" height="52" rx="9" fill="url(#kvo-t1)"/>
+    <text x="510" y="284" text-anchor="middle" fill="#3b0a24" font-size="18">GPU HBM — 빠름·좁음·비쌈</text>
+
+    <rect x="330" y="322" width="420" height="52" rx="9" fill="url(#kvo-t2)"/>
+    <text x="540" y="354" text-anchor="middle" fill="#3a1d00" font-size="18">CPU DRAM</text>
+
+    <rect x="300" y="392" width="540" height="52" rx="9" fill="url(#kvo-t3)"/>
+    <text x="570" y="424" text-anchor="middle" fill="#06263a" font-size="18">로컬 NVMe SSD</text>
+
+    <rect x="270" y="462" width="660" height="52" rx="9" fill="url(#kvo-t4)"/>
+    <text x="600" y="494" text-anchor="middle" fill="#05270f" font-size="18">원격 저장소 — 느림·넓음·쌈</text>
+  </g>
+
+  <!-- evict (down) arrow on the left, reuse (up) on the right -->
+  <g font-family="system-ui,sans-serif">
+    <line x1="230" y1="256" x2="230" y2="506" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#kvo-down)"/>
+    <text x="150" y="360" text-anchor="middle" fill="#cbd5e1" font-size="16" font-weight="700" transform="rotate(-90 150 360)">쫓겨남 · 오프로딩</text>
+
+    <line x1="970" y1="506" x2="970" y2="256" stroke="#6ee7b7" stroke-width="2.4" marker-end="url(#kvo-up)"/>
+    <text x="1050" y="380" text-anchor="middle" fill="#a7f3d0" font-size="16" font-weight="700" transform="rotate(90 1050 380)">다시 씀 · 재사용</text>
+  </g>
+
+  <!-- KV blocks hint -->
+  <g>
+    <rect x="470" y="266" width="16" height="12" rx="2" fill="#fce7f3" opacity="0.9"/>
+    <rect x="492" y="266" width="16" height="12" rx="2" fill="#fce7f3" opacity="0.7"/>
+    <rect x="514" y="266" width="16" height="12" rx="2" fill="#fce7f3" opacity="0.5"/>
+  </g>
+
+  <text x="600" y="566" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="15">재계산(prefill) 대신 아래 계층에서 끌어와 TTFT를 줄인다</text>
+</svg>

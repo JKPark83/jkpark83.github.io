@@ -537,3 +537,13 @@
 {"date":"2026-07-20","type":"visual","path":"/images/ai-news-2026-07-20/change-map.svg","topic":"change map coding agent tooling vs memory eval axis Claude Code Codex Gemini OpenViking optimizer compound DeepStress","source":"generated"}
 {"date":"2026-07-20","type":"visual","path":"/images/ai-news-2026-07-20/optimizer-compound.svg","topic":"lifelong pass rate bar RELAI-VCL 76.4 GEPA 66.0 Meta Harness 64.6 baseline 58.7 Terminal-Bench 2.0","source":"generated"}
 {"date":"2026-07-20","type":"visual","path":"/images/ai-news-2026-07-20/openviking-arch.svg","topic":"OpenViking filesystem paradigm memory resources skills L0 L1 L2 on-demand context tiers","source":"generated"}
+{"date":"2026-07-21","type":"paper","id":"2607.16133","title":"When Do Multi-Agent Systems Help? An Information Bottleneck Perspective","topic":"multi-agent helps only when relay near-sufficient and model weak; 18 experiments 5 benchmarks 3 scales"}
+{"date":"2026-07-21","type":"paper","id":"2607.15901","title":"DSWorld: A Data Science World Model for Efficient Autonomous Agents","topic":"world model predicts op outcomes RL training ~14x search inference 3-6x transition +35.6%"}
+{"date":"2026-07-21","type":"model","source":"https://code.claude.com/docs/en/changelog","topic":"Claude Code v2.1.213 /fork redesigned to background session /subtask split WebSearch 200 subagent 200 caps","vendor":"anthropic"}
+{"date":"2026-07-21","type":"model","source":"https://developers.openai.com/codex/changelog","topic":"Codex Guardian auto-review policy restored dangerous rm detection 272K context","vendor":"openai"}
+{"date":"2026-07-21","type":"tip","source":"https://code.claude.com/docs/en/changelog","topic":"Claude Code /fork background session vs /subtask; set MAX_SUBAGENTS/MAX_WEB_SEARCHES per session","tool":"claude-code"}
+{"date":"2026-07-21","type":"tip","source":"https://developers.openai.com/codex/changelog","topic":"Codex Guardian auto-review as CI gate; keep destructive rm out of auto-approve","tool":"codex"}
+{"date":"2026-07-21","type":"tip","source":"https://arxiv.org/abs/2607.16133","topic":"adopt multi-agent only after measuring vs single-agent baseline; relay bandwidth matters","tool":"agnostic"}
+{"date":"2026-07-21","type":"visual","path":"/images/ai-news-2026-07-21/change-map.svg","topic":"change map research vs coding-agent tooling","source":"generated"}
+{"date":"2026-07-21","type":"visual","path":"/images/ai-news-2026-07-21/mas-decision.svg","topic":"multi-agent benefit decision guide relay capacity vs model strength","source":"generated"}
+{"date":"2026-07-21","type":"visual","path":"/images/ai-news-2026-07-21/dsworld-speedup.svg","topic":"DSWorld speedup bars 14x 3-6x +35.6%","source":"generated"}

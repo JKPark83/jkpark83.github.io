@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 340" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="700" height="340" fill="#0f1420"/>
+  <text x="30" y="40" fill="#e8ecf4" font-size="20" font-weight="700">DSWorld — 월드모델로 얻은 가속 (검증된 수치)</text>
+  <text x="30" y="62" fill="#8b95a7" font-size="12.5">실제 실행 대신 결과를 예측 → 데이터과학 에이전트 학습·탐색 비용 절감</text>
+
+  <!-- Bar 1: RL training 14x -->
+  <text x="40" y="112" fill="#cdd8ec" font-size="13">RL 에이전트 학습</text>
+  <rect x="40" y="122" width="560" height="30" rx="6" fill="#1b2740"/>
+  <rect x="40" y="122" width="560" height="30" rx="6" fill="#6fa8ff"/>
+  <text x="612" y="143" fill="#dbe6ff" font-size="15" font-weight="700">~14×</text>
+
+  <!-- Bar 2: search inference 3-6x -->
+  <text x="40" y="182" fill="#cdd8ec" font-size="13">탐색 기반 추론</text>
+  <rect x="40" y="192" width="560" height="30" rx="6" fill="#1b2740"/>
+  <rect x="40" y="192" width="240" height="30" rx="6" fill="#7fe0a8"/>
+  <text x="292" y="213" fill="#bff2d4" font-size="15" font-weight="700">3–6×</text>
+
+  <!-- Bar 3: transition prediction +35.6% -->
+  <text x="40" y="252" fill="#cdd8ec" font-size="13">전이 예측 정확도</text>
+  <rect x="40" y="262" width="560" height="30" rx="6" fill="#1b2740"/>
+  <rect x="40" y="262" width="200" height="30" rx="6" fill="#ffb066"/>
+  <text x="252" y="283" fill="#ffd0a3" font-size="15" font-weight="700">+35.6%</text>
+  <text x="255" y="252" fill="#8b95a7" font-size="11">(최강 LLM 베이스라인 대비)</text>
+
+  <text x="30" y="322" fill="#6f7c93" font-size="11">출처: arXiv 2607.15901 (cs.AI, 2026-07-17) · 8K 전이 궤적 + Reflective World Model Optimization</text>
+</svg>

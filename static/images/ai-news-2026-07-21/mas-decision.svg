@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="720" height="420" fill="#0f1420"/>
+  <text x="30" y="40" fill="#e8ecf4" font-size="20" font-weight="700">멀티에이전트가 이득인 조건 (정보병목 관점)</text>
+  <text x="30" y="62" fill="#8b95a7" font-size="12.5">arXiv 2607.16133의 정성적 결론을 결정 가이드로 재구성 (수치 아님, 방향성)</text>
+
+  <!-- Axes -->
+  <line x1="90" y1="360" x2="680" y2="360" stroke="#3a4a68" stroke-width="2"/>
+  <line x1="90" y1="360" x2="90" y2="100" stroke="#3a4a68" stroke-width="2"/>
+  <text x="360" y="398" fill="#9fb0cc" font-size="13" text-anchor="middle">에이전트 간 릴레이(메시지) 용량 →</text>
+  <text x="34" y="230" fill="#9fb0cc" font-size="13" text-anchor="middle" transform="rotate(-90 34 230)">멀티에이전트 이득 →</text>
+
+  <!-- weak model curve: rises then plateaus -->
+  <path d="M110 350 C 230 340, 300 180, 430 150 C 520 132, 600 128, 660 126" fill="none" stroke="#ff9f66" stroke-width="3.5"/>
+  <text x="470" y="132" fill="#ffb888" font-size="12.5" font-weight="600">약한 모델</text>
+  <text x="470" y="150" fill="#c99a7f" font-size="11">릴레이가 충분해지면 이득 큼</text>
+
+  <!-- strong model curve: flat/low -->
+  <path d="M110 344 C 260 336, 420 326, 660 320" fill="none" stroke="#66b8ff" stroke-width="3.5"/>
+  <text x="150" y="308" fill="#9cc9ff" font-size="12.5" font-weight="600">강한 모델</text>
+  <text x="150" y="326" fill="#7f9dc9" font-size="11">중복 컨텍스트를 스스로 활용 → 이득 작음</text>
+
+  <!-- sweet-spot band -->
+  <rect x="360" y="100" width="150" height="260" fill="#2f5c40" opacity="0.16"/>
+  <text x="435" y="120" fill="#8fe0b0" font-size="11.5" text-anchor="middle" font-weight="600">스위트스팟</text>
+  <text x="435" y="136" fill="#79b596" font-size="10.5" text-anchor="middle">릴레이 ≈ 충분</text>
+
+  <!-- baseline note -->
+  <text x="110" y="386" fill="#6f7c93" font-size="10.5">릴레이 부족: 과압축으로 태스크 정보 손실</text>
+
+  <text x="30" y="416" fill="#6f7c93" font-size="11">근거: 18개 통제 실험 · 벤치 5종 · 모델 스케일 3종 (cs.LG, 2026-07-17)</text>
+</svg>

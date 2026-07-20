@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="760" height="420" fill="#0f1420"/>
+  <text x="30" y="42" fill="#e8ecf4" font-size="22" font-weight="700">오늘의 AI 변화 지도 — 2026-07-21</text>
+  <text x="30" y="66" fill="#8b95a7" font-size="14">테마: "언제 멀티에이전트·월드모델이 실제로 도움이 되나" — 근거 기반 아키텍처 선택</text>
+
+  <!-- Left column: Research -->
+  <rect x="30" y="95" width="330" height="290" rx="12" fill="#141b2b" stroke="#26334d"/>
+  <text x="50" y="125" fill="#7fb4ff" font-size="15" font-weight="700">📚 연구 — 아키텍처 판단 근거</text>
+
+  <rect x="50" y="140" width="290" height="72" rx="8" fill="#1b2740" stroke="#33507f"/>
+  <text x="66" y="163" fill="#dbe6ff" font-size="13" font-weight="600">MAS 정보병목 (2607.16133)</text>
+  <text x="66" y="184" fill="#9fb0cc" font-size="11.5">멀티에이전트는 항상 이득이 아니다.</text>
+  <text x="66" y="200" fill="#9fb0cc" font-size="11.5">릴레이 용량↑·약한 모델일 때만 유리.</text>
+
+  <rect x="50" y="222" width="290" height="72" rx="8" fill="#1b2740" stroke="#33507f"/>
+  <text x="66" y="245" fill="#dbe6ff" font-size="13" font-weight="600">DSWorld (2607.15901)</text>
+  <text x="66" y="266" fill="#9fb0cc" font-size="11.5">월드모델로 실행 없이 결과 예측.</text>
+  <text x="66" y="282" fill="#9fb0cc" font-size="11.5">RL 학습 ~14×, 추론 3–6× 가속.</text>
+
+  <rect x="50" y="304" width="290" height="66" rx="8" fill="#16233a" stroke="#294066"/>
+  <text x="66" y="327" fill="#c9d6ef" font-size="12" font-weight="600">→ 공통 신호</text>
+  <text x="66" y="347" fill="#9fb0cc" font-size="11.5">"더 많은 에이전트/실행"이 아니라</text>
+  <text x="66" y="363" fill="#9fb0cc" font-size="11.5">측정 후 선택. 기본은 단일 에이전트.</text>
+
+  <!-- Right column: Tooling -->
+  <rect x="400" y="95" width="330" height="290" rx="12" fill="#141b2b" stroke="#26334d"/>
+  <text x="420" y="125" fill="#7fe0a8" font-size="15" font-weight="700">🛠 코딩 에이전트 툴링</text>
+
+  <rect x="420" y="140" width="290" height="86" rx="8" fill="#16281f" stroke="#2f5c40"/>
+  <text x="436" y="163" fill="#d7f2e2" font-size="13" font-weight="600">Claude Code v2.1.213–215</text>
+  <text x="436" y="184" fill="#a7c8b6" font-size="11.5">/fork → 백그라운드 세션 복제로 재설계,</text>
+  <text x="436" y="200" fill="#a7c8b6" font-size="11.5">기존 in-session 동작은 /subtask로 분리.</text>
+  <text x="436" y="216" fill="#a7c8b6" font-size="11.5">WebSearch·서브에이전트 세션 상한 200.</text>
+
+  <rect x="420" y="236" width="290" height="70" rx="8" fill="#16281f" stroke="#2f5c40"/>
+  <text x="436" y="259" fill="#d7f2e2" font-size="13" font-weight="600">Codex (GPT-5.6 Sol/Terra/Luna)</text>
+  <text x="436" y="280" fill="#a7c8b6" font-size="11.5">Guardian 자동리뷰 정책 복구,</text>
+  <text x="436" y="296" fill="#a7c8b6" font-size="11.5">컨텍스트 272K·위험명령 탐지 강화.</text>
+
+  <rect x="420" y="316" width="290" height="54" rx="8" fill="#16233a" stroke="#294066"/>
+  <text x="436" y="339" fill="#c9d6ef" font-size="12" font-weight="600">→ 오늘 할 일</text>
+  <text x="436" y="358" fill="#9fb0cc" font-size="11.5">병렬 에이전트 상한·백그라운드 흐름 재점검.</text>
+
+  <!-- connector -->
+  <line x1="360" y1="240" x2="400" y2="240" stroke="#3a4a68" stroke-width="2" stroke-dasharray="5 4"/>
+</svg>

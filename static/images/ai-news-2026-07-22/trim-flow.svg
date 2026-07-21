@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="720" height="400" fill="#0f172a"/>
+  <text x="360" y="32" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="700">TRIM — 왜 에이전트 코드는 부풀고, 어떻게 줄이나</text>
+
+  <!-- step 1 -->
+  <rect x="30" y="60" width="200" height="120" rx="12" fill="#1e293b" stroke="#f472b6"/>
+  <text x="130" y="86" text-anchor="middle" fill="#f472b6" font-size="13" font-weight="700">1. 에이전트 탐색</text>
+  <text x="46" y="110" fill="#cbd5e1" font-size="11.5">통과할 때까지 반복 수정</text>
+  <text x="46" y="130" fill="#cbd5e1" font-size="11.5">· 투기적 편집</text>
+  <text x="46" y="148" fill="#cbd5e1" font-size="11.5">· 폐기된 가설</text>
+  <text x="46" y="166" fill="#cbd5e1" font-size="11.5">· 임시 변경이 잔존</text>
+
+  <!-- arrow -->
+  <line x1="230" y1="120" x2="270" y2="120" stroke="#64748b" stroke-width="2.5"/>
+  <polygon points="270,113 284,120 270,127" fill="#64748b"/>
+
+  <!-- step 2 -->
+  <rect x="288" y="60" width="200" height="120" rx="12" fill="#1e293b" stroke="#fbbf24"/>
+  <text x="388" y="86" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="700">2. 결과: 코드슬롭</text>
+  <text x="304" y="110" fill="#cbd5e1" font-size="11.5">사람 구현 대비</text>
+  <text x="304" y="130" fill="#cbd5e1" font-size="11.5">더 길고 장황한 패치</text>
+  <text x="304" y="152" fill="#94a3b8" font-size="11">→ 리뷰·유지보수 부담 ↑</text>
+
+  <!-- arrow -->
+  <line x1="488" y1="120" x2="528" y2="120" stroke="#64748b" stroke-width="2.5"/>
+  <polygon points="528,113 542,120 528,127" fill="#64748b"/>
+
+  <!-- step 3 -->
+  <rect x="546" y="60" width="150" height="120" rx="12" fill="#1e293b" stroke="#34d399"/>
+  <text x="621" y="86" text-anchor="middle" fill="#34d399" font-size="13" font-weight="700">3. TRIM</text>
+  <text x="562" y="110" fill="#cbd5e1" font-size="11.5">궤적(trajectory)</text>
+  <text x="562" y="128" fill="#cbd5e1" font-size="11.5">자체를 최소화</text>
+  <text x="562" y="150" fill="#94a3b8" font-size="11">코드가 아니라</text>
+  <text x="562" y="166" fill="#94a3b8" font-size="11">'과정'을 줄임</text>
+
+  <!-- result banner -->
+  <rect x="60" y="220" width="600" height="140" rx="14" fill="#0b1220" stroke="#34d399" stroke-width="2"/>
+  <text x="360" y="252" text-anchor="middle" fill="#f8fafc" font-size="15" font-weight="700">검증된 결과 (arXiv 2607.18161, cs.SE)</text>
+  <text x="200" y="300" text-anchor="middle" fill="#34d399" font-size="30" font-weight="800">17.9~32.9%</text>
+  <text x="200" y="326" text-anchor="middle" fill="#cbd5e1" font-size="12">코드슬롭 감소 (여러 스캐폴드)</text>
+  <text x="520" y="300" text-anchor="middle" fill="#38bdf8" font-size="30" font-weight="800">약 1/2</text>
+  <text x="520" y="326" text-anchor="middle" fill="#cbd5e1" font-size="12">Delta Debugging 대비 검증 비용</text>
+  <text x="360" y="350" text-anchor="middle" fill="#94a3b8" font-size="11">성능 저하 거의 없음 (negligible regression)</text>
+</svg>

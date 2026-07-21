@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="720" height="380" fill="#0f172a"/>
+  <text x="360" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">Gemini 3.6 Flash — 저비용·토큰 효율 (검증된 수치)</text>
+
+  <!-- output price bars -->
+  <text x="180" y="70" text-anchor="middle" fill="#94a3b8" font-size="13" font-weight="700">출력 단가 (USD / 1M 토큰)</text>
+  <!-- axis baseline -->
+  <line x1="80" y1="300" x2="300" y2="300" stroke="#334155" stroke-width="1.5"/>
+
+  <!-- 3.5 Flash: 9.00 -->
+  <rect x="105" y="120" width="70" height="180" rx="5" fill="#64748b"/>
+  <text x="140" y="112" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="700">$9.00</text>
+  <text x="140" y="320" text-anchor="middle" fill="#cbd5e1" font-size="12">3.5 Flash</text>
+
+  <!-- 3.6 Flash: 7.50 -->
+  <rect x="205" y="150" width="70" height="150" rx="5" fill="#38bdf8"/>
+  <text x="240" y="142" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="700">$7.50</text>
+  <text x="240" y="320" text-anchor="middle" fill="#7dd3fc" font-size="12" font-weight="700">3.6 Flash</text>
+  <text x="190" y="345" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">▼ 출력 단가 약 17% 인하</text>
+
+  <!-- token efficiency donut-ish -->
+  <text x="540" y="70" text-anchor="middle" fill="#94a3b8" font-size="13" font-weight="700">동일 작업당 출력 토큰</text>
+  <line x1="440" y1="300" x2="640" y2="300" stroke="#334155" stroke-width="1.5"/>
+  <rect x="465" y="130" width="60" height="170" rx="5" fill="#64748b"/>
+  <text x="495" y="122" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">100</text>
+  <text x="495" y="320" text-anchor="middle" fill="#cbd5e1" font-size="12">3.5 Flash</text>
+  <rect x="560" y="158" width="60" height="142" rx="5" fill="#34d399"/>
+  <text x="590" y="150" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">83</text>
+  <text x="590" y="320" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="700">3.6 Flash</text>
+  <text x="540" y="345" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">▼ 출력 토큰 -17% (AA Index)</text>
+
+  <text x="360" y="372" text-anchor="middle" fill="#64748b" font-size="10.5">출처: Google 발표 / Artificial Analysis / VentureBeat — 입력 $1.50·출력 $7.50 / 1M, 1M 컨텍스트</text>
+</svg>

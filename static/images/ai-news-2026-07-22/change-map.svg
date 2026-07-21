@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="720" height="420" fill="#0f172a"/>
+  <text x="360" y="34" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">오늘의 AI 변화 지도 — 2026-07-22</text>
+  <text x="360" y="56" text-anchor="middle" fill="#94a3b8" font-size="13">테마: 더 싼 에이전트 실행 · 더 깔끔한 에이전트 코드</text>
+
+  <!-- left column: 모델 & 툴링 -->
+  <rect x="30" y="80" width="300" height="300" rx="14" fill="#1e293b" stroke="#334155"/>
+  <text x="180" y="106" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">모델 &amp; 툴링</text>
+
+  <rect x="50" y="122" width="260" height="66" rx="9" fill="#0b1220" stroke="#38bdf8"/>
+  <text x="64" y="145" fill="#f8fafc" font-size="13" font-weight="700">Gemini 3.6 Flash (7/21)</text>
+  <text x="64" y="164" fill="#cbd5e1" font-size="11.5">출력 $9.00 → $7.50 / 1M · 토큰 -17%</text>
+  <text x="64" y="180" fill="#cbd5e1" font-size="11.5">1M 컨텍스트 · Computer Use 내장</text>
+
+  <rect x="50" y="200" width="260" height="58" rx="9" fill="#0b1220" stroke="#818cf8"/>
+  <text x="64" y="222" fill="#f8fafc" font-size="13" font-weight="700">Claude Code v2.1.217</text>
+  <text x="64" y="240" fill="#cbd5e1" font-size="11.5">동시 서브에이전트 상한 20 (기본)</text>
+
+  <rect x="50" y="270" width="260" height="58" rx="9" fill="#0b1220" stroke="#34d399"/>
+  <text x="64" y="292" fill="#f8fafc" font-size="13" font-weight="700">Codex</text>
+  <text x="64" y="310" fill="#cbd5e1" font-size="11.5">DigitalOcean 원격 워크스페이스</text>
+
+  <!-- right column: 연구 -->
+  <rect x="390" y="80" width="300" height="300" rx="14" fill="#1e293b" stroke="#334155"/>
+  <text x="540" y="106" text-anchor="middle" fill="#f472b6" font-size="14" font-weight="700">연구 (arXiv 7/20)</text>
+
+  <rect x="410" y="122" width="260" height="66" rx="9" fill="#0b1220" stroke="#f472b6"/>
+  <text x="424" y="145" fill="#f8fafc" font-size="13" font-weight="700">TRIM · 2607.18161</text>
+  <text x="424" y="164" fill="#cbd5e1" font-size="11.5">에이전트 코드슬롭 17.9~32.9%↓</text>
+  <text x="424" y="180" fill="#cbd5e1" font-size="11.5">성능 손실 거의 없음</text>
+
+  <rect x="410" y="200" width="260" height="66" rx="9" fill="#0b1220" stroke="#fbbf24"/>
+  <text x="424" y="223" fill="#f8fafc" font-size="13" font-weight="700">Adaptive Adversaries · 2607.18063</text>
+  <text x="424" y="242" fill="#cbd5e1" font-size="11.5">단발 공격 0~1% → 15라운드 5.4~14%</text>
+  <text x="424" y="258" fill="#cbd5e1" font-size="11.5">적응형 멀티턴 에이전트 보안 벤치</text>
+
+  <rect x="410" y="278" width="260" height="50" rx="9" fill="#0b1220" stroke="#34d399"/>
+  <text x="424" y="300" fill="#f8fafc" font-size="13" font-weight="700">open-code-review (Alibaba)</text>
+  <text x="424" y="318" fill="#cbd5e1" font-size="11.5">결정적 파이프라인 + LLM 리뷰</text>
+
+  <!-- connector -->
+  <line x1="330" y1="155" x2="410" y2="155" stroke="#64748b" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="360" y="392" text-anchor="middle" fill="#64748b" font-size="11">코드슬롭 ↓ · 리뷰 게이트 · 저비용 실행으로 연결</text>
+</svg>

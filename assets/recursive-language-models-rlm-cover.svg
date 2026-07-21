@@ -1,0 +1,98 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽은 긴 문서를 컨텍스트 윈도우에 통째로 밀어넣는 방식으로, 토큰이 넘치며 정확도(recall) 게이지가 아래로 떨어져 'context rot'이 일어난다. 오른쪽은 같은 문서를 프롬프트가 아니라 REPL 안의 변수 prompt로 보관하고, 루트 LM이 코드를 써서 필요한 부분만 잘라 보고, 조각마다 서브 LM을 재귀 호출해 답을 모은다. 그래서 1천만 토큰이 넘어가도 성능이 무너지지 않는다.">
+  <defs>
+    <linearGradient id="rlm-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#121f38"/>
+    </linearGradient>
+    <linearGradient id="rlm-rot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/>
+    </linearGradient>
+    <linearGradient id="rlm-ok" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+    <linearGradient id="rlm-root" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+    <marker id="rlm-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#rlm-bg)"/>
+
+  <!-- 제목 -->
+  <text x="600" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="40" font-weight="800" fill="#f1f5f9">긴 컨텍스트, 밀어넣지 말고 <tspan fill="#a78bfa">코드로 탐색</tspan>하라</text>
+  <text x="600" y="108" text-anchor="middle" font-family="system-ui,sans-serif" font-size="21" fill="#94a3b8">Recursive Language Models (RLM) — 프롬프트를 '토큰'이 아니라 '변수'로 다루는 추론 전략</text>
+
+  <!-- 왼쪽: 무작정 밀어넣기 -->
+  <g font-family="system-ui,sans-serif">
+    <text x="300" y="168" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">❌ 통째로 프롬프트에 밀어넣기</text>
+    <rect x="120" y="190" width="360" height="250" rx="14" fill="#0f1a2e" stroke="#3b1f2e" stroke-width="1.5"/>
+    <text x="140" y="220" font-size="15" fill="#64748b" font-family="ui-monospace,monospace">context window (1M tokens)</text>
+    <!-- 빽빽한 토큰 라인들 -->
+    <g stroke="#475569" stroke-width="7" opacity="0.85">
+      <line x1="140" y1="242" x2="460" y2="242"/>
+      <line x1="140" y1="258" x2="460" y2="258"/>
+      <line x1="140" y1="274" x2="452" y2="274"/>
+      <line x1="140" y1="290" x2="460" y2="290"/>
+      <line x1="140" y1="306" x2="446" y2="306"/>
+    </g>
+    <g stroke="#e11d48" stroke-width="7" opacity="0.9">
+      <line x1="140" y1="322" x2="460" y2="322"/>
+      <line x1="140" y1="338" x2="460" y2="338"/>
+      <line x1="140" y1="354" x2="458" y2="354"/>
+    </g>
+    <text x="300" y="392" text-anchor="middle" font-size="15" fill="#fb7185">토큰이 쌓일수록 정답을 놓친다</text>
+    <!-- recall 게이지 -->
+    <text x="300" y="420" text-anchor="middle" font-size="14" fill="#94a3b8" font-family="ui-monospace,monospace">recall &#8595;&#8595;  ·  &#8220;context rot&#8221;</text>
+  </g>
+
+  <!-- 가운데 화살표 -->
+  <line x1="500" y1="315" x2="560" y2="315" stroke="#94a3b8" stroke-width="3" marker-end="url(#rlm-ar)"/>
+
+  <!-- 오른쪽: RLM -->
+  <g font-family="system-ui,sans-serif">
+    <text x="880" y="168" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">✔ 변수로 두고 REPL에서 탐색</text>
+    <rect x="590" y="190" width="500" height="250" rx="14" fill="#0f1a2e" stroke="#1e3a2f" stroke-width="1.5"/>
+
+    <!-- REPL 변수 -->
+    <rect x="612" y="210" width="240" height="40" rx="8" fill="#111f38" stroke="#334155"/>
+    <text x="628" y="235" font-size="15" fill="#e2e8f0" font-family="ui-monospace,monospace">&gt;&gt;&gt; prompt   <tspan fill="#fbbf24">10M+ tokens</tspan></text>
+
+    <!-- 루트 LM -->
+    <rect x="632" y="272" width="120" height="46" rx="10" fill="url(#rlm-root)"/>
+    <text x="692" y="300" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">Root LM</text>
+
+    <!-- 재귀 서브콜 -->
+    <g stroke="#2dd4bf" stroke-width="2.2" fill="none">
+      <path d="M752 295 C 830 295, 850 350, 900 360"/>
+      <path d="M752 295 C 840 300, 900 400, 960 400"/>
+      <path d="M752 295 C 830 300, 840 330, 900 320"/>
+    </g>
+    <g font-size="13" fill="#0b1220" font-weight="700" text-anchor="middle">
+      <rect x="880" y="304" width="150" height="34" rx="8" fill="#2dd4bf"/>
+      <text x="955" y="326">sub-LM(조각1)</text>
+      <rect x="880" y="345" width="150" height="34" rx="8" fill="#5eead4"/>
+      <text x="955" y="367">sub-LM(조각2)</text>
+    </g>
+    <text x="880" y="418" text-anchor="middle" font-size="14" fill="#94a3b8">필요한 부분만 잘라 보고 · 조각마다 재귀 호출</text>
+  </g>
+
+  <!-- 하단 지표 카드 -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="120" y="478" width="300" height="112" rx="14" fill="#101c33" stroke="#1e293b"/>
+    <text x="270" y="512" text-anchor="middle" font-size="16" fill="#94a3b8">BrowseComp-Plus (6~11M tokens)</text>
+    <text x="270" y="556" text-anchor="middle" font-size="34" font-weight="800" fill="#fb7185">0%<tspan font-size="24" fill="#64748b"> &#8594; </tspan><tspan fill="#4ade80">91.3%</tspan></text>
+    <text x="270" y="580" text-anchor="middle" font-size="14" fill="#64748b">일반 LLM &#8594; RLM(GPT-5)</text>
+
+    <rect x="450" y="478" width="300" height="112" rx="14" fill="#101c33" stroke="#1e293b"/>
+    <text x="600" y="512" text-anchor="middle" font-size="16" fill="#94a3b8">OOLONG (가장 어려운 롱컨텍스트)</text>
+    <text x="600" y="556" text-anchor="middle" font-size="30" font-weight="800" fill="#a78bfa">정답 2배 &#183; 비용 &#8595;</text>
+    <text x="600" y="580" text-anchor="middle" font-size="14" fill="#64748b">GPT-5-mini+RLM &gt; GPT-5 단독</text>
+
+    <rect x="780" y="478" width="300" height="112" rx="14" fill="#101c33" stroke="#1e293b"/>
+    <text x="930" y="512" text-anchor="middle" font-size="16" fill="#94a3b8">컨텍스트 한계</text>
+    <text x="930" y="556" text-anchor="middle" font-size="30" font-weight="800" fill="#fbbf24">10M+ 토큰 OK</text>
+    <text x="930" y="580" text-anchor="middle" font-size="14" fill="#64748b">모델 윈도우의 100배까지</text>
+  </g>
+</svg>

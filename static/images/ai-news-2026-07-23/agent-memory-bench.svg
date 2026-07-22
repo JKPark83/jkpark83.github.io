@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="720" height="380" fill="#0f172a"/>
+  <text x="360" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">Supra Cognitive Modes — 라우팅형 에이전트 메모리</text>
+  <text x="360" y="55" text-anchor="middle" fill="#94a3b8" font-size="12.5">질의 유형에 따라 직접조회·관계추론·광범위종합으로 라우팅</text>
+
+  <!-- axis -->
+  <line x1="90" y1="300" x2="690" y2="300" stroke="#334155" stroke-width="1.5"/>
+  <line x1="90" y1="100" x2="90" y2="300" stroke="#334155" stroke-width="1.5"/>
+  <!-- gridlines at 25/50/75/100 -->
+  <line x1="90" y1="250" x2="690" y2="250" stroke="#1e293b" stroke-width="1"/>
+  <text x="82" y="254" text-anchor="end" fill="#64748b" font-size="10">25</text>
+  <line x1="90" y1="200" x2="690" y2="200" stroke="#1e293b" stroke-width="1"/>
+  <text x="82" y="204" text-anchor="end" fill="#64748b" font-size="10">50</text>
+  <line x1="90" y1="150" x2="690" y2="150" stroke="#1e293b" stroke-width="1"/>
+  <text x="82" y="154" text-anchor="end" fill="#64748b" font-size="10">75</text>
+  <text x="82" y="304" text-anchor="end" fill="#64748b" font-size="10">0</text>
+  <text x="70" y="90" fill="#94a3b8" font-size="11">정확도 (%)</text>
+
+  <!-- bar1 LoCoMo 84.87 -> height 84.87*2 =169.74 -->
+  <rect x="150" y="130.3" width="110" height="169.7" rx="5" fill="#38bdf8"/>
+  <text x="205" y="122" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">84.87</text>
+  <text x="205" y="322" text-anchor="middle" fill="#cbd5e1" font-size="12">LoCoMo</text>
+  <text x="205" y="338" text-anchor="middle" fill="#64748b" font-size="10">(factoid)</text>
+
+  <!-- bar2 MemoryAgentBench 61.49 -> 122.98 -->
+  <rect x="320" y="177" width="110" height="123" rx="5" fill="#f472b6"/>
+  <text x="375" y="169" text-anchor="middle" fill="#f472b6" font-size="14" font-weight="700">61.49</text>
+  <text x="375" y="322" text-anchor="middle" fill="#cbd5e1" font-size="12">MemoryAgentBench</text>
+
+  <!-- bar3 LongMemEval 86.00 -> 172 -->
+  <rect x="490" y="128" width="110" height="172" rx="5" fill="#a3e635"/>
+  <text x="545" y="120" text-anchor="middle" fill="#a3e635" font-size="14" font-weight="700">86.00</text>
+  <text x="545" y="322" text-anchor="middle" fill="#cbd5e1" font-size="12">LongMemEval</text>
+
+  <text x="360" y="364" text-anchor="middle" fill="#64748b" font-size="10.5">값 출처: arXiv 2607.19096 (통계적 유의성·인과적 라우팅 효과는 저자 주의: 미확립)</text>
+</svg>

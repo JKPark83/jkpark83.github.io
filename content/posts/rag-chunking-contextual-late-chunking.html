@@ -1,0 +1,427 @@
+---
+title: "검색이 자꾸 헛다리를 짚는다면, 범인은 '조각내기'다: RAG 청킹(chunking)과 2026년의 두 해법"
+date: 2026-07-23T07:30:00+09:00
+draft: false
+tags: ["AI", "청킹", "chunking", "RAG", "retrieval", "contextual retrieval", "late chunking", "임베딩", "embedding", "recursive splitter", "BM25", "리랭킹", "reranking", "context engineering", "컨텍스트 엔지니어링", "LLM", "agent", "에이전트"]
+categories: ["AI 엔지니어링"]
+summary: "RAG를 붙였는데 답이 자꾸 빗나가나요? 임베딩 모델을 바꾸고 리랭커를 얹기 전에, 그 밑바닥에 있는 '조각내기(chunking)'부터 의심해야 합니다. 문서를 어떻게 자르느냐가 검색의 최소 단위를 정하고, 잘못 자른 조각은 아무리 좋은 검색기·리랭커로도 살릴 수 없거든요. 이 글은 청킹이 왜 RAG 정확도의 진짜 병목인지부터, recursive 분할 같은 기본기, 그리고 2026년 실무에서 표준으로 자리 잡은 두 해법 — 각 조각에 맥락 문장을 덧붙이는 Anthropic의 contextual retrieval(실패율 최대 −67%)과, 임베딩 순서를 뒤집는 Jina의 late chunking — 을 직접 돌려 볼 수 있는 코드와 함정까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "rag-chunking-contextual-late-chunking-cover.svg"
+  alt: "긴 문서 하나가 여러 조각으로 잘리는데, 가운데 한 조각에는 '그 수치는 3% 올랐다'라고만 적혀 있어 무엇을 가리키는지 알 수 없다는 물음표가 붙어 있다. 그 조각에서 두 갈래 화살표가 뻗어 나가, 하나는 조각 앞에 맥락 문장을 덧붙이는 contextual retrieval로, 다른 하나는 문서를 통째로 먼저 임베딩한 뒤 나누는 late chunking으로 이어진다."
+  caption: "청킹의 진짜 문제는 '자르는 순간 조각이 문서 맥락을 잃는다'는 것. 2026년의 두 해법은 조각에 맥락 문장을 덧붙이거나(contextual retrieval), 임베딩 순서를 뒤집는다(late chunking)."
+  relative: false
+---
+
+<style>
+/* ── RAG 청킹 포스트 전용 스타일 (chk- 접두사) ── */
+.chk-fig{
+  --chk-sky:#0284c7; --chk-amber:#d97706; --chk-green:#16a34a; --chk-rose:#e11d48;
+  --chk-slate:#64748b; --chk-violet:#7c3aed; --chk-teal:#0d9488; --chk-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .chk-fig{
+  --chk-sky:#38bdf8; --chk-amber:#fbbf24; --chk-green:#4ade80; --chk-rose:#fb7185;
+  --chk-slate:#94a3b8; --chk-violet:#a78bfa; --chk-teal:#2dd4bf; --chk-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .chk-fig{
+    --chk-sky:#38bdf8; --chk-amber:#fbbf24; --chk-green:#4ade80; --chk-rose:#fb7185;
+    --chk-slate:#94a3b8; --chk-violet:#a78bfa; --chk-teal:#2dd4bf; --chk-blue:#60a5fa;
+  }
+}
+.chk-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.chk-fig text{font-family:inherit}
+.chk-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.chk-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.chk-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.chk-toc ol{margin:0;padding-left:1.25rem}
+.chk-toc li{margin:.22rem 0;font-size:.95rem}
+.chk-toc a{text-decoration:none}
+.chk-toc a:hover{text-decoration:underline}
+.chk-pull{font-size:1.12rem;line-height:1.72}
+.chk-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.chk-note{border-left:4px solid var(--chk-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.chk-note strong{color:var(--chk-blue,#2563eb)}
+.chk-warn{border-left:4px solid var(--chk-rose,#e11d48)}
+.chk-warn strong{color:var(--chk-rose,#e11d48)}
+.chk-good{border-left:4px solid var(--chk-teal,#0d9488)}
+.chk-good strong{color:var(--chk-teal,#0d9488)}
+.chk-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.chk-tbl th,.chk-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.chk-tbl th{background:var(--entry);font-weight:700}
+.chk-tbl code{font-size:.86em}
+.chk-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="chk-pull">
+  <p>RAG가 틀릴 때 우리는 대개 <strong>임베딩 모델</strong>을 바꾸거나 <strong>리랭커</strong>를 얹습니다. 그런데 그 둘이 다루는 건 결국 "조각(chunk)"입니다. 조각이 애초에 잘못 잘려 있으면, 아무리 좋은 검색기도 <em>깨진 조각</em>을 정확히 찾아 줄 뿐입니다.</p>
+  <footer>— 검색 품질의 천장은 임베딩이 아니라, 문서를 <em>어떻게 자르느냐</em>에서 먼저 정해집니다.</footer>
+</blockquote>
+
+<p>RAG(검색 증강 생성, retrieval-augmented generation)를 처음 붙인 junior 개발자가 흔히 밟는 길이 있습니다. 문서를 벡터 DB에 넣고, 검색이 시원찮으면 임베딩 모델을 더 큰 걸로 바꿉니다. 그래도 답이 빗나가면 <a href="/posts/reranking-two-stage-retrieval/" target="_blank" rel="noopener">리랭커(reranker)</a>를 붙입니다. 그런데도 어딘가 계속 새는 느낌이 든다면, 한 단계 더 밑을 봐야 합니다. 바로 문서를 <strong>어떻게 조각냈는가</strong>입니다.</p>
+
+<p>문서를 조각으로 나누는 이 과정을 <strong>청킹(chunking)</strong>이라고 부릅니다. 별것 아닌 전처리처럼 보이지만, 사실 청킹은 <strong>검색의 최소 단위를 정하는</strong> 결정입니다. 검색기가 찾을 수 있는 것도, LLM에게 넘겨줄 수 있는 것도 결국 이 조각 단위죠. 조각을 엉뚱한 데서 자르거나, 조각이 문서의 맥락을 잃어버리면, 그 뒤에 아무리 좋은 임베딩과 리랭커를 붙여도 천장이 낮아집니다.</p>
+
+<p>2026년 들어 이 이야기가 다시 화제가 된 건 "context engineering(컨텍스트 엔지니어링)" 담론 때문입니다. 실무자들이 입을 모아 "요즘 에이전트 실패는 모델 실패가 아니라 <em>context 실패</em>"라고 말하는데, 그 context의 밑바닥 재료가 바로 chunk거든요. 그래서 올해 여러 실무 가이드와 논문이 청킹 전략을 다시 정면으로 다루고 있고, 그중 두 해법 — Anthropic의 <strong>contextual retrieval</strong>과 Jina의 <strong>late chunking</strong> — 이 사실상 표준 처방으로 자리 잡았습니다.</p>
+
+<p>이 글은 청킹을 처음부터 짚습니다. 왜 문서를 쪼개야 하는지, 청킹의 <em>진짜</em> 문제가 무엇인지, recursive 분할 같은 기본기, 그리고 위 두 해법을 직접 돌려 볼 수 있는 코드와 함정까지 — 쉽고 자세하게 살펴봅니다.</p>
+
+<nav class="chk-toc">
+  <div class="chk-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 문서를 쪼개야 하나</a></li>
+    <li><a href="#sec-2">청킹의 진짜 문제 두 가지</a></li>
+    <li><a href="#sec-3">기본기 — 청킹 전략 스펙트럼과 recursive 분할</a></li>
+    <li><a href="#sec-4">해법 1 — contextual retrieval (조각에 맥락을 덧붙인다)</a></li>
+    <li><a href="#sec-5">해법 2 — late chunking (임베딩 순서를 뒤집는다)</a></li>
+    <li><a href="#sec-6">둘을 언제 어떻게 쓸까</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 문서를 쪼개야 하나</h2>
+
+<p>"그냥 문서 전체를 임베딩해서 넣으면 안 되나?" 청킹을 처음 보면 드는 자연스러운 의문입니다. 안 되는 이유가 셋 있습니다.</p>
+
+<ul>
+  <li><strong>임베딩 모델의 입력 한도</strong> — 임베딩 모델은 한 번에 받을 수 있는 토큰 수가 정해져 있습니다(예: 512, 8192 토큰). 긴 문서는 통째로 못 넣습니다.</li>
+  <li><strong>검색 정밀도</strong> — 책 한 권을 벡터 <em>하나</em>로 뭉개면 그 벡터엔 온갖 주제가 뒤섞입니다. "환불 규정"을 물었을 때 책 전체 벡터는 "얼추 관련" 정도로만 걸립니다. 반면 환불 문단만 담은 작은 조각은 그 질문에 <em>정확히</em> 맞습니다. 조각이 작을수록 검색이 날카로워집니다.</li>
+  <li><strong>LLM 프롬프트 예산</strong> — 검색해 온 걸 결국 프롬프트에 넣어야 하는데, 컨텍스트 창도 비용도 유한합니다. 문서 전체가 아니라 <em>알짜 조각만</em> 넣어야 토큰이 남습니다.</li>
+</ul>
+
+<p>그래서 문서를 조각으로 나눠 각 조각을 임베딩해 DB에 넣습니다. 질문이 오면 질문과 가까운 조각 몇 개를 꺼내 LLM에 넘기죠. 여기서 <strong>조각의 크기와 경계</strong>가 모든 걸 좌우합니다. 너무 크면 한 조각에 여러 주제가 섞여 검색이 무뎌지고, 너무 작으면 답에 필요한 정보가 여러 조각으로 흩어져 하나만으론 답을 못 합니다. 청킹은 이 사이에서 줄타기를 하는 일입니다.</p>
+
+<div class="chk-note"><strong>한 줄 정리.</strong> chunk는 "검색이 다룰 수 있는 가장 작은 단위"입니다. 검색기가 찾는 것도, 리랭커가 다시 줄 세우는 것도, LLM이 읽는 것도 전부 이 단위입니다. 그러니 <em>청킹은 RAG 파이프라인의 맨 앞이자, 품질의 천장</em>입니다.</div>
+
+<h2 id="sec-2">2. 청킹의 진짜 문제 두 가지</h2>
+
+<p>많은 튜토리얼이 청킹을 "글자 수로 잘라 겹치게 만들기" 정도로 소개하고 넘어갑니다. 하지만 실전에서 검색을 무너뜨리는 진짜 문제는 두 가지이고, 성격이 다릅니다.</p>
+
+<p><strong>문제 A · 경계가 의미를 끊는다.</strong> 정해진 글자 수로 기계적으로 자르면, 하필 문장 한복판이나 표 중간에서 잘립니다. "환불은 구매 후 14일 이내에" 까지만 한 조각에 들어가고 "가능합니다"는 다음 조각으로 넘어가는 식이죠. 두 조각 다 반쪽짜리라 어느 것도 질문에 온전히 답하지 못합니다.</p>
+
+<p><strong>문제 B · 조각이 문서 맥락을 잃는다.</strong> 이게 더 미묘하고 더 치명적입니다. 조각 하나만 떼어 놓으면 그 조각이 <em>무엇에 관한 것인지</em> 사라집니다. 예를 들어 어느 회사 실적 보고서에서 이런 문장이 한 조각이 됐다고 합시다.</p>
+
+<blockquote class="chk-pull" style="font-size:1rem"><p>"그 수치는 전 분기 대비 3% 올랐다."</p></blockquote>
+
+<p>이 조각만 보면 "그 수치"가 매출인지 비용인지, 어느 회사 몇 년도 얘기인지 알 수 없습니다. 사람이 봐도 모르는데, 임베딩 모델이라고 알 리가 없죠. 그래서 "ACME사 2026년 2분기 매출 증가율"로 검색하면, 정작 이 조각은 그 질문과 <em>의미적으로 가깝게 잡히지 않습니다.</em> 정답을 담고 있는데도 검색에서 밀려나는 겁니다. 이게 벡터 RAG가 은근히 자주 틀리는 진짜 원인입니다.</p>
+
+<figure class="chk-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="청킹의 두 가지 문제를 보여 주는 그림. 왼쪽은 원본 문서 문단으로, ACME사 2026년 2분기 실적을 설명하며 마지막 문장이 그 수치는 전 분기 대비 3% 올랐다이다. 오른쪽은 이 문단을 기계적으로 자른 조각들인데, 한 경계는 문장 한복판을 끊어 반쪽짜리 조각을 만들고(문제 A), 그 수치는 3% 올랐다 조각은 홀로 떨어지자 무엇에 관한 것인지 알 수 없어 물음표가 붙는다(문제 B).">
+  <rect x="14" y="40" width="300" height="228" rx="12" fill="var(--entry)" stroke="var(--chk-slate)"/>
+  <text x="164" y="30" fill="var(--chk-slate)" font-size="14" font-weight="700" text-anchor="middle">원본 문단 (맥락이 살아 있음)</text>
+  <text x="34" y="74" fill="currentColor" font-size="12.5">ACME사의 2026년 2분기 실적을</text>
+  <text x="34" y="98" fill="currentColor" font-size="12.5">발표한다. 매출은 12억 달러였고,</text>
+  <text x="34" y="122" fill="currentColor" font-size="12.5">클라우드 부문이 성장을 이끌었다.</text>
+  <text x="34" y="146" fill="currentColor" font-size="12.5">특히 구독 매출이 두드러졌는데,</text>
+  <text x="34" y="170" fill="var(--chk-amber)" font-size="12.5" font-weight="700">그 수치는 전 분기 대비 3% 올랐다.</text>
+  <text x="34" y="210" fill="currentColor" font-size="11.5" opacity="0.7">"그 수치" = 구독 매출임을 문단 안에서는</text>
+  <text x="34" y="228" fill="currentColor" font-size="11.5" opacity="0.7">누구나 안다.</text>
+
+  <path d="M322 154 L372 154" stroke="var(--chk-slate)" stroke-width="2" marker-end="url(#chk-arr)"/>
+  <text x="347" y="144" fill="var(--chk-slate)" font-size="11" text-anchor="middle">자르기</text>
+  <defs><marker id="chk-arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--chk-slate)"/></marker></defs>
+
+  <rect x="384" y="44" width="362" height="52" rx="9" fill="none" stroke="var(--chk-rose)" stroke-dasharray="5 4"/>
+  <text x="398" y="66" fill="currentColor" font-size="12">…클라우드 부문이 성장을 이끌었</text>
+  <text x="398" y="86" fill="var(--chk-rose)" font-size="11.5" font-weight="700">← 문장 한복판에서 잘림 (문제 A)</text>
+
+  <rect x="384" y="108" width="362" height="60" rx="9" fill="none" stroke="var(--chk-rose)"/>
+  <text x="404" y="140" fill="var(--chk-amber)" font-size="13" font-weight="700">"그 수치는 3% 올랐다"</text>
+  <text x="676" y="140" fill="var(--chk-rose)" font-size="26" font-weight="800" text-anchor="middle">?</text>
+  <text x="398" y="160" fill="var(--chk-rose)" font-size="11.5" font-weight="700">← 무엇의 수치인지 사라짐 (문제 B)</text>
+
+  <rect x="384" y="180" width="362" height="44" rx="9" fill="none" stroke="var(--chk-slate)"/>
+  <text x="398" y="207" fill="currentColor" font-size="12">다. 특히 구독 매출이 두드러졌…</text>
+
+  <text x="565" y="252" fill="currentColor" font-size="12" text-anchor="middle" opacity="0.75">조각만 떼면 "ACME 2분기 구독 매출"로</text>
+  <text x="565" y="270" fill="currentColor" font-size="12" text-anchor="middle" opacity="0.75">검색해도 이 조각은 잘 안 걸린다.</text>
+</svg>
+<figcaption>문제 A는 경계가 문장·표를 끊는 것, 문제 B는 조각이 홀로 떨어져 "무엇에 관한 것인지"를 잃는 것이다. 뒤에 나올 두 해법은 각각 이 문제들을 겨냥한다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 기본기 — 청킹 전략 스펙트럼과 recursive 분할</h2>
+
+<p>해법으로 가기 전에, 기본 청킹 전략부터 정리하겠습니다. 대체로 "얼마나 문서 구조를 존중하느냐"의 스펙트럼입니다.</p>
+
+<ul>
+  <li><strong>고정 크기(fixed-size)</strong> — N글자(또는 N토큰)마다 뚝뚝 자릅니다. 가장 단순하지만 문제 A(경계가 의미를 끊음)를 정면으로 맞습니다.</li>
+  <li><strong>recursive(재귀) 분할</strong> — "문단 → 문장 → 단어" 순으로 <em>자연스러운 경계를 먼저</em> 시도합니다. 문단 단위로 자르되 너무 길면 문장에서, 그래도 길면 공백에서 자릅니다. 2026년 여러 벤치마크에서 이 방식이 대부분의 문서에 가장 무난한 기본값으로 꼽힙니다.</li>
+  <li><strong>문서 구조 기반</strong> — 마크다운 헤더, HTML 태그, 코드의 함수 경계 등 문서의 <em>실제 구조</em>를 따라 자릅니다. 구조가 뚜렷한 문서라면 가장 깔끔합니다.</li>
+  <li><strong>의미(semantic) 분할</strong> — 인접 문장들의 임베딩 유사도가 뚝 떨어지는 지점, 즉 <em>화제가 바뀌는 곳</em>에서 자릅니다. 품질은 좋지만 임베딩 비용이 더 들어 "기본으로 안 되면 그때" 쓰는 편입니다.</li>
+</ul>
+
+<p>실무의 정석 출발점은 <strong>recursive 분할 + 약간의 overlap(겹침)</strong>입니다. 코드로 보면 이렇습니다. LangChain의 <code>RecursiveCharacterTextSplitter</code>가 대표적입니다.</p>
+
+{{< highlight python >}}
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=512,        # 조각 최대 크기 (토큰 기준으로 재는 게 안전)
+    chunk_overlap=64,      # 이웃 조각과 겹치는 양 — 보통 chunk_size의 10~20%
+    # 큰 경계부터 순서대로 시도: 문단 → 줄 → 공백 → 글자
+    separators=["\n\n", "\n", " ", ""],
+)
+
+chunks = splitter.split_text(document)
+{{< /highlight >}}
+
+<p>두 손잡이만 이해하면 됩니다. <code>chunk_size</code>는 조각의 최대 크기입니다. 여러 벤치마크에서 <strong>512 토큰 안팎</strong>이 대부분의 문서에 무난한 출발점으로 나옵니다 — 질문에 정밀하게 맞을 만큼 작으면서, 답을 담을 만큼은 크거든요. <code>chunk_overlap</code>은 이웃 조각끼리 <em>겹치는</em> 양입니다. 경계에서 잘린 정보가 한쪽 조각엔 온전히 남도록 완충하는 장치죠. 보통 <code>chunk_size</code>의 10~20%(여기선 64)를 씁니다.</p>
+
+<p>중요한 건, overlap은 <strong>문제 A(경계 절단)</strong>를 어느 정도 눅여 줄 뿐 <strong>문제 B(맥락 소실)</strong>는 전혀 못 고친다는 점입니다. "그 수치는 3% 올랐다" 조각은 앞뒤로 조금 겹쳐 봤자 여전히 "무엇의 수치인지"를 모릅니다. 바로 이 문제 B를 정조준한 것이 다음 두 해법입니다.</p>
+
+<div class="chk-note"><strong>토큰으로 재세요.</strong> 글자 수로 자르면 언어마다 토큰 밀도가 달라 조각 크기가 들쭉날쭉합니다. 특히 한국어·코드는 글자당 토큰이 많아 예상보다 조각이 커집니다. 임베딩·LLM 한도는 토큰 기준이니, 청킹도 토크나이저로 재는 게 안전합니다.</div>
+
+<h2 id="sec-4">4. 해법 1 — contextual retrieval (조각에 맥락을 덧붙인다)</h2>
+
+<p>첫 번째 해법은 발상이 직관적입니다. <strong>조각이 맥락을 잃는 게 문제라면, 잃기 전에 맥락을 조각 안에 적어 넣자.</strong> Anthropic이 2024년 말 정리해 널리 퍼진 <strong>contextual retrieval(맥락 검색)</strong>이 이 접근입니다.</p>
+
+<p>방법은 이렇습니다. 각 조각을 임베딩하기 <em>전에</em>, 그 조각이 <strong>전체 문서에서 어떤 맥락에 놓였는지</strong>를 설명하는 짧은 문장(보통 50~100 토큰)을 LLM으로 생성해 조각 앞에 붙입니다. 앞의 예라면 이렇게 바뀝니다.</p>
+
+<blockquote class="chk-pull" style="font-size:1rem"><p><span style="color:var(--chk-teal);font-weight:700">[이 조각은 ACME사 2026년 2분기 실적 보고서의 구독 매출 부분이다.]</span> 그 수치는 전 분기 대비 3% 올랐다.</p></blockquote>
+
+<p>이제 이 조각을 임베딩하면 "ACME", "2026 2분기", "구독 매출" 같은 신호가 벡터에 담깁니다. "ACME 2분기 구독 매출 증가율"로 검색했을 때 제대로 걸리죠. 같은 맥락 문장을 붙인 텍스트로 <strong>BM25(키워드) 색인</strong>도 함께 만들면(이를 contextual embeddings + contextual BM25라고 부릅니다), 고유명사·숫자까지 정확히 잡힙니다.</p>
+
+<figure class="chk-fig">
+<svg viewBox="0 0 760 250" role="img" aria-label="contextual retrieval의 동작. 원본 조각 그 수치는 3% 올랐다를 전체 문서와 함께 작고 빠른 LLM에 넣어, 이 조각은 ACME사 2026년 2분기 구독 매출 부분이다 같은 50에서 100토큰짜리 맥락 문장을 생성한다. 그 맥락 문장을 조각 앞에 덧붙인 뒤 임베딩과 BM25 색인을 만든다. 전체 문서는 prompt caching으로 재사용해 비용을 낮춘다.">
+  <rect x="14" y="70" width="150" height="70" rx="9" fill="var(--entry)" stroke="var(--chk-slate)"/>
+  <text x="89" y="60" fill="var(--chk-slate)" font-size="12" font-weight="700" text-anchor="middle">원본 조각</text>
+  <text x="89" y="102" fill="currentColor" font-size="11.5" text-anchor="middle">"그 수치는</text>
+  <text x="89" y="120" fill="currentColor" font-size="11.5" text-anchor="middle">3% 올랐다"</text>
+
+  <rect x="14" y="158" width="150" height="52" rx="9" fill="var(--entry)" stroke="var(--chk-slate)" stroke-dasharray="4 3"/>
+  <text x="89" y="180" fill="currentColor" font-size="11.5" text-anchor="middle">+ 전체 문서</text>
+  <text x="89" y="199" fill="currentColor" font-size="10.5" text-anchor="middle" opacity="0.7">(prompt caching)</text>
+
+  <path d="M170 128 L214 120" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a2)"/>
+  <path d="M170 182 L214 140" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a2)"/>
+  <defs><marker id="chk-a2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--chk-slate)"/></marker></defs>
+
+  <rect x="220" y="98" width="140" height="60" rx="10" fill="var(--chk-violet)" opacity="0.22" stroke="var(--chk-violet)"/>
+  <text x="290" y="124" fill="currentColor" font-size="12.5" text-anchor="middle">작고 빠른 LLM</text>
+  <text x="290" y="143" fill="currentColor" font-size="10.5" text-anchor="middle" opacity="0.75">맥락 문장 생성</text>
+
+  <path d="M362 128 L406 128" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a2)"/>
+
+  <rect x="412" y="86" width="200" height="84" rx="10" fill="none" stroke="var(--chk-teal)" stroke-width="1.8"/>
+  <text x="512" y="110" fill="var(--chk-teal)" font-size="11.5" font-weight="700" text-anchor="middle">맥락 + 조각</text>
+  <text x="512" y="132" fill="currentColor" font-size="10.5" text-anchor="middle">[ACME 2026 2분기</text>
+  <text x="512" y="148" fill="currentColor" font-size="10.5" text-anchor="middle">구독 매출] 그 수치는…</text>
+
+  <path d="M612 118 L654 100" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a2)"/>
+  <path d="M612 138 L654 158" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a2)"/>
+  <rect x="660" y="80" width="92" height="34" rx="7" fill="var(--chk-sky)" opacity="0.24" stroke="var(--chk-sky)"/>
+  <text x="706" y="102" fill="currentColor" font-size="11.5" text-anchor="middle">임베딩</text>
+  <rect x="660" y="146" width="92" height="34" rx="7" fill="var(--chk-amber)" opacity="0.24" stroke="var(--chk-amber)"/>
+  <text x="706" y="168" fill="currentColor" font-size="11.5" text-anchor="middle">BM25 색인</text>
+</svg>
+<figcaption>각 조각에, 전체 문서를 참고해 만든 50~100 토큰짜리 맥락 문장을 앞에 붙인 뒤 임베딩·BM25 색인을 만든다. 전체 문서는 prompt caching으로 재사용해 조각마다 다시 읽는 비용을 크게 줄인다.</figcaption>
+</figure>
+
+<p>Anthropic이 공개한 수치가 인상적입니다. 상위 20개 조각을 뽑을 때의 <strong>검색 실패율</strong>(정답 조각이 상위 20개에 없는 비율)이 이렇게 줄었습니다.</p>
+
+<div class="chk-tblwrap">
+<table class="chk-tbl">
+<thead><tr><th>구성</th><th>실패율</th><th>기본 대비</th></tr></thead>
+<tbody>
+<tr><td>기본(맥락 없는 임베딩만)</td><td>5.7%</td><td>—</td></tr>
+<tr><td>+ contextual embeddings</td><td>3.7%</td><td>−35%</td></tr>
+<tr><td>+ contextual embeddings & BM25</td><td>2.9%</td><td>−49%</td></tr>
+<tr><td>+ 위에 리랭킹까지</td><td>1.9%</td><td><strong>−67%</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>맥락 문장을 붙이는 것만으로 실패율이 3분의 1 이상 줄고, BM25와 <a href="/posts/reranking-two-stage-retrieval/" target="_blank" rel="noopener">리랭킹</a>까지 얹으면 3분의 2 가까이 줄어듭니다. 청킹 계층 하나 손봤을 뿐인데 말이죠.</p>
+
+<p>"조각마다 LLM을 부르면 비용이 폭발하지 않나?" 여기서 <a href="/posts/prompt-caching-cache-aware-agents/" target="_blank" rel="noopener">prompt caching(프롬프트 캐싱)</a>이 결정적입니다. 맥락을 만들 때 <em>매번 전체 문서를 다시 읽어야</em> 하는데, 문서를 캐시에 한 번 올려 두면 조각마다 재사용됩니다. Anthropic은 이 방식으로 <strong>문서 100만 토큰당 약 $1.02</strong>의 일회성 비용으로 맥락화가 가능하다고 밝혔습니다. 색인 시점에 한 번만 드는 비용이니 대개 감당할 만합니다.</p>
+
+<p>구현의 뼈대는 이렇습니다. 조각마다 "전체 문서 + 이 조각"을 작고 빠른 모델에 주고 맥락 한 문장을 받아, 조각 앞에 붙여 색인합니다.</p>
+
+{{< highlight python >}}
+import anthropic
+
+client = anthropic.Anthropic()
+
+CONTEXT_PROMPT = """다음은 전체 문서다:
+<document>{doc}</document>
+
+이 문서 안의 한 조각이다:
+<chunk>{chunk}</chunk>
+
+이 조각이 전체 문서에서 어떤 맥락에 놓였는지 한두 문장으로 짧게 설명하라.
+검색이 잘되도록 주제·주체·기간 등 핵심 맥락만 담고, 다른 말은 붙이지 마라."""
+
+def contextualize(doc: str, chunk: str) -> str:
+    msg = client.messages.create(
+        model="claude-haiku-4-5",   # 작고 빠른 모델로 충분
+        max_tokens=100,
+        messages=[{
+            "role": "user",
+            "content": [{
+                "type": "text",
+                "text": CONTEXT_PROMPT.format(doc=doc, chunk=chunk),
+                # 전체 문서 부분을 캐시에 올려 조각마다 재사용 → 비용 급감
+                "cache_control": {"type": "ephemeral"},
+            }],
+        }],
+    )
+    context = msg.content[0].text.strip()
+    return f"{context}\n\n{chunk}"   # 맥락을 조각 앞에 덧붙여 반환
+
+# 색인 단계: 각 조각을 맥락화한 뒤 임베딩 + BM25 색인에 넣는다
+contextualized = [contextualize(document, c) for c in chunks]
+# embed(contextualized) ...  /  bm25_index(contextualized) ...
+{{< /highlight >}}
+
+<div class="chk-good chk-note"><strong>핵심은 순서.</strong> 맥락 문장은 <em>임베딩·BM25 색인에 넣을 때만</em> 붙입니다. 검색이 이 조각을 뽑아 LLM에 넘길 때는 원본 조각을 그대로 넘겨도 되고, 맥락 문장까지 함께 넘겨도 됩니다. 맥락 문장은 "검색에 잘 걸리게" 하는 용도이지 최종 답변용 본문이 아니라는 점을 헷갈리지 마세요.</div>
+
+<h2 id="sec-5">5. 해법 2 — late chunking (임베딩 순서를 뒤집는다)</h2>
+
+<p>두 번째 해법은 발상이 반대입니다. contextual retrieval이 "조각에 맥락 <em>텍스트</em>를 더한다"면, Jina의 <strong>late chunking(늦은 청킹)</strong>은 <strong>임베딩하는 순서를 뒤집어</strong> 맥락을 벡터에 자연스럽게 스며들게 합니다. 2024년 논문(<code>arXiv:2409.04701</code>)으로 나와 지금은 여러 벡터 DB에 기본 기능으로 들어가 있습니다.</p>
+
+<p>보통의 청킹은 <strong>"먼저 자르고, 그다음 각 조각을 따로 임베딩"</strong>합니다. 그래서 각 조각은 이웃을 못 본 채 홀로 벡터가 됩니다("그 수치" 문제가 여기서 생기죠). late chunking은 이 순서를 뒤집습니다.</p>
+
+<ol>
+  <li><strong>먼저 문서 전체를 임베딩 모델에 통째로</strong> 넣습니다. 단, 긴 입력(예: 8192 토큰)을 받는 <em>long-context</em> 임베딩 모델이어야 합니다. 그러면 모델이 <em>토큰마다</em> 문맥이 반영된 벡터를 내놓습니다. 이때 "그 수치" 토큰의 벡터엔 이미 앞 문장의 "구독 매출" 맥락이 어텐션으로 스며 있습니다.</li>
+  <li><strong>그다음 조각 경계를 정합니다.</strong> 원본 텍스트가 아니라, 방금 얻은 <em>토큰 벡터열</em>을 경계에 맞춰 나눕니다.</li>
+  <li>각 조각 구간의 토큰 벡터들을 <strong>평균(mean pooling)</strong> 내어 그 조각의 최종 벡터로 씁니다.</li>
+</ol>
+
+<p>핵심은 "자르기"를 임베딩 <em>뒤로</em> 미룬다는 것("late")입니다. 그래서 각 조각 벡터가 문서 전체 맥락을 이미 머금고 있습니다. 별도 LLM 호출도, 추가 학습도 필요 없습니다 — mean pooling을 쓰는 long-context 임베딩 모델이면 그대로 적용됩니다. Jina 벤치마크에서 late chunking은 naive 청킹보다 검색 성능이 전반적으로 좋았고, <strong>문서가 길수록 그 이득이 커졌습니다.</strong></p>
+
+<figure class="chk-fig">
+<svg viewBox="0 0 760 320" role="img" aria-label="naive 청킹과 late chunking의 순서 비교. 위쪽 naive 청킹은 문서를 먼저 조각으로 자른 뒤 각 조각을 따로 임베딩해서, 조각 벡터들이 서로의 맥락을 모른다. 아래쪽 late chunking은 문서 전체를 long-context 임베딩 모델에 먼저 넣어 토큰마다 맥락이 반영된 벡터를 얻고, 그다음 토큰 벡터열을 조각 경계로 나눠 각 구간을 평균 pooling해 조각 벡터를 만든다. 그래서 각 조각 벡터가 문서 전체 맥락을 머금는다.">
+  <text x="20" y="34" fill="var(--chk-rose)" font-size="15" font-weight="800">naive 청킹 — 먼저 자르고, 따로 임베딩</text>
+  <rect x="20" y="48" width="120" height="40" rx="8" fill="var(--entry)" stroke="var(--chk-slate)"/>
+  <text x="80" y="72" fill="currentColor" font-size="12" text-anchor="middle">문서 전체</text>
+  <path d="M144 68 L184 68" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a3)"/>
+  <text x="164" y="58" fill="var(--chk-rose)" font-size="10.5" text-anchor="middle">자르기</text>
+  <defs><marker id="chk-a3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--chk-slate)"/></marker></defs>
+  <rect x="188" y="50" width="70" height="16" rx="4" fill="var(--chk-slate)" opacity="0.25"/>
+  <rect x="188" y="70" width="70" height="16" rx="4" fill="var(--chk-slate)" opacity="0.25"/>
+  <text x="223" y="97" fill="currentColor" font-size="10" text-anchor="middle" opacity="0.7">조각들</text>
+  <path d="M262 68 L302 68" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a3)"/>
+  <text x="282" y="58" fill="currentColor" font-size="10.5" text-anchor="middle">각각 임베딩</text>
+  <rect x="306" y="50" width="42" height="16" rx="4" fill="var(--chk-sky)" opacity="0.4"/>
+  <rect x="306" y="70" width="42" height="16" rx="4" fill="var(--chk-sky)" opacity="0.4"/>
+  <text x="470" y="64" fill="var(--chk-rose)" font-size="12" font-weight="700" text-anchor="middle">→ 조각 벡터가 서로의 맥락을 모른다</text>
+  <text x="470" y="82" fill="currentColor" font-size="11" text-anchor="middle" opacity="0.7">"그 수치" 조각엔 "구독 매출"이 안 담김</text>
+
+  <line x1="20" y1="120" x2="740" y2="120" stroke="var(--border)" stroke-width="1"/>
+
+  <text x="20" y="152" fill="var(--chk-teal)" font-size="15" font-weight="800">late chunking — 먼저 임베딩, 나중에 자르기</text>
+  <rect x="20" y="166" width="120" height="40" rx="8" fill="var(--entry)" stroke="var(--chk-slate)"/>
+  <text x="80" y="190" fill="currentColor" font-size="12" text-anchor="middle">문서 전체</text>
+  <path d="M144 186 L184 186" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a3)"/>
+  <text x="164" y="176" fill="var(--chk-teal)" font-size="10" text-anchor="middle">통째로</text>
+  <rect x="188" y="164" width="150" height="44" rx="9" fill="var(--chk-violet)" opacity="0.22" stroke="var(--chk-violet)"/>
+  <text x="263" y="184" fill="currentColor" font-size="11" text-anchor="middle">long-context</text>
+  <text x="263" y="200" fill="currentColor" font-size="11" text-anchor="middle">임베딩 모델</text>
+  <path d="M340 186 L380 186" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a3)"/>
+  <text x="360" y="176" fill="currentColor" font-size="9.5" text-anchor="middle">토큰 벡터열</text>
+  <g>
+    <rect x="384" y="170" width="14" height="32" rx="3" fill="var(--chk-teal)" opacity="0.5"/>
+    <rect x="400" y="170" width="14" height="32" rx="3" fill="var(--chk-teal)" opacity="0.5"/>
+    <rect x="416" y="170" width="14" height="32" rx="3" fill="var(--chk-teal)" opacity="0.5"/>
+    <rect x="432" y="170" width="14" height="32" rx="3" fill="var(--chk-amber)" opacity="0.5"/>
+    <rect x="448" y="170" width="14" height="32" rx="3" fill="var(--chk-amber)" opacity="0.5"/>
+    <rect x="464" y="170" width="14" height="32" rx="3" fill="var(--chk-amber)" opacity="0.5"/>
+  </g>
+  <text x="431" y="222" fill="currentColor" font-size="9.5" text-anchor="middle" opacity="0.7">경계로 나눔(late)</text>
+  <path d="M480 186 L520 186" stroke="var(--chk-slate)" stroke-width="1.6" marker-end="url(#chk-a3)"/>
+  <text x="500" y="176" fill="currentColor" font-size="9.5" text-anchor="middle">구간 평균</text>
+  <rect x="524" y="170" width="40" height="14" rx="3" fill="var(--chk-teal)" opacity="0.7"/>
+  <rect x="524" y="190" width="40" height="14" rx="3" fill="var(--chk-amber)" opacity="0.7"/>
+  <text x="640" y="184" fill="var(--chk-teal)" font-size="12" font-weight="700" text-anchor="middle">→ 조각 벡터가</text>
+  <text x="640" y="202" fill="var(--chk-teal)" font-size="12" font-weight="700" text-anchor="middle">전체 맥락을 머금음</text>
+
+  <text x="380" y="270" fill="currentColor" font-size="12.5" text-anchor="middle" opacity="0.85">차이는 딱 하나 — "자르기"를 임베딩 앞에 두느냐, 뒤에 두느냐.</text>
+  <text x="380" y="292" fill="currentColor" font-size="12.5" text-anchor="middle" opacity="0.85">뒤로 미루면(late), 각 토큰 벡터가 이미 문서 전체를 본 상태다.</text>
+</svg>
+<figcaption>late chunking은 "먼저 자르고 임베딩"을 "먼저 임베딩하고 자르기"로 뒤집는다. 문서 전체를 한 번에 인코딩하므로 각 토큰 벡터에 앞뒤 맥락이 스며들고, 그 벡터열을 조각 경계로 나눠 평균 낸다. 추가 LLM 호출도, 재학습도 없다.</figcaption>
+</figure>
+
+<p>개념 코드로 보면 "토큰 임베딩을 얻어 → 조각 구간별로 평균"이 전부입니다.</p>
+
+{{< highlight python >}}
+import numpy as np
+from transformers import AutoModel, AutoTokenizer
+
+# mean pooling을 쓰는 long-context 임베딩 모델 (예: jina-embeddings-v2, 8192 토큰)
+tok = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v2-small-en")
+model = AutoModel.from_pretrained("jinaai/jina-embeddings-v2-small-en",
+                                  trust_remote_code=True)
+
+def late_chunk_embeddings(document: str, spans):
+    # 1) 문서 전체를 통째로 인코딩 → 토큰마다 맥락 반영된 벡터
+    inputs = tok(document, return_tensors="pt", truncation=True, max_length=8192)
+    token_vecs = model(**inputs).last_hidden_state[0]   # (토큰수, 차원)
+
+    # 2) 각 조각 구간(spans)의 토큰 벡터를 평균 pooling → 조각 벡터
+    chunk_vecs = []
+    for start, end in spans:              # spans: 조각별 (시작토큰, 끝토큰) 인덱스
+        v = token_vecs[start:end].mean(axis=0)   # 이 구간만 평균
+        chunk_vecs.append(v.detach().numpy())
+    return np.array(chunk_vecs)
+{{< /highlight >}}
+
+<p>naive 청킹은 <code>spans</code> 각 구간을 <em>따로</em> 모델에 넣어 임베딩하지만, late chunking은 문서 전체를 <em>한 번</em> 넣어 얻은 벡터열을 구간별로 자를 뿐입니다. 딱 이 차이가 "그 수치" 조각에 "구독 매출" 맥락을 실어 줍니다.</p>
+
+<h2 id="sec-6">6. 둘을 언제 어떻게 쓸까</h2>
+
+<p>두 해법은 같은 문제(맥락 소실)를 다른 자리에서 공략합니다. 어느 하나가 늘 정답은 아니고, 제약에 따라 고르면 됩니다.</p>
+
+<div class="chk-tblwrap">
+<table class="chk-tbl">
+<thead><tr><th></th><th>contextual retrieval</th><th>late chunking</th></tr></thead>
+<tbody>
+<tr><td>맥락을 넣는 방식</td><td>조각 앞에 <strong>맥락 텍스트</strong>를 LLM으로 생성해 덧붙임</td><td>임베딩 <strong>순서를 뒤집어</strong> 벡터에 맥락을 스며들게 함</td></tr>
+<tr><td>추가 비용</td><td>색인 때 조각마다 LLM 호출(캐싱으로 100만 토큰당 ~$1)</td><td>거의 없음(임베딩 한 번), 다만 긴 입력 처리</td></tr>
+<tr><td>필요 조건</td><td>아무 임베딩·BM25에나 적용 가능</td><td><strong>mean pooling·long-context</strong> 임베딩 모델 필요</td></tr>
+<tr><td>BM25(키워드)</td><td>맥락 텍스트가 색인돼 고유명사·숫자에 강함</td><td>벡터 검색만 개선(키워드는 별도)</td></tr>
+<tr><td>잘 맞는 곳</td><td>맥락 의존이 크고 키워드 정확도도 중요한 문서</td><td>긴 문서, LLM 호출을 늘리기 싫을 때</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>정리하면 이렇습니다. <strong>임베딩 모델을 바꾸기 어렵거나 BM25까지 살려야 한다</strong>면 contextual retrieval이 편합니다. 어떤 임베딩·검색 스택 위에도 얹히니까요. 반대로 <strong>long-context 임베딩 모델을 쓸 수 있고 색인 때 LLM 비용을 더 얹기 싫다</strong>면 late chunking이 깔끔합니다. 둘은 배타적이지도 않아서, late chunking으로 벡터 쪽을 살리면서 contextual BM25로 키워드 쪽을 보강하는 조합도 가능합니다. 그리고 어느 쪽이든 <a href="/posts/reranking-two-stage-retrieval/" target="_blank" rel="noopener">리랭킹</a>을 뒤에 얹으면 정확도가 한 번 더 오릅니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>overlap이면 맥락 문제도 해결된다는 착각</strong> — overlap은 경계에서 잘린 <em>문장</em>을 살릴 뿐, 조각이 "무엇에 관한 것인지"는 못 채웁니다. 문제 A와 B를 헷갈리지 마세요. B는 contextual retrieval·late chunking의 영역입니다.</li>
+  <li><strong>글자 수로 자르기</strong> — 언어·코드마다 토큰 밀도가 달라 조각 크기가 들쭉날쭉해집니다. 특히 한국어는 예상보다 조각이 커집니다. 토크나이저 기준으로 자르세요.</li>
+  <li><strong>late chunking에 아무 임베딩 모델이나 쓰기</strong> — late chunking은 <em>mean pooling + long-context</em> 모델이 전제입니다. CLS 토큰 하나만 쓰는 모델이나 512 토큰짜리 모델에선 이 방식의 이득이 안 나옵니다.</li>
+  <li><strong>맥락 문장을 최종 답변 본문으로 넘기기</strong> — contextual retrieval의 맥락 문장은 "검색에 걸리게" 하는 색인용 보조입니다. LLM에 넘기는 본문과 색인용 텍스트의 역할을 구분하세요.</li>
+  <li><strong>표·코드를 글자 수로 관통</strong> — 표, 코드, 리스트는 구조가 곧 의미입니다. 구조 기반 분할(마크다운 헤더, 코드 함수 경계)을 먼저 적용한 뒤 크기를 맞추세요.</li>
+  <li><strong>측정 없이 "좋아진 것 같다"</strong> — 청킹은 손잡이가 많습니다(전략·크기·overlap·맥락화 여부). 정답 라벨을 붙인 작은 평가셋으로 <em>검색 실패율·recall</em>을 <strong>바꾸기 전후로</strong> 재세요. 특히 chunk_size는 데이터마다 최적값이 다릅니다.</li>
+</ul>
+
+<div class="chk-warn chk-note"><strong>청킹은 검색의 천장이지, 만능은 아닙니다.</strong> 잘 자른 조각은 뒤따르는 임베딩·리랭킹이 실력을 낼 발판을 놓아 줄 뿐입니다. 반대로 <em>문서에 애초에 답이 없는</em> 문제나, 여러 조각을 종합해야 답이 나오는 질문(multi-hop)은 청킹만으로 해결되지 않습니다. 증상별로 처방을 나누세요 — 정답 조각이 잘려/맥락을 잃어 검색에 안 걸리면 청킹감, 후보엔 있는데 상위로 못 오르면 리랭킹감입니다.</div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>청킹은 "검색이 다룰 수 있는 최소 단위"를 정하는 결정이라, <strong>RAG 정확도의 천장</strong>을 먼저 정한다. 임베딩·리랭커보다 앞이다.</li>
+  <li>청킹의 진짜 문제는 둘 — <strong>A) 경계가 문장·표를 끊는다, B) 조각이 홀로 떨어져 문서 맥락을 잃는다.</strong> B가 더 치명적이다("그 수치" 문제).</li>
+  <li>기본기는 <strong>recursive 분할 + overlap(10~20%)</strong>, <strong>512 토큰</strong> 안팎에서 출발. 단, overlap은 문제 A만 눅이고 B는 못 고친다.</li>
+  <li><strong>해법 1 · contextual retrieval</strong> — 조각 앞에 LLM이 만든 50~100 토큰 맥락 문장을 붙여 임베딩·BM25 색인. 검색 실패율 최대 −67%, 캐싱으로 100만 토큰당 ~$1.</li>
+  <li><strong>해법 2 · late chunking</strong> — "먼저 자르고 임베딩"을 뒤집어 "먼저 임베딩하고 자르기". long-context·mean-pooling 모델 필요, 추가 LLM 호출 없음, 문서가 길수록 이득.</li>
+  <li>고르기: 스택에 얹기 쉬운 쪽·BM25까지면 contextual retrieval, long-context 모델·저비용이면 late chunking. 둘 다 <strong>리랭킹</strong>과 궁합이 좋다.</li>
+  <li>함정: overlap 과신·글자 수 분할·부적합 임베딩 모델·맥락 문장을 본문으로 오용·구조 무시·측정 없이 도입.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Anthropic, <a href="https://www.anthropic.com/engineering/contextual-retrieval" target="_blank" rel="noopener">Introducing Contextual Retrieval</a> — 맥락 문장 덧붙이기 기법과 실패율 −35/−49/−67% 벤치마크, prompt caching 비용의 원출처. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>AWS Machine Learning Blog, <a href="https://aws.amazon.com/blogs/machine-learning/contextual-retrieval-in-anthropic-using-amazon-bedrock-knowledge-bases/" target="_blank" rel="noopener">Contextual retrieval in Anthropic using Amazon Bedrock Knowledge Bases</a> — 50~100 토큰 맥락 생성·prepend 구현 상세. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Günther et al., <a href="https://arxiv.org/abs/2409.04701" target="_blank" rel="noopener">Late Chunking: Contextual Chunk Embeddings Using Long-Context Embedding Models</a> (arXiv:2409.04701) — late chunking 원논문. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Jina AI, <a href="https://jina.ai/news/late-chunking-in-long-context-embedding-models/" target="_blank" rel="noopener">Late Chunking in Long-Context Embedding Models</a> — 저자들의 설명과 naive 대비 벤치마크. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Weaviate, <a href="https://weaviate.io/blog/late-chunking" target="_blank" rel="noopener">Late Chunking: Balancing Precision and Cost in Long Context Retrieval</a> — 개념·구현·비용 비교. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>LangChain, <a href="https://docs.langchain.com/oss/python/integrations/splitters/recursive_text_splitter" target="_blank" rel="noopener">RecursiveCharacterTextSplitter</a> — recursive 분할과 chunk_size·chunk_overlap 사용법. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Firecrawl, <a href="https://www.firecrawl.dev/blog/best-chunking-strategies-rag" target="_blank" rel="noopener">Best Chunking Strategies for RAG (and LLMs) in 2026</a> — 청킹 전략 스펙트럼과 512 토큰 기본값 논의. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Milvus, <a href="https://milvus.io/blog/smarter-retrieval-for-rag-late-chunking-with-jina-embeddings-v2-and-milvus.md" target="_blank" rel="noopener">Smarter Retrieval for RAG: Late Chunking with Jina Embeddings v2 and Milvus</a> — 벡터 DB에서의 late chunking 적용 예. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

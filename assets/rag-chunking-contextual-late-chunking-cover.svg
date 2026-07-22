@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="RAG 청킹을 나타낸 그림. 왼쪽의 긴 문서가 여러 조각으로 잘리는데, 가운데 한 조각에는 그 수치는 3% 올랐다라고만 적혀 있어 무엇을 가리키는지 알 수 없다는 물음표가 붙는다. 그 조각에서 두 갈래 화살표가 뻗어, 하나는 조각 앞에 맥락 문장을 덧붙이는 contextual retrieval로, 다른 하나는 문서를 먼저 통째로 임베딩한 뒤 나누는 late chunking으로 이어진다.">
+  <defs>
+    <linearGradient id="ckg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1a1030"/>
+    </linearGradient>
+    <linearGradient id="ck-ctx" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+    <linearGradient id="ck-late" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#ckg)"/>
+
+  <text x="80" y="94" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">조각을 잘못 자르면, 다 무너진다</text>
+  <text x="80" y="146" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="29" font-weight="700">RAG 청킹(chunking)과 2026년의 두 해법</text>
+
+  <!-- Document being sliced -->
+  <rect x="70" y="240" width="150" height="250" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+  <text x="145" y="228" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19" text-anchor="middle">긴 문서</text>
+  <line x1="70" y1="300" x2="220" y2="300" stroke="#f43f5e" stroke-width="2" stroke-dasharray="6 5"/>
+  <line x1="70" y1="360" x2="220" y2="360" stroke="#f43f5e" stroke-width="2" stroke-dasharray="6 5"/>
+  <line x1="70" y1="420" x2="220" y2="420" stroke="#f43f5e" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="145" y="524" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" text-anchor="middle">조각내기(chunking)</text>
+
+  <!-- lost-context chunk -->
+  <rect x="300" y="330" width="270" height="90" rx="12" fill="#3a1420" stroke="#fb7185" stroke-width="2"/>
+  <text x="330" y="372" fill="#fbbf24" font-family="ui-sans-serif,system-ui,sans-serif" font-size="21" font-weight="700">"그 수치는 3% 올랐다"</text>
+  <text x="330" y="402" fill="#fda4af" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16">무엇의 수치인지 사라짐 — 맥락 소실</text>
+  <text x="540" y="318" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800" text-anchor="middle">?</text>
+  <path d="M222 375 L296 375" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#cka)"/>
+  <defs>
+    <marker id="cka" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="#94a3b8"/></marker>
+  </defs>
+
+  <!-- two fixes -->
+  <path d="M572 356 L636 300" stroke="#2dd4bf" stroke-width="3" marker-end="url(#ckt)"/>
+  <path d="M572 396 L636 452" stroke="#a78bfa" stroke-width="3" marker-end="url(#ckl)"/>
+  <defs>
+    <marker id="ckt" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="#2dd4bf"/></marker>
+    <marker id="ckl" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6 Z" fill="#a78bfa"/></marker>
+  </defs>
+
+  <rect x="644" y="252" width="486" height="96" rx="14" fill="url(#ck-ctx)" opacity="0.92"/>
+  <text x="668" y="292" fill="#04231f" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="800">해법 1 · contextual retrieval</text>
+  <text x="668" y="326" fill="#04231f" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="600">조각 앞에 맥락 문장을 덧붙여 임베딩</text>
+
+  <rect x="644" y="406" width="486" height="96" rx="14" fill="url(#ck-late)" opacity="0.92"/>
+  <text x="668" y="446" fill="#1a0a33" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="800">해법 2 · late chunking</text>
+  <text x="668" y="480" fill="#1a0a33" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="600">문서를 먼저 통째로 임베딩한 뒤 나누기</text>
+
+  <text x="600" y="582" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" text-anchor="middle">검색 품질의 천장은 임베딩이 아니라, 문서를 어떻게 자르느냐에서 먼저 정해진다</text>
+</svg>

@@ -1,0 +1,33 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="오일쇼크에 숨고르기 나선 나스닥 속에서 주식 심리는 공포 43, 암호화폐 심리는 중립 49를 가리키는 두 개의 계기판 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.07.22 · 나스닥 &amp; 비트코인 5분 요약</text>
+
+  <g transform="translate(300,380)">
+    <path d="M-150,0 A150,150 0 0,1 -106.07,-106.07" fill="none" stroke="#ef4444" stroke-width="30"/>
+    <path d="M-106.07,-106.07 A150,150 0 0,1 -23.46,-148.15" fill="none" stroke="#f59e0b" stroke-width="30"/>
+    <path d="M-23.46,-148.15 A150,150 0 0,1 23.46,-148.15" fill="none" stroke="#eab308" stroke-width="30"/>
+    <path d="M23.46,-148.15 A150,150 0 0,1 106.07,-106.07" fill="none" stroke="#84cc16" stroke-width="30"/>
+    <path d="M106.07,-106.07 A150,150 0 0,1 150,0" fill="none" stroke="#22c55e" stroke-width="30"/>
+    <line x1="0" y1="0" x2="-26.17" y2="-117.11" stroke="#f1f5f9" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="10" fill="#f1f5f9"/>
+    <text x="0" y="60" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#f1f5f9">주식 43 · 공포</text>
+  </g>
+
+  <g transform="translate(880,380)">
+    <path d="M-150,0 A150,150 0 0,1 -106.07,-106.07" fill="none" stroke="#ef4444" stroke-width="30"/>
+    <path d="M-106.07,-106.07 A150,150 0 0,1 -23.46,-148.15" fill="none" stroke="#f59e0b" stroke-width="30"/>
+    <path d="M-23.46,-148.15 A150,150 0 0,1 23.46,-148.15" fill="none" stroke="#eab308" stroke-width="30"/>
+    <path d="M23.46,-148.15 A150,150 0 0,1 106.07,-106.07" fill="none" stroke="#84cc16" stroke-width="30"/>
+    <path d="M106.07,-106.07 A150,150 0 0,1 150,0" fill="none" stroke="#22c55e" stroke-width="30"/>
+    <line x1="0" y1="0" x2="-3.77" y2="-119.94" stroke="#f1f5f9" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="10" fill="#f1f5f9"/>
+    <text x="0" y="60" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#f1f5f9">암호화폐 49 · 중립</text>
+  </g>
+</svg>

@@ -1,0 +1,373 @@
+---
+title: "벡터 검색은 점만 찾고 선은 못 잇는다: 여러 사실을 이어야 답이 나올 때 쓰는 GraphRAG(그래프 RAG)"
+date: 2026-07-24T07:30:00+09:00
+draft: false
+tags: ["AI", "GraphRAG", "그래프 RAG", "knowledge graph", "지식 그래프", "RAG", "retrieval", "multi-hop", "멀티홉", "벡터 검색", "vector search", "LlamaIndex", "Neo4j", "community detection", "agentic RAG", "context engineering", "컨텍스트 엔지니어링", "LLM", "agent", "에이전트"]
+categories: ["AI 엔지니어링"]
+summary: "벡터 RAG를 붙였는데, '어느 회사가 우리가 인수한 그 스타트업을 만든 사람의 다음 회사를 인수했나' 같은 질문에서 자꾸 무너지나요? 이런 multi-hop 질문은 답이 한 조각에 들어 있지 않고, 여러 사실을 '이어야' 나옵니다. 벡터 검색은 비슷한 조각을 잘 찾지만 조각 사이의 관계는 모릅니다. GraphRAG(그래프 RAG)는 문서에서 엔티티와 관계를 뽑아 지식 그래프로 만든 뒤, 그 관계를 타고 검색합니다. 이 글은 왜 벡터 RAG가 multi-hop에서 무너지는지, GraphRAG의 인덱싱·쿼리가 어떻게 도는지, 언제 이기고 언제 지는지(벤치마크로), 그리고 인덱싱 비용이라는 함정까지 — LlamaIndex 코드와 함께 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "graphrag-knowledge-graph-retrieval-cover.svg"
+  alt: "왼쪽은 벡터 검색으로, A사·인수·B사라는 조각 세 개를 각각 찾지만 서로 잇지 못해 물음표가 붙어 있다. 오른쪽은 GraphRAG로, 같은 조각들이 엔티티 노드가 되어 '인수'·'피인수' 관계 화살표로 연결된 그래프를 따라가며 A에서 B로 가는 경로를 찾아낸다."
+  caption: "벡터 RAG는 비슷한 조각을 따로따로 잘 찾지만 조각 사이의 관계는 모른다. GraphRAG는 엔티티 사이의 관계를 그래프로 만들어 그 선을 타고 검색한다."
+  relative: false
+---
+
+<style>
+/* ── GraphRAG 포스트 전용 스타일 (grag- 접두사) ── */
+.grag-fig{
+  --grag-sky:#0284c7; --grag-amber:#d97706; --grag-green:#16a34a; --grag-rose:#e11d48;
+  --grag-slate:#64748b; --grag-violet:#7c3aed; --grag-teal:#0d9488; --grag-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .grag-fig{
+  --grag-sky:#38bdf8; --grag-amber:#fbbf24; --grag-green:#4ade80; --grag-rose:#fb7185;
+  --grag-slate:#94a3b8; --grag-violet:#a78bfa; --grag-teal:#2dd4bf; --grag-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .grag-fig{
+    --grag-sky:#38bdf8; --grag-amber:#fbbf24; --grag-green:#4ade80; --grag-rose:#fb7185;
+    --grag-slate:#94a3b8; --grag-violet:#a78bfa; --grag-teal:#2dd4bf; --grag-blue:#60a5fa;
+  }
+}
+.grag-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.grag-fig text{font-family:inherit}
+.grag-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.grag-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.grag-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.grag-toc ol{margin:0;padding-left:1.25rem}
+.grag-toc li{margin:.22rem 0;font-size:.95rem}
+.grag-toc a{text-decoration:none}
+.grag-toc a:hover{text-decoration:underline}
+.grag-pull{font-size:1.12rem;line-height:1.72}
+.grag-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.grag-note{border-left:4px solid var(--grag-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.grag-note strong{color:var(--grag-blue,#2563eb)}
+.grag-warn{border-left:4px solid var(--grag-rose,#e11d48)}
+.grag-warn strong{color:var(--grag-rose,#e11d48)}
+.grag-good{border-left:4px solid var(--grag-teal,#0d9488)}
+.grag-good strong{color:var(--grag-teal,#0d9488)}
+.grag-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.grag-tbl th,.grag-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.grag-tbl th{background:var(--entry);font-weight:700}
+.grag-tbl code{font-size:.86em}
+.grag-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="grag-pull">
+  <p>벡터 검색은 질문과 <strong>비슷한 조각</strong>을 잘 찾습니다. 그런데 답이 한 조각에 들어 있지 않고 <em>여러 조각을 이어야</em> 나오는 질문 앞에서는, 조각을 다 찾아 놓고도 이어 붙이지 못합니다.</p>
+  <footer>— GraphRAG는 조각을 찾는 대신, 조각 사이의 <em>관계</em>를 검색합니다.</footer>
+</blockquote>
+
+<p>RAG(검색 증강 생성, retrieval-augmented generation)를 붙여 놓고 대체로 잘 쓰다가, 어떤 종류의 질문에서 유독 답이 엉망이 되는 경험을 한 적이 있을 겁니다. 예를 들면 이런 질문입니다.</p>
+
+<blockquote class="grag-pull" style="font-size:1rem"><p>"우리가 작년에 인수한 스타트업의 창업자가 그전에 다니던 회사는 어디야?"</p></blockquote>
+
+<p>이 질문의 답은 문서 어느 한 곳에 통째로 적혀 있지 않습니다. "우리가 인수한 스타트업"이 무엇인지 한 문서에서 찾고, "그 창업자"가 누구인지 다른 문서에서 찾고, "그 사람의 이전 회사"를 또 다른 문서에서 찾아 <strong>세 조각을 이어야</strong> 비로소 답이 나옵니다. 이렇게 여러 사실을 단계적으로 연결해야 하는 질문을 <strong>multi-hop(멀티홉) 질문</strong>이라고 부릅니다. hop은 "한 걸음 건너뛰기"라는 뜻으로, 사실 하나에서 다음 사실로 건너가는 걸 말합니다.</p>
+
+<p>벡터 RAG는 여기서 은근히 자주 무너집니다. 질문을 벡터로 바꿔 <em>비슷한 조각</em>을 찾는데, "창업자의 이전 회사" 조각은 원래 질문과 그다지 비슷하게 생기지 않았거든요. 중간 사실("그 스타트업의 창업자가 누구인지")을 알아야 그다음을 찾을 수 있는데, 벡터 검색은 한 방에 다 훑을 뿐 <em>징검다리를 밟아 가지</em> 않습니다.</p>
+
+<p>이 이야기가 2026년 들어 다시 화제가 된 건 구체적인 숫자들이 나오면서입니다. 2026년 7월 22일 Neo4j가 소개한 한 독립 연구는, 지식 그래프를 붙인 검색(GraphRAG)이 벡터-only 검색보다 사실 정확도(precision·recall)가 <strong>두 배 이상</strong>이라고 보고했습니다. 같은 시기 arXiv에는 "<em>GraphRAG가 아직도 필요한가?</em>"를 정면으로 따지는 벤치마크 논문들이 잇따라 올라왔고, ICLR 2026에는 "<em>언제 RAG에 그래프를 써야 하나</em>"를 다룬 벤치마크가 채택됐습니다. 결론은 한쪽으로 쏠려 있지 않습니다 — "항상 낫다"도 아니고 "필요 없다"도 아닌, <strong>"어떤 질문에는 확실히 낫다"</strong>는 쪽으로 실무의 합의가 모이고 있습니다.</p>
+
+<p>이 글은 그 "어떤 질문"이 무엇인지, GraphRAG가 어떻게 도는지, 언제 쓰고 언제 참아야 하는지를 처음부터 짚습니다. 우리 블로그가 그동안 다룬 <a href="/posts/agentic-retrieval-rag/" target="_blank" rel="noopener">벡터/에이전트 RAG</a>, <a href="/posts/rag-chunking-contextual-late-chunking/" target="_blank" rel="noopener">청킹</a>, <a href="/posts/reranking-two-stage-retrieval/" target="_blank" rel="noopener">리랭킹</a>이 "조각을 잘 찾는" 이야기였다면, 이번엔 "조각을 <em>잇는</em>" 이야기입니다.</p>
+
+<nav class="grag-toc">
+  <div class="grag-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">벡터 RAG가 못 잇는 것 — multi-hop 문제</a></li>
+    <li><a href="#sec-2">GraphRAG의 구조 — 인덱싱과 쿼리</a></li>
+    <li><a href="#sec-3">local search와 global search</a></li>
+    <li><a href="#sec-4">언제 이기고 언제 지나 (벤치마크)</a></li>
+    <li><a href="#sec-5">직접 해보기 — LlamaIndex로 작은 그래프 RAG</a></li>
+    <li><a href="#sec-6">비용이라는 함정, 그리고 에이전트가 그래프를 도구로</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 벡터 RAG가 못 잇는 것 — multi-hop 문제</h2>
+
+<p>먼저 벡터 RAG를 한 줄로 복습하겠습니다. 문서를 조각(chunk)으로 나눠 각 조각을 <strong>임베딩(embedding)</strong> — 의미를 담은 숫자 벡터 — 으로 바꿔 저장합니다. 질문이 오면 질문도 벡터로 바꿔, 벡터 공간에서 <em>가까운</em> 조각 몇 개를 꺼내 LLM에 넘깁니다. 핵심은 "가깝다 = 의미가 비슷하다"라는 가정입니다.</p>
+
+<p>이 가정이 잘 먹히는 질문이 있습니다. "환불 규정이 어떻게 되나요?" 같은 <strong>single-hop(단일홉) 질문</strong>은 답이 한 조각(환불 문단) 안에 있고, 그 조각은 질문과 의미가 비슷합니다. 벡터 검색이 정확히 집어냅니다.</p>
+
+<p>문제는 multi-hop입니다. 앞의 예를 다시 봅시다. "우리가 인수한 스타트업의 창업자의 이전 회사"를 찾으려면 이런 사슬을 밟아야 합니다.</p>
+
+<ul>
+  <li>우리 회사 <strong>—인수→</strong> 스타트업 X</li>
+  <li>스타트업 X <strong>—창업자→</strong> 김OO</li>
+  <li>김OO <strong>—이전 근무→</strong> 회사 Y &nbsp;<span style="opacity:.7">(← 이게 최종 답)</span></li>
+</ul>
+
+<p>벡터 검색은 원래 질문 하나로 조각을 찾습니다. 그런데 최종 답이 담긴 조각("김OO는 2019년까지 회사 Y에서 일했다")은 원래 질문("우리가 인수한 스타트업의 창업자의 이전 회사")과 <em>표면적으로 하나도 안 비슷합니다.</em> 그 조각엔 "인수"도 "스타트업"도 안 나오거든요. 그래서 정답 조각이 검색 상위에 안 뜨고, LLM은 필요한 사실을 손에 못 쥔 채 그럴듯한 헛소리를 지어냅니다.</p>
+
+<figure class="grag-fig">
+<svg viewBox="0 0 760 340" role="img" aria-label="같은 multi-hop 질문을 벡터 RAG와 GraphRAG가 어떻게 다르게 푸는지 보여 주는 그림. 위쪽 벡터 RAG는 질문 하나로 조각들을 한 번에 훑지만 표면이 비슷한 엉뚱한 조각만 잡고 정답 조각은 놓친다. 아래쪽 GraphRAG는 우리 회사에서 스타트업 X, 창업자 김OO, 이전 회사 Y로 관계 화살표를 한 걸음씩 따라가 정답에 도달한다.">
+  <!-- top: vector RAG -->
+  <text x="16" y="28" fill="var(--grag-rose)" font-size="14" font-weight="700">벡터 RAG — 질문 하나로 한 번에 훑기</text>
+  <rect x="16" y="42" width="150" height="46" rx="8" fill="var(--entry)" stroke="var(--grag-slate)"/>
+  <text x="91" y="63" fill="currentColor" font-size="11.5" text-anchor="middle">질문:</text>
+  <text x="91" y="79" fill="currentColor" font-size="10.5" text-anchor="middle">"창업자의 이전 회사?"</text>
+  <path d="M170 65 L210 65" stroke="var(--grag-slate)" stroke-width="2" marker-end="url(#grag-ar)"/>
+  <defs><marker id="grag-ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--grag-slate)"/></marker>
+  <marker id="grag-arg" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--grag-green)"/></marker></defs>
+  <rect x="216" y="44" width="120" height="42" rx="7" fill="none" stroke="var(--grag-rose)" stroke-dasharray="4 3"/>
+  <text x="276" y="62" fill="currentColor" font-size="10" text-anchor="middle">"인수 계약서…"</text>
+  <text x="276" y="78" fill="var(--grag-rose)" font-size="9.5" text-anchor="middle">표면만 비슷, 오답</text>
+  <rect x="346" y="44" width="120" height="42" rx="7" fill="none" stroke="var(--grag-rose)" stroke-dasharray="4 3"/>
+  <text x="406" y="62" fill="currentColor" font-size="10" text-anchor="middle">"스타트업 소개…"</text>
+  <text x="406" y="78" fill="var(--grag-rose)" font-size="9.5" text-anchor="middle">중간 사실, 답 아님</text>
+  <rect x="476" y="44" width="150" height="42" rx="7" fill="none" stroke="var(--grag-slate)" stroke-dasharray="4 3"/>
+  <text x="551" y="62" fill="currentColor" font-size="10" text-anchor="middle">"김OO는 회사 Y에서…"</text>
+  <text x="551" y="78" fill="var(--grag-amber)" font-size="9.5" text-anchor="middle">정답인데 안 비슷 → 누락</text>
+  <text x="648" y="69" fill="var(--grag-rose)" font-size="30" font-weight="800">✗</text>
+
+  <line x1="16" y1="112" x2="744" y2="112" stroke="var(--grag-slate)" stroke-dasharray="3 5" opacity="0.5"/>
+
+  <!-- bottom: GraphRAG -->
+  <text x="16" y="146" fill="var(--grag-green)" font-size="14" font-weight="700">GraphRAG — 관계를 한 걸음씩 따라가기</text>
+  <circle cx="80" cy="230" r="40" fill="var(--entry)" stroke="var(--grag-green)" stroke-width="2"/>
+  <text x="80" y="234" fill="currentColor" font-size="11" text-anchor="middle">우리 회사</text>
+  <circle cx="270" cy="230" r="40" fill="var(--entry)" stroke="var(--grag-green)" stroke-width="2"/>
+  <text x="270" y="234" fill="currentColor" font-size="11" text-anchor="middle">스타트업 X</text>
+  <circle cx="470" cy="230" r="40" fill="var(--entry)" stroke="var(--grag-green)" stroke-width="2"/>
+  <text x="470" y="234" fill="currentColor" font-size="11" text-anchor="middle">창업자 김OO</text>
+  <circle cx="668" cy="230" r="42" fill="var(--grag-green)" stroke="var(--grag-green)" stroke-width="2" opacity="0.22"/>
+  <circle cx="668" cy="230" r="42" fill="none" stroke="var(--grag-green)" stroke-width="2.5"/>
+  <text x="668" y="228" fill="currentColor" font-size="11" text-anchor="middle" font-weight="700">회사 Y</text>
+  <text x="668" y="244" fill="var(--grag-green)" font-size="9.5" text-anchor="middle">= 답</text>
+  <path d="M122 230 L228 230" stroke="var(--grag-green)" stroke-width="2.5" marker-end="url(#grag-arg)"/>
+  <text x="175" y="222" fill="var(--grag-slate)" font-size="10.5" text-anchor="middle">—인수→</text>
+  <path d="M312 230 L428 230" stroke="var(--grag-green)" stroke-width="2.5" marker-end="url(#grag-arg)"/>
+  <text x="370" y="222" fill="var(--grag-slate)" font-size="10.5" text-anchor="middle">—창업→</text>
+  <path d="M512 230 L624 230" stroke="var(--grag-green)" stroke-width="2.5" marker-end="url(#grag-arg)"/>
+  <text x="568" y="222" fill="var(--grag-slate)" font-size="10.5" text-anchor="middle">—이전근무→</text>
+  <text x="380" y="300" fill="var(--grag-green)" font-size="11.5" text-anchor="middle">관계(edge)를 타고 3-hop을 밟아 정답 노드에 도달</text>
+</svg>
+<figcaption>같은 multi-hop 질문. 벡터 RAG는 질문 하나로 한 번에 훑어 표면이 비슷한 조각만 잡고 정답 조각을 놓친다. GraphRAG는 엔티티 사이의 관계를 한 걸음씩 따라가 답에 도달한다.</figcaption>
+</figure>
+
+<div class="grag-note"><strong>핵심 직관.</strong> 벡터 검색은 <em>"무엇과 비슷한가"</em>로 찾습니다. GraphRAG는 <em>"무엇과 연결돼 있는가"</em>로 찾습니다. 답이 관계의 사슬 끝에 있을 때, 비슷함만으로는 그 끝까지 못 갑니다.</div>
+
+<h2 id="sec-2">2. GraphRAG의 구조 — 인덱싱과 쿼리</h2>
+
+<p><strong>GraphRAG(그래프 RAG)</strong>는 벡터 검색 단계를 <em>그래프 기반 검색</em>으로 바꾸거나 보강한 RAG입니다. 여기서 그래프는 <strong>지식 그래프(knowledge graph)</strong> — 엔티티(사람·회사·개념 같은 "점", node)를 관계(edge)로 이어 놓은 것 — 를 말합니다. "김OO —창업→ 스타트업 X" 처럼 (주어, 관계, 목적어) 세 쪽짜리 사실을 <strong>트리플(triple)</strong>이라고 부르고, 이 트리플이 그래프의 벽돌입니다.</p>
+
+<p>일반 벡터 RAG와 마찬가지로 GraphRAG도 두 단계로 나뉩니다: 미리 해 두는 <strong>인덱싱(indexing)</strong>과, 질문마다 도는 <strong>쿼리(query)</strong>입니다. 차이는 인덱싱 결과물이 "벡터 더미"가 아니라 "그래프"라는 점입니다.</p>
+
+<p><strong>인덱싱 단계</strong>는 Microsoft의 GraphRAG 구현을 기준으로 보면 대략 이렇게 흐릅니다.</p>
+
+<ol>
+  <li><strong>조각내기</strong> — 문서를 청크로 나눕니다(여기까지는 벡터 RAG와 같음).</li>
+  <li><strong>엔티티·관계 추출</strong> — 각 조각을 LLM에 넣어 "이 텍스트에 나오는 엔티티와 그들 사이의 관계를 트리플로 뽑아 줘"라고 시킵니다. 문장을 그래프의 점과 선으로 바꾸는 단계죠.</li>
+  <li><strong>커뮤니티 탐지(community detection)</strong> — 완성된 그래프를 네트워크 분석 알고리즘으로 훑어, 서로 촘촘히 연결된 노드 뭉치를 <em>커뮤니티</em>로 묶습니다(예: "결제 팀 관련 인물·기능·이슈"가 한 커뮤니티). 여러 주제가 뒤섞인 큰 그래프를 의미 있는 덩어리로 나누는 겁니다.</li>
+  <li><strong>커뮤니티 요약(community summary)</strong> — 각 커뮤니티를 LLM으로 요약해 "이 뭉치가 무엇에 관한 것인지"를 미리 적어 둡니다. 나중에 "전체를 아우르는" 질문에 이 요약들이 재료가 됩니다.</li>
+</ol>
+
+<p><strong>쿼리 단계</strong>에서는 질문이 오면, 관련 엔티티를 찾아 <em>그래프를 타고</em> 이웃 노드·관계를 끌어옵니다(구체적 질문). 또는 커뮤니티 요약들을 모아 종합합니다(전체적 질문). 이 두 갈래가 뒤에 나올 local/global search입니다.</p>
+
+<figure class="grag-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="GraphRAG 인덱싱 파이프라인 그림. 왼쪽 문서 더미에서 출발해 조각내기, LLM으로 엔티티와 관계를 트리플로 추출하기, 촘촘히 연결된 노드를 커뮤니티로 묶기, 각 커뮤니티를 LLM으로 요약하기 순서로 화살표가 이어지고, 결과물은 요약이 달린 지식 그래프다.">
+  <rect x="14" y="120" width="96" height="70" rx="8" fill="var(--entry)" stroke="var(--grag-slate)"/>
+  <text x="62" y="150" fill="currentColor" font-size="12" text-anchor="middle">문서</text>
+  <text x="62" y="168" fill="currentColor" font-size="12" text-anchor="middle">더미</text>
+  <path d="M112 155 L150 155" stroke="var(--grag-slate)" stroke-width="2" marker-end="url(#grag-i)"/>
+  <defs><marker id="grag-i" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--grag-slate)"/></marker></defs>
+
+  <rect x="152" y="112" width="120" height="86" rx="8" fill="var(--entry)" stroke="var(--grag-blue)"/>
+  <text x="212" y="140" fill="var(--grag-blue)" font-size="12" font-weight="700" text-anchor="middle">① 조각내기 +</text>
+  <text x="212" y="158" fill="var(--grag-blue)" font-size="12" font-weight="700" text-anchor="middle">② 트리플 추출</text>
+  <text x="212" y="180" fill="currentColor" font-size="10" text-anchor="middle">(LLM 호출·비쌈)</text>
+  <path d="M274 155 L312 155" stroke="var(--grag-slate)" stroke-width="2" marker-end="url(#grag-i)"/>
+
+  <rect x="314" y="112" width="120" height="86" rx="8" fill="var(--entry)" stroke="var(--grag-violet)"/>
+  <text x="374" y="144" fill="var(--grag-violet)" font-size="12" font-weight="700" text-anchor="middle">③ 커뮤니티</text>
+  <text x="374" y="162" fill="var(--grag-violet)" font-size="12" font-weight="700" text-anchor="middle">탐지</text>
+  <text x="374" y="182" fill="currentColor" font-size="10" text-anchor="middle">노드 뭉치 묶기</text>
+  <path d="M436 155 L474 155" stroke="var(--grag-slate)" stroke-width="2" marker-end="url(#grag-i)"/>
+
+  <rect x="476" y="112" width="120" height="86" rx="8" fill="var(--entry)" stroke="var(--grag-teal)"/>
+  <text x="536" y="144" fill="var(--grag-teal)" font-size="12" font-weight="700" text-anchor="middle">④ 커뮤니티</text>
+  <text x="536" y="162" fill="var(--grag-teal)" font-size="12" font-weight="700" text-anchor="middle">요약</text>
+  <text x="536" y="182" fill="currentColor" font-size="10" text-anchor="middle">(LLM 호출)</text>
+  <path d="M598 155 L636 155" stroke="var(--grag-slate)" stroke-width="2" marker-end="url(#grag-i)"/>
+
+  <!-- result graph -->
+  <circle cx="672" cy="120" r="12" fill="var(--entry)" stroke="var(--grag-green)" stroke-width="2"/>
+  <circle cx="720" cy="140" r="12" fill="var(--entry)" stroke="var(--grag-green)" stroke-width="2"/>
+  <circle cx="690" cy="180" r="12" fill="var(--entry)" stroke="var(--grag-green)" stroke-width="2"/>
+  <circle cx="736" cy="188" r="12" fill="var(--entry)" stroke="var(--grag-green)" stroke-width="2"/>
+  <line x1="672" y1="120" x2="720" y2="140" stroke="var(--grag-green)" stroke-width="1.5"/>
+  <line x1="720" y1="140" x2="690" y2="180" stroke="var(--grag-green)" stroke-width="1.5"/>
+  <line x1="690" y1="180" x2="736" y2="188" stroke="var(--grag-green)" stroke-width="1.5"/>
+  <text x="704" y="214" fill="var(--grag-green)" font-size="11" text-anchor="middle" font-weight="700">지식 그래프</text>
+
+  <text x="380" y="250" fill="var(--grag-slate)" font-size="11.5" text-anchor="middle">인덱싱 결과물은 "벡터 더미"가 아니라 "요약이 달린 그래프"다. ②·④가 LLM 비용의 대부분.</text>
+</svg>
+<figcaption>GraphRAG 인덱싱 파이프라인(Microsoft 구현 기준). 문서 → 조각내기·트리플 추출 → 커뮤니티 탐지 → 커뮤니티 요약. 결과물은 관계와 요약이 달린 지식 그래프다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. local search와 global search</h2>
+
+<p>GraphRAG가 벡터 RAG와 크게 갈리는 지점은 <strong>질문의 종류에 따라 검색 방식을 나눈다</strong>는 데 있습니다. Microsoft GraphRAG는 두 가지를 제공합니다.</p>
+
+<p><strong>local search(로컬 검색)</strong> — <em>구체적인 엔티티</em>에 관한 질문에 씁니다. 질문에서 엔티티를 찾아 그래프에서 그 노드를 집고, 이웃 노드와 연결된 관계·원문 조각을 함께 끌어옵니다. "김OO가 관여한 프로젝트는?" 같은 질문이 여기 해당합니다. multi-hop은 이 이웃 확장을 몇 걸음 반복하는 것으로 볼 수 있습니다.</p>
+
+<p><strong>global search(글로벌 검색)</strong> — <em>데이터셋 전체를 아울러야</em> 답이 나오는 질문에 씁니다. "이 문서 모음 전체를 관통하는 주요 테마 다섯 가지는?" 같은 질문이죠. 이런 질문은 특정 조각 몇 개로는 답이 안 나옵니다. 그래서 인덱싱 때 만들어 둔 <em>커뮤니티 요약들</em>을 재료로, 각 커뮤니티가 질문에 어떻게 기여하는지 부분 답을 모은 뒤 종합합니다. Microsoft는 이걸 "query-focused summarization(질문 중심 요약)"과 "global sensemaking(전체 조망)"이라고 부릅니다.</p>
+
+<p>이 구분이 중요한 이유가 있습니다. 벡터 RAG는 질문이 구체적이든 전체적이든 <em>똑같이</em> "비슷한 조각 top-k 꺼내기"만 합니다. 그래서 "전체 테마" 같은 질문에는 특히 약합니다 — 어느 한 조각도 "전체 테마"를 담고 있지 않으니까요. GraphRAG의 global search는 바로 이 빈틈을 노립니다.</p>
+
+<div class="grag-note grag-good"><strong>한 줄 정리.</strong> local search = "이 <em>엔티티</em>에 관해 알려 줘"(관계를 따라감), global search = "이 <em>전체</em>가 무슨 이야기야"(커뮤니티 요약을 종합). 질문의 결이 다르면 검색도 달라야 합니다.</div>
+
+<h2 id="sec-4">4. 언제 이기고 언제 지나 (벤치마크)</h2>
+
+<p>여기서 냉정해질 필요가 있습니다. GraphRAG는 <strong>만능 업그레이드가 아닙니다.</strong> 2026년의 여러 벤치마크가 이 점을 분명히 합니다.</p>
+
+<p>ICLR 2026에 채택된 GraphRAG-Bench("When to use Graphs in RAG")는 한 문장으로 현실을 요약합니다: <em>"개념은 매력적이지만, 최근 연구들은 GraphRAG가 많은 실제 과제에서 오히려 일반 RAG보다 못하다고 보고한다."</em> 그래서 이 벤치마크의 목표 자체가 "언제 그래프가 <strong>측정 가능한 이득</strong>을 주는가"를 가리는 것입니다.</p>
+
+<p>그 답은 대체로 이렇게 모입니다. arXiv의 "Do We Still Need GraphRAG?"(2604.09666)는 single-shot(한 방 추론) 조건에서, multi-hop QA 벤치마크(HotpotQA·2Wiki·Musique)에서 GraphRAG가 밀집(dense) 벡터 검색을 <strong>평균 +27.23점</strong> 앞섰다고 보고합니다. 반대로 single-hop·팩토이드(단순 사실) 질문에서는 이득이 거의 없었습니다. 같은 논문의 또 다른 결론이 실무에 특히 중요합니다 — <em>에이전트가 반복 검색(agentic search)을 하면 벡터 RAG가 격차를 상당히 좁히지만, 그래도 견고한 multi-hop 추론에는 명시적 그래프 구조가 여전히 유효하다</em>는 것입니다.</p>
+
+<figure class="grag-fig">
+<svg viewBox="0 0 720 250" role="img" aria-label="질문 유형에 따른 벡터 RAG와 GraphRAG의 상대적 강점 막대 그림. single-hop 팩토이드 질문에서는 벡터 RAG가 이미 충분해 두 방식이 비슷하고, multi-hop 관계 질문과 전체 조망 질문에서는 GraphRAG가 크게 앞선다는 것을 도식적으로 보여 준다.">
+  <text x="360" y="24" fill="currentColor" font-size="14" font-weight="700" text-anchor="middle">질문 유형별 상대 강점 (도식화)</text>
+  <!-- legend -->
+  <rect x="210" y="36" width="14" height="14" rx="3" fill="var(--grag-slate)"/><text x="230" y="48" fill="currentColor" font-size="11">벡터 RAG</text>
+  <rect x="320" y="36" width="14" height="14" rx="3" fill="var(--grag-green)"/><text x="340" y="48" fill="currentColor" font-size="11">GraphRAG</text>
+
+  <!-- group 1 -->
+  <text x="120" y="200" fill="currentColor" font-size="11.5" text-anchor="middle">single-hop</text>
+  <text x="120" y="216" fill="var(--grag-slate)" font-size="10" text-anchor="middle">단순 사실</text>
+  <rect x="70" y="150" width="42" height="30" fill="var(--grag-slate)"/>
+  <rect x="128" y="152" width="42" height="28" fill="var(--grag-green)"/>
+  <text x="120" y="140" fill="var(--grag-slate)" font-size="10" text-anchor="middle">비슷 (벡터로 충분)</text>
+
+  <!-- group 2 -->
+  <text x="360" y="200" fill="currentColor" font-size="11.5" text-anchor="middle">multi-hop</text>
+  <text x="360" y="216" fill="var(--grag-slate)" font-size="10" text-anchor="middle">관계 사슬</text>
+  <rect x="310" y="150" width="42" height="30" fill="var(--grag-slate)"/>
+  <rect x="368" y="96" width="42" height="84" fill="var(--grag-green)"/>
+  <text x="389" y="88" fill="var(--grag-green)" font-size="10" text-anchor="middle">크게 앞섬</text>
+
+  <!-- group 3 -->
+  <text x="600" y="200" fill="currentColor" font-size="11.5" text-anchor="middle">global</text>
+  <text x="600" y="216" fill="var(--grag-slate)" font-size="10" text-anchor="middle">전체 조망</text>
+  <rect x="550" y="162" width="42" height="18" fill="var(--grag-slate)"/>
+  <rect x="608" y="104" width="42" height="76" fill="var(--grag-green)"/>
+  <text x="629" y="96" fill="var(--grag-green)" font-size="10" text-anchor="middle">크게 앞섬</text>
+
+  <line x1="40" y1="180" x2="690" y2="180" stroke="var(--grag-slate)" stroke-width="1"/>
+  <text x="360" y="240" fill="var(--grag-slate)" font-size="10.5" text-anchor="middle">막대 높이는 경향을 나타낸 도식이며 특정 점수 축이 아님. 관계·전체 조망 질문일수록 그래프의 이득이 커진다.</text>
+</svg>
+<figcaption>질문이 "관계에 의존"할수록 GraphRAG의 이득이 커진다. 단순 사실 질문에서는 벡터 RAG로 충분하다. (경향을 나타낸 도식 — 정확한 점수는 본문의 출처 참고)</figcaption>
+</figure>
+
+<p>정리하면 판단 기준은 하나로 좁혀집니다: <strong>답이 "용어의 일치"가 아니라 "엔티티·문서·사건 사이의 관계"에 달려 있는가?</strong> 그렇다면 그래프가 이깁니다. 아니라면(단순 조회, 짧은 FAQ) 벡터 RAG가 더 싸고 충분합니다.</p>
+
+<div class="grag-tblwrap">
+<table class="grag-tbl">
+<thead><tr><th></th><th>벡터 RAG로 충분</th><th>GraphRAG가 유리</th></tr></thead>
+<tbody>
+<tr><td>질문 성격</td><td>single-hop, 단순 사실 조회, FAQ</td><td>multi-hop 추론, 관계 탐색, 전체 테마 요약</td></tr>
+<tr><td>답의 위치</td><td>한 조각 안에 있음</td><td>여러 조각을 <strong>이어야</strong> 나옴</td></tr>
+<tr><td>예시</td><td>"환불 규정은?"</td><td>"A가 인수한 회사의 창업자가 만든 다음 회사는?"</td></tr>
+<tr><td>인덱싱 비용</td><td>임베딩만(쌈)</td><td>엔티티 추출 LLM 호출 다수(비쌈)</td></tr>
+<tr><td>데이터 변화</td><td>조각만 다시 임베딩</td><td>그래프 재구성 부담 큼</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="sec-5">5. 직접 해보기 — LlamaIndex로 작은 그래프 RAG</h2>
+
+<p>개념은 이쯤 하고, 손으로 만져 봅시다. 밑바닥부터 그래프를 짤 필요는 없습니다. LlamaIndex의 <code>PropertyGraphIndex</code>는 문서를 넣으면 LLM으로 트리플을 뽑아 지식 그래프를 만들고, 그 위에서 질의까지 해 줍니다.</p>
+
+{{< highlight python >}}
+# pip install llama-index
+from llama_index.core import PropertyGraphIndex, Document
+from llama_index.core.indices.property_graph import SimpleLLMPathExtractor
+from llama_index.llms.openai import OpenAI
+from llama_index.embeddings.openai import OpenAIEmbedding
+
+# 1) 원문 몇 조각. 답이 '이어야' 나오도록 사실을 일부러 흩어 놓았다.
+docs = [
+    Document(text="아크메(Acme)는 2025년에 스타트업 노바(Nova)를 인수했다."),
+    Document(text="노바(Nova)는 김지훈이 2019년에 창업했다."),
+    Document(text="김지훈은 노바를 세우기 전 2015~2018년 오리온(Orion)에서 일했다."),
+]
+
+llm = OpenAI(model="gpt-4.1-mini", temperature=0.0)  # 추출은 온도 0으로 안정적으로
+
+# 2) 인덱싱: LLM이 각 조각에서 (주어, 관계, 목적어) 트리플을 뽑아 그래프로 만든다.
+index = PropertyGraphIndex.from_documents(
+    docs,
+    llm=llm,
+    embed_model=OpenAIEmbedding(model="text-embedding-3-small"),
+    kg_extractors=[SimpleLLMPathExtractor(llm=llm)],  # 스키마 없이 관계를 알아서 추론
+    show_progress=True,
+)
+
+# 3) 쿼리: 그래프 리트리버가 관련 엔티티에서 이웃으로 확장하며 multi-hop을 밟는다.
+qe = index.as_query_engine(llm=llm, include_text=True)
+print(qe.query("아크메가 인수한 회사의 창업자가 그전에 다니던 회사는?"))
+# → 기대: "오리온(Orion)" (아크메→노바→김지훈→오리온, 3-hop)
+{{< /highlight >}}
+
+<p>포인트는 세 곳입니다. 첫째, 답에 필요한 세 사실을 <em>서로 다른 조각</em>에 흩어 놓았습니다. 벡터 검색만으로는 마지막 조각("오리온에서 일했다")이 질문과 안 비슷해 놓치기 쉽습니다. 둘째, <code>SimpleLLMPathExtractor</code>가 인덱싱 때 각 조각을 LLM에 넣어 관계를 추출합니다 — 여기가 앞에서 말한 "비싼 단계"입니다. 셋째, 쿼리 엔진은 엔티티를 찾은 뒤 그래프의 <em>이웃으로 확장</em>하며 사슬을 따라갑니다.</p>
+
+<p>관계에 정해진 종류가 있다면(예: 인물·회사·<code>WORKED_AT</code>·<code>FOUNDED</code>만 허용) <code>SchemaLLMPathExtractor</code>로 스키마를 고정할 수 있습니다. 스키마를 주면 엉뚱한 관계가 덜 생겨 그래프가 깔끔해지지만, 스키마에 없는 사실은 놓칩니다. 데이터가 정형적일수록 스키마 방식이 유리합니다.</p>
+
+<div class="grag-note"><strong>규모가 커지면.</strong> 예제는 메모리에서 돌지만, 실무에서는 그래프를 <a href="https://neo4j.com/" target="_blank" rel="noopener">Neo4j</a> 같은 그래프 DB에 저장합니다(LlamaIndex의 <code>Neo4jPropertyGraphStore</code>). 그래야 노드가 수십만 개가 돼도 이웃 탐색이 빠르고, "전체를 아우르는" 질문은 Microsoft의 <code>graphrag</code> 라이브러리처럼 커뮤니티 요약을 함께 쓰는 방식이 맞습니다.</div>
+
+<h2 id="sec-6">6. 비용이라는 함정, 그리고 에이전트가 그래프를 도구로</h2>
+
+<p>GraphRAG를 처음 붙일 때 junior 개발자가 가장 크게 데는 지점은 성능이 아니라 <strong>인덱싱 비용</strong>입니다. 벡터 RAG의 인덱싱은 조각마다 임베딩 한 번이면 끝입니다. GraphRAG는 조각마다 <em>엔티티·관계·클레임을 뽑는 LLM 호출을 여러 번</em> 합니다. Microsoft 기본 설정 기준으로 512토큰 조각 하나에 보통 4~6번의 LLM 호출이 들어가고, 그 결과 인덱싱이 임베딩만 할 때보다 <strong>수십 배(대략 20~100배)까지</strong> 비싸질 수 있습니다. 추출이 전체 인덱싱 비용의 대부분(대략 3/4)을 차지합니다.</p>
+
+<p>그래서 Microsoft 문서도 대놓고 "작게 시작하라"고 권합니다. 실무에서 이 함정을 피하는 방법은 이렇습니다.</p>
+
+<ul>
+  <li><strong>전 문서에 다 걸지 말 것</strong> — 관계가 중요한 문서(계약·조직·인물·이력)에만 그래프를 만들고, 나머지는 벡터 RAG로 둡니다. 하이브리드가 기본입니다.</li>
+  <li><strong>추출은 값싼 모델로</strong> — 트리플 추출에 최상위 모델을 쓰면 비용이 10~50배로 뜁니다. 작은 모델로 뽑고, 최종 답 생성만 큰 모델에 맡기는 게 보통 균형점입니다.</li>
+  <li><strong>증분 인덱싱</strong> — 문서가 바뀔 때마다 전체를 다시 짜지 말고, 바뀐 부분만 갱신합니다. 그래프는 벡터보다 갱신이 까다로우니 이 설계를 처음부터 넣으세요.</li>
+</ul>
+
+<p>또 하나, 앞의 벤치마크가 짚은 <strong>에이전트와의 관계</strong>가 실무 방향을 바꾸고 있습니다. 요즘은 그래프 검색을 통째로 자동화하기보다, <em>그래프 리트리버를 에이전트의 도구(tool)로</em> 쥐여 줍니다. 에이전트가 질문을 보고 "먼저 이 엔티티를 찾고 → 이웃을 펼치고 → 부족하면 한 번 더 검색"하는 식으로 <a href="/posts/tool-calling-design-agents/" target="_blank" rel="noopener">도구를 반복 호출</a>하는 거죠. 이렇게 하면 벡터 RAG도 반복 검색으로 multi-hop 격차를 상당히 좁힙니다. 다만 벤치마크의 결론은 분명합니다 — <em>가장 견고한 multi-hop 추론에는, 반복 검색 위에 명시적 그래프 구조까지 얹는 조합이 여전히 유리하다</em>는 것입니다.</p>
+
+<div class="grag-note grag-good"><strong>실무 조언.</strong> "벡터 RAG vs GraphRAG"는 양자택일이 아닙니다. 기본은 벡터 RAG, 관계가 핵심인 데이터에만 그래프를 얹고, 에이전트가 상황에 맞게 둘 중 하나(또는 둘 다)를 도구로 고르게 하는 <strong>하이브리드</strong>가 2026년의 현실적인 정답에 가깝습니다.</div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"GraphRAG가 항상 낫다"는 착각</strong> — 벤치마크가 반복해 보여 주듯, single-hop·단순 조회에서는 오히려 벡터 RAG가 싸고 정확합니다. 그래프는 <em>관계 질문</em>을 위한 도구입니다. 질문 유형부터 보세요.</li>
+  <li><strong>인덱싱 비용을 얕보기</strong> — "문서 다 넣고 그래프 한번 만들지 뭐"가 청구서로 돌아옵니다. 조각당 LLM 호출 수 × 조각 수 × 단가를 <em>미리</em> 계산하고, 작은 코퍼스로 파일럿부터 돌리세요.</li>
+  <li><strong>추출 품질을 안 보고 그래프를 믿기</strong> — LLM이 뽑은 트리플에는 오류·중복·엔티티 표기 흔들림("Nova"/"노바"/"Nova Inc.")이 섞입니다. 엔티티 정규화(entity resolution)를 안 하면 같은 회사가 노드 세 개로 쪼개져 관계가 끊깁니다. 그래프를 몇 개라도 눈으로 확인하세요.</li>
+  <li><strong>스키마 없이 큰 코퍼스에 돌리기</strong> — 자유 추출은 관계 종류가 폭발해 그래프가 지저분해집니다. 도메인이 정해져 있으면 <code>SchemaLLMPathExtractor</code>로 엔티티·관계 타입을 제한하세요.</li>
+  <li><strong>그래프 갱신 설계를 뒤로 미루기</strong> — 문서가 자주 바뀌는데 전체 재인덱싱만 있으면 비용·지연이 감당 안 됩니다. 증분 갱신을 처음부터 넣으세요.</li>
+  <li><strong>측정 없이 도입</strong> — "그래프를 붙였으니 좋아졌겠지"는 금물입니다. multi-hop 질문이 포함된 작은 평가셋으로, 벡터 RAG 대비 정확도·recall을 <a href="/posts/agent-evals-reliability/" target="_blank" rel="noopener">바꾸기 전후로 재세요</a>. 이득이 안 나면 그 데이터엔 그래프가 안 맞는 겁니다.</li>
+</ul>
+
+<div class="grag-warn grag-note"><strong>그래프는 관계의 도구지, 만능이 아닙니다.</strong> 버전·시점처럼 "관계"가 아니라 "시간"에 달린 질문에서는 그래프도 별 이득이 없다는 보고가 있습니다. 증상별로 처방을 나누세요 — 답이 여러 사실의 <em>연결</em>에 달렸으면 그래프감, 한 조각 <em>조회</em>면 벡터감, 후보엔 있는데 순위가 안 오르면 <a href="/posts/reranking-two-stage-retrieval/" target="_blank" rel="noopener">리랭킹</a>감입니다.</div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>벡터 RAG는 <strong>비슷한 조각</strong>을 찾는다. 답이 여러 조각을 <em>이어야</em> 나오는 <strong>multi-hop 질문</strong>에서는, 조각을 다 찾고도 잇지 못해 무너진다.</li>
+  <li><strong>GraphRAG</strong>는 문서에서 엔티티·관계를 뽑아 <strong>지식 그래프</strong>로 만든 뒤, 관계(edge)를 타고 검색한다. "비슷함"이 아니라 "연결"로 찾는다.</li>
+  <li>인덱싱: 조각내기 → <strong>트리플 추출</strong>(LLM) → <strong>커뮤니티 탐지·요약</strong>. 쿼리: 구체적 질문은 <strong>local search</strong>(관계 따라감), 전체 조망은 <strong>global search</strong>(커뮤니티 요약 종합).</li>
+  <li>벤치마크(2026): multi-hop QA에서 그래프가 벡터를 <strong>평균 +27.23점</strong> 앞섰지만(single-shot), single-hop에서는 이득이 거의 없다. <em>만능 업그레이드가 아니다.</em></li>
+  <li>판단 기준 하나: <strong>답이 "용어 일치"가 아니라 "엔티티·문서·사건 사이의 관계"에 달렸는가?</strong> 그렇다면 그래프, 아니면 벡터.</li>
+  <li>함정은 <strong>인덱싱 비용</strong> — 조각당 LLM 호출 4~6번, 임베딩만 할 때보다 20~100배. 관계가 핵심인 문서에만 그래프를 얹는 <strong>하이브리드</strong>가 현실적 정답. 에이전트가 그래프 리트리버를 도구로 반복 호출하는 방향이 뜨고 있다.</li>
+  <li>함정 요약: 항상 낫다는 착각·비용 얕보기·추출 품질 미검증·스키마 없이 대규모·갱신 설계 미룸·측정 없이 도입.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Microsoft Research, <a href="https://www.microsoft.com/en-us/research/project/graphrag/" target="_blank" rel="noopener">Project GraphRAG</a> — 인덱싱(엔티티·관계 추출, 커뮤니티 탐지·요약)과 local/global search, query-focused summarization의 원출처. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Microsoft, <a href="https://microsoft.github.io/graphrag/index/methods/" target="_blank" rel="noopener">GraphRAG — Indexing Methods</a> — 인덱싱 파이프라인 상세와 "비용이 크니 작게 시작하라"는 권고. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li><a href="https://arxiv.org/abs/2604.09666" target="_blank" rel="noopener">Do We Still Need GraphRAG? Benchmarking RAG and GraphRAG for Agentic Search Systems</a> (arXiv:2604.09666) — multi-hop QA에서 +27.23, 에이전트 반복 검색이 격차를 좁힌다는 결론. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li><a href="https://arxiv.org/abs/2506.05690" target="_blank" rel="noopener">When to use Graphs in RAG: A Comprehensive Analysis for Graph Retrieval-Augmented Generation</a> (arXiv:2506.05690, ICLR 2026, GraphRAG-Bench) — 그래프가 언제 이득을 주는지에 대한 벤치마크. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li><a href="https://arxiv.org/abs/2502.11371" target="_blank" rel="noopener">RAG vs. GraphRAG: A Systematic Evaluation and Key Insights</a> (arXiv:2502.11371) — 두 방식의 체계적 비교와 질문 유형별 강점. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Neo4j, <a href="https://neo4j.com/blog/agentic-ai/study-graphrag-ai-agents-80-percent-more-truthful/" target="_blank" rel="noopener">Independent study: GraphRAG makes AI agents 80% more truthful</a> (2026-07-22) — 이번 주 화제가 된 정확도 비교 연구. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Neo4j, <a href="https://neo4j.com/blog/genai/what-is-graphrag/" target="_blank" rel="noopener">What is GraphRAG?</a> — 개념·구성 요소 입문서. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>LlamaIndex, <a href="https://docs.llamaindex.ai/en/stable/examples/property_graph/property_graph_basic/" target="_blank" rel="noopener">Property Graph Index</a> — 본문 코드의 <code>PropertyGraphIndex</code>·<code>SimpleLLMPathExtractor</code> 사용법. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Prem AI, <a href="https://blog.premai.io/graphrag-implementation-guide-entity-extraction-query-routing-when-it-beats-vector-rag-2026/" target="_blank" rel="noopener">GraphRAG Implementation Guide (2026)</a> — 엔티티 추출·쿼리 라우팅·인덱싱 비용의 실무 수치. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

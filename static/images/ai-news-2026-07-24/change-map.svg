@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="720" height="440" fill="#0f172a"/>
+  <text x="360" y="34" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">오늘의 AI 변화 지도 — 2026-07-24</text>
+  <text x="360" y="56" text-anchor="middle" fill="#94a3b8" font-size="13">테마: 오픈웨이트가 프런티어를 추격 · 에이전트는 '신뢰'를 설계로 얻는다</text>
+
+  <!-- left column: 모델 & 툴링 -->
+  <rect x="28" y="80" width="300" height="330" rx="14" fill="#1e293b" stroke="#334155"/>
+  <text x="178" y="106" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">모델 &amp; 툴링</text>
+
+  <rect x="48" y="122" width="260" height="66" rx="9" fill="#0b1220" stroke="#38bdf8"/>
+  <text x="62" y="145" fill="#f8fafc" font-size="13" font-weight="700">Kimi K3 (Moonshot)</text>
+  <text x="62" y="164" fill="#cbd5e1" font-size="11.5">2.8T MoE · 1M 컨텍스트 · AA 랭킹 3위</text>
+  <text x="62" y="181" fill="#cbd5e1" font-size="11.5">오픈웨이트 7/27 · $3 / $15 per 1M</text>
+
+  <rect x="48" y="200" width="260" height="60" rx="9" fill="#0b1220" stroke="#38bdf8"/>
+  <text x="62" y="223" fill="#f8fafc" font-size="13" font-weight="700">Claude Code v2.1.218</text>
+  <text x="62" y="242" fill="#cbd5e1" font-size="11.5">/code-review = 백그라운드 서브에이전트</text>
+  <text x="62" y="255" fill="#cbd5e1" font-size="11">대화창을 안 채우고 리뷰를 돌린다</text>
+
+  <rect x="48" y="272" width="260" height="60" rx="9" fill="#0b1220" stroke="#38bdf8"/>
+  <text x="62" y="295" fill="#f8fafc" font-size="13" font-weight="700">Codex — Record &amp; Replay</text>
+  <text x="62" y="314" fill="#cbd5e1" font-size="11.5">시연한 워크플로 → 재사용 skill(macOS)</text>
+  <text x="62" y="327" fill="#cbd5e1" font-size="11">Sites 프리뷰 · Windows Computer Use</text>
+
+  <text x="178" y="366" text-anchor="middle" fill="#64748b" font-size="11">→ 값싼 오픈웨이트 + 리뷰·시연 자동화</text>
+  <text x="178" y="392" text-anchor="middle" fill="#64748b" font-size="11">모델은 싸지고, 툴은 반복작업을 흡수한다</text>
+
+  <!-- right column: 연구 & 오픈소스 -->
+  <rect x="392" y="80" width="300" height="330" rx="14" fill="#1e293b" stroke="#334155"/>
+  <text x="542" y="106" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="700">연구 &amp; 오픈소스</text>
+
+  <rect x="412" y="122" width="260" height="60" rx="9" fill="#0b1220" stroke="#a78bfa"/>
+  <text x="426" y="145" fill="#f8fafc" font-size="13" font-weight="700">AgentDebugX (2607.18754)</text>
+  <text x="426" y="164" fill="#cbd5e1" font-size="11.5">실패 관측·귀인·복구 폐루프 툴킷</text>
+  <text x="426" y="177" fill="#cbd5e1" font-size="11">"터진 곳" 말고 "터뜨린 곳"을 찾는다</text>
+
+  <rect x="412" y="194" width="260" height="60" rx="9" fill="#0b1220" stroke="#a78bfa"/>
+  <text x="426" y="217" fill="#f8fafc" font-size="13" font-weight="700">Twin Agent (2607.19595)</text>
+  <text x="426" y="236" fill="#cbd5e1" font-size="11.5">Explore/Safe 권한 분리로 프롬프트 주입 방어</text>
+  <text x="426" y="249" fill="#cbd5e1" font-size="11">신뢰 경계를 '설계 패턴'으로</text>
+
+  <rect x="412" y="266" width="260" height="66" rx="9" fill="#0b1220" stroke="#a78bfa"/>
+  <text x="426" y="289" fill="#f8fafc" font-size="13" font-weight="700">OpenClaw · Agno</text>
+  <text x="426" y="308" fill="#cbd5e1" font-size="11.5">OpenClaw ~346k★ 개인 AI 어시스턴트</text>
+  <text x="426" y="325" fill="#cbd5e1" font-size="11.5">Agno ~41k★ 에이전트 플랫폼 런타임</text>
+
+  <text x="542" y="366" text-anchor="middle" fill="#64748b" font-size="11">→ 디버깅·보안을 에이전트 기본기로</text>
+  <text x="542" y="392" text-anchor="middle" fill="#64748b" font-size="11">관측·권한분리를 처음부터 넣어라</text>
+
+  <!-- connector -->
+  <line x1="328" y1="245" x2="392" y2="245" stroke="#475569" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="360" y="238" text-anchor="middle" fill="#64748b" font-size="10">연결</text>
+</svg>

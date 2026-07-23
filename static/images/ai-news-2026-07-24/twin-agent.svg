@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="720" height="380" fill="#0f172a"/>
+  <text x="360" y="32" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">Twin Agent — 권한 분리로 프롬프트 주입 막기</text>
+  <text x="360" y="54" text-anchor="middle" fill="#94a3b8" font-size="12.5">신뢰할 수 없는 컨텍스트는 '읽기'만, 특권 실행은 분리된 에이전트가 담당</text>
+
+  <!-- untrusted input -->
+  <rect x="30" y="150" width="150" height="70" rx="10" fill="#3f2937" stroke="#f87171"/>
+  <text x="105" y="180" text-anchor="middle" fill="#fca5a5" font-size="12.5" font-weight="700">신뢰 불가 컨텍스트</text>
+  <text x="105" y="200" text-anchor="middle" fill="#fecaca" font-size="11">웹·문서·툴 응답</text>
+
+  <!-- Explore Agent -->
+  <rect x="240" y="90" width="200" height="90" rx="12" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="340" y="120" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">Explore Agent</text>
+  <text x="340" y="142" text-anchor="middle" fill="#cbd5e1" font-size="11">신뢰 불가 정보를 조사</text>
+  <text x="340" y="160" text-anchor="middle" fill="#cbd5e1" font-size="11">Safe의 현재 컨텍스트로 조건화</text>
+
+  <!-- Safe Agent -->
+  <rect x="240" y="205" width="200" height="90" rx="12" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+  <text x="340" y="235" text-anchor="middle" fill="#34d399" font-size="14" font-weight="700">Safe Agent</text>
+  <text x="340" y="257" text-anchor="middle" fill="#cbd5e1" font-size="11">특권 액션(도구·쓰기) 실행</text>
+  <text x="340" y="275" text-anchor="middle" fill="#cbd5e1" font-size="11">주입된 지시에 직접 노출 안 됨</text>
+
+  <!-- arrows -->
+  <line x1="180" y1="185" x2="238" y2="150" stroke="#f87171" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="205" y="150" text-anchor="middle" fill="#94a3b8" font-size="10">원문 투입</text>
+
+  <line x1="340" y1="180" x2="340" y2="205" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#ar)"/>
+  <text x="430" y="196" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700">compact hint</text>
+  <text x="430" y="210" text-anchor="middle" fill="#94a3b8" font-size="9.5">다음 액션 요약만 전달</text>
+
+  <!-- outcome -->
+  <rect x="500" y="205" width="190" height="90" rx="12" fill="#0b1220" stroke="#334155"/>
+  <text x="595" y="233" text-anchor="middle" fill="#f8fafc" font-size="12.5" font-weight="700">결과</text>
+  <text x="595" y="255" text-anchor="middle" fill="#cbd5e1" font-size="11">주입 지시가 특권 실행에</text>
+  <text x="595" y="271" text-anchor="middle" fill="#cbd5e1" font-size="11">직접 흘러들지 못한다</text>
+  <line x1="440" y1="250" x2="498" y2="250" stroke="#475569" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- key idea -->
+  <text x="360" y="335" text-anchor="middle" fill="#64748b" font-size="11.5">핵심: 정보 흐름을 좁혀도(=compact hint) 태스크 유틸리티는 유지하는 residual 압축 설계</text>
+  <text x="360" y="355" text-anchor="middle" fill="#64748b" font-size="10.5">출처: arXiv 2607.19595 (cs.CR, 2026-07-21) · 개념 다이어그램(자체 제작)</text>
+
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="760" height="320" fill="#0f172a"/>
+  <text x="380" y="30" text-anchor="middle" fill="#f8fafc" font-size="17" font-weight="700">Claude Opus 5 — Fable 5급 성능 @ 절반 값</text>
+  <text x="380" y="50" text-anchor="middle" fill="#94a3b8" font-size="11.5">값 출처: morphllm SWE-bench, Anthropic/보도 가격 (출처별 SWE 96~97%)</text>
+
+  <!-- LEFT: SWE-bench Verified -->
+  <text x="190" y="80" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">SWE-bench Verified (%)</text>
+  <line x1="70" y1="250" x2="330" y2="250" stroke="#475569"/>
+  <!-- Opus 5 ~97 -->
+  <rect x="110" y="102" width="70" height="148" rx="4" fill="#f59e0b"/>
+  <text x="145" y="94" text-anchor="middle" fill="#fbbf24" font-size="14" font-weight="700">~97</text>
+  <text x="145" y="268" text-anchor="middle" fill="#e2e8f0" font-size="11.5" font-weight="700">Opus 5</text>
+  <!-- Fable 5 95 -->
+  <rect x="220" y="107" width="70" height="143" rx="4" fill="#60a5fa"/>
+  <text x="255" y="99" text-anchor="middle" fill="#93c5fd" font-size="14" font-weight="700">95</text>
+  <text x="255" y="268" text-anchor="middle" fill="#e2e8f0" font-size="11.5" font-weight="700">Fable 5</text>
+
+  <!-- divider -->
+  <line x1="380" y1="70" x2="380" y2="280" stroke="#334155" stroke-dasharray="4 4"/>
+
+  <!-- RIGHT: output price -->
+  <text x="570" y="80" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">출력 가격 ($/1M tok)</text>
+  <line x1="450" y1="250" x2="710" y2="250" stroke="#475569"/>
+  <!-- Opus 5 $25 -->
+  <rect x="490" y="180" width="70" height="70" rx="4" fill="#f59e0b"/>
+  <text x="525" y="172" text-anchor="middle" fill="#fbbf24" font-size="14" font-weight="700">$25</text>
+  <text x="525" y="268" text-anchor="middle" fill="#e2e8f0" font-size="11.5" font-weight="700">Opus 5</text>
+  <!-- Fable 5 $50 -->
+  <rect x="600" y="110" width="70" height="140" rx="4" fill="#60a5fa"/>
+  <text x="635" y="102" text-anchor="middle" fill="#93c5fd" font-size="14" font-weight="700">$50</text>
+  <text x="635" y="268" text-anchor="middle" fill="#e2e8f0" font-size="11.5" font-weight="700">Fable 5</text>
+
+  <text x="380" y="304" text-anchor="middle" fill="#64748b" font-size="11">입력도 동일 절반: Opus 5 $5 vs Fable 5 $10 / 1M tok · Opus 5는 Opus 4.8과 같은 가격</text>
+</svg>

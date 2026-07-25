@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 470" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="오늘의 AI 변화 지도">
+  <rect width="840" height="470" fill="#0f172a"/>
+  <text x="28" y="42" fill="#f1f5f9" font-size="22" font-weight="700">오늘의 AI 변화 지도 — 2026-07-26</text>
+  <text x="28" y="66" fill="#94a3b8" font-size="14">중심 주제: 에이전트 신뢰성 엔지니어링 (툴 실패 감사 · 프로파일러 최적화 · 오픈 코딩 에이전트)</text>
+
+  <!-- center -->
+  <rect x="330" y="200" width="180" height="66" rx="12" fill="#2563eb"/>
+  <text x="420" y="228" fill="#fff" font-size="15" font-weight="700" text-anchor="middle">에이전트</text>
+  <text x="420" y="249" fill="#dbeafe" font-size="15" font-weight="700" text-anchor="middle">신뢰성 엔지니어링</text>
+
+  <!-- connectors -->
+  <g stroke="#475569" stroke-width="2" fill="none">
+    <path d="M330 215 C 250 160, 210 130, 190 120"/>
+    <path d="M330 250 C 250 300, 210 330, 190 350"/>
+    <path d="M510 215 C 600 160, 640 135, 660 122"/>
+    <path d="M510 250 C 600 300, 640 330, 660 352"/>
+  </g>
+
+  <!-- top-left: 모델·툴 -->
+  <rect x="40" y="92" width="230" height="72" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="56" y="116" fill="#38bdf8" font-size="13" font-weight="700">🤖 모델 · 툴</text>
+  <text x="56" y="137" fill="#e2e8f0" font-size="13">ChatGPT Voice → Codex 멀티에이전트</text>
+  <text x="56" y="155" fill="#e2e8f0" font-size="13">Claude Code v2.1.220 (안정화)</text>
+
+  <!-- bottom-left: 오픈소스 -->
+  <rect x="40" y="322" width="230" height="72" rx="10" fill="#1e293b" stroke="#a78bfa"/>
+  <text x="56" y="346" fill="#a78bfa" font-size="13" font-weight="700">🛠 오픈소스</text>
+  <text x="56" y="367" fill="#e2e8f0" font-size="13">Grok Build — Rust 코딩 에이전트</text>
+  <text x="56" y="385" fill="#e2e8f0" font-size="13">OpenManus — 범용 에이전트</text>
+
+  <!-- top-right: 논문1 -->
+  <rect x="580" y="92" width="230" height="72" rx="10" fill="#1e293b" stroke="#f472b6"/>
+  <text x="596" y="116" fill="#f472b6" font-size="13" font-weight="700">📚 Guardrails as Scapegoats</text>
+  <text x="596" y="137" fill="#e2e8f0" font-size="13">툴이 조용히 실패하면</text>
+  <text x="596" y="155" fill="#e2e8f0" font-size="13">56.6%가 결과를 지어낸다(FAR)</text>
+
+  <!-- bottom-right: 논문2 -->
+  <rect x="580" y="322" width="230" height="72" rx="10" fill="#1e293b" stroke="#34d399"/>
+  <text x="596" y="346" fill="#34d399" font-size="13" font-weight="700">📚 PerfAgent</text>
+  <text x="596" y="367" fill="#e2e8f0" font-size="13">프로파일러 기반 최적화 루프</text>
+  <text x="596" y="385" fill="#e2e8f0" font-size="13">전문가급 패치율 2배↑</text>
+
+  <text x="420" y="440" fill="#64748b" font-size="12" text-anchor="middle">자체 제작 SVG · 값 출처: arXiv 2607.19449 · 2607.19653 · 각 릴리즈 노트</text>
+</svg>

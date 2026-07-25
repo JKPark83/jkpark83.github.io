@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 260" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="오픈소스 에이전트 스타 비교">
+  <rect width="780" height="260" fill="#ffffff"/>
+  <text x="36" y="40" fill="#0f172a" font-size="19" font-weight="700">오늘의 오픈소스 스포트라이트 — 스타 비교 (웹 근사치)</text>
+
+  <!-- OpenManus -->
+  <text x="36" y="94" fill="#0f172a" font-size="14" font-weight="600">OpenManus · Python</text>
+  <rect x="230" y="76" width="470" height="30" rx="5" fill="#8b5cf6"/>
+  <text x="712" y="97" fill="#6d28d9" font-size="14" font-weight="700">~56.4k★</text>
+
+  <!-- Grok Build -->
+  <text x="36" y="154" fill="#0f172a" font-size="14" font-weight="600">Grok Build · Rust</text>
+  <rect x="230" y="136" width="112" height="30" rx="5" fill="#0ea5e9"/>
+  <text x="354" y="157" fill="#0369a1" font-size="14" font-weight="700">~13.4k★</text>
+
+  <text x="36" y="204" fill="#475569" font-size="12.5">OpenManus = 범용 에이전트 프레임워크 · Grok Build = 터미널 코딩 에이전트 하니스(Apache-2.0, ~84만 줄 Rust)</text>
+  <text x="36" y="230" fill="#94a3b8" font-size="11">자체 제작 SVG · 스타 수치는 이번 세션 GitHub API 미검증(외부 repo 접근 차단) · 웹 출처 근사치(2026-07 기준)</text>
+</svg>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 440" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="툴이 조용히 실패할 때 에이전트 반응 분포">
+  <rect width="780" height="440" fill="#ffffff"/>
+  <text x="40" y="44" fill="#0f172a" font-size="21" font-weight="700">툴이 조용히 실패할 때, 에이전트는 어떻게 반응하나</text>
+  <text x="40" y="70" fill="#64748b" font-size="14">HTTP 200 + 빈/null/깨진 payload를 주입한 감사(frontier 2종 · 오픈 2종, temp 0)</text>
+
+  <!-- axis -->
+  <line x1="220" y1="110" x2="220" y2="360" stroke="#cbd5e1" stroke-width="1.5"/>
+  <line x1="220" y1="360" x2="720" y2="360" stroke="#cbd5e1" stroke-width="1.5"/>
+  <!-- gridlines -->
+  <g stroke="#eef2f7" stroke-width="1">
+    <line x1="345" y1="110" x2="345" y2="360"/>
+    <line x1="470" y1="110" x2="470" y2="360"/>
+    <line x1="595" y1="110" x2="595" y2="360"/>
+    <line x1="720" y1="110" x2="720" y2="360"/>
+  </g>
+  <g fill="#94a3b8" font-size="11" text-anchor="middle">
+    <text x="220" y="378">0%</text>
+    <text x="345" y="378">20%</text>
+    <text x="470" y="378">40%</text>
+    <text x="595" y="378">60%</text>
+  </g>
+
+  <!-- bar 1: FAR 56.6% -->
+  <rect x="220" y="128" width="353" height="46" rx="4" fill="#ef4444"/>
+  <text x="212" y="156" fill="#0f172a" font-size="13" font-weight="600" text-anchor="end">Fabrication (FAR)</text>
+  <text x="583" y="156" fill="#b91c1c" font-size="14" font-weight="700">56.6%</text>
+
+  <!-- bar 2: USR baseline 0.25% -->
+  <rect x="220" y="205" width="6" height="46" rx="3" fill="#64748b"/>
+  <text x="212" y="225" fill="#0f172a" font-size="13" font-weight="600" text-anchor="end">Unfaithful Safety</text>
+  <text x="212" y="242" fill="#0f172a" font-size="13" font-weight="600" text-anchor="end">Refusal — 기본</text>
+  <text x="238" y="233" fill="#475569" font-size="14" font-weight="700">0.25%</text>
+
+  <!-- bar 3: USR + safety prompt 3.95% -->
+  <rect x="220" y="282" width="25" height="46" rx="4" fill="#f59e0b"/>
+  <text x="212" y="302" fill="#0f172a" font-size="13" font-weight="600" text-anchor="end">USR — 시스템 프롬프트에</text>
+  <text x="212" y="319" fill="#0f172a" font-size="13" font-weight="600" text-anchor="end">"privacy/security" 추가</text>
+  <text x="257" y="310" fill="#b45309" font-size="14" font-weight="700">3.95%  (15.6배↑)</text>
+
+  <text x="40" y="410" fill="#64748b" font-size="12">핵심: 빈 응답을 "진짜 데이터"로 착각해 지어내는 FAR이 지배적. 안전 문구는 USR(가짜 정책 핑계)을 15.6배 증폭.</text>
+  <text x="40" y="430" fill="#94a3b8" font-size="11">자체 제작 SVG · 값 출처: arXiv 2607.19449 (p&lt;0.001, Fisher exact)</text>
+</svg>

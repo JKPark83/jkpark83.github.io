@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="PerfAgent 프로파일러 기반 반복 최적화 루프">
+  <rect width="800" height="430" fill="#0b1220"/>
+  <text x="32" y="42" fill="#f1f5f9" font-size="21" font-weight="700">PerfAgent — 프로파일러가 피드백을 주는 최적화 루프</text>
+  <text x="32" y="66" fill="#94a3b8" font-size="13">"테스트 통과"로 멈추지 않고, 프로파일 근거로 다음에 뭘 고칠지 결정한다</text>
+
+  <!-- nodes -->
+  <g font-size="13" font-weight="600" text-anchor="middle">
+    <rect x="40" y="110" width="150" height="70" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+    <text x="115" y="140" fill="#38bdf8">1. Profile</text>
+    <text x="115" y="160" fill="#cbd5e1" font-size="11.5">추상화·네이티브 뒤</text>
+    <text x="115" y="174" fill="#cbd5e1" font-size="11.5">숨은 핫스팟 탐지</text>
+
+    <rect x="245" y="110" width="150" height="70" rx="10" fill="#1e293b" stroke="#a78bfa"/>
+    <text x="320" y="140" fill="#a78bfa">2. Patch</text>
+    <text x="320" y="160" fill="#cbd5e1" font-size="11.5">동작 보존하며</text>
+    <text x="320" y="174" fill="#cbd5e1" font-size="11.5">병목만 최적화</text>
+
+    <rect x="450" y="110" width="150" height="70" rx="10" fill="#1e293b" stroke="#34d399"/>
+    <text x="525" y="136" fill="#34d399">3. Verify</text>
+    <text x="525" y="156" fill="#cbd5e1" font-size="11.5">동작 동일성 +</text>
+    <text x="525" y="170" fill="#cbd5e1" font-size="11.5">속도 향상 검증</text>
+
+    <rect x="655" y="110" width="120" height="70" rx="10" fill="#1e293b" stroke="#f59e0b"/>
+    <text x="715" y="140" fill="#f59e0b">4. 재프로파일</text>
+    <text x="715" y="160" fill="#cbd5e1" font-size="11.5">타이밍 아닌</text>
+    <text x="715" y="174" fill="#cbd5e1" font-size="11.5">근거로 반복</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#ar)">
+    <path d="M190 145 L242 145"/>
+    <path d="M395 145 L447 145"/>
+    <path d="M600 145 L652 145"/>
+    <path d="M715 180 L715 235 L115 235 L115 183"/>
+  </g>
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0 0 L7 3 L0 6 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <text x="415" y="228" fill="#94a3b8" font-size="11.5" text-anchor="middle">얕은 최적화에서 멈추지 않고 계속 개선</text>
+
+  <!-- results -->
+  <rect x="40" y="278" width="345" height="112" rx="10" fill="#0f2b1f" stroke="#34d399"/>
+  <text x="60" y="306" fill="#34d399" font-size="14" font-weight="700">전문가급 패치 비율 (vs OpenHands+GPT-5.1)</text>
+  <text x="60" y="336" fill="#e2e8f0" font-size="14">GSO:  19.6%  →  <tspan fill="#34d399" font-weight="700">39.2%</tspan></text>
+  <text x="60" y="366" fill="#e2e8f0" font-size="14">SWE-fficiency-Lite:  26%  →  <tspan fill="#34d399" font-weight="700">74%</tspan></text>
+
+  <rect x="410" y="278" width="365" height="112" rx="10" fill="#1e293b" stroke="#475569"/>
+  <text x="430" y="306" fill="#cbd5e1" font-size="13" font-weight="700">왜 좋은가</text>
+  <text x="430" y="332" fill="#94a3b8" font-size="12.5">oracle best-of-5보다 높은 성능을</text>
+  <text x="430" y="352" fill="#94a3b8" font-size="12.5">훨씬 낮은 비용에 달성 — 이득은 "샘플</text>
+  <text x="430" y="372" fill="#94a3b8" font-size="12.5">더 뽑기"가 아니라 "더 나은 피드백"에서.</text>
+
+  <text x="32" y="418" fill="#64748b" font-size="11">자체 제작 SVG · 값 출처: arXiv 2607.19653 (GSO, SWE-fficiency-Lite)</text>
+</svg>

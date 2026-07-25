@@ -1,0 +1,395 @@
+---
+title: "모든 질문을 최고 모델에 보내지 마라: 값싼 모델로 충분한 건 값싼 모델에게 — LLM 라우팅 입문"
+date: 2026-07-26T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM routing", "LLM 라우팅", "model routing", "모델 라우팅", "RouteLLM", "FrugalGPT", "model cascade", "캐스케이드", "cost optimization", "비용 최적화", "router", "라우터", "Supra-Router", "semantic router", "OpenRouter", "agent", "에이전트", "AI 엔지니어링", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "쉬운 질문이든 어려운 질문이든 전부 가장 비싼 모델에 보내고 있나요? 요금이 아깝고, 사실 그럴 필요도 없습니다. 쉬운 질문은 작고 싼 모델로도 충분하고, 어려운 질문만 큰 모델로 보내면 됩니다. 이렇게 '질문마다 알맞은 모델을 고르는' 일을 LLM 라우팅(LLM routing)이라고 합니다. 이 글은 왜 라우팅이 필요한지, 라우터를 언제·무엇으로·어떻게 만드는지(설계 3축), RouteLLM과 FrugalGPT 캐스케이드가 실제로 얼마나 아끼는지, 그리고 직접 만들 수 있는 분류기 라우터와 캐스케이드 코드까지 — 이번 주 화제가 된 초경량 라우터 모델 이야기를 곁들여 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "llm-model-routing-cover.svg"
+  alt: "왼쪽은 라우팅 없이 쉬움·보통·어려움 세 질문을 모두 가장 비싼 모델 하나로 보내 돈이 새는 그림. 오른쪽은 라우터가 질문을 살펴 쉬운 건 작고 싼 모델, 어려운 건 크고 비싼 모델로 나눠 보내는 그림."
+  caption: "모든 질문을 최고 모델에 보내면 요금만 샌다. 라우터를 앞에 두면 쉬운 건 싸게, 어려운 건 확실하게 처리해 비용을 줄이면서 품질을 지킨다."
+  relative: false
+---
+
+<style>
+/* ── LLM 라우팅 포스트 전용 스타일 (rout- 접두사) ── */
+.rout-fig{
+  --rout-sky:#0284c7; --rout-amber:#d97706; --rout-green:#16a34a; --rout-rose:#e11d48;
+  --rout-slate:#64748b; --rout-violet:#7c3aed; --rout-teal:#0d9488; --rout-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .rout-fig{
+  --rout-sky:#38bdf8; --rout-amber:#fbbf24; --rout-green:#4ade80; --rout-rose:#fb7185;
+  --rout-slate:#94a3b8; --rout-violet:#a78bfa; --rout-teal:#2dd4bf; --rout-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .rout-fig{
+    --rout-sky:#38bdf8; --rout-amber:#fbbf24; --rout-green:#4ade80; --rout-rose:#fb7185;
+    --rout-slate:#94a3b8; --rout-violet:#a78bfa; --rout-teal:#2dd4bf; --rout-blue:#60a5fa;
+  }
+}
+.rout-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.rout-fig text{font-family:inherit}
+.rout-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.rout-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.rout-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.rout-toc ol{margin:0;padding-left:1.25rem}
+.rout-toc li{margin:.22rem 0;font-size:.95rem}
+.rout-toc a{text-decoration:none}
+.rout-toc a:hover{text-decoration:underline}
+.rout-pull{font-size:1.12rem;line-height:1.72}
+.rout-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.rout-note{border-left:4px solid var(--rout-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.rout-note strong{color:var(--rout-blue,#2563eb)}
+.rout-warn{border-left:4px solid var(--rout-rose,#e11d48)}
+.rout-warn strong{color:var(--rout-rose,#e11d48)}
+.rout-good{border-left:4px solid var(--rout-teal,#0d9488)}
+.rout-good strong{color:var(--rout-teal,#0d9488)}
+.rout-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.rout-tbl th,.rout-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.rout-tbl th{background:var(--entry);font-weight:700}
+.rout-tbl code{font-size:.86em}
+.rout-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="rout-pull">
+  <p>"안녕"이라는 인사에도, 복잡한 코드 리팩터링에도 <strong>똑같이 가장 비싼 모델</strong>을 부르고 있다면 — 요금의 상당 부분은 그냥 새고 있는 겁니다.</p>
+  <footer>— 쉬운 질문은 싼 모델로 충분합니다. 문제는 "쉬운지 어려운지"를 <em>미리</em> 가려내는 일입니다.</footer>
+</blockquote>
+
+<p>LLM으로 서비스를 만들어 본 사람이라면 월말 API 청구서를 보고 한 번쯤 놀랐을 겁니다. 그리고 로그를 뒤져 보면 꽤 허무한 사실을 발견합니다. 사용자가 던진 질문의 상당수는 "환불 어떻게 해요?", "이거 요약해줘" 같은 <strong>쉬운 것</strong>인데, 이것마저 전부 제일 크고 제일 비싼 모델로 처리하고 있었던 겁니다.</p>
+
+<p>쉬운 질문은 작고 싼 모델로도 답이 똑같이 나옵니다. 진짜 큰 모델이 필요한 건 전체의 일부, 어려운 질문뿐입니다. 그러니 <strong>질문이 들어오는 순간 "이건 싼 모델, 저건 비싼 모델" 하고 갈라 보내면</strong> 품질은 거의 그대로 두면서 비용을 크게 줄일 수 있습니다. 이렇게 질문마다 알맞은 모델을 고르는 일을 <strong>LLM 라우팅(LLM routing)</strong>, 그 갈라 보내는 장치를 <strong>라우터(router)</strong>라고 합니다.</p>
+
+<p>이 주제가 이번 주에 다시 화제가 된 데는 이유가 있습니다. 2026년 7월 중순, <strong>Supra-Router-51M</strong>이라는 5,170만 파라미터짜리 <em>초경량 라우터 모델</em>이 Hugging Face 트렌딩에 올랐습니다. "질문을 로컬 작은 모델에서 처리할지, 클라우드의 큰 모델로 넘길지"만 빠르게 판단하는 아주 작은 전용 모델입니다. 비슷한 시기에 라우팅·캐스케이딩을 정리한 서베이 논문과, 코딩 작업용 <em>Agent-as-a-Router</em> 논문도 arXiv에 올라오면서, 모델 여러 개를 섞어 쓰는 팀이라면 "라우팅을 어떻게 할 것인가"가 피할 수 없는 질문이 됐습니다.</p>
+
+<p>이 글은 라우팅이 왜 필요한지부터, 라우터를 <strong>언제·무엇으로·어떻게</strong> 만드는지(설계의 3축), 유명한 오픈소스인 <code>RouteLLM</code>과 캐스케이드 방식인 <code>FrugalGPT</code>가 실제로 얼마나 아끼는지, 그리고 직접 만들 수 있는 코드까지 차근차근 짚습니다.</p>
+
+<div class="rout-note"><strong>먼저 구분:</strong> 이 글의 라우팅은 <em>장애 대비 폴백(fallback)</em>과 다릅니다. 폴백은 "A 모델이 죽으면 B로 넘긴다"는 <em>가용성</em> 이야기고(예전 글 <a href="/posts/model-agnostic-llm-layer/" target="_blank" rel="noopener">모델-애그노스틱 LLM 레이어</a>에서 다뤘습니다), 오늘의 라우팅은 "이 질문엔 어느 모델이 <em>가성비</em>가 좋은가"라는 <em>비용·품질 최적화</em> 이야기입니다. 둘은 같은 게이트웨이 안에서 함께 살지만 목적이 다릅니다.</div>
+
+<nav class="rout-toc">
+  <div class="rout-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 라우팅인가 — 모델 하나로는 답이 안 나온다</a></li>
+    <li><a href="#sec-2">라우터 설계의 3축 — 언제·무엇으로·어떻게</a></li>
+    <li><a href="#sec-3">라우터 유형 4가지와 캐스케이드</a></li>
+    <li><a href="#sec-4">숫자로 보기 — RouteLLM과 FrugalGPT</a></li>
+    <li><a href="#sec-5">직접 해보기 (1) — 분류기 라우터</a></li>
+    <li><a href="#sec-6">직접 해보기 (2) — 캐스케이드</a></li>
+    <li><a href="#sec-7">이번 주의 화제 — 초경량 라우터 모델</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 라우팅인가 — 모델 하나로는 답이 안 나온다</h2>
+
+<p>2026년의 현실은 "모델이 하나가 아니라 여럿"이라는 겁니다. 같은 회사 안에서도 크기별로 여러 모델이 있고(가벼운 것 ↔ 무거운 것), 회사를 넘나들면 선택지는 더 많아집니다. 중요한 건 이들의 <strong>가격과 품질이 제각각</strong>이라는 점입니다. 작은 모델은 토큰당 값이 몇 배에서 수십 배까지 쌉니다. 그리고 대부분의 실제 트래픽에서 <em>어려운 질문은 소수</em>입니다.</p>
+
+<p>여기서 한 가지 오해를 짚고 갑시다. "그럼 제일 똑똑한 모델 하나에 다 맡기면 품질은 최고 아닌가?" 품질은 그럴 수 있지만, 두 가지를 잃습니다. 첫째, <strong>돈</strong>입니다. 쉬운 질문 열 개를 비싼 모델로 처리하면, 같은 답을 싼 모델로 냈을 때보다 몇 배를 더 냅니다. 둘째, <strong>속도</strong>입니다. 큰 모델은 보통 응답이 느립니다. "안녕"이라는 인사에 2초씩 기다리게 만들 이유가 없습니다.</p>
+
+<p>반대로 "그럼 다 싼 모델에 맡기자"도 답이 아닙니다. 어려운 질문에서 싼 모델은 틀리거나 헛소리를 합니다. 그러니 정답은 가운데에 있습니다 — <strong>질문의 난이도를 보고 알맞은 모델로 나눠 보내기.</strong> 이게 라우팅입니다.</p>
+
+<div class="rout-note"><strong>비유:</strong> 병원 응급실의 <em>트리아지(triage)</em>를 떠올리면 쉽습니다. 접수대에서 간호사가 환자를 쓱 보고 "경상은 일반 진료, 위급은 바로 수술실"로 보냅니다. 모든 환자를 다짜고짜 수술실로 밀어 넣지 않습니다. 라우터가 바로 그 접수대 간호사입니다.</div>
+
+<h2 id="sec-2">2. 라우터 설계의 3축 — 언제·무엇으로·어떻게</h2>
+
+<p>2026년에 나온 라우팅·캐스케이딩 서베이는 라우터의 설계 공간을 세 개의 축으로 깔끔하게 정리합니다. 새 라우터를 고민할 때 이 세 질문만 던지면 됩니다.</p>
+
+<ul>
+  <li><strong>언제(WHEN) 결정하나?</strong> — 요청을 보내기 <em>전에</em>(pre-request) 정하나, 응답을 <em>만들어 보며</em>(at-inference) 정하나, 한 번 답을 받아 <em>본 뒤에</em>(post-response) 정하나.</li>
+  <li><strong>무엇을(WHAT) 보고 정하나?</strong> — 질문 자체의 특징(길이·주제·난이도), 모델들의 메타데이터(가격·강점), 과거 성능 기록.</li>
+  <li><strong>어떻게(HOW) 계산하나?</strong> — 사람이 짠 규칙(rule), 학습된 분류기(classifier), 강화학습(RL), 아니면 값싼 모델부터 순서대로 밟는 캐스케이드(cascade).</li>
+</ul>
+
+<p>이 중 <strong>언제</strong> 축이 특히 실무 감각을 잘 보여 줍니다. 셋은 비용·정확도가 반대로 움직입니다.</p>
+
+<figure class="rout-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="라우터가 결정을 내리는 세 시점을 왼쪽에서 오른쪽으로 보여 주는 그림. 요청 전 규칙 기반은 값싸지만 정확도가 낮고, 추론 중 캐스케이드는 정확도가 높지만 비용이 더 들며, 응답 후 재시도는 안전망 역할이다.">
+  <defs>
+    <marker id="rout-a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--rout-slate)"/></marker>
+  </defs>
+  <text x="380" y="26" fill="currentColor" font-size="14" font-weight="700" text-anchor="middle">라우터는 "언제" 결정하나?</text>
+
+  <!-- pre-request -->
+  <rect x="24" y="60" width="212" height="110" rx="12" fill="var(--entry)" stroke="var(--rout-green)" stroke-width="2"/>
+  <text x="130" y="86" fill="var(--rout-green)" font-size="13.5" font-weight="800" text-anchor="middle">① 요청 전 (pre-request)</text>
+  <text x="130" y="110" fill="currentColor" font-size="11" text-anchor="middle">질문만 보고 바로 모델 결정</text>
+  <text x="130" y="130" fill="currentColor" font-size="11" text-anchor="middle">규칙 · 분류기</text>
+  <text x="130" y="152" fill="var(--rout-green)" font-size="11" font-weight="700" text-anchor="middle">가장 싸고 빠름 / 덜 정확</text>
+
+  <!-- at-inference -->
+  <rect x="274" y="60" width="212" height="110" rx="12" fill="var(--entry)" stroke="var(--rout-blue)" stroke-width="2"/>
+  <text x="380" y="86" fill="var(--rout-blue)" font-size="13.5" font-weight="800" text-anchor="middle">② 추론 중 (at-inference)</text>
+  <text x="380" y="110" fill="currentColor" font-size="11" text-anchor="middle">싼 모델부터 답을 내 보고</text>
+  <text x="380" y="130" fill="currentColor" font-size="11" text-anchor="middle">부족하면 큰 모델로 (캐스케이드)</text>
+  <text x="380" y="152" fill="var(--rout-blue)" font-size="11" font-weight="700" text-anchor="middle">가장 정확 / 지연·비용 증가</text>
+
+  <!-- post-response -->
+  <rect x="524" y="60" width="212" height="110" rx="12" fill="var(--entry)" stroke="var(--rout-amber)" stroke-width="2"/>
+  <text x="630" y="86" fill="var(--rout-amber)" font-size="13.5" font-weight="800" text-anchor="middle">③ 응답 후 (post-response)</text>
+  <text x="630" y="110" fill="currentColor" font-size="11" text-anchor="middle">답을 받아 검사한 뒤</text>
+  <text x="630" y="130" fill="currentColor" font-size="11" text-anchor="middle">나쁘면 재시도 · 상향</text>
+  <text x="630" y="152" fill="var(--rout-amber)" font-size="11" font-weight="700" text-anchor="middle">안전망 역할</text>
+
+  <line x1="60" y1="210" x2="700" y2="210" stroke="var(--rout-slate)" stroke-width="2" marker-end="url(#rout-a)"/>
+  <text x="70" y="200" fill="var(--rout-slate)" font-size="11">값싸다 · 미리 판단</text>
+  <text x="690" y="200" fill="var(--rout-slate)" font-size="11" text-anchor="end">정확하다 · 나중 판단</text>
+  <text x="380" y="240" fill="currentColor" font-size="11.5" text-anchor="middle" opacity="0.8">셋을 섞어 쓸 수도 있다 — 예: 요청 전 분류기로 1차 배정 + 응답 후 검사로 안전망</text>
+</svg>
+<figcaption>라우터가 결정을 내리는 세 시점. 왼쪽으로 갈수록 싸고 빠르지만 덜 정확하고, 오른쪽으로 갈수록 정확하지만 비용·지연이 는다. 실무에선 섞어 쓴다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 라우터 유형 4가지와 캐스케이드</h2>
+
+<p>"어떻게 계산하나" 축을 조금 더 구체적으로 풀어 봅시다. 현장에서 쓰는 방식은 대략 네 갈래입니다.</p>
+
+<div class="rout-tblwrap">
+<table class="rout-tbl">
+  <thead><tr><th>방식</th><th>동작</th><th>장점</th><th>단점</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>규칙 기반</strong><br>(rule)</td>
+      <td>사람이 짠 조건: "코드가 들어오면 큰 모델", "100자 미만이면 작은 모델"</td>
+      <td>구현이 제일 쉽고 예측 가능. 비용 0에 가까움</td>
+      <td>세상 모든 경우를 규칙으로 못 덮음. 금방 지저분해짐</td>
+    </tr>
+    <tr>
+      <td><strong>임베딩 + 분류기</strong><br>(classifier)</td>
+      <td>질문을 <a href="/posts/rag-chunking-contextual-late-chunking/" target="_blank" rel="noopener">임베딩</a>으로 바꿔, "이건 큰 모델감/작은 모델감"을 예측하는 작은 분류기를 학습</td>
+      <td>빠르고(수 ms) 싸다. 데이터로 계속 개선 가능</td>
+      <td>학습 데이터가 필요. 새로운 유형엔 약함</td>
+    </tr>
+    <tr>
+      <td><strong>라우터-LLM</strong><br>(LLM-as-router)</td>
+      <td>작은 LLM에게 "이 질문 어렵니?"를 직접 물어 판단</td>
+      <td>낯선 표현·맥락에 강함. 규칙 없이도 유연</td>
+      <td>판단에도 LLM 호출 비용·지연이 든다</td>
+    </tr>
+    <tr>
+      <td><strong>캐스케이드</strong><br>(cascade)</td>
+      <td>싼 모델부터 답을 내 보고, <em>자신 없어 하면</em> 다음 큰 모델로 순서대로 올림</td>
+      <td>사전 판단이 필요 없음. 정확도가 가장 안정적</td>
+      <td>어려운 질문은 여러 번 호출 → 지연·비용 겹침</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>앞의 셋(규칙·분류기·라우터-LLM)은 "보내기 <em>전에</em> 어느 모델인지 딱 찍는" 방식이라 묶어서 <strong>사전 라우팅</strong>이라 부를 수 있습니다. 마지막 캐스케이드는 결이 다릅니다. 미리 찍지 않고, <strong>일단 싼 모델로 답해 보고 마음에 안 들면 위로 올리는</strong> 방식입니다.</p>
+
+<figure class="rout-fig">
+<svg viewBox="0 0 720 330" role="img" aria-label="캐스케이드의 동작을 보여 주는 흐름도. 질문이 작은 모델로 들어가 답과 자신감 점수를 낸다. 점수가 기준을 넘으면 그대로 답하고, 넘지 못하면 중간 모델로, 거기서도 부족하면 큰 모델로 순서대로 올라간다.">
+  <defs>
+    <marker id="rout-c" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--rout-slate)"/></marker>
+    <marker id="rout-cg" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--rout-green)"/></marker>
+  </defs>
+  <text x="360" y="24" fill="currentColor" font-size="14" font-weight="700" text-anchor="middle">캐스케이드 — 싼 모델부터, 자신 없으면 위로</text>
+
+  <rect x="20" y="50" width="96" height="40" rx="8" fill="var(--entry)" stroke="var(--rout-slate)"/>
+  <text x="68" y="75" fill="currentColor" font-size="12" text-anchor="middle">질문</text>
+  <path d="M116 70 L150 70" stroke="var(--rout-slate)" stroke-width="2" marker-end="url(#rout-c)"/>
+
+  <!-- small -->
+  <rect x="152" y="46" width="120" height="48" rx="10" fill="var(--entry)" stroke="var(--rout-green)" stroke-width="2"/>
+  <text x="212" y="66" fill="var(--rout-green)" font-size="12" font-weight="800" text-anchor="middle">작은 모델 (싸다)</text>
+  <text x="212" y="83" fill="currentColor" font-size="10.5" text-anchor="middle">답 + 자신감 점수</text>
+
+  <!-- decision 1 -->
+  <path d="M212 94 L212 128" stroke="var(--rout-slate)" stroke-width="2" marker-end="url(#rout-c)"/>
+  <path d="M212 132 L262 160 L212 188 L162 160 Z" fill="var(--entry)" stroke="var(--rout-amber)" stroke-width="2"/>
+  <text x="212" y="157" fill="currentColor" font-size="10.5" text-anchor="middle">점수 ≥</text>
+  <text x="212" y="171" fill="currentColor" font-size="10.5" text-anchor="middle">기준?</text>
+  <path d="M262 160 L360 160 L360 82 L432 82" stroke="var(--rout-green)" stroke-width="2" fill="none" marker-end="url(#rout-cg)"/>
+  <text x="300" y="152" fill="var(--rout-green)" font-size="11" font-weight="700" text-anchor="middle">예 → 그대로 답</text>
+
+  <!-- to mid -->
+  <path d="M212 188 L212 214" stroke="var(--rout-rose)" stroke-width="2" marker-end="url(#rout-c)"/>
+  <text x="250" y="206" fill="var(--rout-rose)" font-size="11" font-weight="700" text-anchor="middle">아니오 ↓</text>
+  <rect x="152" y="216" width="120" height="46" rx="10" fill="var(--entry)" stroke="var(--rout-blue)" stroke-width="2"/>
+  <text x="212" y="236" fill="var(--rout-blue)" font-size="12" font-weight="800" text-anchor="middle">중간 모델</text>
+  <text x="212" y="252" fill="currentColor" font-size="10.5" text-anchor="middle">답 + 자신감 점수</text>
+
+  <path d="M272 239 L300 239" stroke="var(--rout-slate)" stroke-width="2" marker-end="url(#rout-c)"/>
+  <path d="M300 239 L330 239" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+  <text x="360" y="235" fill="currentColor" font-size="10.5" text-anchor="middle">부족하면</text>
+  <text x="360" y="249" fill="currentColor" font-size="10.5" text-anchor="middle">한 번 더 ↓</text>
+
+  <!-- big -->
+  <rect x="430" y="216" width="130" height="46" rx="10" fill="var(--entry)" stroke="var(--rout-amber)" stroke-width="2"/>
+  <text x="495" y="236" fill="var(--rout-amber)" font-size="12" font-weight="800" text-anchor="middle">큰 모델 (비싸다)</text>
+  <text x="495" y="252" fill="currentColor" font-size="10.5" text-anchor="middle">최종 보루</text>
+  <path d="M420 239 L428 239" stroke="var(--rout-slate)" stroke-width="2" marker-end="url(#rout-c)"/>
+
+  <!-- answer -->
+  <rect x="432" y="60" width="120" height="44" rx="10" fill="var(--entry)" stroke="var(--rout-green)" stroke-width="2"/>
+  <text x="492" y="86" fill="var(--rout-green)" font-size="12" font-weight="800" text-anchor="middle">사용자에게 답</text>
+  <path d="M560 239 C620 239 620 100 554 84" stroke="var(--rout-slate)" stroke-width="2" fill="none" marker-end="url(#rout-c)"/>
+
+  <text x="360" y="300" fill="currentColor" font-size="11" text-anchor="middle" opacity="0.8">쉬운 질문은 첫 단계에서 끝나 싸다. 어려운 질문만 끝까지 올라가 비싸다.</text>
+</svg>
+<figcaption>캐스케이드는 값싼 모델부터 순서대로 시도하고, "자신감 점수"가 기준을 넘으면 거기서 멈춘다. 대부분의 쉬운 질문이 첫 단계에서 해결되므로 평균 비용이 뚝 떨어진다.</figcaption>
+</figure>
+
+<div class="rout-note"><strong>핵심은 "자신감 점수":</strong> 캐스케이드의 성패는 "이 답을 믿어도 되나?"를 재는 <em>점수 함수</em>에 달려 있습니다. 모델의 확률(logprob), 답의 형식이 맞는지, 별도의 작은 검증 모델(verifier)의 판정 등을 씁니다. 이 점수가 엉터리면 쉬운 질문도 자꾸 위로 올라가 라우팅의 이득이 사라집니다.</div>
+
+<h2 id="sec-4">4. 숫자로 보기 — RouteLLM과 FrugalGPT</h2>
+
+<p>"정말 효과가 있나?"를 숫자로 확인해 봅시다. 이 분야에서 가장 많이 인용되는 두 연구가 있습니다.</p>
+
+<p><strong>RouteLLM</strong>(LMSYS·UC Berkeley, arXiv:2406.18665, ICLR 2025)은 사전 라우팅 쪽의 대표작입니다. 사람들의 선호 데이터(어느 답이 더 나은지)를 학습해, "이 질문은 큰 모델이 필요할까?"를 예측하는 라우터를 만듭니다. 논문 결과가 인상적입니다. MT-Bench에서 <strong>강한 모델 호출을 14%로 줄이면서도 GPT-4 품질의 95%를 유지</strong>했고, 비용은 약 <strong>85%</strong> 절감했습니다. 또 다른 벤치마크인 MMLU에서는 같은 품질을 유지하며 <strong>45%</strong>를 아꼈습니다.</p>
+
+<p>RouteLLM은 네 종류의 라우터를 오픈소스(<code>lm-sys/RouteLLM</code>, GitHub 별 약 4.5k)로 함께 공개했는데, 이게 라우터 구현을 이해하는 좋은 카탈로그입니다.</p>
+
+<div class="rout-tblwrap">
+<table class="rout-tbl">
+  <thead><tr><th>라우터</th><th>한 줄 설명</th><th>특징</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Matrix Factorization</strong></td><td>질문·모델의 "궁합"을 잠재 점수로 학습</td><td>벤치마크 성적 최고. 논문의 <em>기본 추천</em></td></tr>
+    <tr><td><strong>BERT 분류기</strong></td><td>BERT를 미세조정해 "어느 모델이 이길지" 예측</td><td>해석하기 쉬움. 성능도 준수</td></tr>
+    <tr><td><strong>유사도 가중(SW)</strong></td><td>학습 예시와의 유사도로 Elo를 계산</td><td>GPU 불필요. 대신 요청당 비용이 큼</td></tr>
+    <tr><td><strong>Causal LLM 분류기</strong></td><td>작은 LLM이 라우팅을 직접 추론</td><td>낯선 표현에 강함. 대신 추론 오버헤드 최대</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>FrugalGPT</strong>(arXiv:2305.05176)는 캐스케이드 쪽의 고전입니다. 값싼 모델부터 순서대로 물어보고, 자신감 점수가 낮을 때만 위로 올립니다. 논문은 <strong>최고 단일 모델(GPT-4) 수준의 정확도를 최대 98%까지 싸게</strong> 내거나, <em>같은 비용으로 정확도를 4%p 더</em> 끌어올릴 수 있다고 보고합니다.</p>
+
+<div class="rout-warn rout-note"><strong>숫자를 그대로 믿지 마세요:</strong> 위 85%·98% 같은 수치는 <em>특정 벤치마크 + 특정 모델 조합</em>에서 나온 값입니다(예: RouteLLM은 GPT-4-Turbo 대 Mixtral 8x7B). "이 기법이 통한다"는 <strong>증거</strong>로 받아들이되, "우리 서비스에서도 딱 85% 나온다"는 <strong>약속</strong>으로 읽으면 안 됩니다. 실제 기업 사례에서는 대체로 <strong>40~70%</strong> 절감을 봅니다. 당신의 트래픽·모델 쌍으로 직접 측정해야 합니다.</div>
+
+<h2 id="sec-5">5. 직접 해보기 (1) — 분류기 라우터</h2>
+
+<p>말로만 하면 감이 안 오니 가장 실용적인 <strong>임베딩 + 분류기</strong> 라우터를 손으로 만들어 봅시다. 아이디어는 간단합니다. 과거 로그에서 "작은 모델로도 충분했던 질문"과 "큰 모델이 필요했던 질문"에 라벨을 붙여 두고, 질문 임베딩으로 둘을 가르는 작은 분류기를 학습합니다. 실전에서는 로지스틱 회귀 한 줄이면 충분할 때가 많습니다.</p>
+
+{{< highlight python >}}
+# pip install sentence-transformers scikit-learn
+from sentence_transformers import SentenceTransformer
+from sklearn.linear_model import LogisticRegression
+import numpy as np
+
+# 1) 라벨 데이터: (질문, 큰 모델이 필요했나?) — 실제로는 로그에서 수천 건을 모은다.
+#    label=0 → 작은 모델로 충분,  label=1 → 큰 모델 필요
+train = [
+    ("영업시간 언제까지예요?", 0),
+    ("이 문장 맞춤법만 고쳐줘", 0),
+    ("환불 정책 요약해줘", 0),
+    ("이 500줄짜리 결제 로직 리팩터링하고 버그도 찾아줘", 1),
+    ("아래 논문 3편을 비교해서 한계와 후속 연구를 제안해줘", 1),
+    ("멀티스레드 데드락 원인을 코드에서 추적해줘", 1),
+]
+texts  = [t for t, _ in train]
+labels = np.array([y for _, y in train])
+
+# 2) 질문을 임베딩(의미 벡터)으로 변환 — 작고 빠른 임베딩 모델이면 충분하다.
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
+X = embedder.encode(texts)
+
+# 3) "큰 모델이 필요할 확률"을 예측하는 아주 작은 분류기를 학습한다.
+clf = LogisticRegression(max_iter=1000).fit(X, labels)
+
+SMALL, BIG = "small-cheap-model", "big-expensive-model"
+
+def route(question: str, threshold: float = 0.5) -> str:
+    v = embedder.encode([question])
+    p_big = clf.predict_proba(v)[0][1]   # 큰 모델이 필요할 확률(0~1)
+    # 임계값(threshold)이 라우팅의 '핸들'이다:
+    #   높이면 → 큰 모델로 덜 감(더 아끼지만 품질 위험 ↑)
+    #   낮추면 → 큰 모델로 자주 감(품질 안전하지만 비용 ↑)
+    return BIG if p_big >= threshold else SMALL
+
+print(route("포인트 적립은 어떻게 하나요?"))      # → small-cheap-model
+print(route("이 마이크로서비스 아키텍처를 검토해줘"))  # → big-expensive-model
+{{< /highlight >}}
+
+<p>여기서 진짜 중요한 손잡이는 <code>threshold</code>입니다. 이 값 하나로 <strong>비용과 품질 사이 어디에 설지</strong>를 정합니다. 서비스 초반엔 보수적으로(임계값 낮게, 큰 모델로 자주) 시작해 품질을 확인하고, 안정되면 조금씩 올려 비용을 짜내는 식으로 운영합니다. 오프라인 평가 셋으로 임계값을 바꿔 가며 "품질 곡선"을 그려 보고 허용 가능한 지점을 고르면 됩니다.</p>
+
+<div class="rout-good rout-note"><strong>팁:</strong> 라우팅 결과를 반드시 로그에 남기세요 — <em>질문, 고른 모델, 확률, 실제 만족도(사용자 피드백·후속 재질문 여부)</em>. 이 로그가 다음 학습 데이터가 되고, 라우터는 시간이 갈수록 좋아집니다. 라우터는 "한 번 만들고 끝"이 아니라 <em>계속 재학습하는</em> 부품입니다.</div>
+
+<h2 id="sec-6">6. 직접 해보기 (2) — 캐스케이드</h2>
+
+<p>사전 학습 데이터가 없다면 캐스케이드가 더 쉽게 출발할 수 있습니다. 라벨도, 분류기도 필요 없이 "싼 모델 → 검사 → 부족하면 큰 모델"만 있으면 됩니다. 핵심은 역시 <strong>답을 믿어도 되는지 재는 함수</strong>입니다.</p>
+
+{{< highlight python >}}
+# 개념 코드: 실제 클라이언트/모델 이름은 환경에 맞게 바꾸세요.
+def call_model(name: str, question: str) -> str:
+    ...  # 해당 모델을 호출해 답 문자열을 반환
+
+def confidence(question: str, answer: str) -> float:
+    """이 답을 믿어도 되는지 0~1로 점수. 여기서는 아주 단순한 규칙 예시."""
+    if not answer or "잘 모르겠" in answer or "확실하지 않" in answer:
+        return 0.0                     # 모델이 스스로 자신 없어 하면 0점
+    if len(answer) < 15:               # 너무 짧으면 대충 답했을 가능성
+        return 0.4
+    return 0.9
+    # 실전에선: logprob 기반 점수, 형식 검증(JSON 스키마), 별도 verifier 모델 등을 조합
+
+# 싼 → 비싼 순서. 각 단계의 '통과 기준'을 다르게 줄 수도 있다.
+CASCADE = [("small-cheap-model", 0.7), ("big-expensive-model", 0.0)]
+
+def answer_with_cascade(question: str) -> tuple[str, str]:
+    for name, threshold in CASCADE:
+        ans = call_model(name, question)
+        if confidence(question, ans) >= threshold:
+            return ans, name           # 기준 통과 → 여기서 멈춘다(더 안 올라감)
+    return ans, name                   # 끝까지 왔으면 마지막(큰 모델) 답을 쓴다
+
+ans, used = answer_with_cascade("포인트 적립은 어떻게 하나요?")
+print(used)   # 대개 → small-cheap-model 에서 끝남
+{{< /highlight >}}
+
+<p>마지막 단계의 임계값을 <code>0.0</code>으로 둔 게 포인트입니다. 큰 모델까지 올라왔다면 더 갈 곳이 없으니 <em>무조건 그 답을 채택</em>합니다. 큰 모델이 "최종 보루" 역할을 하는 거죠. 쉬운 질문 대부분은 첫 줄에서 끝나므로, 평균적으로 보면 대부분의 트래픽이 싼 모델에서 처리됩니다.</p>
+
+<p>직접 다 만들기 부담스럽다면 이미 잘 만들어진 도구를 붙여도 됩니다. 오픈소스 <code>RouteLLM</code>은 위 분류기 라우터를 학습된 형태로 제공하고, <code>OpenRouter</code>의 자동 라우팅, <code>NotDiamond</code> 같은 호스티드 라우터, <a href="/posts/stateless-mcp-scaling/" target="_blank" rel="noopener">서빙 계층</a>에 붙는 <code>vLLM Semantic Router</code> 등 선택지가 다양합니다. 처음엔 규칙 몇 개로 시작해, 로그가 쌓이면 분류기나 캐스케이드로 넘어가는 순서를 추천합니다.</p>
+
+<h2 id="sec-7">7. 이번 주의 화제 — 초경량 라우터 모델</h2>
+
+<p>서두에서 말한 <strong>Supra-Router-51M</strong>이 왜 흥미로운지 이제 이해가 될 겁니다. 이건 "라우팅 자체를 아주 작은 전용 모델로 빠르게 하자"는 방향입니다. 파라미터가 5,170만 개뿐이라, 라우터가 소비하는 비용·지연을 거의 무시할 수준으로 낮춥니다. 학습은 라우팅 전용 데이터셋(<code>SupraLabs/Prompt-Routing-Dataset</code>, 약 992행)으로 작은 베이스 모델을 미세조정해 만들었고, 단순 이진 분류가 아니라 <em>질문의 성질을 먼저 서술한 뒤 라우팅 토큰을 예측</em>하는 방식(multi-task sequence generation)을 씁니다.</p>
+
+<p>특히 <strong>엣지(edge) 대 클라우드</strong> 구도가 눈에 띕니다. "이 질문은 기기 안의 작은 모델(SLM)로 처리할까, 아니면 클라우드의 큰 모델로 넘길까"를 게이트키퍼처럼 판단합니다. 온디바이스 AI가 늘면서 이 "로컬이냐 클라우드냐" 라우팅은 앞으로 더 중요해질 축입니다.</p>
+
+<p>같은 흐름에서 코딩 작업에 특화한 <em>Agent-as-a-Router</em>(arXiv:2606.22902)처럼 <strong>에이전트가 매 단계마다 알맞은 모델을 고르는</strong> 연구도 나오고 있습니다. 에이전트는 한 작업 안에서 계획·검색·코드 생성처럼 성격이 다른 단계를 오가는데, 단계마다 필요한 지능이 다릅니다. 계획엔 큰 모델, 단순 도구 호출엔 작은 모델 — 이렇게 <em>한 세션 안에서도</em> 라우팅하는 게 자연스러운 다음 걸음입니다. <a href="/posts/reasoning-effort-thinking-budget/" target="_blank" rel="noopener">추론 예산 조절</a>과도 맞닿아 있는 주제입니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>라우터의 비용·지연을 잊는다.</strong> 라우터도 공짜가 아닙니다. 판단에 큰 LLM을 쓰면, 아끼려다 배보다 배꼽이 커집니다. 라우터는 <em>싸고 빨라야</em> 의미가 있습니다(그래서 51M 같은 초경량이 화제인 겁니다).</li>
+  <li><strong>자신감 점수를 대충 만든다.</strong> 캐스케이드의 성패는 점수 함수입니다. 점수가 부정확하면 쉬운 질문도 자꾸 큰 모델로 올라가 이득이 사라지거나, 반대로 나쁜 답을 통과시킵니다. 점수 자체도 평가 대상입니다.</li>
+  <li><strong>분포 변화(distribution shift)를 방치한다.</strong> 라우터는 과거 트래픽으로 학습합니다. 신규 기능·신규 사용자로 질문 분포가 바뀌면 라우터가 옛날 감으로 오판합니다. 정기적으로 재학습·재평가하세요.</li>
+  <li><strong>"품질은 어차피 비슷하겠지"라고 넘긴다.</strong> 라우팅은 품질을 <em>조금</em> 희생해 비용을 <em>많이</em> 줄이는 거래입니다. 얼마나 희생하는지 반드시 <strong>오프라인 평가 셋</strong>으로 측정하세요. <a href="/posts/agent-evals-reliability/" target="_blank" rel="noopener">평가(evals)</a> 없이 라우팅을 켜는 건 눈 감고 운전하는 것과 같습니다.</li>
+  <li><strong>임계값을 하나로 박아 둔다.</strong> 서비스마다, 심지어 기능마다 허용 가능한 품질이 다릅니다. 결제 관련 질문은 보수적으로(큰 모델로 자주), 잡담은 공격적으로 — 세그먼트별로 임계값을 다르게 두면 훨씬 알뜰합니다.</li>
+  <li><strong>폴백과 헷갈린다.</strong> 라우팅은 "가성비 선택", 폴백은 "장애 대비"입니다. 둘 다 필요하지만 목적이 다르니 코드에서도 분리해 두는 편이 유지보수에 좋습니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<div class="rout-good rout-note">
+<strong>핵심 요약</strong>
+<ul style="margin:.5rem 0 0">
+  <li><strong>문제:</strong> 쉬운 질문까지 전부 최고 모델로 보내면 요금이 샌다. 어려운 질문은 소수다.</li>
+  <li><strong>해법:</strong> 질문마다 알맞은 모델로 나눠 보내는 <em>LLM 라우팅</em>. 라우터는 응급실 트리아지 간호사다.</li>
+  <li><strong>설계 3축:</strong> 언제(요청 전/추론 중/응답 후) · 무엇으로(질문·모델·성능) · 어떻게(규칙·분류기·RL·캐스케이드) 결정하나.</li>
+  <li><strong>두 큰 갈래:</strong> 미리 찍는 <em>사전 라우팅</em>(RouteLLM류) vs 싼 모델부터 올리는 <em>캐스케이드</em>(FrugalGPT류).</li>
+  <li><strong>효과:</strong> 논문 기준 최대 85~98% 절감 사례가 있으나 벤치마크 한정. 실무는 보통 40~70%. <em>반드시 직접 측정</em>.</li>
+  <li><strong>손잡이:</strong> 분류기의 <code>threshold</code>, 캐스케이드의 <em>자신감 점수</em>가 비용·품질을 가른다.</li>
+  <li><strong>흐름:</strong> 규칙 → 분류기/캐스케이드 → 초경량 라우터 모델·에이전트별 라우팅으로. 라우터는 계속 재학습하는 부품이다.</li>
+  <li><strong>주의:</strong> 라우터 자신의 비용, 자신감 점수 품질, 분포 변화, 평가 없이 켜기 — 이 넷을 조심.</li>
+</ul>
+</div>
+
+<p>라우팅은 화려한 신기술이라기보다, 모델이 여러 개가 된 시대에 <strong>돈을 덜 쓰면서 품질을 지키는 가장 실용적인 레버</strong>입니다. 규칙 몇 줄로 오늘 당장 시작할 수 있고, 로그가 쌓이면 분류기와 캐스케이드로 키워 가면 됩니다. 다음에 API 청구서를 볼 때, "이 질문들, 정말 다 큰 모델이어야 했나?"를 한 번 물어보세요. 대부분은 아닐 겁니다.</p>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li> Isaac Ong 외, <a href="https://arxiv.org/abs/2406.18665" target="_blank" rel="noopener">RouteLLM: Learning to Route LLMs with Preference Data</a> (arXiv:2406.18665, ICLR 2025) — 사전 라우팅의 대표작. 네 가지 라우터와 MT-Bench 85%·MMLU 45% 절감 결과. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>LMSYS Org, <a href="https://www.lmsys.org/blog/2024-07-01-routellm/" target="_blank" rel="noopener">RouteLLM: An Open-Source Framework for Cost-Effective LLM Routing</a> — 논문의 공식 소개 글과 벤치마크. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>GitHub, <a href="https://github.com/lm-sys/RouteLLM" target="_blank" rel="noopener">lm-sys/RouteLLM</a> — 학습된 라우터를 제공하는 오픈소스(별 약 4.5k). 본문 라우터 유형 표의 출처. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Chen, Zaharia, Zou, <a href="https://arxiv.org/abs/2305.05176" target="_blank" rel="noopener">FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance</a> (arXiv:2305.05176) — 캐스케이드의 고전. 최대 98% 절감/+4%p 정확도. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li><a href="https://arxiv.org/abs/2603.04445" target="_blank" rel="noopener">Dynamic Model Routing and Cascading for Efficient LLM Inference: A Survey</a> (arXiv:2603.04445) — 본문 "설계 3축(언제·무엇·어떻게)"의 출처인 2026 서베이. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Hugging Face, <a href="https://huggingface.co/SupraLabs/Supra-Router-51M" target="_blank" rel="noopener">SupraLabs/Supra-Router-51M</a> — 이번 주 트렌딩에 오른 5,170만 파라미터 초경량 라우터 모델(엣지↔클라우드 triage). <span style="opacity:.7">(한국어 아님)</span></li>
+  <li><a href="https://arxiv.org/abs/2606.22902" target="_blank" rel="noopener">Agent-as-a-Router: Agentic Model Routing for Coding Tasks</a> (arXiv:2606.22902) — 에이전트가 단계마다 모델을 고르는 라우팅 연구. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>NeuralTrust, <a href="https://neuraltrust.ai/blog/llm-model-routing" target="_blank" rel="noopener">LLM Model Routing: Route Queries to the Right Model Automatically</a> — 라우터 유형·비용 수치 정리. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Portkey, <a href="https://portkey.ai/blog/implementing-frugalgpt-smarter-llm-usage-for-lower-costs/" target="_blank" rel="noopener">Implementing FrugalGPT: Smarter LLM Usage for Lower Costs</a> — 캐스케이드 구현 관점의 실무 가이드. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

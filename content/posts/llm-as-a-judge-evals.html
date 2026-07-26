@@ -1,0 +1,424 @@
+---
+title: "채점관도 편애를 한다: LLM을 평가자(LLM-as-a-judge)로 쓸 때 믿을 수 있게 만드는 법"
+date: 2026-07-27T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM-as-a-judge", "LLM 평가", "evals", "평가", "LLM evaluation", "position bias", "위치 편향", "verbosity bias", "self-preference bias", "rubric", "루브릭", "G-Eval", "pairwise", "pointwise", "MT-Bench", "Cohen's kappa", "observability", "AI 엔지니어링", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "LLM 앱을 만들다 보면 '이 답이 좋은 답인가?'를 수천 개씩 채점해야 하는데, 사람이 다 하긴 벅찹니다. 그래서 LLM에게 채점을 맡기는 게 LLM-as-a-judge입니다. 문제는 이 채점관도 편향이 있다는 것 — 앞쪽 답을 편애하고(위치 편향), 긴 답을 좋아하고(장황함 편향), 자기가 쓴 답에 후합니다(자기 선호 편향). 이 글은 LLM 채점관이 어떻게 동작하는지(pointwise·pairwise), 어떤 편향에 빠지는지, 그리고 명확한 기준표·순서 뒤집기·사람과의 대조로 '믿을 수 있는 채점관'을 만드는 법을 junior 개발자 눈높이로 쉽고 자세하게 정리합니다. 2026년 화제가 된 '채점관을 감사하다' 연구도 함께 짚습니다."
+ShowToc: false
+cover:
+  image: "llm-as-a-judge-evals-cover.svg"
+  alt: "가운데의 LLM 채점관이 두 답변 A와 B를 비교해 판정한다. 채점관은 명확한 기준표(rubric)를 보고 채점하며, 순서를 바꿔 두 번 물어 둘 다 이겨야 승리로 인정하는 위치 편향 방지 규칙을 함께 보여 준다."
+  caption: "LLM을 채점관으로 쓰되, 명확한 기준표를 주고 순서를 뒤집어 두 번 물어 편향을 걸러 낸다. 그래야 채점 결과를 믿을 수 있다."
+  relative: false
+---
+
+<style>
+/* ── LLM-as-a-judge 포스트 전용 스타일 (judge- 접두사) ── */
+.judge-fig{
+  --j-sky:#0284c7; --j-amber:#d97706; --j-green:#16a34a; --j-rose:#e11d48;
+  --j-slate:#64748b; --j-violet:#7c3aed; --j-teal:#0d9488; --j-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .judge-fig{
+  --j-sky:#38bdf8; --j-amber:#fbbf24; --j-green:#4ade80; --j-rose:#fb7185;
+  --j-slate:#94a3b8; --j-violet:#a78bfa; --j-teal:#2dd4bf; --j-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .judge-fig{
+    --j-sky:#38bdf8; --j-amber:#fbbf24; --j-green:#4ade80; --j-rose:#fb7185;
+    --j-slate:#94a3b8; --j-violet:#a78bfa; --j-teal:#2dd4bf; --j-blue:#60a5fa;
+  }
+}
+.judge-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.judge-fig text{font-family:inherit}
+.judge-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.judge-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.judge-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.judge-toc ol{margin:0;padding-left:1.25rem}
+.judge-toc li{margin:.22rem 0;font-size:.95rem}
+.judge-toc a{text-decoration:none}
+.judge-toc a:hover{text-decoration:underline}
+.judge-pull{font-size:1.12rem;line-height:1.72}
+.judge-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.judge-note{border-left:4px solid var(--j-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.judge-note strong{color:var(--j-blue,#2563eb)}
+.judge-warn{border-left:4px solid var(--j-rose,#e11d48)}
+.judge-warn strong{color:var(--j-rose,#e11d48)}
+.judge-good{border-left:4px solid var(--j-teal,#0d9488)}
+.judge-good strong{color:var(--j-teal,#0d9488)}
+.judge-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.judge-tbl th,.judge-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.judge-tbl th{background:var(--entry);font-weight:700}
+.judge-tbl code{font-size:.86em}
+.judge-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="judge-pull">
+  <p>프롬프트를 한 줄 고쳤습니다. <strong>더 좋아진 걸까요, 나빠진 걸까요?</strong> 답을 하나씩 눈으로 읽어 채점하면 스무 개는 하겠지만, 이천 개는 못 합니다.</p>
+  <footer>— 그래서 LLM에게 채점을 맡깁니다. 단, 이 채점관에게도 편애가 있다는 걸 알고 써야 합니다.</footer>
+</blockquote>
+
+<p>LLM으로 무언가를 만들어 본 사람은 금방 벽에 부딪힙니다. 코드는 테스트를 돌리면 통과·실패가 딱 나오는데, LLM의 출력은 "요약이 잘 됐나?", "말투가 적절한가?", "질문에 제대로 답했나?"처럼 <strong>정답이 하나로 딱 떨어지지 않습니다</strong>. 프롬프트를 조금 바꾸거나 모델을 갈아탈 때마다 "이게 나아진 게 맞아?"를 확인해야 하는데, 매번 수백~수천 개의 답을 사람이 눈으로 읽어 채점할 수는 없습니다.</p>
+
+<p>그래서 나온 방법이 <strong>LLM을 채점관으로 쓰는 것</strong>입니다. 사람 대신 또 다른 LLM에게 "이 답이 이 기준을 만족하니?"라고 물어 점수를 매기게 하는 방식이죠. 영어로는 <strong>LLM-as-a-judge</strong>라고 부르고, 이 글에서는 그 LLM을 <strong>채점관(judge)</strong>이라고 하겠습니다. 빠르고, 싸고, 밤새 수만 건도 돌립니다.</p>
+
+<p>그런데 여기엔 함정이 있습니다. 이 채점관은 <em>사람처럼 편향</em>을 갖습니다. 앞에 놓인 답을 괜히 더 좋게 보고(위치 편향), 길고 장황한 답에 후한 점수를 주고(장황함 편향), 심지어 자기가 쓴 답을 편애합니다(자기 선호 편향). 편향을 모르고 채점 결과를 그대로 믿으면, "프롬프트가 좋아졌다"는 결론 자체가 착각일 수 있습니다.</p>
+
+<p>이 주제가 2026년 내내, 특히 이번 주에 다시 화제가 된 이유가 있습니다. LLM 채점관을 프로덕션 평가 파이프라인에 넣는 팀이 급격히 늘면서, "그 채점관을 우리가 믿어도 되나?"를 대규모로 검증한 <strong>'채점관을 감사하다(auditing the judge)'</strong> 계열 연구가 쏟아졌습니다. 결론이 제법 뼈아픕니다 — <em>채점관을 다른 모델로 바꾸기만 해도 순위가 뒤집힌다</em>는 겁니다. 이 글은 LLM 채점관이 어떻게 동작하고, 어디서 무너지며, 어떻게 하면 믿을 만하게 만드는지를 처음부터 끝까지 짚습니다.</p>
+
+<nav class="judge-toc">
+  <div class="judge-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 채점이 어려운가 — 생성 태스크에는 정답이 없다</a></li>
+    <li><a href="#sec-2">LLM-as-a-judge란 무엇인가</a></li>
+    <li><a href="#sec-3">채점 방식 3가지 — pointwise · pairwise · listwise</a></li>
+    <li><a href="#sec-4">채점관의 편향 3형제</a></li>
+    <li><a href="#sec-5">믿을 수 있는 채점관 만들기 — 5가지 원칙</a></li>
+    <li><a href="#sec-6">직접 해보기 (1) — 기준표 기반 pointwise 채점관</a></li>
+    <li><a href="#sec-7">직접 해보기 (2) — 순서를 뒤집는 pairwise 채점관</a></li>
+    <li><a href="#sec-8">이번 주의 화제 — '채점관을 감사하다'</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 채점이 어려운가 — 생성 태스크에는 정답이 없다</h2>
+
+<p>먼저 문제부터 봅시다. 전통적인 소프트웨어는 정답을 미리 알기 때문에 테스트가 쉽습니다. <code>add(2, 3)</code>은 <code>5</code>가 나와야 하고, 아니면 실패입니다. 그런데 "이 이메일을 정중하게 요약해줘"의 정답은 하나가 아닙니다. 표현이 조금 다른 좋은 답이 수십 가지죠.</p>
+
+<p>이런 <strong>생성 태스크(generation task)</strong>를 자동으로 채점하려고 예전에는 BLEU·ROUGE 같은 <em>글자 겹침(n-gram overlap)</em> 지표를 썼습니다. "모범 답안과 단어가 얼마나 겹치나"를 세는 방식인데, 뜻은 같아도 단어가 다르면 점수가 낮게 나옵니다. "환불해 드리겠습니다"와 "환불 처리하겠습니다"는 사실상 같은 답인데 겹침 지표는 이걸 다르다고 봅니다. 의미를 못 읽는 거죠.</p>
+
+<p>그렇다고 사람이 다 채점하면 느리고 비쌉니다. 프롬프트 한 줄 바꿀 때마다 평가셋 2,000건을 사람이 읽으면, 실험 한 번에 며칠이 걸립니다. 개발 속도가 여기서 다 죽습니다.</p>
+
+<p>LLM 채점관은 이 두 문제를 동시에 풉니다. 의미를 읽을 줄 알고(겹침 지표의 한계를 넘고), 사람보다 훨씬 빠르고 쌉니다. 그래서 요즘 LLM 앱의 평가 루프는 대개 아래 그림처럼 돌아갑니다.</p>
+
+<figure class="judge-fig">
+<svg viewBox="0 0 760 250" role="img" aria-label="LLM 앱의 오프라인 평가 루프. 평가셋의 입력을 앱에 넣어 후보 답변을 만들고, LLM 채점관이 기준표에 따라 점수를 매긴 뒤, 점수를 모아 평균과 통과율을 계산해 이 버전을 배포할지 말지 결정한다. 결정 결과는 다음 프롬프트 개선으로 되돌아간다.">
+  <defs>
+    <marker id="j1-ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--j-slate)"/></marker>
+  </defs>
+  <rect x="14" y="90" width="120" height="66" rx="12" fill="var(--entry)" stroke="var(--j-slate)" stroke-width="2"/>
+  <text x="74" y="118" fill="currentColor" font-size="12.5" font-weight="700" text-anchor="middle">평가셋</text>
+  <text x="74" y="138" fill="currentColor" font-size="10.5" text-anchor="middle">입력 + 기준</text>
+
+  <rect x="176" y="90" width="120" height="66" rx="12" fill="var(--entry)" stroke="var(--j-blue)" stroke-width="2"/>
+  <text x="236" y="118" fill="var(--j-blue)" font-size="12.5" font-weight="800" text-anchor="middle">내 앱</text>
+  <text x="236" y="138" fill="currentColor" font-size="10.5" text-anchor="middle">후보 답변 생성</text>
+
+  <rect x="338" y="82" width="128" height="82" rx="12" fill="var(--entry)" stroke="var(--j-violet)" stroke-width="2.5"/>
+  <text x="402" y="112" fill="var(--j-violet)" font-size="13" font-weight="800" text-anchor="middle">채점관 (LLM)</text>
+  <text x="402" y="132" fill="currentColor" font-size="10.5" text-anchor="middle">기준표로 점수·근거</text>
+  <text x="402" y="150" font-size="16" text-anchor="middle">⚖️</text>
+
+  <rect x="508" y="90" width="120" height="66" rx="12" fill="var(--entry)" stroke="var(--j-teal)" stroke-width="2"/>
+  <text x="568" y="114" fill="var(--j-teal)" font-size="12.5" font-weight="800" text-anchor="middle">집계</text>
+  <text x="568" y="134" fill="currentColor" font-size="10.5" text-anchor="middle">평균·통과율</text>
+
+  <rect x="656" y="90" width="92" height="66" rx="12" fill="var(--entry)" stroke="var(--j-green)" stroke-width="2"/>
+  <text x="702" y="114" fill="var(--j-green)" font-size="12.5" font-weight="800" text-anchor="middle">결정</text>
+  <text x="702" y="134" fill="currentColor" font-size="10.5" text-anchor="middle">배포?</text>
+
+  <path d="M134 123 L172 123" stroke="var(--j-slate)" stroke-width="2" marker-end="url(#j1-ar)"/>
+  <path d="M296 123 L334 123" stroke="var(--j-slate)" stroke-width="2" marker-end="url(#j1-ar)"/>
+  <path d="M466 123 L504 123" stroke="var(--j-slate)" stroke-width="2" marker-end="url(#j1-ar)"/>
+  <path d="M628 123 L652 123" stroke="var(--j-slate)" stroke-width="2" marker-end="url(#j1-ar)"/>
+
+  <path d="M702 156 C702 210 236 210 236 160" stroke="var(--j-slate)" stroke-width="1.6" stroke-dasharray="4 5" fill="none" marker-end="url(#j1-ar)"/>
+  <text x="470" y="228" fill="var(--j-slate)" font-size="11" text-anchor="middle">프롬프트·모델을 고쳐 다시 (반복)</text>
+</svg>
+<figcaption>LLM 앱의 오프라인 평가 루프. 채점관이 이 루프의 핵심 계기판인데, 계기판이 삐뚤어져 있으면 개선 방향 자체를 잘못 잡는다.</figcaption>
+</figure>
+
+<p>여기서 채점관은 단순한 도구가 아니라 <strong>개선 방향을 정하는 계기판</strong>입니다. 계기판이 편향돼 있으면 "좋아졌다"는 신호를 보고 엉뚱한 방향으로 최적화하게 됩니다. 그래서 채점관을 믿을 수 있게 만드는 일이 이렇게 중요합니다.</p>
+
+<h2 id="sec-2">2. LLM-as-a-judge란 무엇인가</h2>
+
+<p>정의는 간단합니다. <strong>LLM-as-a-judge</strong>는 어떤 출력의 품질을 평가하기 위해 LLM에게 채점을 시키는 방법입니다. 채점관에게 주는 프롬프트에는 보통 세 가지가 들어갑니다 — (1) 원래 질문/맥락, (2) 채점할 답변(들), (3) <strong>채점 기준표(rubric)</strong>. 그러면 채점관이 "점수는 4점, 이유는 …"처럼 판정과 근거를 돌려줍니다.</p>
+
+<p>이 아이디어를 널리 퍼뜨린 건 2023년의 MT-Bench 논문입니다. 이 연구에서 GPT-4를 채점관으로 썼더니 <strong>사람의 선호와 80% 넘게 일치</strong>했는데, 이는 사람 평가자끼리의 일치율과 맞먹는 수준이었습니다. "LLM이 사람만큼 채점할 수 있다"는 게 숫자로 증명된 순간이고, 이후 거의 모든 평가 프레임워크가 이 방식을 기본으로 채택합니다.</p>
+
+<div class="judge-note"><strong>비유:</strong> LLM 채점관은 신입 조교에게 채점을 맡기는 것과 같습니다. 명확한 채점 기준표를 주면 꽤 잘합니다. 하지만 "알아서 좋은 답 골라줘"라고 기준을 안 주면, 그 조교의 취향(길고 자신감 있는 답을 선호하는 등)이 그대로 점수에 새어 나옵니다. <strong>채점관의 품질은 8할이 기준표에서 나옵니다.</strong></div>
+
+<h2 id="sec-3">3. 채점 방식 3가지 — pointwise · pairwise · listwise</h2>
+
+<p>채점관에게 일을 시키는 방식은 크게 셋으로 나뉩니다. 뭘 고르느냐에 따라 비용과 신뢰도가 달라집니다.</p>
+
+<figure class="judge-fig">
+<svg viewBox="0 0 760 250" role="img" aria-label="세 가지 채점 방식 비교. 왼쪽 pointwise는 답변 하나를 기준표에 따라 1에서 5점으로 절대 점수를 매긴다. 가운데 pairwise는 두 답변 A와 B를 나란히 놓고 어느 쪽이 더 나은지 고른다. 오른쪽 listwise는 여러 답변을 한꺼번에 순위 매긴다.">
+  <rect x="16" y="40" width="228" height="180" rx="14" fill="var(--entry)" stroke="var(--j-blue)" stroke-width="2"/>
+  <text x="130" y="66" fill="var(--j-blue)" font-size="14" font-weight="800" text-anchor="middle">pointwise (절대 점수)</text>
+  <rect x="44" y="86" width="172" height="40" rx="8" fill="none" stroke="var(--j-slate)"/>
+  <text x="130" y="111" fill="currentColor" font-size="12" text-anchor="middle">답변 하나</text>
+  <text x="130" y="150" fill="currentColor" font-size="13" text-anchor="middle">→ 채점관 →</text>
+  <text x="130" y="184" fill="var(--j-blue)" font-size="22" font-weight="800" text-anchor="middle">4 / 5점</text>
+  <text x="130" y="208" fill="var(--j-slate)" font-size="10.5" text-anchor="middle">싸다 O(n) · 절대 점수는 흔들림</text>
+
+  <rect x="266" y="40" width="228" height="180" rx="14" fill="var(--entry)" stroke="var(--j-violet)" stroke-width="2.5"/>
+  <text x="380" y="66" fill="var(--j-violet)" font-size="14" font-weight="800" text-anchor="middle">pairwise (둘 비교)</text>
+  <rect x="292" y="86" width="80" height="40" rx="8" fill="none" stroke="var(--j-blue)"/>
+  <text x="332" y="111" fill="currentColor" font-size="12" text-anchor="middle">A</text>
+  <rect x="388" y="86" width="80" height="40" rx="8" fill="none" stroke="var(--j-amber)"/>
+  <text x="428" y="111" fill="currentColor" font-size="12" text-anchor="middle">B</text>
+  <text x="380" y="150" fill="currentColor" font-size="13" text-anchor="middle">→ 채점관 →</text>
+  <text x="380" y="184" fill="var(--j-violet)" font-size="16" font-weight="800" text-anchor="middle">A가 더 낫다</text>
+  <text x="380" y="208" fill="var(--j-slate)" font-size="10.5" text-anchor="middle">더 안정적 · 위치 편향 주의</text>
+
+  <rect x="516" y="40" width="228" height="180" rx="14" fill="var(--entry)" stroke="var(--j-teal)" stroke-width="2"/>
+  <text x="630" y="66" fill="var(--j-teal)" font-size="14" font-weight="800" text-anchor="middle">listwise (순위)</text>
+  <rect x="560" y="82" width="140" height="20" rx="5" fill="none" stroke="var(--j-slate)"/>
+  <rect x="560" y="106" width="140" height="20" rx="5" fill="none" stroke="var(--j-slate)"/>
+  <rect x="560" y="130" width="140" height="20" rx="5" fill="none" stroke="var(--j-slate)"/>
+  <text x="630" y="172" fill="currentColor" font-size="13" text-anchor="middle">→ 채점관 →</text>
+  <text x="630" y="196" fill="var(--j-teal)" font-size="14" font-weight="800" text-anchor="middle">C &gt; A &gt; B</text>
+  <text x="630" y="214" fill="var(--j-slate)" font-size="10.5" text-anchor="middle">한 번에 여러 개 · 긴 맥락 부담</text>
+</svg>
+<figcaption>세 가지 채점 방식. 절대 점수가 필요하면 pointwise, 두 버전 중 나은 걸 고를 땐 pairwise가 가장 안정적이다.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>pointwise(절대 점수)</strong> — 답변 하나를 놓고 "1~5점 중 몇 점"처럼 절대 점수를 매깁니다. 답변 개수만큼만 채점하면 되니 비용이 <code>O(n)</code>으로 싸고, 대시보드에 "평균 4.2점"처럼 찍기 좋습니다. 다만 절대 점수는 그날그날, 표현에 따라 미묘하게 흔들려서 <em>모델끼리 순위 매기기</em>엔 약합니다. 비슷한 답들에 다 3~4점을 줘 버리거든요.</li>
+  <li><strong>pairwise(둘 비교)</strong> — 두 답변을 나란히 놓고 "A가 나은가, B가 나은가"를 고릅니다. 사람도 "이거 몇 점?"보다 "둘 중 뭐가 나아?"를 훨씬 일관되게 답하듯, 채점관도 비교가 더 안정적입니다. 프롬프트 A안 vs B안을 비교할 때 최적이죠. 대신 모든 쌍을 비교하면 <code>O(n²)</code>이라 개수가 많아지면 비쌉니다.</li>
+  <li><strong>listwise(순위)</strong> — 여러 답변을 한꺼번에 주고 순위를 매깁니다. 호출 수는 줄지만 맥락이 길어지고, 뒤쪽 답변일수록 대충 보는 경향이 있어 신중히 써야 합니다.</li>
+</ul>
+
+<p>실무 감각으로 정리하면: <strong>"이 답이 합격이야?"</strong>처럼 절대 판정이 필요하면 pointwise(기준표를 아주 구체적으로), <strong>"A안과 B안 중 뭐가 나아?"</strong>처럼 두 버전을 겨루게 할 땐 pairwise를 씁니다. pointwise를 더 똑똑하게 만든 대표 기법이 <strong>G-Eval</strong>인데, 채점관에게 먼저 "채점 단계"를 스스로 적게 한 뒤(chain-of-thought) 그 단계에 따라 점수를 매기게 해서 사람과의 일치도를 끌어올립니다.</p>
+
+<h2 id="sec-4">4. 채점관의 편향 3형제</h2>
+
+<p>이제 핵심입니다. LLM 채점관은 사람처럼 <strong>체계적인 편향</strong>을 갖습니다. "가끔 틀린다"가 아니라 "특정 방향으로 꾸준히 치우친다"는 게 무섭습니다. 랜덤 오류는 평균 내면 사라지지만, 편향은 아무리 많이 돌려도 그대로 남거든요. MT-Bench 논문이 처음 정리한 이후 수많은 연구가 재확인한 3형제를 봅시다.</p>
+
+<figure class="judge-fig">
+<svg viewBox="0 0 760 210" role="img" aria-label="채점관의 세 가지 편향. 위치 편향은 앞이나 뒤에 놓인 답을 내용과 무관하게 선호한다. 장황함 편향은 더 긴 답을 선호한다. 자기 선호 편향은 자기와 같은 모델군이 쓴 답을 선호한다.">
+  <rect x="16" y="30" width="232" height="150" rx="14" fill="var(--entry)" stroke="var(--j-rose)" stroke-width="2"/>
+  <text x="132" y="56" fill="var(--j-rose)" font-size="14" font-weight="800" text-anchor="middle">위치 편향</text>
+  <text x="132" y="74" fill="var(--j-slate)" font-size="11" text-anchor="middle">position bias</text>
+  <rect x="44" y="90" width="80" height="30" rx="6" fill="var(--j-rose)" opacity="0.25" stroke="var(--j-rose)"/>
+  <text x="84" y="110" fill="currentColor" font-size="12" text-anchor="middle">A(앞)</text>
+  <rect x="140" y="90" width="80" height="30" rx="6" fill="none" stroke="var(--j-slate)"/>
+  <text x="180" y="110" fill="currentColor" font-size="12" text-anchor="middle">B(뒤)</text>
+  <text x="132" y="150" fill="currentColor" font-size="11.5" text-anchor="middle">순서만으로 앞을 편애</text>
+  <text x="132" y="168" fill="var(--j-slate)" font-size="10.5" text-anchor="middle">내용과 무관</text>
+
+  <rect x="264" y="30" width="232" height="150" rx="14" fill="var(--entry)" stroke="var(--j-amber)" stroke-width="2"/>
+  <text x="380" y="56" fill="var(--j-amber)" font-size="14" font-weight="800" text-anchor="middle">장황함 편향</text>
+  <text x="380" y="74" fill="var(--j-slate)" font-size="11" text-anchor="middle">verbosity bias</text>
+  <rect x="292" y="90" width="60" height="30" rx="6" fill="none" stroke="var(--j-slate)"/>
+  <text x="322" y="110" fill="currentColor" font-size="11" text-anchor="middle">짧음</text>
+  <rect x="368" y="90" width="120" height="30" rx="6" fill="var(--j-amber)" opacity="0.25" stroke="var(--j-amber)"/>
+  <text x="428" y="110" fill="currentColor" font-size="11" text-anchor="middle">길고 장황</text>
+  <text x="380" y="150" fill="currentColor" font-size="11.5" text-anchor="middle">길수록 후하게</text>
+  <text x="380" y="168" fill="var(--j-slate)" font-size="10.5" text-anchor="middle">맞는지와 별개로</text>
+
+  <rect x="512" y="30" width="232" height="150" rx="14" fill="var(--entry)" stroke="var(--j-violet)" stroke-width="2"/>
+  <text x="628" y="56" fill="var(--j-violet)" font-size="14" font-weight="800" text-anchor="middle">자기 선호 편향</text>
+  <text x="628" y="74" fill="var(--j-slate)" font-size="11" text-anchor="middle">self-preference</text>
+  <text x="628" y="104" font-size="24" text-anchor="middle">🤖❤️🤖</text>
+  <text x="628" y="150" fill="currentColor" font-size="11.5" text-anchor="middle">자기 계열 답에 후하게</text>
+  <text x="628" y="168" fill="var(--j-slate)" font-size="10.5" text-anchor="middle">생성=채점 같은 모델 위험</text>
+</svg>
+<figcaption>채점관의 편향 3형제. 셋 다 "내용의 품질"이 아니라 "형식·출처"에 반응한다는 게 공통점이다.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>위치 편향(position bias)</strong> — pairwise에서 두 답을 A, B 순으로 보여 주면, 내용과 상관없이 특정 위치(주로 앞)를 더 자주 고릅니다. 심한 경우 <em>완전히 똑같은 두 답</em>을 줘도 앞을 고릅니다. 연구에 따라 대략 5~15%p 수준의 체계적 쏠림이 보고됩니다.</li>
+  <li><strong>장황함 편향(verbosity bias)</strong> — 더 길고 자세해 <em>보이는</em> 답에 높은 점수를 줍니다. 실제로 더 정확한지와는 별개로요. 채점관이 "열심히 썼네"를 "잘 썼네"로 착각하는 셈입니다.</li>
+  <li><strong>자기 선호 편향(self-preference bias)</strong> — 채점관이 <em>자기와 같은 모델군</em>이 생성한 답을 더 좋게 봅니다. 그래서 A사 모델로 답을 만들고 같은 A사 모델로 채점하면, 그 답에 은근히 후한 점수가 나옵니다.</li>
+</ul>
+
+<p>여기에 하나 더 — 채점관은 자기 답에 대한 확신이 매번 조금씩 달라서, <strong>같은 답을 두 번 채점하면 점수가 다르게 나오기도</strong> 합니다(일관성 문제). 편향은 방향이 있는 오류, 이건 흔들림이라 성격이 다릅니다. 둘 다 잡아야 합니다.</p>
+
+<h2 id="sec-5">5. 믿을 수 있는 채점관 만들기 — 5가지 원칙</h2>
+
+<p>다행히 편향은 <strong>설계로</strong> 상당 부분 눌러낼 수 있습니다. 프로덕션에서 통하는 5가지 원칙입니다.</p>
+
+<ol>
+  <li><strong>기준표를 구체적으로, 한 번에 하나씩.</strong> "좋은 답인가?"처럼 뭉뚱그리면 채점관 취향이 새어 나옵니다. "① 질문에 실제로 답했는가 ② 사실이 정확한가 ③ 요청한 형식(JSON)을 지켰는가"처럼 <em>기준을 쪼개고</em>, 각 기준을 따로 채점하세요. 여러 축을 한 점수에 뭉치면 뭐 때문에 낮은 점수인지 알 수 없습니다.</li>
+  <li><strong>순서를 뒤집어 두 번 물어라(위치 편향).</strong> pairwise에서 A→B로 한 번, B→A로 한 번 물어서 <em>두 번 다 같은 답이 이길 때만</em> 승리로 인정합니다. 엇갈리면 무승부로 처리하세요. 위치 편향을 잡는 가장 강력한 한 방입니다.</li>
+  <li><strong>생성 모델과 채점 모델을 다른 계열로(자기 선호).</strong> 답을 만든 모델과 채점하는 모델을 같은 계열로 쓰지 마세요. 가능하면 채점관은 별도 모델로 고정합니다.</li>
+  <li><strong>사람 라벨과 주기적으로 대조하라(calibration).</strong> 사람이 채점한 소규모 '골든셋'(예: 100~200건)을 만들어 두고, 채점관 점수가 사람과 얼마나 일치하는지 <strong>Cohen's kappa</strong> 같은 지표로 정기적으로 확인합니다. 카파는 "우연히 맞을 확률을 뺀 진짜 일치도"라서, 단순 일치율보다 정직합니다. 일치도가 낮으면 채점관 프롬프트나 기준표를 고쳐야 한다는 신호입니다.</li>
+  <li><strong>판정과 근거를 로그로 남겨라(observability).</strong> 점수만 저장하지 말고 채점관이 <em>왜 그렇게 판정했는지 이유</em>도 함께 남기세요. 나중에 "이 채점 왜 이래?"를 추적할 수 있고, 채점관이 헛다리를 짚는 패턴을 발견하게 됩니다.</li>
+</ol>
+
+<div class="judge-warn judge-note"><strong>가장 흔한 착각:</strong> "더 똑똑한 채점관 모델을 쓰면 편향이 사라지겠지?" 아닙니다. 최신 프런티어 모델도 어려운 편향 테스트에서 절반 넘게 틀린다는 2026년 보고가 있습니다. 편향은 모델을 키운다고 없어지는 게 아니라, <em>위 설계로</em> 걸러 내는 것입니다.</div>
+
+<h2 id="sec-6">6. 직접 해보기 (1) — 기준표 기반 pointwise 채점관</h2>
+
+<p>말로만 하면 감이 안 오니 코드로 봅시다. 먼저 <strong>기준을 쪼갠 pointwise 채점관</strong>입니다. 핵심은 (1) 기준을 명확히 적고, (2) 근거를 먼저 쓰게 한 뒤 점수를 내게 하고, (3) 파싱하기 쉽게 JSON으로 받는 것입니다. (예시는 Anthropic Python SDK 스타일이지만, 어떤 LLM 클라이언트로도 똑같이 됩니다.)</p>
+
+{{< highlight python >}}
+import json
+from anthropic import Anthropic
+
+client = Anthropic()
+
+# 기준을 '쪼개서' 각각 따로 채점하게 한다. 한 점수에 여러 축을 뭉치지 않는다.
+JUDGE_PROMPT = """당신은 고객지원 답변을 채점하는 엄격한 채점관입니다.
+아래 [질문]에 대한 [답변]을 다음 세 기준으로 각각 0 또는 1점으로 채점하세요.
+
+1. answered: 질문에 실제로 답했는가 (인사만 하고 안 답하면 0)
+2. correct: 내용이 사실에 맞는가 (근거 없는 추측이면 0)
+3. format: 요청한 형식(3문장 이내)을 지켰는가
+
+먼저 각 기준마다 한 문장으로 '이유'를 적고, 그 다음에 점수를 정하세요.
+길이나 말투에 현혹되지 마세요. 근거가 부족하면 망설이지 말고 0을 주세요.
+
+반드시 아래 JSON만 출력하세요:
+{"reason": {"answered": "...", "correct": "...", "format": "..."},
+ "score": {"answered": 0, "correct": 0, "format": 0}}
+
+[질문]
+%s
+
+[답변]
+%s"""
+
+def judge_pointwise(question: str, answer: str) -> dict:
+    msg = client.messages.create(
+        model="claude-sonnet-4-5",   # 채점관은 생성 모델과 '다른' 것으로 고정
+        max_tokens=500,
+        temperature=0,              # 채점은 재현성이 생명 → 온도 0
+        messages=[{"role": "user",
+                   "content": JUDGE_PROMPT % (question, answer)}],
+    )
+    return json.loads(msg.content[0].text)
+
+result = judge_pointwise(
+    question="환불은 며칠 걸리나요? 3문장 이내로.",
+    answer="안녕하세요! 문의 주셔서 감사합니다. 좋은 하루 되세요!",  # 정작 답을 안 함
+)
+print(result["score"])   # → {'answered': 0, 'correct': 0, 'format': 1}
+{{< /highlight >}}
+
+<p>포인트가 몇 개 있습니다. <code>temperature=0</code>으로 흔들림을 줄이고, 기준을 <code>answered / correct / format</code>으로 <strong>쪼개서</strong> 각각 채점하게 했습니다. 그래야 "왜 낮은 점수인지"가 분명해집니다. 또 "근거를 먼저 쓰고 점수를 내라"고 시켜서, 채점관이 대충 숫자부터 던지지 못하게 합니다(이유를 쓰다 보면 판단이 정교해집니다).</p>
+
+<div class="judge-good judge-note"><strong>팁:</strong> 점수를 1~5점 같은 넓은 척도로 받으면 채점관이 애매하게 다 3~4점을 줍니다. 위처럼 <strong>0/1의 명확한 기준</strong>으로 쪼개면 훨씬 일관됩니다. "5점 만점에 4.2"보다 "세 기준 중 몇 개 통과"가 실무에선 더 쓸모 있습니다.</div>
+
+<h2 id="sec-7">7. 직접 해보기 (2) — 순서를 뒤집는 pairwise 채점관</h2>
+
+<p>이번엔 프롬프트 A안과 B안 중 어느 쪽이 나은지 겨루게 하는 <strong>pairwise 채점관</strong>입니다. 핵심은 <em>순서를 뒤집어 두 번 물어 위치 편향을 걸러 내는</em> 것입니다.</p>
+
+{{< highlight python >}}
+PAIR_PROMPT = """두 답변 중 [질문]에 더 잘 답한 쪽을 고르세요.
+길이가 길다고 더 좋은 게 아닙니다. 사실 정확성과 질문 적합성만 보세요.
+"1" 또는 "2"만, 그 이유 한 문장과 함께 JSON으로 출력하세요.
+{"winner": 1, "reason": "..."}
+
+[질문]
+%s
+
+[답변 1]
+%s
+
+[답변 2]
+%s"""
+
+def _ask(question, first, second) -> int:
+    msg = client.messages.create(
+        model="claude-sonnet-4-5", max_tokens=200, temperature=0,
+        messages=[{"role": "user",
+                   "content": PAIR_PROMPT % (question, first, second)}],
+    )
+    return json.loads(msg.content[0].text)["winner"]  # 1 또는 2
+
+def judge_pairwise(question: str, a: str, b: str) -> str:
+    # ① A를 앞에, B를 뒤에 두고 판정
+    w1 = _ask(question, a, b)          # 1이면 A, 2면 B
+    # ② 순서를 뒤집어 B를 앞에, A를 뒤에 두고 다시 판정
+    w2 = _ask(question, b, a)          # 1이면 B, 2면 A
+    first_says  = "A" if w1 == 1 else "B"
+    second_says = "B" if w2 == 1 else "A"
+    # 두 번 다 같은 답이 이겨야 진짜 승리. 엇갈리면 무승부(위치 편향 의심).
+    if first_says == second_says:
+        return first_says
+    return "tie"
+
+print(judge_pairwise("환불 절차를 알려줘",
+                     a="환불은 영업일 3일 내 처리됩니다. 마이페이지에서 신청하세요.",
+                     b="네, 환불 도와드리겠습니다! 저희는 항상 최선을 다합니다!"))
+# → "A"  (순서를 바꿔도 A가 이기면 진짜 A 우세)
+{{< /highlight >}}
+
+<p>이 짧은 함수가 하는 일이 바로 5번 원칙의 2번, 순서 뒤집기입니다. LLM을 두 번 부르니 비용은 두 배지만, 위치 편향에 속아 잘못된 결론을 내는 것보단 훨씬 쌉니다. 아래 그림이 흐름입니다.</p>
+
+<figure class="judge-fig">
+<svg viewBox="0 0 760 230" role="img" aria-label="순서 뒤집기로 위치 편향을 거르는 흐름. A를 앞에 두고 판정하고, B를 앞에 두고 다시 판정한다. 두 판정이 같은 답을 가리키면 진짜 승리, 서로 엇갈리면 위치 편향으로 보고 무승부 처리한다.">
+  <defs>
+    <marker id="j4-ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="var(--j-slate)"/></marker>
+  </defs>
+  <rect x="20" y="40" width="150" height="52" rx="10" fill="var(--entry)" stroke="var(--j-blue)" stroke-width="2"/>
+  <text x="95" y="62" fill="var(--j-blue)" font-size="12.5" font-weight="800" text-anchor="middle">① A → B 순서</text>
+  <text x="95" y="80" fill="currentColor" font-size="11" text-anchor="middle">채점관에게 판정</text>
+
+  <rect x="20" y="138" width="150" height="52" rx="10" fill="var(--entry)" stroke="var(--j-amber)" stroke-width="2"/>
+  <text x="95" y="160" fill="var(--j-amber)" font-size="12.5" font-weight="800" text-anchor="middle">② B → A 순서</text>
+  <text x="95" y="178" fill="currentColor" font-size="11" text-anchor="middle">순서 뒤집어 다시</text>
+
+  <path d="M170 66 L250 108" stroke="var(--j-slate)" stroke-width="2" marker-end="url(#j4-ar)" fill="none"/>
+  <path d="M170 164 L250 122" stroke="var(--j-slate)" stroke-width="2" marker-end="url(#j4-ar)" fill="none"/>
+
+  <rect x="256" y="86" width="150" height="58" rx="10" fill="var(--entry)" stroke="var(--j-slate)" stroke-width="2"/>
+  <text x="331" y="112" fill="currentColor" font-size="12.5" font-weight="700" text-anchor="middle">두 판정 비교</text>
+  <text x="331" y="131" fill="var(--j-slate)" font-size="11" text-anchor="middle">같은 답? 엇갈림?</text>
+
+  <path d="M406 100 L470 74" stroke="var(--j-slate)" stroke-width="2" marker-end="url(#j4-ar)" fill="none"/>
+  <path d="M406 128 L470 158" stroke="var(--j-slate)" stroke-width="2" marker-end="url(#j4-ar)" fill="none"/>
+
+  <rect x="476" y="48" width="264" height="52" rx="10" fill="var(--entry)" stroke="var(--j-green)" stroke-width="2.5"/>
+  <text x="608" y="70" fill="var(--j-green)" font-size="13" font-weight="800" text-anchor="middle">둘 다 같은 답이 승 → 진짜 승리 ✓</text>
+  <text x="608" y="89" fill="currentColor" font-size="11" text-anchor="middle">위치를 바꿔도 결과가 유지됨</text>
+
+  <rect x="476" y="132" width="264" height="52" rx="10" fill="var(--entry)" stroke="var(--j-rose)" stroke-width="2.5"/>
+  <text x="608" y="154" fill="var(--j-rose)" font-size="13" font-weight="800" text-anchor="middle">엇갈림 → 무승부 처리</text>
+  <text x="608" y="173" fill="currentColor" font-size="11" text-anchor="middle">순서가 결과를 바꿈 = 위치 편향</text>
+</svg>
+<figcaption>순서 뒤집기(position swap). 순서를 바꿨는데 승자가 바뀐다면, 그건 답의 품질이 아니라 위치가 만든 결과다.</figcaption>
+</figure>
+
+<h2 id="sec-8">8. 이번 주의 화제 — '채점관을 감사하다'</h2>
+
+<p>2026년 들어 LLM 채점관이 진지한 프로덕션 평가의 표준이 되면서, "그 채점관 자체를 얼마나 믿을 수 있나"를 대규모로 감사하는 연구가 줄줄이 나왔습니다. 이번 주에도 관련 논문이 arXiv에 올라오며 실무자 사이에서 다시 화제가 됐습니다.</p>
+
+<p>대표적인 대규모 감사 연구 하나는 9개 제공사의 채점관 21종을 MT-Bench·JudgeBench·RewardBench 등에서 118회에 걸쳐 약 54만 건을 판정하게 하고 뜯어봤습니다. 결과가 인상적입니다 — <strong>채점관을 어느 모델로 쓰느냐에 따라 같은 대상의 순위가 최대 14계단까지 뒤집혔고</strong>, "같은 답을 다시 채점하면 같은 점수가 나오는" 재현성(test-retest)이 높은 채점관조차 심한 위치 편향을 함께 갖고 있었습니다. 즉 <em>일관되게 채점하는 것</em>과 <em>올바르게 채점하는 것</em>은 별개라는 뜻입니다("Reliability without Validity").</p>
+
+<p>실무자에게 이게 주는 교훈은 분명합니다. <strong>채점관을 바꾸는 건 설정 하나 바꾸는 게 아니라, 평가셋을 통째로 이사하는 일</strong>과 같습니다. 어제까지 잘 나오던 점수가 채점관 모델 업그레이드 한 번에 달라질 수 있으니, 채점관 버전을 고정하고, 바꿀 땐 사람 골든셋으로 다시 대조해야 합니다. "우리 앱이 좋아졌다"는 결론의 신뢰도는 결국 채점관의 신뢰도를 넘지 못합니다.</p>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<table class="judge-tbl">
+<thead><tr><th>흔한 실수</th><th>왜 문제인가</th><th>어떻게</th></tr></thead>
+<tbody>
+<tr><td>"좋은 답인지 채점해줘"처럼 기준 없이 맡김</td><td>채점관 취향(길이·자신감)이 그대로 점수가 됨</td><td>기준을 쪼개 명시하고 각각 채점</td></tr>
+<tr><td>pairwise에서 순서 고정</td><td>위치 편향에 속아 잘못된 승자</td><td>A→B, B→A 두 번 물어 둘 다 같아야 승</td></tr>
+<tr><td>생성=채점 같은 모델</td><td>자기 선호 편향으로 후한 점수</td><td>채점관은 다른 계열로 고정</td></tr>
+<tr><td>사람 라벨과 한 번도 안 맞춰봄</td><td>채점관이 엉뚱해도 눈치 못 챔</td><td>골든셋으로 kappa 정기 점검</td></tr>
+<tr><td>점수만 저장, 이유는 버림</td><td>이상 채점을 추적 불가</td><td>판정 근거도 함께 로그</td></tr>
+<tr><td><code>temperature</code>를 높게 둠</td><td>같은 답에 점수가 매번 달라짐</td><td>채점은 <code>temperature=0</code></td></tr>
+<tr><td>1~10점 같은 넓은 척도</td><td>다 5~7점에 몰려 변별 안 됨</td><td>0/1 또는 좁은 척도 + 명확한 기준</td></tr>
+</tbody>
+</table>
+
+<div class="judge-good judge-note"><strong>실전 팁:</strong> 처음부터 완벽한 채점관을 만들려 하지 말고, <em>사람 골든셋 100건</em>부터 만드세요. 그걸로 채점관과 사람의 일치도를 재고, 안 맞는 케이스를 보며 기준표를 고치는 겁니다. 채점관 개발도 결국 하나의 반복(iteration) 루프입니다 — 채점관을 채점하는 셈이죠.</div>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>LLM-as-a-judge</strong>는 정답이 하나로 안 떨어지는 생성 태스크를, 사람 대신 LLM에게 채점시켜 빠르고 싸게 평가하는 방법입니다. 잘 만든 채점관은 사람과 80% 넘게 일치합니다.</li>
+  <li>채점 방식은 <strong>pointwise(절대 점수) · pairwise(둘 비교) · listwise(순위)</strong>. 합격/불합격엔 pointwise, 두 버전 비교엔 pairwise가 안정적입니다.</li>
+  <li>채점관에겐 <strong>편향 3형제</strong>가 있습니다 — 위치 편향, 장황함 편향, 자기 선호 편향. 모델을 키운다고 사라지지 않습니다.</li>
+  <li>믿을 수 있게 만드는 5원칙: <strong>기준 쪼개기 · 순서 뒤집기 · 다른 모델로 채점 · 사람 골든셋과 대조(kappa) · 근거 로깅.</strong></li>
+  <li>2026년 감사 연구의 교훈: <strong>채점관을 바꾸면 순위가 바뀐다.</strong> 일관성과 정확성은 별개이니, 채점관 버전을 고정하고 사람과 주기적으로 맞춰 보세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Lianmin Zheng 외, <a href="https://arxiv.org/abs/2306.05685" target="_blank" rel="noopener">Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena</a> (arXiv:2306.05685, NeurIPS 2023) — LLM 채점관을 널리 알린 원전. GPT-4 채점관의 인간 일치 80%+와 위치·장황함·자기 선호 편향을 처음 정리. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Yang Liu 외, <a href="https://arxiv.org/abs/2303.16634" target="_blank" rel="noopener">G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment</a> (arXiv:2303.16634) — chain-of-thought + form-filling으로 pointwise 채점의 인간 일치도를 높인 대표 기법. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li><a href="https://arxiv.org/abs/2606.19544" target="_blank" rel="noopener">Reliability without Validity: A Systematic, Large-Scale Evaluation of LLM-as-a-Judge Models</a> (arXiv:2606.19544) — 9개사 21종 채점관을 약 54만 건 판정으로 감사. 채점관에 따라 순위가 최대 14계단 바뀌고, 재현성과 위치 편향이 공존함을 보임. 본문 8절의 출처. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li><a href="https://arxiv.org/abs/2607.08535" target="_blank" rel="noopener">When the Judge Changes, So Does the Measurement: Auditing LLM-as-Judge Reliability</a> (arXiv:2607.08535, 2026-07) — 이번 주 화제가 된 채점관 감사 연구. "채점관을 바꾸면 측정값이 바뀐다"는 문제의식. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Koki Wataoka 외, <a href="https://arxiv.org/abs/2410.21819" target="_blank" rel="noopener">Self-Preference Bias in LLM-as-a-Judge</a> (arXiv:2410.21819) — 자기 선호 편향을 정량화한 연구. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li><a href="https://arxiv.org/abs/2604.23178" target="_blank" rel="noopener">Judging the Judges: A Systematic Evaluation of Bias Mitigation Strategies in LLM-as-a-Judge Pipelines</a> (arXiv:2604.23178) — 순서 뒤집기 등 편향 완화 기법을 체계적으로 비교. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Evidently AI, <a href="https://www.evidentlyai.com/llm-guide/llm-as-a-judge" target="_blank" rel="noopener">LLM-as-a-judge: a complete guide to using LLMs for evaluations</a> — pointwise/pairwise, 기준표 설계, 편향 완화를 정리한 실무 가이드. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Confident AI, <a href="https://www.confident-ai.com/blog/why-llm-as-a-judge-is-the-best-llm-evaluation-method" target="_blank" rel="noopener">LLM-as-a-Judge Simply Explained</a> — 채점관 구현과 G-Eval, 편향에 대한 개론. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

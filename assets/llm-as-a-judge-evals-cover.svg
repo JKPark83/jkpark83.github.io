@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" role="img" aria-label="가운데의 LLM 채점관이 두 답변 A와 B를 비교해 판정한다. 채점관은 명확한 기준표(rubric)를 보고 채점하며, 순서를 바꿔 두 번 물어 둘 다 이겨야 승리로 인정하는 위치 편향 방지 규칙을 함께 보여 준다.">
+  <defs>
+    <marker id="jc-ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#64748b"/></marker>
+    <marker id="jc-arv" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#7c3aed"/></marker>
+  </defs>
+  <style>
+    .jc-lbl{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+    .jc-t{fill:#0f172a}
+    .jc-card{fill:#f1f5f9}
+    @media (prefers-color-scheme:dark){ .jc-t{fill:#e2e8f0} .jc-card{fill:#1e293b} }
+  </style>
+
+  <text x="400" y="40" class="jc-lbl" fill="#7c3aed" font-size="20" font-weight="800" text-anchor="middle">LLM을 채점관으로 — 믿을 수 있게</text>
+
+  <!-- Judge box (center top) -->
+  <rect x="315" y="70" width="170" height="78" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2.5"/>
+  <text x="400" y="104" class="jc-lbl" fill="#7c3aed" font-size="16" font-weight="800" text-anchor="middle">채점관 (LLM)</text>
+  <text x="400" y="132" class="jc-lbl" font-size="26" text-anchor="middle">⚖️</text>
+
+  <!-- rubric card (left) -->
+  <rect x="30" y="86" width="210" height="120" rx="12" class="jc-card" stroke="#0d9488" stroke-width="2"/>
+  <text x="48" y="112" class="jc-lbl" fill="#0d9488" font-size="14" font-weight="800">채점 기준표 (rubric)</text>
+  <text x="48" y="138" class="jc-lbl jc-t" font-size="12.5">✓ 사실 정확성</text>
+  <text x="48" y="160" class="jc-lbl jc-t" font-size="12.5">✓ 질문에 답했는가</text>
+  <text x="48" y="182" class="jc-lbl jc-t" font-size="12.5">✓ 근거 제시</text>
+  <path d="M240 146 L312 120" stroke="#0d9488" stroke-width="2" fill="none" marker-end="url(#jc-ar)"/>
+
+  <!-- two answers below -->
+  <rect x="250" y="210" width="130" height="60" rx="10" class="jc-card" stroke="#2563eb" stroke-width="2"/>
+  <text x="315" y="236" class="jc-lbl" fill="#2563eb" font-size="14" font-weight="800" text-anchor="middle">답변 A</text>
+  <text x="315" y="258" class="jc-lbl jc-t" font-size="11.5" text-anchor="middle">모델 X의 출력</text>
+
+  <rect x="420" y="210" width="130" height="60" rx="10" class="jc-card" stroke="#d97706" stroke-width="2"/>
+  <text x="485" y="236" class="jc-lbl" fill="#d97706" font-size="14" font-weight="800" text-anchor="middle">답변 B</text>
+  <text x="485" y="258" class="jc-lbl jc-t" font-size="11.5" text-anchor="middle">모델 Y의 출력</text>
+
+  <path d="M360 150 L322 206" stroke="#7c3aed" stroke-width="2" fill="none" marker-end="url(#jc-arv)"/>
+  <path d="M440 150 L478 206" stroke="#7c3aed" stroke-width="2" fill="none" marker-end="url(#jc-arv)"/>
+
+  <!-- position swap rule (right) -->
+  <rect x="565" y="200" width="210" height="150" rx="12" class="jc-card" stroke="#e11d48" stroke-width="2"/>
+  <text x="583" y="226" class="jc-lbl" fill="#e11d48" font-size="14" font-weight="800">위치 편향 방지</text>
+  <text x="583" y="252" class="jc-lbl jc-t" font-size="12.5">① A→B 순서로 판정</text>
+  <text x="583" y="274" class="jc-lbl jc-t" font-size="12.5">② B→A 순서로 판정</text>
+  <text x="583" y="300" class="jc-lbl jc-t" font-size="12.5">둘 다 같은 답이 이기면</text>
+  <text x="583" y="320" class="jc-lbl" fill="#16a34a" font-size="12.5" font-weight="800">→ 진짜 승리 ✓</text>
+  <text x="583" y="340" class="jc-lbl jc-t" font-size="11.5">엇갈리면 → 무승부</text>
+
+  <text x="400" y="370" class="jc-lbl" fill="#94a3b8" font-size="12.5" text-anchor="middle">기준을 못 정하면 사람도 못 채점한다 · 채점관도 편향을 갖는다</text>
+</svg>

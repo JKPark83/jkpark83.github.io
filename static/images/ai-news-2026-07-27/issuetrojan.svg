@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="760" height="380" fill="#0f172a"/>
+  <text x="40" y="38" fill="#f1f5f9" font-size="19" font-weight="700">악성 이슈, 코딩 에이전트 가드레일을 뚫다</text>
+  <text x="40" y="60" fill="#94a3b8" font-size="13">IssueTrojanBench — Cursor · Claude Code · Codex Desktop 대상, 악성 이슈 관통률</text>
+
+  <!-- big stat -->
+  <rect x="40" y="86" width="300" height="150" rx="12" fill="#7f1d1d"/>
+  <text x="190" y="164" fill="#fecaca" font-size="60" font-weight="800" text-anchor="middle">66.5%</text>
+  <text x="190" y="196" fill="#fca5a5" font-size="13.5" text-anchor="middle">악성 이슈가 에이전트·LLM</text>
+  <text x="190" y="214" fill="#fca5a5" font-size="13.5" text-anchor="middle">양쪽 가드레일을 모두 통과</text>
+
+  <!-- who rejects -->
+  <text x="370" y="108" fill="#cbd5e1" font-size="13.5" font-weight="700">거절은 거의 전부 LLM 몫 — 프레임워크 방어는 미미</text>
+
+  <text x="370" y="140" fill="#94a3b8" font-size="12">LLM 레이어 (모델이 거절)</text>
+  <rect x="370" y="148" width="350" height="22" rx="4" fill="#1e293b"/>
+  <rect x="370" y="148" width="300" height="22" rx="4" fill="#38bdf8"/>
+  <text x="712" y="164" fill="#e0f2fe" font-size="11.5" text-anchor="end">주 방어선</text>
+
+  <text x="370" y="196" fill="#94a3b8" font-size="12">에이전트 프레임워크 레이어</text>
+  <rect x="370" y="204" width="350" height="22" rx="4" fill="#1e293b"/>
+  <rect x="370" y="204" width="52" height="22" rx="4" fill="#64748b"/>
+  <text x="712" y="220" fill="#94a3b8" font-size="11.5" text-anchor="end">추가 보호 제한적</text>
+
+  <!-- attack surface -->
+  <rect x="40" y="262" width="680" height="76" rx="10" fill="#1e293b" stroke="#334155"/>
+  <text x="60" y="288" fill="#f1f5f9" font-size="13" font-weight="700">공격면: 4개 공격 유형 × 6개 전달 벡터</text>
+  <text x="60" y="312" fill="#cbd5e1" font-size="12">이슈 본문 · 이슈 코멘트 · PDF 등에 악성 지시를 임베드 → 파일·툴 자율 접근을 악용</text>
+  <text x="60" y="330" fill="#94a3b8" font-size="11.5">모델별: GPT 계열은 폭넓게 취약 · Sonnet 4.6은 고위험 액션에 더 선별적으로 차단</text>
+
+  <text x="40" y="368" fill="#64748b" font-size="10.5">자체 제작 SVG · 값 출처 arXiv 2607.20759 (IssueTrojanBench)</text>
+</svg>

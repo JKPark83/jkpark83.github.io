@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="760" height="400" fill="#0f172a"/>
+  <text x="40" y="38" fill="#f1f5f9" font-size="19" font-weight="700">기억은 '에이전트 선택'이 아니라 '하니스 책임'</text>
+  <text x="40" y="60" fill="#94a3b8" font-size="13">컴팩션(요약) 경계를 넘어 살아남은 사실의 비율 — 실제 코딩 태스크 통제 실험</text>
+
+  <!-- Bar 1: conversation only -->
+  <text x="40" y="112" fill="#cbd5e1" font-size="13.5">대화 컨텍스트에만 저장</text>
+  <rect x="40" y="122" width="640" height="30" rx="5" fill="#1e293b"/>
+  <rect x="40" y="122" width="12" height="30" rx="5" fill="#ef4444"/>
+  <text x="690" y="143" fill="#f87171" font-size="13" font-weight="700" text-anchor="end">108번 중 106번 소실 (생존 1.9%)</text>
+
+  <!-- Bar 2: harness-owned -->
+  <text x="40" y="186" fill="#cbd5e1" font-size="13.5">하니스가 소유·주입 (cue-anchored)</text>
+  <rect x="40" y="196" width="640" height="30" rx="5" fill="#1e293b"/>
+  <rect x="40" y="196" width="640" height="30" rx="5" fill="#34d399"/>
+  <text x="670" y="217" fill="#052e16" font-size="13" font-weight="700" text-anchor="end">138번 compact-resume 전부 생존 (100%)</text>
+
+  <!-- callouts -->
+  <rect x="40" y="262" width="215" height="96" rx="10" fill="#1e293b" stroke="#334155"/>
+  <text x="147" y="298" fill="#f1f5f9" font-size="30" font-weight="800" text-anchor="middle">0 / 114</text>
+  <text x="147" y="322" fill="#94a3b8" font-size="11.5" text-anchor="middle">사전 시드가 있어도</text>
+  <text x="147" y="338" fill="#94a3b8" font-size="11.5" text-anchor="middle">자발적 메모리 조작 횟수</text>
+
+  <rect x="272" y="262" width="215" height="96" rx="10" fill="#1e293b" stroke="#334155"/>
+  <text x="379" y="298" fill="#f1f5f9" font-size="30" font-weight="800" text-anchor="middle">39%</text>
+  <text x="379" y="322" fill="#94a3b8" font-size="11.5" text-anchor="middle">세션 내 재열람이</text>
+  <text x="379" y="338" fill="#94a3b8" font-size="11.5" text-anchor="middle">컴팩션 전 내용을 다시 구매</text>
+
+  <rect x="504" y="262" width="216" height="96" rx="10" fill="#1e293b" stroke="#334155"/>
+  <text x="612" y="298" fill="#f1f5f9" font-size="30" font-weight="800" text-anchor="middle">0건</text>
+  <text x="612" y="322" fill="#94a3b8" font-size="11.5" text-anchor="middle">결정론적 주입의</text>
+  <text x="612" y="338" fill="#94a3b8" font-size="11.5" text-anchor="middle">오탐(false alarm)</text>
+
+  <text x="40" y="388" fill="#64748b" font-size="10.5">자체 제작 SVG · 값 출처 arXiv 2607.20972 (Delivery, Not Storage)</text>
+</svg>

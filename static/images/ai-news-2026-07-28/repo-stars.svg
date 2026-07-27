@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="'Helvetica Neue',Arial,sans-serif">
+  <rect width="720" height="300" fill="#ffffff"/>
+  <text x="360" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">오픈소스 스포트라이트 — 에이전트 툴링 두 갈래</text>
+  <text x="360" y="50" text-anchor="middle" font-size="11.5" fill="#94a3b8">스타 수는 웹 출처 근사치 · 이번 세션 GitHub API 미검증</text>
+
+  <!-- Orca -->
+  <text x="30" y="100" font-size="13.5" font-weight="700" fill="#6d28d9">Orca (stablyai/orca)</text>
+  <text x="30" y="118" font-size="11" fill="#64748b">병렬 코딩 에이전트 함대 · worktree 격리 · 데스크톱/모바일 · MIT</text>
+  <rect x="30" y="128" width="60" height="26" rx="5" fill="#7c3aed"/>
+  <text x="100" y="146" font-size="13" font-weight="700" fill="#4c1d95">~13k★</text>
+
+  <!-- Langflow -->
+  <text x="30" y="196" font-size="13.5" font-weight="700" fill="#2563eb">Langflow (langflow-ai/langflow)</text>
+  <text x="30" y="214" font-size="11" fill="#64748b">비주얼 노드 빌더 · RAG/멀티에이전트 파이프라인 · MIT (IBM/DataStax)</text>
+  <rect x="30" y="224" width="640" height="26" rx="5" fill="#3b82f6"/>
+  <text x="680" y="242" font-size="13" font-weight="700" fill="#1d4ed8" text-anchor="end">~149k★</text>
+
+  <text x="360" y="284" text-anchor="middle" font-size="11.5" fill="#475569">신흥 CLI 함대(코드 실행 편) vs 성숙 로우코드 빌더(설계 편) — 쓰임새가 겹치지 않는다</text>
+</svg>

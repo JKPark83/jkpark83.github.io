@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 430" font-family="'Helvetica Neue',Arial,sans-serif">
+  <rect width="740" height="430" fill="#f8fafc"/>
+  <text x="370" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a">VISTA — 에이전트에게 '자기 컨텍스트'를 보여준다</text>
+  <text x="370" y="50" text-anchor="middle" font-size="12" fill="#64748b">training-free · model-agnostic 레이어 (arXiv 2606.30005)</text>
+
+  <!-- dashboard box -->
+  <rect x="40" y="80" width="410" height="300" rx="12" fill="#ffffff" stroke="#7c3aed" stroke-width="1.8"/>
+  <text x="60" y="106" font-size="13.5" font-weight="700" fill="#6d28d9">런타임 대시보드 (typed·addressable blocks)</text>
+  <!-- table header -->
+  <g font-size="11" fill="#94a3b8">
+    <text x="60" y="132">block</text>
+    <text x="210" y="132" text-anchor="end">tokens</text>
+    <text x="300" y="132" text-anchor="end">recency</text>
+    <text x="420" y="132" text-anchor="end">access</text>
+  </g>
+  <line x1="60" y1="140" x2="430" y2="140" stroke="#e2e8f0"/>
+  <!-- rows -->
+  <g font-size="12" fill="#1e293b">
+    <text x="60" y="164">tool_result#7</text><text x="210" y="164" text-anchor="end">18.2K</text><text x="300" y="164" text-anchor="end">방금</text><text x="420" y="164" text-anchor="end">높음</text>
+    <text x="60" y="196">browse_dump#2</text><text x="210" y="196" text-anchor="end">42.0K</text><text x="300" y="196" text-anchor="end">오래됨</text><text x="420" y="196" text-anchor="end">0</text>
+    <text x="60" y="228">plan.md</text><text x="210" y="228" text-anchor="end">3.1K</text><text x="300" y="228" text-anchor="end">중간</text><text x="420" y="228" text-anchor="end">중간</text>
+    <text x="60" y="260">task_goal</text><text x="210" y="260" text-anchor="end">0.4K</text><text x="300" y="260" text-anchor="end">고정</text><text x="420" y="260" text-anchor="end">항상</text>
+  </g>
+  <line x1="60" y1="176" x2="430" y2="176" stroke="#f1f5f9"/>
+  <line x1="60" y1="208" x2="430" y2="208" stroke="#f1f5f9"/>
+  <line x1="60" y1="240" x2="430" y2="240" stroke="#f1f5f9"/>
+  <!-- highlight drop candidate -->
+  <rect x="56" y="182" width="380" height="20" rx="4" fill="#fef2f2" opacity="0.9"/>
+  <text x="60" y="196" font-size="12" fill="#b91c1c" font-weight="600">browse_dump#2</text>
+  <text x="290" y="292" text-anchor="middle" font-size="11.5" fill="#b91c1c">↑ 크고·오래되고·안 쓰임 → drop 후보 (archive로 복구 가능)</text>
+  <text x="245" y="318" text-anchor="middle" font-size="11.5" fill="#475569">모델이 스스로 keep/drop 판단 (정책 학습 X, 인터페이스만 제공)</text>
+  <text x="245" y="352" text-anchor="middle" font-size="11" fill="#94a3b8">archive = full-fidelity 복구 페이로드</text>
+
+  <!-- arrow -->
+  <path d="M460 230 L 510 230" stroke="#7c3aed" stroke-width="2.5" fill="none" marker-end="url(#ah)"/>
+  <defs><marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#7c3aed"/></marker></defs>
+
+  <!-- result -->
+  <rect x="520" y="150" width="190" height="160" rx="12" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="615" y="178" text-anchor="middle" font-size="12.5" font-weight="700" fill="#6d28d9">LOCA-Bench 결과</text>
+  <text x="615" y="204" text-anchor="middle" font-size="12" fill="#4c1d95">Gemini-3-Flash</text>
+  <text x="615" y="240" text-anchor="middle" font-size="30" font-weight="800" fill="#7c3aed">22.7→50.7%</text>
+  <text x="615" y="268" text-anchor="middle" font-size="11" fill="#6d28d9">4개 백본 향상 · 압력↑일수록 이득↑</text>
+  <text x="615" y="292" text-anchor="middle" font-size="10.5" fill="#94a3b8">1M/100K/10K 스케일 전이</text>
+
+  <text x="370" y="412" text-anchor="middle" font-size="11.5" fill="#64748b">핵심: 모델은 자기 컨텍스트에 '무감각'하다 — 상태를 보여주면 관리 능력이 이미 잠재해 있다</text>
+</svg>

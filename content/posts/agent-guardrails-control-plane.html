@@ -1,0 +1,406 @@
+---
+title: "에이전트에게 실행 버튼을 맡기기 전에: 툴 호출을 통제하는 컨트롤 플레인"
+date: 2026-07-28T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 엔지니어링", "에이전트", "agent", "가드레일", "guardrails", "control plane", "컨트롤 플레인", "tool calling", "툴 호출", "human-in-the-loop", "HITL", "GuardFall", "policy engine", "정책 엔진", "Claude Agent SDK", "LangChain", "OpenAI Agents SDK", "agent reliability", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트가 셸을 치고 파일을 지우고 메일을 보내기 시작하면, '무엇을 말하는가'보다 '무엇을 하는가'가 훨씬 무섭습니다. 2026년 6월 공개된 GuardFall 연구는 인기 오픈소스 코딩 에이전트 11개 중 10개의 셸 차단 장치가 수십 년 된 셸 트릭에 그대로 뚫린다는 걸 보여 줬습니다. 문자열 블록리스트가 구조적으로 실패하는 이유, 그리고 그 답인 '컨트롤 플레인' — 모든 툴 호출을 가로채 ALLOW·DENY·ASK·DEGRADE 넷 중 하나로 결정론적으로 판정하는 정책 계층 — 을 직접 코드로 만들어 봅니다. Claude Agent SDK·LangChain·OpenAI Agents SDK가 이걸 어떻게 제공하는지, human-in-the-loop 승인은 왜 '멈췄다 재개하는' 상태 기계여야 하는지까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-guardrails-control-plane-cover.svg"
+  alt: "왼쪽 에이전트가 던진 툴 호출이 가운데 정책 게이트를 반드시 거쳐 ALLOW·ASK·DEGRADE·DENY 네 갈래로 나뉘는 그림. 정책은 모델 바깥에 결정론적으로 놓인다."
+  caption: "에이전트가 '무엇을 하는가'는 모델의 선의가 아니라, 툴 호출 지점에 놓인 결정론적 정책 계층으로 통제한다. 문자열 블록리스트는 구조적으로 뚫린다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 컨트롤 플레인 포스트 전용 스타일 (acp- 접두사) ── */
+.acp-fig{
+  --a-sky:#0284c7; --a-amber:#d97706; --a-green:#16a34a; --a-rose:#e11d48;
+  --a-slate:#64748b; --a-violet:#7c3aed; --a-teal:#0d9488; --a-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .acp-fig{
+  --a-sky:#38bdf8; --a-amber:#fbbf24; --a-green:#4ade80; --a-rose:#fb7185;
+  --a-slate:#94a3b8; --a-violet:#a78bfa; --a-teal:#2dd4bf; --a-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .acp-fig{
+    --a-sky:#38bdf8; --a-amber:#fbbf24; --a-green:#4ade80; --a-rose:#fb7185;
+    --a-slate:#94a3b8; --a-violet:#a78bfa; --a-teal:#2dd4bf; --a-blue:#60a5fa;
+  }
+}
+.acp-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.acp-fig text{font-family:inherit}
+.acp-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.acp-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.acp-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.acp-toc ol{margin:0;padding-left:1.25rem}
+.acp-toc li{margin:.22rem 0;font-size:.95rem}
+.acp-toc a{text-decoration:none}
+.acp-toc a:hover{text-decoration:underline}
+.acp-pull{font-size:1.12rem;line-height:1.72}
+.acp-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.acp-note{border-left:4px solid var(--a-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.acp-note strong{color:var(--a-blue,#2563eb)}
+.acp-warn{border-left:4px solid var(--a-rose,#e11d48)}
+.acp-warn strong{color:var(--a-rose,#e11d48)}
+.acp-good{border-left:4px solid var(--a-teal,#0d9488)}
+.acp-good strong{color:var(--a-teal,#0d9488)}
+.acp-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.acp-tbl th,.acp-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.acp-tbl th{background:var(--entry);font-weight:700}
+.acp-tbl code{font-size:.86em}
+.acp-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="acp-pull">
+  <p>에이전트에게 "이 레포 정리해 줘"라고 했더니, 정말로 <code>rm -rf</code>를 쳤습니다. <strong>이번엔 맞는 디렉터리였을까요?</strong></p>
+  <footer>— 에이전트가 말만 하던 시절은 끝났습니다. 이제 에이전트는 <em>행동</em>합니다. 문제는 그 행동을 무엇으로 막느냐는 것.</footer>
+</blockquote>
+
+<nav class="acp-toc" aria-label="목차">
+  <div class="acp-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 '툴 호출 가드레일'이 화제인가</a></li>
+    <li><a href="#sec-2">배경: 두 종류의 가드레일 — 입력 vs 행동</a></li>
+    <li><a href="#sec-3">왜 블록리스트는 구조적으로 실패하나 (GuardFall)</a></li>
+    <li><a href="#sec-4">컨트롤 플레인: 네 가지 결정</a></li>
+    <li><a href="#sec-5">실전 ①: 툴 호출 인터셉터 직접 만들기</a></li>
+    <li><a href="#sec-6">실전 ②: 프레임워크는 뭘 주나</a></li>
+    <li><a href="#sec-7">사람 승인은 '멈췄다 재개하는' 상태 기계다</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 '툴 호출 가드레일'이 화제인가</h2>
+
+<p>요즘 에이전트는 답만 내놓지 않습니다. 셸 명령을 치고, 파일을 지우고, DB에 쿼리를 날리고, 결제 API를 부르고, 메일을 보냅니다. 이런 "행동"을 하는 통로가 바로 <strong>툴 호출(tool call)</strong>입니다. 모델이 "이 도구를 이런 인자로 부르고 싶다"고 JSON을 뱉으면, 우리 코드가 그걸 받아 실제 함수를 실행하죠. 편리합니다. 그런데 여기엔 조용한 전제가 하나 있습니다 — <strong>그 인자를 정하는 게 실제로는 누구인가</strong>.</p>
+
+<p>2026년 6월 30일, 보안 업체 Adversa AI가 공개한 <strong>GuardFall</strong> 연구가 이 불안을 정확히 찔렀습니다. 널리 쓰이는 오픈소스 코딩·컴퓨터 사용 에이전트 <strong>11개 중 10개</strong>가, 위험한 셸 명령을 막겠다고 붙여 둔 차단 장치를 그대로 우회당했습니다. Aider, Cline, Goose, Open Interpreter, OpenHands, opencode, Plandex, Roo-Code, SWE-agent, NousResearch Hermes — 이름만 대면 아는 도구들이 줄줄이 뚫렸고, 방어에 성공한 건 오직 하나(Continue)뿐이었습니다.</p>
+
+<p>더 뼈아픈 건 <em>공격 기법이 전혀 새롭지 않았다</em>는 점입니다. <code>$IFS</code>로 공백을 대신 넣고, 따옴표를 없애고, 명령 치환(command substitution)이나 base64 디코딩으로 문자열을 비틀면, "차단 목록"에 걸리지 않고 셸에 도달합니다. 전부 수십 년 된 셸 트릭이죠. 요점은 분명합니다. <strong>"위험한 문자열을 목록에서 찾아 막는다"는 접근 자체가 구조적으로 틀렸다</strong>는 것입니다.</p>
+
+<p>그래서 이번 주 실무 담론의 초점은 "더 좋은 블록리스트"가 아니라, <strong>에이전트의 모든 행동을 한 곳에서 결정론적으로 판정하는 계층</strong> — 흔히 <strong>컨트롤 플레인(control plane)</strong> 또는 <strong>행동 가드레일(action guardrail)</strong>이라 부르는 것 — 으로 옮겨 갔습니다. Microsoft·OpenAI·Anthropic·LangChain이 약속이라도 한 듯 "툴 호출 승인/정책" 기능을 앞다퉈 정식화한 것도 같은 맥락이고요. 이 글은 그 밑바닥, 즉 <strong>에이전트가 '무엇을 하는가'를 어떻게 통제하는가</strong>를 junior 개발자 눈높이에서 코드로 풀어 봅니다.</p>
+
+<h2 id="sec-2">2. 배경: 두 종류의 가드레일 — 입력 vs 행동</h2>
+
+<p>먼저 용어를 정리하겠습니다. "가드레일(guardrail)"은 에이전트가 궤도를 벗어나지 않게 막는 안전장치를 통칭하는데, 크게 두 자리에 놓입니다. 자리를 헷갈리면 엉뚱한 곳을 지키게 됩니다.</p>
+
+<ul>
+  <li><strong>입력 가드레일(input guardrail)</strong> — 모델에게 <em>들어가는</em> 것을 검사합니다. 프롬프트 인젝션(prompt injection) 탐지, 개인정보 마스킹, 유해 입력 필터 같은 것들이죠. "나쁜 지시가 모델을 조종하지 못하게" 막는 자리입니다.</li>
+  <li><strong>행동 가드레일(action guardrail)</strong> — 모델이 <em>내놓은</em> 툴 호출이 실제로 실행되기 <strong>직전</strong>을 검사합니다. "이 <code>delete_user</code> 호출을 정말 실행해도 되나?"를 판정하는 자리입니다.</li>
+</ul>
+
+<p>이 글의 주제는 <strong>후자</strong>입니다. 왜 후자가 더 중요할까요? 입력 필터는 아무리 잘 만들어도 완벽할 수 없기 때문입니다. 새로운 인젝션 기법은 계속 나오고, 모델은 확률적으로 움직입니다. 그러니 "나쁜 지시가 언젠가는 새어 들어온다"를 전제로 깔고, <strong>마지막 관문 — 부작용이 실제로 일어나는 지점 — 에 결정론적 방어선</strong>을 두는 게 안전합니다. 아무리 교묘한 프롬프트도, 결국 <code>rm -rf /</code>라는 툴 호출로 귀결되지 않으면 피해를 못 줍니다. 그 툴 호출을 잡으면 됩니다.</p>
+
+<div class="acp-note"><strong>핵심 관점:</strong> 에이전트 보안의 무게중심을 "모델이 나쁜 말을 못 하게"에서 "모델이 나쁜 <em>짓</em>을 못 하게"로 옮기세요. 전자는 확률적이라 언젠가 새지만, 후자는 코드로 <strong>결정론적</strong>으로 막을 수 있습니다.</div>
+
+<h2 id="sec-3">3. 왜 블록리스트는 구조적으로 실패하나 (GuardFall)</h2>
+
+<p>많은 에이전트가 처음엔 이렇게 방어합니다. "위험한 명령 패턴 목록을 만들어 두고, 모델이 뱉은 명령 문자열이 거기 걸리면 막자." 직관적이죠. 그런데 GuardFall이 보여 준 건, 이 방식이 <strong>고칠 수 없는 종류의 실패</strong>라는 겁니다. 패턴을 아무리 추가해도 소용없습니다. 왜일까요?</p>
+
+<p>핵심은 <strong>가드가 검사하는 텍스트와, 셸이 실제로 실행하는 텍스트가 다르다</strong>는 데 있습니다. 가드는 모델이 준 <em>날문자열(raw string)</em>을 그대로 봅니다. 하지만 bash는 그 문자열을 실행하기 전에 변수 확장, 따옴표 제거, 명령 치환 같은 <strong>재작성</strong>을 거칩니다. 둘이 보는 게 애초에 다른 물건인 거죠.</p>
+
+<figure class="acp-fig">
+<svg viewBox="0 0 760 360" role="img" aria-label="블록리스트 가드가 왜 뚫리는지 보여 주는 그림. 위쪽에서 에이전트가 'r''m'을 IFS로 이어 붙인 난독화된 명령을 던진다. 왼쪽 경로에서 가드는 이 날문자열을 그대로 보고 'rm'이라는 패턴을 찾지 못해 통과시킨다. 오른쪽 경로에서 bash는 같은 문자열을 변수 확장과 따옴표 제거로 재작성해 결국 rm 명령을 실행한다. 가드가 본 텍스트와 셸이 실행한 텍스트가 다르다는 것이 핵심이다.">
+  <!-- top: model output -->
+  <rect x="230" y="20" width="300" height="52" rx="10" fill="none" stroke="var(--a-violet)" stroke-width="2.5"/>
+  <text x="380" y="42" text-anchor="middle" font-size="13" font-weight="800" fill="var(--a-violet)">모델이 뱉은 툴 호출 인자</text>
+  <text x="380" y="62" text-anchor="middle" font-family="ui-monospace,monospace" font-size="13" fill="var(--a-slate)">X=rm;$X${IFS}-rf${IFS}data</text>
+
+  <line x1="300" y1="72" x2="180" y2="118" stroke="var(--a-slate)" stroke-width="2" marker-end="url(#acpar2)"/>
+  <line x1="460" y1="72" x2="580" y2="118" stroke="var(--a-slate)" stroke-width="2" marker-end="url(#acpar2)"/>
+
+  <!-- left: guard sees -->
+  <rect x="40" y="120" width="290" height="200" rx="12" fill="none" stroke="var(--a-amber)" stroke-width="2.5"/>
+  <text x="185" y="148" text-anchor="middle" font-size="14" font-weight="800" fill="var(--a-amber)">가드가 보는 것 (날문자열)</text>
+  <text x="185" y="178" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12.5" fill="var(--a-slate)">"X=rm;$X${IFS}-rf…"</text>
+  <text x="185" y="212" text-anchor="middle" font-size="12.5" fill="var(--a-slate)">블록리스트 검사:</text>
+  <text x="185" y="234" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12.5" fill="var(--a-slate)">"rm " 패턴 있나? → 없음</text>
+  <text x="185" y="270" text-anchor="middle" font-size="15" font-weight="800" fill="var(--a-green)">✔ 통과시킴</text>
+  <text x="185" y="296" text-anchor="middle" font-size="11.5" fill="var(--a-rose)">(사실은 통과시키면 안 되는데!)</text>
+
+  <!-- right: bash executes -->
+  <rect x="430" y="120" width="290" height="200" rx="12" fill="none" stroke="var(--a-rose)" stroke-width="2.5"/>
+  <text x="575" y="148" text-anchor="middle" font-size="14" font-weight="800" fill="var(--a-rose)">bash가 실행하는 것</text>
+  <text x="575" y="176" text-anchor="middle" font-size="12.5" fill="var(--a-slate)">1) 변수 확장 $X → rm</text>
+  <text x="575" y="198" text-anchor="middle" font-size="12.5" fill="var(--a-slate)">2) ${IFS} → 공백</text>
+  <text x="575" y="220" text-anchor="middle" font-size="12.5" fill="var(--a-slate)">3) 따옴표·구분자 제거</text>
+  <line x1="575" y1="232" x2="575" y2="252" stroke="var(--a-rose)" stroke-width="2" marker-end="url(#acpar2)"/>
+  <text x="575" y="274" text-anchor="middle" font-family="ui-monospace,monospace" font-size="14" font-weight="800" fill="var(--a-rose)">rm -rf data</text>
+  <text x="575" y="298" text-anchor="middle" font-size="12" fill="var(--a-rose)">💥 데이터 삭제 실행</text>
+
+  <defs>
+    <marker id="acpar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--a-slate)"/>
+    </marker>
+  </defs>
+</svg>
+<figcaption>GuardFall의 핵심 한 장. 가드는 난독화된 <em>날문자열</em>을 보고 "rm 없음"으로 통과시키지만, bash는 같은 문자열을 재작성해 결국 <code>rm -rf</code>를 실행합니다. 검사 대상과 실행 대상이 다르니, 패턴을 아무리 늘려도 못 막습니다.</figcaption>
+</figure>
+
+<p>여기서 배울 원칙이 두 가지입니다. 첫째, <strong>차단 목록(denylist)이 아니라 허용 목록(allowlist)</strong>이 기본이어야 합니다. "이런 나쁜 것만 막자"는 무한한 우회로에 지고, "이런 안전한 것만 허용하자"는 이길 수 있습니다. 둘째, <strong>정책은 문자열이 아니라 의미(semantics)를 봐야</strong> 합니다. 셸 명령을 문자열로 검사하지 말고, 애초에 셸을 주지 말거나 — 주더라도 파싱해서 실행 파일과 인자를 구조적으로 확인하거나 — 능력을 좁게 쪼갠 전용 툴(예: <code>list_files(path)</code>)만 노출하는 식으로요.</p>
+
+<div class="acp-note acp-warn"><strong>구조적 실패란:</strong> 버그를 하나 고쳐서 없어지는 게 아니라, <em>설계 방식 자체</em>가 틀려서 같은 방식으로는 아무리 고쳐도 뚫리는 걸 말합니다. "에이전트 → 문자열 매칭 게이트 → bash"라는 구조는, 패턴을 몇 개 넣든 GuardFall에 집니다.</div>
+
+<h2 id="sec-4">4. 컨트롤 플레인: 네 가지 결정</h2>
+
+<p>그럼 제대로 된 방어선은 어떻게 생겼을까요? 핵심 아이디어는 단순합니다. <strong>모든 툴 호출이 반드시 지나가는 하나의 좁은 통로(choke point)를 만들고, 거기서 정책을 판정</strong>합니다. 이 통로가 컨트롤 플레인입니다. 그리고 판정 결과는 예/아니오 둘이 아니라, 실무에서는 대개 <strong>네 가지</strong>로 나뉩니다.</p>
+
+<figure class="acp-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="컨트롤 플레인이 툴 호출을 받아 네 가지 결정으로 나누는 그림. 왼쪽 에이전트의 툴 호출이 가운데 정책 게이트로 들어가고, 게이트는 ALLOW 그대로 실행, ASK 사람 승인 대기, DEGRADE 안전 모드로 대체, DENY 차단 네 갈래로 분기한다.">
+  <rect x="30" y="120" width="150" height="70" rx="12" fill="none" stroke="var(--a-violet)" stroke-width="2.5"/>
+  <text x="105" y="150" text-anchor="middle" font-size="14" font-weight="800" fill="var(--a-violet)">에이전트</text>
+  <text x="105" y="172" text-anchor="middle" font-size="12" fill="var(--a-slate)">툴 호출</text>
+
+  <line x1="180" y1="155" x2="250" y2="155" stroke="var(--a-slate)" stroke-width="2.5" marker-end="url(#acpar3)"/>
+
+  <rect x="250" y="110" width="120" height="90" rx="12" fill="none" stroke="var(--a-amber)" stroke-width="3"/>
+  <text x="310" y="150" text-anchor="middle" font-size="14" font-weight="800" fill="var(--a-amber)">정책</text>
+  <text x="310" y="170" text-anchor="middle" font-size="14" font-weight="800" fill="var(--a-amber)">게이트</text>
+
+  <line x1="370" y1="130" x2="470" y2="55" stroke="var(--a-green)" stroke-width="2.5" marker-end="url(#acpar3)"/>
+  <line x1="370" y1="145" x2="470" y2="120" stroke="var(--a-blue)" stroke-width="2.5" marker-end="url(#acpar3)"/>
+  <line x1="370" y1="165" x2="470" y2="190" stroke="var(--a-amber)" stroke-width="2.5" marker-end="url(#acpar3)"/>
+  <line x1="370" y1="180" x2="470" y2="255" stroke="var(--a-rose)" stroke-width="2.5" marker-end="url(#acpar3)"/>
+
+  <rect x="470" y="30" width="260" height="48" rx="10" fill="none" stroke="var(--a-green)" stroke-width="2.5"/>
+  <text x="490" y="52" font-size="14" font-weight="800" fill="var(--a-green)">ALLOW</text>
+  <text x="560" y="52" font-size="12.5" fill="var(--a-slate)">안전 → 그대로 실행</text>
+  <text x="560" y="68" font-size="11" fill="var(--a-slate)">read_file, 검색 등</text>
+
+  <rect x="470" y="96" width="260" height="48" rx="10" fill="none" stroke="var(--a-blue)" stroke-width="2.5"/>
+  <text x="490" y="118" font-size="14" font-weight="800" fill="var(--a-blue)">ASK</text>
+  <text x="540" y="118" font-size="12.5" fill="var(--a-slate)">위험 → 사람 승인 대기</text>
+  <text x="540" y="134" font-size="11" fill="var(--a-slate)">결제, 대량 삭제, 외부 전송</text>
+
+  <rect x="470" y="162" width="260" height="48" rx="10" fill="none" stroke="var(--a-amber)" stroke-width="2.5"/>
+  <text x="490" y="184" font-size="14" font-weight="800" fill="var(--a-amber)">DEGRADE</text>
+  <text x="565" y="184" font-size="12.5" fill="var(--a-slate)">안전 모드로 대체</text>
+  <text x="565" y="200" font-size="11" fill="var(--a-slate)">쓰기 대신 미리보기 반환</text>
+
+  <rect x="470" y="228" width="260" height="48" rx="10" fill="none" stroke="var(--a-rose)" stroke-width="2.5"/>
+  <text x="490" y="250" font-size="14" font-weight="800" fill="var(--a-rose)">DENY</text>
+  <text x="540" y="250" font-size="12.5" fill="var(--a-slate)">차단 → 실행 자체 불가</text>
+  <text x="540" y="266" font-size="11" fill="var(--a-slate)">에러를 모델에 돌려줌</text>
+
+  <defs>
+    <marker id="acpar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--a-slate)"/>
+    </marker>
+  </defs>
+</svg>
+<figcaption>컨트롤 플레인의 네 가지 결정. 안전하면 <strong>ALLOW</strong>, 위험하면 <strong>ASK</strong>(사람 승인), 위험한 부분만 빼고 안전하게 대체하면 <strong>DEGRADE</strong>, 절대 안 되면 <strong>DENY</strong>. 승인·차단 판정은 모델이 아니라 이 게이트가 <em>결정론적으로</em> 내립니다.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>ALLOW</strong> — 안전한 호출은 그대로 통과. <code>read_file</code>, 검색, 조회처럼 부작용이 없는 것들.</li>
+  <li><strong>DENY</strong> — 절대 허용하지 않음. 실행 자체가 일어나지 않고, "이건 정책상 막혔다"는 <em>에러 메시지를 모델에게 돌려줍니다</em>. 그러면 모델이 다른 방법을 찾거나 사용자에게 물어보게 됩니다.</li>
+  <li><strong>ASK (REQUIRE_APPROVAL)</strong> — 위험하지만 필요할 수 있는 것. 실행을 <strong>멈추고 사람의 승인</strong>을 기다립니다. 결제, 대량 삭제, 외부로 데이터 전송 같은 것들이죠.</li>
+  <li><strong>DEGRADE (안전 모드)</strong> — 요청의 위험한 부분만 빼고 안전한 형태로 대체해 실행합니다. 예: "파일에 쓰기" 대신 "무엇을 쓸지 미리보기만 반환", "프로덕션 DB 대신 읽기 전용 복제본 조회".</li>
+</ul>
+
+<p>여기서 가장 중요한 설계 원칙 하나. <strong>이 판정을 모델에게 맡기지 마세요.</strong> "위험하면 알아서 사람한테 물어봐"라고 프롬프트에 적는 건 방어가 아닙니다. 모델은 확률적이라 언젠가 안 물어봅니다. 판정은 반드시 모델 <em>바깥</em>의, 우리가 짠 일반 코드가 내려야 합니다. 그래야 "결정론적"이라 부를 수 있습니다.</p>
+
+<h2 id="sec-5">5. 실전 ①: 툴 호출 인터셉터 직접 만들기</h2>
+
+<p>개념을 코드로 만져 보겠습니다. 프레임워크 없이도 컨트롤 플레인의 뼈대는 아주 단순합니다. <strong>모든 툴 호출이 지나가는 함수 하나</strong>를 두고, 실제 실행 전에 정책을 물어보면 됩니다.</p>
+
+{{< highlight python >}}
+from enum import Enum
+from dataclasses import dataclass
+
+class Decision(Enum):
+    ALLOW = "allow"
+    DENY = "deny"
+    ASK = "ask"          # 사람 승인 필요
+    DEGRADE = "degrade"  # 안전 모드로 대체
+
+@dataclass
+class ToolCall:
+    name: str            # 예: "delete_file"
+    args: dict           # 예: {"path": "/data/report.csv"}
+
+# ── 정책: 모델 바깥의 '일반 코드'. 여기서 결정론적으로 판정한다 ──
+def policy(call: ToolCall) -> Decision:
+    # 1) 조회성 툴은 허용 목록으로 통과 (allowlist 우선!)
+    if call.name in {"read_file", "list_files", "web_search"}:
+        return Decision.ALLOW
+
+    # 2) 파일 삭제는 경로에 따라 다르게
+    if call.name == "delete_file":
+        path = call.args.get("path", "")
+        if path.startswith("/data/tmp/"):   # 임시 폴더면 OK
+            return Decision.ASK             # 그래도 사람에게 한 번 확인
+        return Decision.DENY                # 그 밖의 경로는 아예 차단
+
+    # 3) 외부로 나가는 행동(메일·결제 등)은 무조건 사람 승인
+    if call.name in {"send_email", "charge_card"}:
+        return Decision.ASK
+
+    # 4) 목록에 없는 툴은 기본 차단 (default-deny)
+    return Decision.DENY
+{{< /highlight >}}
+
+<p>포인트는 마지막 줄, <code>return Decision.DENY</code>입니다. <strong>모르는 건 일단 막는(default-deny)</strong> 게 기본값이어야 합니다. GuardFall에서 배웠듯, "나쁜 것만 막기"가 아니라 "좋은 것만 허용하기"로 뒤집는 것이죠. 이제 이 정책을 실제 실행 경로에 끼웁니다.</p>
+
+{{< highlight python >}}
+def run_tool(call: ToolCall):
+    decision = policy(call)
+    audit_log(call, decision)   # 모든 판정을 반드시 기록 (감사 로그)
+
+    if decision is Decision.DENY:
+        # 실행하지 않고, 왜 막혔는지 '모델에게' 알려 준다
+        return {"error": f"'{call.name}' 호출은 정책상 차단되었습니다."}
+
+    if decision is Decision.ASK:
+        if not request_human_approval(call):   # 사람이 거절하면
+            return {"error": "사용자가 이 작업을 승인하지 않았습니다."}
+
+    if decision is Decision.DEGRADE:
+        call = to_safe_mode(call)   # 예: write → preview 로 바꿔치기
+
+    # 여기까지 왔다면 ALLOW 이거나, 승인/대체를 통과한 것
+    return EXECUTORS[call.name](**call.args)
+{{< /highlight >}}
+
+<p>단 몇 줄이지만, 이 구조가 주는 보장이 큽니다. 어떤 프롬프트 인젝션이 들어와도, 모델이 <code>charge_card</code>를 부르는 순간 무조건 사람 승인 앞에 멈춥니다. 모델의 선의에 기대지 않죠. 그리고 <code>audit_log</code>가 <em>모든</em> 판정을 남기므로, 나중에 "왜 이게 실행됐지?"를 추적할 수 있습니다. 이 세 가지 — <strong>단일 통로, default-deny, 감사 로그</strong> — 가 컨트롤 플레인의 최소 골격입니다.</p>
+
+<div class="acp-note acp-good"><strong>실전 팁:</strong> 정책 함수는 <em>순수 함수</em>로 유지하세요. 입력은 <code>ToolCall</code>, 출력은 <code>Decision</code>뿐 — 네트워크도 안 부르고 부작용도 없게요. 그래야 정책 자체를 단위 테스트로 촘촘히 검증할 수 있고, "이 인자면 이 결정"을 회귀 테스트로 고정할 수 있습니다.</div>
+
+<h2 id="sec-6">6. 실전 ②: 프레임워크는 뭘 주나</h2>
+
+<p>직접 만들 수도 있지만, 주요 에이전트 프레임워크는 이 컨트롤 플레인을 이미 1급 기능으로 제공합니다. 이름과 모양은 조금씩 다르지만 개념은 위와 똑같습니다. 대표 셋을 봅시다.</p>
+
+<h3>Claude Agent SDK — 계층형 권한 시스템</h3>
+
+<p>Claude Agent SDK는 툴 호출을 여러 겹으로 심사합니다. 공식 문서가 밝히는 평가 순서가 이 글의 주제를 거의 그대로 보여 줍니다.</p>
+
+<p style="text-align:center;font-size:.95rem;opacity:.85"><code>PreToolUse 훅 → Deny 규칙 → Allow 규칙 → Ask 규칙 → 권한 모드 → canUseTool 콜백 → PostToolUse 훅</code></p>
+
+<p>맨 앞의 <code>PreToolUse</code> 훅은 툴이 실행되기 전에 우리 코드를 끼워 넣는 자리입니다. 훅은 <code>permissionDecision</code>을 <code>"allow"</code>·<code>"deny"</code>·<code>"ask"</code> 중 하나로 정하고, 이유(<code>permissionDecisionReason</code>)와 수정된 인자(<code>updatedInput</code>)까지 돌려줄 수 있습니다. 그다음 선언적 <strong>Deny/Allow/Ask 규칙</strong>이 순서대로 걸리고, 어디에도 안 걸린 나머지는 런타임 <code>canUseTool</code> 콜백이 처리합니다. 중요한 점: <strong>Deny 규칙은 다른 무엇보다 세서, <code>bypassPermissions</code> 모드에서도 차단이 유지</strong>됩니다. "절대 안 되는 것"을 확실히 못 박을 수 있다는 뜻이죠.</p>
+
+<h3>LangChain — HumanInTheLoopMiddleware</h3>
+
+<p>LangChain(1.2+)은 <code>HumanInTheLoopMiddleware</code>라는 미들웨어로 승인 게이트를 붙입니다. 어떤 툴에 어떤 결정을 허용할지 <code>interrupt_on</code> 딕셔너리로 툴별로 지정합니다.</p>
+
+{{< highlight python >}}
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+
+middleware = HumanInTheLoopMiddleware(
+    interrupt_on={
+        # 파일 쓰기는 승인/수정/거절 모두 허용
+        "write_file": {"allowed_decisions": ["approve", "edit", "reject"]},
+        # 메일 전송은 승인 아니면 거절만
+        "send_email": {"allowed_decisions": ["approve", "reject"]},
+        # 여기 없는 툴(read_file 등)은 승인 없이 그냥 실행
+    }
+)
+{{< /highlight >}}
+
+<p>결정 종류가 네 가지인 점이 눈에 띕니다 — <strong>approve</strong>(그대로 실행), <strong>edit</strong>(인자를 사람이 고쳐서 실행), <strong>reject</strong>(거절하고 모델에 피드백), <strong>respond</strong>("사용자에게 물어보기" 툴에 사람이 직접 답). 실행을 멈추는 건 내부적으로 <code>interrupt()</code>가, 재개는 <code>Command(resume=...)</code>가 담당합니다. (인자 값에 따라 멈출지 말지를 동적으로 정하는 조건부 인터럽트는 <code>langchain&gt;=1.3.3</code>에서 지원합니다.)</p>
+
+<h3>OpenAI Agents SDK — needsApproval</h3>
+
+<p>OpenAI Agents SDK는 툴에 <code>needsApproval</code>을 걸어 둡니다. 승인이 필요한데 아직 결정이 없으면, 그 툴 호출은 <strong>실행되지 않고</strong> 런의 <code>interruptions</code>에 <code>ToolApprovalItem</code>으로 쌓입니다. 각 항목엔 에이전트 이름·툴 이름·인자가 담겨 있어, 사람에게 보여 주고 판단을 받을 수 있죠. 승인/거절 후 저장한 상태(<code>state</code>)를 다시 <code>run()</code>에 넘기면 멈췄던 지점부터 이어집니다.</p>
+
+<div class="acp-tblwrap">
+<table class="acp-tbl">
+  <thead><tr><th>프레임워크</th><th>정책을 거는 자리</th><th>결정 종류</th><th>멈춤 · 재개</th></tr></thead>
+  <tbody>
+    <tr><td>Claude Agent SDK</td><td><code>PreToolUse</code> 훅 + Deny/Allow/Ask 규칙 + <code>canUseTool</code></td><td>allow · deny · ask</td><td>규칙·모드·콜백 계층 평가</td></tr>
+    <tr><td>LangChain</td><td><code>HumanInTheLoopMiddleware</code>의 <code>interrupt_on</code></td><td>approve · edit · reject · respond</td><td><code>interrupt()</code> / <code>Command(resume=)</code></td></tr>
+    <tr><td>OpenAI Agents SDK</td><td>툴의 <code>needsApproval</code></td><td>approve · reject</td><td><code>interruptions</code> → <code>state.approve()</code> → <code>run()</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>이름은 제각각이지만 공통 뼈대가 보이시나요? <strong>①모든 툴 호출을 가로채는 자리, ②실행 전에 내리는 판정(허용/차단/승인), ③사람이 개입할 땐 멈췄다 재개하는 상태 처리.</strong> 5장에서 손으로 만든 것과 정확히 같은 구조입니다.</p>
+
+<h2 id="sec-7">7. 사람 승인은 '멈췄다 재개하는' 상태 기계다</h2>
+
+<p>ASK(사람 승인)를 얕보면 크게 헤맵니다. 웹 서버에서 에이전트를 돌린다고 해 봅시다. 사용자가 "이 인보이스 결제해 줘"라고 하면, 에이전트는 <code>charge_card</code> 앞에서 멈춰 승인을 기다려야 합니다. 그런데 사람이 승인 버튼을 누르는 데 <strong>30초가 걸릴지, 3시간이 걸릴지</strong> 모릅니다. 그동안 프로세스를 붙잡고 <code>while</code>로 기다릴 순 없죠. 서버는 재시작될 수도 있고요.</p>
+
+<p>그래서 제대로 된 승인은 <strong>상태를 저장하고 멈췄다가, 나중에 그 상태에서 재개하는</strong> 구조여야 합니다. 위 프레임워크들이 하나같이 "인터럽트 → 상태 저장 → 재개"로 설계된 이유가 이것입니다.</p>
+
+<figure class="acp-fig">
+<svg viewBox="0 0 760 250" role="img" aria-label="사람 승인이 상태를 저장했다 재개하는 흐름을 보여 주는 그림. 에이전트가 위험한 툴 호출에 도달하면 인터럽트가 걸리고 실행 상태가 저장소에 보관된다. 프로세스는 자유로워지고, 시간이 얼마가 걸리든 사람이 승인 또는 거절을 결정한 뒤, 저장된 상태를 불러와 멈췄던 지점부터 실행을 재개한다.">
+  <rect x="20" y="40" width="150" height="60" rx="12" fill="none" stroke="var(--a-violet)" stroke-width="2.5"/>
+  <text x="95" y="66" text-anchor="middle" font-size="13" font-weight="800" fill="var(--a-violet)">에이전트 실행</text>
+  <text x="95" y="86" text-anchor="middle" font-size="11.5" fill="var(--a-slate)">charge_card 도달</text>
+
+  <line x1="170" y1="70" x2="230" y2="70" stroke="var(--a-slate)" stroke-width="2" marker-end="url(#acpar4)"/>
+
+  <rect x="230" y="40" width="150" height="60" rx="12" fill="none" stroke="var(--a-amber)" stroke-width="2.5"/>
+  <text x="305" y="66" text-anchor="middle" font-size="13" font-weight="800" fill="var(--a-amber)">인터럽트</text>
+  <text x="305" y="86" text-anchor="middle" font-size="11.5" fill="var(--a-slate)">상태 저장 · 실행 중단</text>
+
+  <line x1="305" y1="100" x2="305" y2="140" stroke="var(--a-slate)" stroke-width="2" marker-end="url(#acpar4)"/>
+  <rect x="215" y="140" width="180" height="54" rx="12" fill="none" stroke="var(--a-slate)" stroke-width="2" stroke-dasharray="5 3"/>
+  <text x="305" y="164" text-anchor="middle" font-size="12.5" fill="var(--a-slate)">저장소(DB)에 상태 보관</text>
+  <text x="305" y="182" text-anchor="middle" font-size="11" fill="var(--a-slate)">프로세스는 자유 · 재시작 OK</text>
+
+  <line x1="380" y1="70" x2="450" y2="70" stroke="var(--a-slate)" stroke-width="2" marker-end="url(#acpar4)"/>
+
+  <rect x="450" y="30" width="150" height="80" rx="12" fill="none" stroke="var(--a-blue)" stroke-width="2.5"/>
+  <text x="525" y="58" text-anchor="middle" font-size="13" font-weight="800" fill="var(--a-blue)">사람의 결정</text>
+  <text x="525" y="80" text-anchor="middle" font-size="11.5" fill="var(--a-green)">승인 ✔</text>
+  <text x="525" y="98" text-anchor="middle" font-size="11.5" fill="var(--a-rose)">/ 거절 ✗</text>
+  <text x="525" y="128" text-anchor="middle" font-size="11" fill="var(--a-slate)">30초든 3시간이든</text>
+
+  <line x1="600" y1="70" x2="660" y2="70" stroke="var(--a-slate)" stroke-width="2" marker-end="url(#acpar4)"/>
+  <rect x="620" y="140" width="130" height="54" rx="12" fill="none" stroke="var(--a-green)" stroke-width="2.5"/>
+  <text x="685" y="164" text-anchor="middle" font-size="13" font-weight="800" fill="var(--a-green)">재개</text>
+  <text x="685" y="182" text-anchor="middle" font-size="11" fill="var(--a-slate)">멈췄던 지점부터</text>
+  <path d="M660 78 Q700 110 690 138" fill="none" stroke="var(--a-green)" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#acpar4)"/>
+
+  <defs>
+    <marker id="acpar4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--a-slate)"/>
+    </marker>
+  </defs>
+</svg>
+<figcaption>승인은 오래 걸립니다. 그래서 인터럽트 시점에 실행 상태를 저장소에 보관하고 프로세스를 놓아 준 뒤, 사람이 결정하면 그 상태를 불러와 멈췄던 지점부터 재개합니다. 이렇게 해야 서버 재시작에도 승인 흐름이 살아남습니다.</figcaption>
+</figure>
+
+<p>이 패턴은 이전에 이 블로그에서 다룬 <em>지속 실행(durable execution)</em>과도 맞닿아 있습니다. 승인 대기는 결국 "오래 걸리는 중단점"이고, 그 지점을 견고하게 저장·복원하는 게 프로덕션 에이전트의 핵심 역량입니다. OpenAI Agents SDK가 <code>result.to_state()</code>로 상태를 떠서 다시 <code>run()</code>에 넣고, LangChain이 체크포인터에 상태를 남기는 것도 다 이 때문입니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>블록리스트에 의존하기</strong> — 가장 흔하고 가장 치명적인 실수입니다. "위험한 명령 목록"은 GuardFall처럼 반드시 우회당합니다. <em>허용 목록 + default-deny</em>로 뒤집으세요. 셸이 꼭 필요하면 문자열을 매칭하지 말고, 좁은 전용 툴로 능력을 쪼개 노출하는 편이 훨씬 안전합니다.</li>
+  <li><strong>판정을 모델에게 맡기기</strong> — "위험하면 사람한테 물어봐"를 프롬프트에 적는 건 가드레일이 아닙니다. 모델은 확률적이라 언젠가 건너뜁니다. 판정은 모델 <em>바깥</em>의 결정론적 코드가 내려야 합니다.</li>
+  <li><strong>승인 피로(approval fatigue)</strong> — 사소한 것까지 다 물어보면, 사용자는 내용을 안 읽고 "승인"만 연타합니다. 그러면 승인 게이트는 있으나 마나죠. <em>정말 위험한 것만</em> ASK로 올리고, 안전한 다수는 ALLOW로 흘려보내세요. 위험을 등급으로 나눠 임계값을 정하는 게 핵심입니다.</li>
+  <li><strong>승인 ≠ 인가(authorization)</strong> — 사용자에게 승인 버튼을 보여 준다고 해서, 그 사용자가 그 작업을 할 <em>권한</em>이 있는 건 아닙니다. 승인 UI는 사람의 확인일 뿐, 실제 권한 검사(누가 무엇에 접근 가능한가)는 별도로 서버에서 강제해야 합니다. 둘을 헷갈리면 권한 상승 취약점이 생깁니다.</li>
+  <li><strong>DENY를 조용히 삼키기</strong> — 차단했으면 그 사실을 <em>모델에게 에러로 돌려주세요</em>. 아무 말 없이 무시하면 모델은 같은 호출을 반복하거나 엉뚱하게 진행합니다. "정책상 막혔다"를 알려 주면 다른 경로를 찾거나 사용자에게 물어봅니다.</li>
+  <li><strong>감사 로그 빼먹기</strong> — 모든 판정(무엇을, 어떤 인자로, 어떤 결정으로)을 남기세요. 사고가 났을 때 타임라인을 복원하고, "왜 이게 실행됐지?"에 답하는 유일한 근거입니다. 판정 자체와 로깅은 한 세트입니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>에이전트가 <strong>행동</strong>하기 시작하면, 방어의 무게중심을 "무엇을 말하는가"에서 <strong>"무엇을 하는가"</strong>로 옮겨야 합니다.</li>
+  <li>2026년 6월 <strong>GuardFall</strong>은 인기 코딩 에이전트 11개 중 10개의 셸 차단 장치가 수십 년 된 셸 트릭에 뚫린다는 걸 보여 줬습니다. <strong>문자열 블록리스트는 구조적으로 실패</strong>합니다 — 가드가 본 텍스트와 셸이 실행한 텍스트가 다르기 때문입니다.</li>
+  <li>답은 <strong>컨트롤 플레인</strong>: 모든 툴 호출이 지나가는 단일 통로에서, 모델 바깥의 결정론적 코드가 <strong>ALLOW · DENY · ASK · DEGRADE</strong> 넷 중 하나로 판정합니다.</li>
+  <li>최소 골격은 <strong>①단일 통로 ②default-deny(허용 목록) ③감사 로그</strong>. 정책은 순수 함수로 만들어 단위 테스트로 고정하세요.</li>
+  <li>Claude Agent SDK(PreToolUse 훅·Deny/Allow/Ask 규칙·<code>canUseTool</code>), LangChain(<code>HumanInTheLoopMiddleware</code>), OpenAI Agents SDK(<code>needsApproval</code>)가 같은 뼈대를 1급 기능으로 제공합니다.</li>
+  <li>사람 승인은 <code>while</code>로 기다리는 게 아니라, <strong>인터럽트 → 상태 저장 → 재개</strong>하는 상태 기계로 만드세요. 그래야 오래 걸리는 승인과 서버 재시작을 견딥니다.</li>
+  <li>실수 체크리스트: 블록리스트 의존 금지, 판정을 모델에 맡기지 말 것, 승인 피로 관리, <strong>승인 ≠ 인가</strong>, DENY는 에러로 돌려주기, 모든 판정 로깅.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://adversa.ai/blog/opensource-ai-coding-agents-shell-injection-vulnerability/" target="_blank" rel="noopener">Adversa AI — GuardFall: shell injection bypass in open-source AI coding agents</a></li>
+  <li><a href="https://www.securityweek.com/decades-old-bash-tricks-expose-ai-coding-agents-to-supply-chain-attacks/" target="_blank" rel="noopener">SecurityWeek — Decades-Old Bash Tricks Expose AI Coding Agents to Supply Chain Attacks</a></li>
+  <li><a href="https://thehackernews.com/2026/06/guardfall-exposes-open-source-ai-coding.html" target="_blank" rel="noopener">The Hacker News — GuardFall Exposes Open-Source AI Coding Agents to Shell Injection Risks</a></li>
+  <li><a href="https://securityaffairs.com/194546/ai/guardfall-flaw-hits-10-of-11-popular-open-source-ai-agents.html" target="_blank" rel="noopener">Security Affairs — GuardFall Flaw Hits 10 of 11 Popular Open-Source AI Agents</a></li>
+  <li><a href="https://code.claude.com/docs/en/agent-sdk/permissions" target="_blank" rel="noopener">Claude Agent SDK — Configure permissions (PreToolUse 훅 · Deny/Allow/Ask 규칙 · canUseTool)</a></li>
+  <li><a href="https://platform.claude.com/docs/en/agent-sdk/hooks" target="_blank" rel="noopener">Claude Agent SDK — Intercept and control agent behavior with hooks</a></li>
+  <li><a href="https://docs.langchain.com/oss/python/langchain/human-in-the-loop" target="_blank" rel="noopener">LangChain — Human-in-the-loop (HumanInTheLoopMiddleware · interrupt_on)</a></li>
+  <li><a href="https://openai.github.io/openai-agents-js/guides/human-in-the-loop/" target="_blank" rel="noopener">OpenAI Agents SDK — Human-in-the-loop (needsApproval · interruptions · state.approve)</a></li>
+  <li><a href="https://developers.openai.com/api/docs/guides/agents/guardrails-approvals" target="_blank" rel="noopener">OpenAI — Guardrails and human review</a></li>
+  <li><a href="https://devblogs.microsoft.com/foundry/build-2026-open-trust-stack-ai-agents/" target="_blank" rel="noopener">Microsoft Foundry — Build agents you can trust with open evals and a control standard (Build 2026)</a></li>
+</ul>

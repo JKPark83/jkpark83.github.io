@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="AI 에이전트의 툴 호출을 통제하는 컨트롤 플레인. 왼쪽 에이전트가 던진 툴 호출이 가운데 정책 게이트를 반드시 거치고, 게이트는 허용, 사람 승인, 안전 모드, 차단 네 가지 결정으로 나뉜다. 정책은 모델 바깥에 결정론적으로 놓인다.">
+  <defs>
+    <linearGradient id="acpbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <marker id="acpar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#acpbg)"/>
+
+  <text x="80" y="90" font-family="system-ui,sans-serif" font-size="45" font-weight="800" fill="#f1f5f9">에이전트 컨트롤 플레인</text>
+  <text x="80" y="138" font-family="system-ui,sans-serif" font-size="26" font-weight="500" fill="#93c5fd">에이전트가 "무엇을 하는가"를 결정론적으로 통제하기</text>
+
+  <!-- agent -->
+  <rect x="70" y="250" width="200" height="150" rx="18" fill="none" stroke="#a5b4fc" stroke-width="3"/>
+  <text x="170" y="315" text-anchor="middle" font-family="system-ui,sans-serif" font-size="24" font-weight="800" fill="#a5b4fc">에이전트</text>
+  <text x="170" y="348" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#cbd5e1">LLM 루프</text>
+  <text x="170" y="378" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" fill="#fca5a5">run("rm -rf …")</text>
+
+  <line x1="270" y1="325" x2="410" y2="325" stroke="#94a3b8" stroke-width="3" marker-end="url(#acpar)"/>
+  <text x="340" y="312" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" fill="#e2e8f0">툴 호출</text>
+
+  <!-- policy gate -->
+  <path d="M500 235 L560 258 L560 360 Q560 405 500 425 Q440 405 440 360 L440 258 Z" fill="#1e293b" stroke="#fbbf24" stroke-width="3.5"/>
+  <text x="500" y="320" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="#fbbf24">정책</text>
+  <text x="500" y="348" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="#fbbf24">게이트</text>
+  <text x="500" y="478" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" fill="#94a3b8">모델 바깥 · 결정론적</text>
+
+  <!-- four outcomes -->
+  <line x1="560" y1="300" x2="690" y2="215" stroke="#4ade80" stroke-width="3" marker-end="url(#acpar)"/>
+  <line x1="560" y1="315" x2="690" y2="300" stroke="#60a5fa" stroke-width="3" marker-end="url(#acpar)"/>
+  <line x1="560" y1="335" x2="690" y2="385" stroke="#fbbf24" stroke-width="3" marker-end="url(#acpar)"/>
+  <line x1="560" y1="350" x2="690" y2="470" stroke="#fb7185" stroke-width="3" marker-end="url(#acpar)"/>
+
+  <rect x="700" y="185" width="410" height="58" rx="12" fill="none" stroke="#4ade80" stroke-width="2.5"/>
+  <text x="722" y="221" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="#4ade80">ALLOW</text>
+  <text x="852" y="221" font-family="system-ui,sans-serif" font-size="18" fill="#cbd5e1">안전한 호출은 그냥 통과</text>
+
+  <rect x="700" y="271" width="410" height="58" rx="12" fill="none" stroke="#60a5fa" stroke-width="2.5"/>
+  <text x="722" y="307" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="#60a5fa">ASK</text>
+  <text x="800" y="307" font-family="system-ui,sans-serif" font-size="18" fill="#cbd5e1">위험하면 사람 승인 대기</text>
+
+  <rect x="700" y="357" width="410" height="58" rx="12" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+  <text x="722" y="393" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="#fbbf24">DEGRADE</text>
+  <text x="878" y="393" font-family="system-ui,sans-serif" font-size="18" fill="#cbd5e1">안전 모드로 대체</text>
+
+  <rect x="700" y="443" width="410" height="58" rx="12" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+  <text x="722" y="479" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="#fb7185">DENY</text>
+  <text x="800" y="479" font-family="system-ui,sans-serif" font-size="18" fill="#cbd5e1">구조적으로 실행 불가</text>
+
+  <text x="80" y="560" font-family="system-ui,sans-serif" font-size="19" fill="#64748b">문자열 블록리스트는 구조적으로 뚫린다(GuardFall). 답은 툴 호출 지점에 놓인 결정론적 정책 계층이다.</text>
+</svg>

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR',sans-serif" role="img" aria-label="오늘의 AI 변화 지도">
+  <rect width="760" height="520" fill="#0f1420"/>
+  <text x="380" y="34" text-anchor="middle" fill="#e6edf7" font-size="19" font-weight="700">오늘의 AI 변화 지도 — 2026-07-29</text>
+  <text x="380" y="56" text-anchor="middle" fill="#8b98ad" font-size="13">축: 에이전트 메모리·컨텍스트가 새 공격 표면이 된다</text>
+
+  <!-- center -->
+  <ellipse cx="380" cy="270" rx="118" ry="52" fill="#1d2740" stroke="#5b8bff" stroke-width="2"/>
+  <text x="380" y="264" text-anchor="middle" fill="#cfe0ff" font-size="14" font-weight="700">메모리 = 공격 표면</text>
+  <text x="380" y="285" text-anchor="middle" fill="#9db6ef" font-size="12">write→retain→distort</text>
+
+  <!-- connectors -->
+  <line x1="300" y1="235" x2="180" y2="140" stroke="#3d4a66" stroke-width="1.5"/>
+  <line x1="460" y1="235" x2="580" y2="140" stroke="#3d4a66" stroke-width="1.5"/>
+  <line x1="300" y1="305" x2="180" y2="400" stroke="#3d4a66" stroke-width="1.5"/>
+  <line x1="460" y1="305" x2="580" y2="400" stroke="#3d4a66" stroke-width="1.5"/>
+
+  <!-- 논문 -->
+  <rect x="40" y="92" width="270" height="96" rx="12" fill="#161d2e" stroke="#e0567a" stroke-width="1.5"/>
+  <text x="56" y="116" fill="#e0567a" font-size="13" font-weight="700">📚 논문 (공격 실증)</text>
+  <text x="56" y="138" fill="#d6deea" font-size="12">MemPoison — L1 억제 / L2·L3 방어 실패</text>
+  <text x="56" y="157" fill="#d6deea" font-size="12">FARMA — 추론 이력 포이즌 ASR 100%</text>
+  <text x="56" y="176" fill="#9fb0c7" font-size="12">→ SENTINEL로 0%까지 방어</text>
+
+  <!-- 모델/스펙 -->
+  <rect x="450" y="92" width="270" height="96" rx="12" fill="#161d2e" stroke="#4fb477" stroke-width="1.5"/>
+  <text x="466" y="116" fill="#4fb477" font-size="13" font-weight="700">🤖 모델 · 스펙 (방어 인프라)</text>
+  <text x="466" y="138" fill="#d6deea" font-size="12">MCP 2026-07-28 파이널 스펙</text>
+  <text x="466" y="157" fill="#d6deea" font-size="12">stateless·req/resp·OAuth/OIDC</text>
+  <text x="466" y="176" fill="#9fb0c7" font-size="12">Claude memory beta + Agent 하드닝</text>
+
+  <!-- 오픈소스 -->
+  <rect x="40" y="352" width="270" height="96" rx="12" fill="#161d2e" stroke="#d9a441" stroke-width="1.5"/>
+  <text x="56" y="376" fill="#d9a441" font-size="13" font-weight="700">🛠 오픈소스</text>
+  <text x="56" y="398" fill="#d6deea" font-size="12">mem0 — 지속 메모리 레이어 ~61.9k★</text>
+  <text x="56" y="417" fill="#d6deea" font-size="12">mcp-scan — 툴 포이즌 스캐너 ~2k★</text>
+  <text x="56" y="436" fill="#9fb0c7" font-size="12">저장하는 것 = 지켜야 하는 것</text>
+
+  <!-- 팁 -->
+  <rect x="450" y="352" width="270" height="96" rx="12" fill="#161d2e" stroke="#8a7ff0" stroke-width="1.5"/>
+  <text x="466" y="376" fill="#8a7ff0" font-size="13" font-weight="700">🧑‍💻 실전 팁</text>
+  <text x="466" y="398" fill="#d6deea" font-size="12">Codex 훅으로 write 게이트</text>
+  <text x="466" y="417" fill="#d6deea" font-size="12">Claude Code 서브에이전트 하드닝</text>
+  <text x="466" y="436" fill="#9fb0c7" font-size="12">메모리·검색 결과는 '데이터'로 취급</text>
+
+  <text x="380" y="500" text-anchor="middle" fill="#6b7890" font-size="11">자체 제작 SVG · 값 출처: arXiv 2607.14651 / 2607.05029, MCP 스펙, GitHub(웹 근사치)</text>
+</svg>

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR',sans-serif" role="img" aria-label="에이전트 메모리 방어 워크플로우">
+  <rect width="760" height="430" fill="#0f1420"/>
+  <text x="380" y="32" text-anchor="middle" fill="#e6edf7" font-size="18" font-weight="700">Agent Builder 시사점 — 메모리 방어는 두 지점에서</text>
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#5b8bff"/>
+    </marker>
+  </defs>
+
+  <!-- row 1: write path -->
+  <text x="40" y="80" fill="#8b98ad" font-size="12" font-weight="700">쓰기 경로</text>
+  <rect x="40" y="92" width="150" height="58" rx="10" fill="#161d2e" stroke="#3d4a66"/>
+  <text x="115" y="118" text-anchor="middle" fill="#d6deea" font-size="12">외부 입력·툴 응답</text>
+  <text x="115" y="136" text-anchor="middle" fill="#9fb0c7" font-size="11">(이슈·PDF·MCP)</text>
+
+  <line x1="190" y1="121" x2="238" y2="121" stroke="#5b8bff" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="240" y="92" width="160" height="58" rx="10" fill="#132318" stroke="#4fb477" stroke-width="1.5"/>
+  <text x="320" y="115" text-anchor="middle" fill="#4fb477" font-size="12" font-weight="700">write-time 검사</text>
+  <text x="320" y="134" text-anchor="middle" fill="#cfe8d8" font-size="11">정합성·중복·출처</text>
+
+  <line x1="400" y1="121" x2="448" y2="121" stroke="#5b8bff" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="450" y="92" width="150" height="58" rx="10" fill="#161d2e" stroke="#3d4a66"/>
+  <text x="525" y="118" text-anchor="middle" fill="#d6deea" font-size="12">지속 메모리 저장</text>
+  <text x="525" y="136" text-anchor="middle" fill="#9fb0c7" font-size="11">mem0 등</text>
+
+  <!-- blind spot note -->
+  <rect x="240" y="164" width="360" height="30" rx="8" fill="#2a1620" stroke="#e0567a" stroke-width="1"/>
+  <text x="420" y="184" text-anchor="middle" fill="#f0a9bd" font-size="11.5">⚠️ 사각지대: L2·L3는 개별 검사 통과 → 나중에 결합·발동</text>
+
+  <!-- row 2: retrieval path -->
+  <text x="40" y="238" fill="#8b98ad" font-size="12" font-weight="700">검색·추론 경로</text>
+  <rect x="40" y="250" width="150" height="58" rx="10" fill="#161d2e" stroke="#3d4a66"/>
+  <text x="115" y="276" text-anchor="middle" fill="#d6deea" font-size="12">메모리 검색</text>
+  <text x="115" y="294" text-anchor="middle" fill="#9fb0c7" font-size="11">joint retrieval</text>
+
+  <line x1="190" y1="279" x2="238" y2="279" stroke="#5b8bff" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="240" y="250" width="160" height="58" rx="10" fill="#231833" stroke="#8a7ff0" stroke-width="1.5"/>
+  <text x="320" y="273" text-anchor="middle" fill="#b7abff" font-size="12" font-weight="700">런타임 적응 방어</text>
+  <text x="320" y="292" text-anchor="middle" fill="#d7cfff" font-size="11">SENTINEL 추론가드</text>
+
+  <line x1="400" y1="279" x2="448" y2="279" stroke="#5b8bff" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="450" y="250" width="150" height="58" rx="10" fill="#161d2e" stroke="#3d4a66"/>
+  <text x="525" y="276" text-anchor="middle" fill="#d6deea" font-size="12">에이전트 행동</text>
+  <text x="525" y="294" text-anchor="middle" fill="#9fb0c7" font-size="11">신뢰 가능한 추론</text>
+
+  <!-- MCP boundary guard -->
+  <rect x="620" y="92" width="110" height="216" rx="10" fill="#1a1f14" stroke="#d9a441" stroke-width="1.5"/>
+  <text x="675" y="120" text-anchor="middle" fill="#d9a441" font-size="12" font-weight="700">MCP 경계</text>
+  <text x="675" y="150" text-anchor="middle" fill="#e7d6a8" font-size="11">mcp-scan</text>
+  <text x="675" y="170" text-anchor="middle" fill="#c9cdb8" font-size="10.5">툴 포이즌</text>
+  <text x="675" y="186" text-anchor="middle" fill="#c9cdb8" font-size="10.5">rug-pull</text>
+  <text x="675" y="202" text-anchor="middle" fill="#c9cdb8" font-size="10.5">런타임 감사</text>
+  <text x="675" y="232" text-anchor="middle" fill="#e7d6a8" font-size="11">MCP 07-28</text>
+  <text x="675" y="248" text-anchor="middle" fill="#c9cdb8" font-size="10.5">OAuth/OIDC</text>
+  <text x="675" y="264" text-anchor="middle" fill="#c9cdb8" font-size="10.5">stateless</text>
+
+  <text x="380" y="352" text-anchor="middle" fill="#9fb0c7" font-size="12">핵심: write-time 필터만으로 부족 → 검색·추론 시점의 적응형 방어를 함께</text>
+  <text x="380" y="374" text-anchor="middle" fill="#9fb0c7" font-size="12">메모리·검색 결과·툴 설명은 '명령'이 아니라 '데이터'로 취급</text>
+  <text x="380" y="410" text-anchor="middle" fill="#6b7890" font-size="11">자체 제작 SVG · 개념 출처: MemPoison / FARMA·SENTINEL / MCP 2026-07-28 스펙 / mcp-scan</text>
+</svg>

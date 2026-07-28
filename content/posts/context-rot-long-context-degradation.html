@@ -1,0 +1,358 @@
+---
+title: "창은 200K인데 왜 5만 토큰에서 무너질까: 컨텍스트 로트와 장문 설계"
+date: 2026-07-29T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 엔지니어링", "컨텍스트 로트", "context rot", "long context", "장문 컨텍스트", "lost in the middle", "context engineering", "컨텍스트 엔지니어링", "RAG", "에이전트", "agent", "reranking", "context compaction", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "컨텍스트 창이 200K, 1M, 심지어 10M까지 커졌으니 '그냥 다 넣으면 되겠지'라고 생각하기 쉽습니다. 그런데 Chroma의 'Context Rot' 연구는 프런티어 모델 18종이 하나같이 창 한계에 닿기 한참 전부터 조용히 정확도를 잃는다는 걸 보여 줬습니다. Databricks 실험에선 Llama-3.1-405B가 32K 토큰부터 성능이 꺾였고요. 이 글은 '컨텍스트 로트(context rot)' — 입력이 길어질수록 모델이 멍청해지는 현상 — 가 왜 생기는지, lost-in-the-middle는 무엇인지, 그리고 이걸 코드와 설계로 어떻게 피하는지를 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다. 유효 컨텍스트 측정, 디스트랙터 제거, retrieve-then-reason 하이브리드, 위치 배치, compaction까지 실전 레시피를 담았습니다."
+ShowToc: false
+cover:
+  image: "context-rot-long-context-degradation-cover.svg"
+  alt: "입력 토큰이 늘수록 정확도가 광고된 창 한계 한참 전에 무너지는 곡선. 파란 점선은 기대했던 평평한 성능이고, 빨간 선은 32K~50K 부근에서 급락하는 실제 정확도다."
+  caption: "컨텍스트 창 크기는 '넣을 수 있는 양'이지 '제대로 쓰는 양'이 아니다. 실제 정확도는 창 한계 한참 전에 무너진다 — 이것이 컨텍스트 로트. (개념도)"
+  relative: false
+---
+
+<style>
+/* ── 컨텍스트 로트 포스트 전용 스타일 (crot- 접두사) ── */
+.crot-fig{
+  --c-sky:#0284c7; --c-amber:#d97706; --c-green:#16a34a; --c-rose:#e11d48;
+  --c-slate:#64748b; --c-violet:#7c3aed; --c-teal:#0d9488; --c-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .crot-fig{
+  --c-sky:#38bdf8; --c-amber:#fbbf24; --c-green:#4ade80; --c-rose:#fb7185;
+  --c-slate:#94a3b8; --c-violet:#a78bfa; --c-teal:#2dd4bf; --c-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .crot-fig{
+    --c-sky:#38bdf8; --c-amber:#fbbf24; --c-green:#4ade80; --c-rose:#fb7185;
+    --c-slate:#94a3b8; --c-violet:#a78bfa; --c-teal:#2dd4bf; --c-blue:#60a5fa;
+  }
+}
+.crot-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.crot-fig text{font-family:inherit}
+.crot-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.crot-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.crot-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.crot-toc ol{margin:0;padding-left:1.25rem}
+.crot-toc li{margin:.22rem 0;font-size:.95rem}
+.crot-toc a{text-decoration:none}
+.crot-toc a:hover{text-decoration:underline}
+.crot-pull{font-size:1.12rem;line-height:1.72}
+.crot-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.crot-note{border-left:4px solid var(--c-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.crot-note strong{color:var(--c-blue,#2563eb)}
+.crot-warn{border-left:4px solid var(--c-rose,#e11d48)}
+.crot-warn strong{color:var(--c-rose,#e11d48)}
+.crot-good{border-left:4px solid var(--c-teal,#0d9488)}
+.crot-good strong{color:var(--c-teal,#0d9488)}
+.crot-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.crot-tbl th,.crot-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.crot-tbl th{background:var(--entry);font-weight:700}
+.crot-tbl code{font-size:.86em}
+.crot-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="crot-pull">
+  <p>"창이 200K니까 문서 다 넣고 물어보면 되겠지." — 그렇게 넣었더니, 정작 <strong>50번째 문단에 있던 답</strong>을 모델이 못 찾습니다. 창은 아직 4분의 1도 안 찼는데요.</p>
+  <footer>— 컨텍스트 창의 크기는 "넣을 수 있는 양"이지, "제대로 쓸 수 있는 양"이 아닙니다.</footer>
+</blockquote>
+
+<nav class="crot-toc" aria-label="목차">
+  <div class="crot-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 '컨텍스트 로트'가 화제인가</a></li>
+    <li><a href="#sec-2">배경: 창 오버플로 ≠ 컨텍스트 로트</a></li>
+    <li><a href="#sec-3">현상 ①: lost in the middle (가운데서 길을 잃다)</a></li>
+    <li><a href="#sec-4">현상 ②: 디스트랙터와 '비슷한 오답'</a></li>
+    <li><a href="#sec-5">실전 ①: 내 모델의 '유효 컨텍스트' 측정하기</a></li>
+    <li><a href="#sec-6">실전 ②: 로트를 피하는 4가지 설계</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 '컨텍스트 로트'가 화제인가</h2>
+
+<p>2024~2025년은 컨텍스트 창(context window) 경쟁의 시대였습니다. 8K에서 시작해 128K, 200K를 지나 100만(1M), 심지어 1천만(10M) 토큰까지 벌어졌죠. 그래서 많은 사람이 이렇게 생각했습니다. "이제 컨텍스트 문제는 하드웨어로 밀어붙여 끝났다. 그냥 다 집어넣으면 된다."</p>
+
+<p>그런데 2026년 들어 실무 담론의 결론은 정반대로 굳어졌습니다. <strong>창을 키운다고 로트(rot·부패)가 사라지지 않는다.</strong> 오히려 창이 커질수록 "넣을 수 있는 양"과 "모델이 실제로 제대로 쓰는 양" 사이의 간극이 더 도드라졌습니다. 이 현상을 요즘은 <strong>컨텍스트 로트(context rot)</strong>라고 부릅니다 — 입력이 길어질수록, 창 한계에 닿기 <em>한참 전부터</em> 모델의 정확도가 조용히 무너지는 현상입니다.</p>
+
+<p>이 말을 데이터로 못 박은 게 벡터 DB 회사 Chroma의 <strong>"Context Rot"</strong> 연구입니다. GPT-4.1, Claude 4 계열, Gemini 2.5, Qwen3 등 <strong>프런티어 모델 18종</strong>을 "건초 더미에서 바늘 찾기(needle-in-a-haystack)" 같은 단순 검색·복제 과제로 시험했더니, <strong>예외 없이 전부</strong> 입력이 길어질수록 성능이 떨어졌습니다. 그것도 매끄럽게 떨어지는 게 아니라, 특정 지점에서 뚝 꺾이는 <em>절벽</em>에 가까웠고요.</p>
+
+<p>Databricks Mosaic 팀의 장문 RAG 실험은 숫자로도 아프게 보여 줍니다. 13개 모델·2,000회 넘는 실험에서, 문서를 더 넣을수록 처음엔 좋아지다가 어느 지점부터 꺾였습니다. <code>Llama-3.1-405B</code>는 <strong>32K 토큰</strong>부터, <code>GPT-4</code>는 64K부터 성능이 내려갔고, 어떤 모델은 길이가 늘자 지시를 아예 안 따르기 시작했습니다(예: DBRX의 지시 위반이 8K에서 5.2%였는데 32K에서 50.4%로 폭증). 창은 훨씬 큰데도요.</p>
+
+<p>그래서 이번 주에도 X(옛 트위터)와 엔지니어링 블로그에서 "1M 컨텍스트의 거짓말", "유효 컨텍스트는 광고치의 절반"이라는 이야기가 반복해서 돌았습니다. 에이전트가 툴 출력·검색 결과·버려진 추론 흔적을 계속 쌓아 가며 일하는 구조라, 이 로트는 <strong>프로덕션 에이전트의 1순위 실패 모드</strong>이기도 합니다. 이 글에서는 로트가 왜 생기는지, 어떻게 <strong>측정</strong>하고 어떻게 <strong>설계</strong>로 피하는지를 코드까지 함께 풀어 봅니다.</p>
+
+<h2 id="sec-2">2. 배경: 창 오버플로 ≠ 컨텍스트 로트</h2>
+
+<p>먼저 헷갈리기 쉬운 두 개념을 갈라 놓겠습니다. 이걸 섞으면 "토큰만 안 넘치게 자르면 되겠지"라는 잘못된 안심을 하게 됩니다.</p>
+
+<ul>
+  <li><strong>창 오버플로(context overflow)</strong> — 모델의 최대 토큰 한계를 <em>넘겨서</em> 나는 에러입니다. 200K 창에 210K를 넣으면 잘리거나 거부됩니다. 이건 명확한 <em>하드 리밋</em>이고, 세면 알 수 있습니다.</li>
+  <li><strong>컨텍스트 로트(context rot)</strong> — 한계를 넘지 <em>않았는데도</em> 성능이 떨어지는 현상입니다. 200K 창에 50K만 넣어도 심하게 나빠질 수 있습니다. 에러가 안 나서 <strong>조용하다</strong>는 게 더 무섭습니다.</li>
+</ul>
+
+<p>비유하자면, 컨텍스트 창은 책상 크기입니다. 책상이 넓다고 서류 300장을 다 펼쳐 놓으면, 정작 필요한 한 장을 찾느라 헤매죠. 책상이 넘치진 않았지만(오버플로 아님), 일의 질은 떨어집니다(로트). 모델도 똑같습니다. 창에 들어가는 것과, 그 안에서 <em>주의(attention)</em>를 제대로 배분하는 것은 다른 문제입니다.</p>
+
+<figure class="crot-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="두 개념 비교 그림. 왼쪽은 창 오버플로로, 200K 창에 210K를 넣어 빨간 경계를 넘겨 잘리는 모습. 오른쪽은 컨텍스트 로트로, 같은 200K 창에 50K만 채웠는데도 내부의 정확도 게이지가 이미 절반으로 떨어진 모습.">
+  <!-- left: overflow -->
+  <text x="190" y="34" text-anchor="middle" font-size="15" font-weight="800" fill="var(--c-rose)">창 오버플로 (셀 수 있음)</text>
+  <rect x="60" y="52" width="260" height="150" rx="10" fill="none" stroke="var(--c-slate)" stroke-width="2.5"/>
+  <text x="190" y="46" text-anchor="middle" font-size="0"> </text>
+  <rect x="60" y="52" width="260" height="150" rx="10" fill="var(--c-sky)" opacity="0.16"/>
+  <rect x="300" y="52" width="60" height="150" rx="6" fill="var(--c-rose)" opacity="0.5"/>
+  <line x1="320" y1="42" x2="320" y2="212" stroke="var(--c-rose)" stroke-width="3" stroke-dasharray="6 5"/>
+  <text x="190" y="130" text-anchor="middle" font-size="13" fill="var(--c-slate)">200K 창</text>
+  <text x="330" y="230" text-anchor="middle" font-size="12" fill="var(--c-rose)">넘친 10K → 잘림/에러</text>
+
+  <!-- right: rot -->
+  <text x="570" y="34" text-anchor="middle" font-size="15" font-weight="800" fill="var(--c-amber)">컨텍스트 로트 (조용함)</text>
+  <rect x="440" y="52" width="260" height="150" rx="10" fill="none" stroke="var(--c-slate)" stroke-width="2.5"/>
+  <rect x="440" y="52" width="70" height="150" rx="10" fill="var(--c-sky)" opacity="0.16"/>
+  <text x="475" y="130" text-anchor="middle" font-size="12" fill="var(--c-slate)">50K만</text>
+  <text x="605" y="120" text-anchor="middle" font-size="13" fill="var(--c-slate)">창은 넉넉</text>
+  <!-- accuracy gauge inside -->
+  <rect x="520" y="150" width="160" height="16" rx="8" fill="var(--c-slate)" opacity="0.25"/>
+  <rect x="520" y="150" width="70" height="16" rx="8" fill="var(--c-amber)"/>
+  <text x="600" y="185" text-anchor="middle" font-size="12" fill="var(--c-amber)">정확도는 벌써 반토막</text>
+</svg>
+<figcaption>오버플로는 세면 보이지만, 로트는 에러 없이 조용히 진행된다. "토큰 수만 안 넘기면 안전"이라는 생각이 위험한 이유다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 현상 ①: lost in the middle (가운데서 길을 잃다)</h2>
+
+<p>로트의 가장 유명한 얼굴은 <strong>lost in the middle</strong>입니다. 2023년 Nelson Liu 등이 발표하고 TACL 2024에 실린 논문(<code>arXiv:2307.03172</code>)에서 나온 말인데, 지금도 장문 설계의 기본 상식으로 통합니다.</p>
+
+<p>실험은 단순합니다. 여러 문서를 컨텍스트에 넣고 그중 <em>딱 하나</em>에만 정답이 있게 한 뒤, 그 정답 문서의 <strong>위치</strong>만 바꿔 가며 정확도를 잽니다. 결과는 U자 곡선이었습니다. 정답이 <strong>맨 앞이나 맨 뒤</strong>에 있으면 잘 찾는데, <strong>가운데</strong>로 갈수록 뚝 떨어졌습니다. 어떤 세팅에선 위치를 바꾸는 것만으로 정확도가 <strong>30%포인트 넘게</strong> 출렁였고, 이건 "장문 전용"이라는 모델에서도 나타났습니다.</p>
+
+<figure class="crot-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="lost in the middle의 U자 곡선. 가로축은 정답 문서의 위치(앞·가운데·뒤), 세로축은 정확도. 앞과 뒤에서는 정확도가 높고 가운데에서 크게 낮아지는 U자 형태다.">
+  <line x1="90" y1="270" x2="700" y2="270" stroke="var(--c-slate)" stroke-width="2.5"/>
+  <line x1="90" y1="60" x2="90" y2="270" stroke="var(--c-slate)" stroke-width="2.5"/>
+  <text x="395" y="308" text-anchor="middle" font-size="14" fill="var(--c-slate)">정답 문서의 위치</text>
+  <text x="60" y="165" text-anchor="middle" font-size="14" fill="var(--c-slate)" transform="rotate(-90 60 165)">정확도</text>
+
+  <text x="150" y="292" text-anchor="middle" font-size="13" fill="var(--c-slate)">맨 앞</text>
+  <text x="395" y="292" text-anchor="middle" font-size="13" fill="var(--c-slate)">가운데</text>
+  <text x="640" y="292" text-anchor="middle" font-size="13" fill="var(--c-slate)">맨 뒤</text>
+
+  <!-- U curve -->
+  <path d="M150,95 Q270,120 395,225 Q520,120 640,90" fill="none" stroke="var(--c-rose)" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="150" cy="95" r="7" fill="var(--c-green)"/>
+  <circle cx="395" cy="225" r="7" fill="var(--c-rose)"/>
+  <circle cx="640" cy="90" r="7" fill="var(--c-green)"/>
+
+  <text x="150" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="var(--c-green)">잘 찾음</text>
+  <text x="395" y="252" text-anchor="middle" font-size="13" font-weight="700" fill="var(--c-rose)">여기서 길을 잃음</text>
+  <text x="640" y="73" text-anchor="middle" font-size="13" font-weight="700" fill="var(--c-green)">잘 찾음</text>
+</svg>
+<figcaption>lost in the middle: 같은 정보라도 가운데 묻히면 놓친다. 그래서 "가장 중요한 건 앞이나 뒤에" 두는 게 설계 원칙이 된다.</figcaption>
+</figure>
+
+<p>실무 관점에서 함의는 분명합니다. 검색해 온 20개 청크를 그냥 이어 붙여 넣으면, <strong>정말 중요한 근거가 가운데 8~15번째 자리에 묻혀</strong> 무시될 수 있습니다. 그래서 뒤에서 볼 <em>리랭킹(reranking)</em>과 <em>위치 배치</em>가 중요해집니다. 좋은 근거를 찾아 오는 것만큼, <strong>어디에 놓느냐</strong>도 성능을 좌우합니다.</p>
+
+<h2 id="sec-4">4. 현상 ②: 디스트랙터와 '비슷한 오답'</h2>
+
+<p>로트를 부추기는 두 번째 요인은 <strong>디스트랙터(distractor)</strong>입니다. 정답은 아니지만 정답과 <em>주제가 비슷한</em> 방해 문서를 말합니다. Chroma 연구의 핵심 발견 중 하나가 이겁니다 — 질문과 정답(needle)의 <strong>의미적 유사도가 낮을수록</strong>, 그리고 <strong>비슷한 오답이 함께 있을수록</strong>, 입력이 길어질 때 성능이 더 급격히 무너집니다.</p>
+
+<p>직관적으로 이해됩니다. "2023년 매출은?"이라고 물었는데 컨텍스트에 2021·2022·2024년 매출이 잔뜩 섞여 있으면, 모델은 헷갈립니다. 사람도 표를 잘못 읽죠. 게다가 질문과 정답이 다른 단어로 쓰여 있으면(예: 질문은 "수익", 문서는 "순이익") 유사도가 낮아 더 어렵습니다. <strong>노이즈는 그냥 무시되는 게 아니라, 길이가 늘수록 적극적으로 오답을 끌어당깁니다.</strong></p>
+
+<div class="crot-note"><strong>핵심 관점:</strong> 컨텍스트에 "관련 있어 보이지만 답이 아닌 것"을 많이 넣는 건 도움이 아니라 <em>해</em>입니다. RAG에서 top-k를 무작정 늘리면 리콜은 올라가도, 디스트랙터가 함께 늘어 로트를 키웁니다. "많이"가 아니라 "깨끗하게"가 목표입니다.</div>
+
+<p>에이전트에서는 이게 더 고약합니다. 에이전트는 한 스텝씩 진행하며 <strong>이전 툴 출력·검색 결과·실패한 시도</strong>를 컨텍스트에 계속 쌓습니다. 그 축적된 잡동사니가 전부 잠재적 디스트랙터죠. 그래서 매 스텝마다 컨텍스트가 조금씩 더 오염되고, 후반 스텝일수록 판단이 나빠지는 <strong>누적 열화</strong>가 생깁니다. 뒤에서 볼 compaction이 필요한 이유입니다.</p>
+
+<h2 id="sec-5">5. 실전 ①: 내 모델의 '유효 컨텍스트' 측정하기</h2>
+
+<p>남의 벤치마크만 믿지 말고, <strong>내가 쓰는 모델·내 데이터로 직접 재 보는 것</strong>이 첫걸음입니다. 방법은 lost-in-the-middle 실험을 축소한 버전입니다: 길이를 바꿔 가며 "바늘"을 심고, 얼마나 찾는지 봅니다. 아래는 개념을 보여 주는 최소 코드입니다.</p>
+
+{{< highlight python >}}
+import random
+
+# 1) '바늘(needle)': 이 문장에만 정답이 있다. 실제 문서에 없을 법한 고유 사실로 만든다.
+NEEDLE = "그날 창고 B-7 선반의 비밀 코드는 QX-4471 이었다."
+QUESTION = "창고 B-7 선반의 비밀 코드는 무엇이었나?"
+ANSWER = "QX-4471"
+
+# 2) '건초(haystack)': 주제가 비슷하지만 답이 아닌 디스트랙터 문장 풀
+FILLER = [
+    "창고 A-2 선반은 정기 점검 대상이었다.",
+    "B-7 구역은 지난달 재고 실사를 마쳤다.",
+    "비밀 코드는 분기마다 갱신하도록 규정돼 있다.",
+    # ... 실제로는 수백~수천 문장을 준비한다
+]
+
+def build_context(target_tokens, needle_depth):
+    """needle_depth: 0.0=맨 앞, 0.5=한가운데, 1.0=맨 뒤"""
+    # 대략적인 토큰 수를 맞추려고 필러 문장을 반복해 채운다(개념 예시)
+    lines, approx = [], 0
+    while approx < target_tokens:
+        s = random.choice(FILLER)
+        lines.append(s)
+        approx += len(s)  # 실제로는 tokenizer로 정확히 세는 게 좋다
+    # 원하는 깊이 위치에 바늘을 끼워 넣는다
+    pos = int(len(lines) * needle_depth)
+    lines.insert(pos, NEEDLE)
+    return "\n".join(lines)
+
+def hit(model_answer):
+    return ANSWER.lower() in model_answer.lower()
+
+# 3) 길이 × 위치를 격자로 훑으며 정확도 표를 만든다
+for tokens in [2_000, 8_000, 32_000, 128_000]:
+    for depth in [0.0, 0.25, 0.5, 0.75, 1.0]:
+        ctx = build_context(tokens, depth)
+        prompt = f"다음 자료만 근거로 답하라.\n\n{ctx}\n\n질문: {QUESTION}"
+        ans = call_model(prompt)          # 쓰는 LLM API로 교체
+        print(tokens, depth, hit(ans))    # 여러 번 반복해 정확도 평균을 낸다
+{{< /highlight >}}
+
+<p>이 표를 그려 보면 내 모델의 <strong>유효 컨텍스트(effective context)</strong> — 성능이 무너지기 시작하는 실제 길이 — 가 보입니다. 업계 분석들은 대체로 <strong>공칭 창의 50~65% 부근</strong>부터 열화가 두드러진다고 말하지만, 이건 모델·과제·디스트랙터 밀도에 따라 크게 달라집니다. 그러니 숫자 하나를 외우지 말고, <strong>내 파이프라인으로 곡선을 직접 그려</strong> 운영 상한을 정하세요.</p>
+
+<div class="crot-warn crot-note"><strong>주의:</strong> 바늘을 "일반 상식"으로 만들면 안 됩니다. 모델이 컨텍스트를 안 읽고 사전지식으로 맞혀 버려서, 로트가 없는 것처럼 착시가 생깁니다. 바늘은 반드시 <strong>컨텍스트를 봐야만 알 수 있는 고유한 사실</strong>(가짜 코드·가짜 날짜 등)로 만드세요.</div>
+
+<h2 id="sec-6">6. 실전 ②: 로트를 피하는 4가지 설계</h2>
+
+<p>진단을 했으니 처방입니다. 핵심 철학은 하나입니다 — <strong>"다 넣기"가 아니라 "고신호 토큰만 최소로 넣기".</strong> 이것이 요즘 말하는 컨텍스트 엔지니어링(context engineering)의 목표입니다. 네 가지 실전 기법을 봅니다.</p>
+
+<figure class="crot-fig">
+<svg viewBox="0 0 760 340" role="img" aria-label="로트를 피하는 파이프라인. 왼쪽 대량 후보 문서에서 시작해, 리랭킹으로 상위 소수만 고르고, 디스트랙터를 쳐낸 뒤, 중요한 것을 앞뒤 끝에 배치하고, 긴 히스토리는 compaction으로 요약해 좁고 깨끗한 컨텍스트를 모델에 넣는 4단계 흐름.">
+  <defs>
+    <marker id="crar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--c-slate)"/>
+    </marker>
+  </defs>
+  <!-- big pile -->
+  <rect x="20" y="120" width="120" height="110" rx="10" fill="var(--c-slate)" opacity="0.18" stroke="var(--c-slate)" stroke-width="2"/>
+  <text x="80" y="110" text-anchor="middle" font-size="12.5" fill="var(--c-slate)">후보 다량</text>
+  <text x="80" y="182" text-anchor="middle" font-size="12" fill="var(--c-slate)">top-k 수십 개</text>
+
+  <line x1="140" y1="175" x2="185" y2="175" stroke="var(--c-slate)" stroke-width="2.5" marker-end="url(#crar)"/>
+  <!-- rerank -->
+  <rect x="190" y="130" width="115" height="90" rx="10" fill="none" stroke="var(--c-blue)" stroke-width="2.5"/>
+  <text x="247" y="120" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--c-blue)">① 리랭킹</text>
+  <text x="247" y="170" text-anchor="middle" font-size="12" fill="var(--c-slate)">상위 소수만</text>
+  <text x="247" y="190" text-anchor="middle" font-size="12" fill="var(--c-slate)">추림</text>
+
+  <line x1="305" y1="175" x2="350" y2="175" stroke="var(--c-slate)" stroke-width="2.5" marker-end="url(#crar)"/>
+  <!-- filter distractor -->
+  <rect x="355" y="130" width="115" height="90" rx="10" fill="none" stroke="var(--c-amber)" stroke-width="2.5"/>
+  <text x="412" y="120" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--c-amber)">② 디스트랙터 제거</text>
+  <text x="412" y="175" text-anchor="middle" font-size="12" fill="var(--c-slate)">유사 오답 컷</text>
+
+  <line x1="470" y1="175" x2="515" y2="175" stroke="var(--c-slate)" stroke-width="2.5" marker-end="url(#crar)"/>
+  <!-- placement -->
+  <rect x="520" y="130" width="115" height="90" rx="10" fill="none" stroke="var(--c-violet)" stroke-width="2.5"/>
+  <text x="577" y="120" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--c-violet)">③ 위치 배치</text>
+  <text x="577" y="170" text-anchor="middle" font-size="12" fill="var(--c-slate)">핵심은 앞·뒤</text>
+  <text x="577" y="190" text-anchor="middle" font-size="12" fill="var(--c-slate)">끝에</text>
+
+  <line x1="635" y1="175" x2="680" y2="175" stroke="var(--c-slate)" stroke-width="2.5" marker-end="url(#crar)"/>
+  <!-- clean context -->
+  <rect x="683" y="140" width="55" height="70" rx="8" fill="var(--c-green)" opacity="0.22" stroke="var(--c-green)" stroke-width="2.5"/>
+  <text x="710" y="128" text-anchor="middle" font-size="12" font-weight="700" fill="var(--c-green)">좁고</text>
+  <text x="710" y="228" text-anchor="middle" font-size="12" font-weight="700" fill="var(--c-green)">깨끗</text>
+
+  <!-- compaction loop -->
+  <rect x="190" y="255" width="445" height="55" rx="10" fill="none" stroke="var(--c-teal)" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <text x="412" y="288" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--c-teal)">④ compaction — 긴 히스토리/툴 출력은 요약해 되접어 넣기 (에이전트 필수)</text>
+</svg>
+<figcaption>로트 방지 파이프라인: 많이 넣지 말고, 추리고(①) 쳐내고(②) 잘 놓고(③) 접는다(④). 목표는 "좁고 깨끗한 컨텍스트".</figcaption>
+</figure>
+
+<h3>① 리랭킹으로 top-k를 줄인다</h3>
+<p>벡터 검색이 뽑아 온 수십 개 후보를 그대로 넣지 마세요. <strong>리랭커(reranker)</strong>로 질문과의 실제 관련도를 다시 매겨 <em>상위 소수(예: 3~5개)</em>만 남깁니다. 리콜을 위해 넓게 검색하되, 컨텍스트에는 좁게 넣는 겁니다. "많이 넣어 리콜을 올리자"는 유혹이 곧 디스트랙터를 늘려 로트를 부른다는 걸 기억하세요.</p>
+
+<h3>② 디스트랙터를 능동적으로 쳐낸다</h3>
+<p>관련도 점수에 <strong>하한선(threshold)</strong>을 두고, 그 밑은 버립니다. "6개 채우기"가 목표가 아니라 "확실한 근거만"이 목표입니다. 근거가 2개뿐이면 2개만 넣으세요. 아래는 리랭킹 + 임계값 컷을 합친 최소 예시입니다.</p>
+
+{{< highlight python >}}
+def build_clean_context(question, candidates, reranker,
+                        max_docs=5, min_score=0.35):
+    # 1) 리랭커로 (문서, 관련도점수) 리스트를 받아 내림차순 정렬
+    scored = reranker.rank(question, candidates)          # [(doc, score), ...]
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    # 2) 임계값 미달 디스트랙터는 버리고, 상위 max_docs만 남긴다
+    kept = [doc for doc, score in scored[:max_docs] if score >= min_score]
+
+    # 3) lost-in-the-middle 대비: 가장 강한 근거를 '맨 뒤'(질문 직전)에 배치
+    #    끝자리 회상률이 높으므로, 1등 근거를 질문에 가장 가깝게 둔다
+    kept = kept[::-1]                                      # 약→강 순으로 뒤집기
+    body = "\n\n".join(f"[근거 {i+1}] {d}" for i, d in enumerate(kept))
+    return f"{body}\n\n질문: {question}"                   # 질문을 맨 뒤에
+{{< /highlight >}}
+
+<h3>③ 중요한 것을 앞·뒤 끝에 놓는다</h3>
+<p>lost in the middle을 역이용합니다. 시스템 지시·가장 강한 근거·질문처럼 <strong>꼭 반영돼야 하는 것은 컨텍스트의 처음이나 끝</strong>에 둡니다. 위 코드에서 질문을 맨 뒤에 붙이고 1등 근거를 그 바로 앞에 둔 게 이 원칙입니다. 반대로, 배경 설명처럼 덜 중요한 건 가운데로 보내도 됩니다.</p>
+
+<h3>④ 에이전트는 compaction으로 접는다</h3>
+<p>에이전트는 스텝이 쌓일수록 히스토리가 부풀어 로트가 누적됩니다. 그래서 일정 길이를 넘으면 <strong>지난 대화·툴 출력을 요약(compaction)</strong>해 핵심만 남기고 원본은 버립니다. "무엇을 했고, 무엇을 알아냈고, 지금 목표는 무엇인가"만 남기면, 컨텍스트를 좁게 유지하면서도 맥락을 잃지 않습니다. (자세한 기법은 이 블로그의 <em>컨텍스트 compaction</em> 편을 참고하세요.)</p>
+
+<div class="crot-good crot-note"><strong>정리:</strong> 네 기법의 공통 목표는 하나입니다 — <strong>토큰을 아끼는 게 아니라 '신호 대 잡음비'를 지키는 것</strong>. 창이 남아돌아도, 잡음이 많으면 성능은 떨어집니다.</div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="crot-tblwrap">
+<table class="crot-tbl">
+  <thead><tr><th>흔한 실수</th><th>왜 문제인가</th><th>대신 이렇게</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>창이 크니 문서를 다 넣는다</td>
+      <td>디스트랙터가 늘어 로트가 심해진다. 비용·지연도 커진다</td>
+      <td>리랭킹 후 상위 소수만. 근거가 적으면 적게 넣는다</td>
+    </tr>
+    <tr>
+      <td>needle 테스트를 상식 문장으로 함</td>
+      <td>모델이 사전지식으로 맞혀서 로트가 안 보인다</td>
+      <td>컨텍스트를 봐야만 아는 <strong>고유 사실</strong>로 바늘을 만든다</td>
+    </tr>
+    <tr>
+      <td>공칭 창 크기를 운영 상한으로 씀</td>
+      <td>200K 창이라도 유효는 그 절반 안팎일 수 있다</td>
+      <td>직접 측정해 <strong>유효 컨텍스트</strong>로 상한을 잡는다</td>
+    </tr>
+    <tr>
+      <td>중요한 근거를 가운데 묻음</td>
+      <td>lost in the middle으로 무시된다</td>
+      <td>핵심은 앞·뒤 끝에 배치, 질문은 맨 뒤에</td>
+    </tr>
+    <tr>
+      <td>에이전트 히스토리를 계속 쌓기만 함</td>
+      <td>스텝마다 잡음이 누적돼 후반부 판단이 나빠진다</td>
+      <td>주기적 compaction으로 핵심만 남기고 접는다</td>
+    </tr>
+    <tr>
+      <td>top-k만 늘려 리콜을 챙김</td>
+      <td>리콜은 올라도 정밀도가 떨어져 정답이 묻힌다</td>
+      <td>넓게 검색·좁게 주입. 임계값 컷을 둔다</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>한 가지 더. 로트는 <strong>과제에 따라 다르게</strong> 나타납니다. 단순 사실 검색은 비교적 잘 버티지만, "여러 문서를 종합해 추론"하는 과제(multi-hop)는 훨씬 빨리 무너집니다. 그러니 "우리 모델은 128K까지 괜찮더라"를 <em>모든</em> 과제에 일반화하지 마세요. 실제 프로덕션 과제와 최대한 닮은 형태로 측정해야 합니다.</p>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>컨텍스트 로트</strong> = 창 한계에 닿기 <em>전부터</em> 입력이 길어질수록 정확도가 조용히 떨어지는 현상. 오버플로(에러)와 달리 <strong>에러가 안 나서 놓치기 쉽다.</strong></li>
+  <li>Chroma "Context Rot"는 프런티어 모델 <strong>18종 전부</strong>에서 이 열화를 확인했고, Databricks 실험에선 <code>Llama-3.1-405B</code>가 <strong>32K</strong>부터 꺾였다. 창 크기 ≠ 제대로 쓰는 양.</li>
+  <li><strong>lost in the middle</strong>: 정답이 가운데 있으면 놓친다(U자 곡선). → 중요한 건 <strong>앞·뒤 끝에</strong> 배치.</li>
+  <li><strong>디스트랙터</strong>(비슷한 오답)는 길이가 늘수록 적극적으로 오답을 끌어당긴다. → <strong>많이가 아니라 깨끗하게.</strong></li>
+  <li>실전 처방: ① 리랭킹으로 top-k 축소 ② 임계값으로 디스트랙터 컷 ③ 핵심을 앞·뒤에 배치 ④ 에이전트는 compaction으로 접기.</li>
+  <li>남의 벤치마크 말고 <strong>내 모델·내 데이터로 유효 컨텍스트를 직접 측정</strong>해 운영 상한을 잡자. 바늘은 반드시 고유 사실로.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://research.trychroma.com/context-rot" target="_blank" rel="noopener">Chroma Research — Context Rot: How Increasing Input Tokens Impacts LLM Performance (프런티어 모델 18종 실험)</a></li>
+  <li><a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noopener">Nelson F. Liu et al. — Lost in the Middle: How Language Models Use Long Contexts (arXiv:2307.03172, TACL 2024)</a></li>
+  <li><a href="https://huggingface.co/papers/2307.03172" target="_blank" rel="noopener">Hugging Face Papers — Lost in the Middle (요약 페이지)</a></li>
+  <li><a href="https://www.databricks.com/blog/long-context-rag-performance-llms" target="_blank" rel="noopener">Databricks Mosaic Research — Long Context RAG Performance of LLMs (13개 모델·2,000+ 실험, 32K/64K 열화 지점)</a></li>
+  <li><a href="https://github.com/nelson-liu/lost-in-the-middle" target="_blank" rel="noopener">GitHub — nelson-liu/lost-in-the-middle (코드·데이터)</a></li>
+  <li><a href="https://www.morphllm.com/llm-context-window-comparison" target="_blank" rel="noopener">Morph — LLM Context Window Comparison 2026 (200K~10M 창 비교와 유효 컨텍스트 논의)</a></li>
+</ul>

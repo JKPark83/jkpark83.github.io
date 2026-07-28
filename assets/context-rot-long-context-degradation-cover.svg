@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="입력 토큰이 늘수록 정확도가 광고된 한계 한참 전에 무너지는 곡선. 파란 선은 '광고된 창'을 나타내는 평평한 이상선이고, 빨간 선은 실제로 32K~50K 부근에서 급락하는 정확도다.">
+  <defs>
+    <linearGradient id="crbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#111a2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#crbg)"/>
+
+  <text x="80" y="96" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800" fill="#f1f5f9">컨텍스트 로트</text>
+  <text x="80" y="146" font-family="ui-sans-serif,system-ui,sans-serif" font-size="25" font-weight="600" fill="#94a3b8">창은 아직 안 찼는데, 모델은 벌써 멍청해진다</text>
+
+  <!-- axes -->
+  <line x1="150" y1="520" x2="1090" y2="520" stroke="#475569" stroke-width="2.5"/>
+  <line x1="150" y1="230" x2="150" y2="520" stroke="#475569" stroke-width="2.5"/>
+  <text x="620" y="580" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="21" fill="#94a3b8">입력 길이 (토큰) →</text>
+  <text x="118" y="375" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="21" fill="#94a3b8" transform="rotate(-90 118 375)">정확도 →</text>
+
+  <!-- x ticks -->
+  <text x="300" y="548" text-anchor="middle" font-family="ui-monospace,monospace" font-size="17" fill="#64748b">8K</text>
+  <text x="470" y="548" text-anchor="middle" font-family="ui-monospace,monospace" font-size="17" fill="#64748b">32K</text>
+  <text x="660" y="548" text-anchor="middle" font-family="ui-monospace,monospace" font-size="17" fill="#64748b">128K</text>
+  <text x="880" y="548" text-anchor="middle" font-family="ui-monospace,monospace" font-size="17" fill="#64748b">1M</text>
+
+  <!-- ideal (advertised) flat line -->
+  <line x1="150" y1="262" x2="1080" y2="262" stroke="#38bdf8" stroke-width="4" stroke-dasharray="10 8"/>
+  <text x="1075" y="250" text-anchor="end" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19" font-weight="700" fill="#38bdf8">우리가 기대한 것 (광고된 창)</text>
+
+  <!-- real degradation curve -->
+  <path d="M150,272 L300,282 L400,300 L470,336 Q560,430 660,452 Q820,478 1080,486" fill="none" stroke="#fb7185" stroke-width="5" stroke-linecap="round"/>
+  <text x="720" y="500" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19" font-weight="700" fill="#fb7185">실제 정확도 (컨텍스트 로트)</text>
+
+  <!-- cliff marker -->
+  <circle cx="470" cy="336" r="9" fill="#fbbf24"/>
+  <line x1="470" y1="336" x2="470" y2="520" stroke="#fbbf24" stroke-width="2" stroke-dasharray="4 5"/>
+  <text x="470" y="215" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="700" fill="#fbbf24">절벽은 한계 한참 전에</text>
+
+  <text x="80" y="612" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" fill="#64748b">개념도 · Chroma "Context Rot" &amp; Databricks Mosaic 장문 RAG 연구 기반</text>
+</svg>

@@ -1,0 +1,459 @@
+---
+title: "MCP는 도구, A2A는 에이전트: 남의 에이전트와 협업하는 표준 프로토콜"
+date: 2026-07-30T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "A2A", "Agent2Agent", "agent interoperability", "에이전트 상호운용성", "MCP", "Model Context Protocol", "multi-agent", "멀티 에이전트", "Agent Card", "JSON-RPC", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "MCP(Model Context Protocol)로 에이전트를 도구에 붙이는 건 이제 익숙합니다. 그런데 다른 팀·다른 회사가 각자 프레임워크로 만든 에이전트끼리 협업시키려면? 지금까지는 남의 에이전트를 '도구처럼 감싸서' 불렀는데, 이러면 에이전트의 진짜 능력(되묻기·협상·장기 작업)이 죽습니다. A2A(Agent2Agent)는 에이전트끼리 서로를 발견하고 안전하게 대화하고 작업을 위임하게 해 주는 개방형 표준입니다. Google이 2025년 4월 공개하고 6월 Linux Foundation에 넘긴 이 프로토콜을, Agent Card(에이전트 명함)·Task 생명주기·Message/Artifact 같은 핵심 개념부터 실제 JSON-RPC 요청·클라이언트 코드까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다. 'MCP는 수직(에이전트↔도구), A2A는 수평(에이전트↔에이전트)'이라는 2계층 배치가 왜 표준이 되고 있는지도 함께 봅니다."
+ShowToc: false
+cover:
+  image: "a2a-protocol-agent-interoperability-cover.svg"
+  alt: "가운데 오케스트레이터 에이전트가 A2A(수평)로 항공권·호텔·환율 세 원격 에이전트와 대화하고, 각 에이전트는 MCP(수직)로 자기 도구와 데이터에 연결되는 2계층 구조 그림."
+  caption: "핵심 그림 한 장: MCP는 에이전트를 '도구'에 잇는 수직 축, A2A는 에이전트를 '에이전트'에 잇는 수평 축이다. 둘은 경쟁이 아니라 서로 다른 층을 맡는다."
+  relative: false
+---
+
+<style>
+/* ── A2A 프로토콜 포스트 전용 스타일 (a2a- 접두사) ── */
+.a2a-fig{
+  --a2a-indigo:#4f46e5; --a2a-cyan:#0891b2; --a2a-amber:#d97706; --a2a-rose:#e11d48;
+  --a2a-slate:#64748b; --a2a-violet:#7c3aed; --a2a-teal:#0d9488; --a2a-blue:#2563eb; --a2a-green:#16a34a;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .a2a-fig{
+  --a2a-indigo:#818cf8; --a2a-cyan:#22d3ee; --a2a-amber:#fbbf24; --a2a-rose:#fb7185;
+  --a2a-slate:#94a3b8; --a2a-violet:#a78bfa; --a2a-teal:#2dd4bf; --a2a-blue:#60a5fa; --a2a-green:#4ade80;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .a2a-fig{
+    --a2a-indigo:#818cf8; --a2a-cyan:#22d3ee; --a2a-amber:#fbbf24; --a2a-rose:#fb7185;
+    --a2a-slate:#94a3b8; --a2a-violet:#a78bfa; --a2a-teal:#2dd4bf; --a2a-blue:#60a5fa; --a2a-green:#4ade80;
+  }
+}
+.a2a-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.a2a-fig text{font-family:inherit}
+.a2a-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.a2a-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.a2a-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.a2a-toc ol{margin:0;padding-left:1.25rem}
+.a2a-toc li{margin:.22rem 0;font-size:.95rem}
+.a2a-toc a{text-decoration:none}
+.a2a-toc a:hover{text-decoration:underline}
+.a2a-pull{border-left:4px solid var(--a2a-indigo,#4f46e5);margin:1.8rem 0;padding:.2rem 0 .2rem 1.2rem}
+.a2a-pull p{margin:.2rem 0}
+.a2a-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.a2a-note{border-left:4px solid var(--a2a-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.a2a-note strong{color:var(--a2a-blue,#2563eb)}
+.a2a-warn{border-left:4px solid var(--a2a-rose,#e11d48)}
+.a2a-warn strong{color:var(--a2a-rose,#e11d48)}
+.a2a-good{border-left:4px solid var(--a2a-teal,#0d9488)}
+.a2a-good strong{color:var(--a2a-teal,#0d9488)}
+.a2a-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.a2a-tbl th,.a2a-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.a2a-tbl th{background:var(--entry);font-weight:700}
+.a2a-tbl code{font-size:.86em}
+.a2a-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="a2a-pull">
+  <p>MCP로 에이전트에 도구를 붙이는 건 이제 다들 합니다. 그런데 <strong>옆 팀이 만든 에이전트</strong>, 혹은 <strong>다른 회사가 API로 파는 에이전트</strong>와 협업하려면 어떻게 해야 할까요? 지금까지의 답은 대개 "그 에이전트를 도구처럼 감싸서 부른다"였습니다.</p>
+  <footer>— A2A는 "에이전트를 도구로 위장시키지 말고, 에이전트답게 서로 대화하게 하자"는 방향의 프로토콜입니다.</footer>
+</blockquote>
+
+<p>지난 한 주 동안 AI 엔지니어링 쪽에서 "MCP냐 A2A냐"를 정리하는 글이 부쩍 많이 돌았습니다. 마침 MCP(Model Context Protocol)의 다음 스펙(2026-07-28)이 확정 단계에 들어가면서, <strong>"MCP는 도구, A2A는 에이전트"</strong>라는 2계층 그림이 엔터프라이즈 에이전트 배치의 사실상 기본형으로 굳어지고 있기 때문입니다. MCP는 여기서 여러 번 다뤘으니, 오늘은 그 옆자리를 맡는 <strong>A2A(Agent2Agent) 프로토콜</strong>을 처음부터 차근차근 풀어 보겠습니다.</p>
+
+<p>먼저 문제부터 봅시다. 요즘 에이전트는 한 팀이 하나의 프레임워크로 다 만들지 않습니다. 검색 에이전트는 LangGraph로, 예약 에이전트는 CrewAI로, 사내 결재 에이전트는 또 다른 사내 툴킷으로 만들어지곤 하죠. 심지어 어떤 에이전트는 아예 다른 회사가 운영합니다. 이들을 하나의 흐름으로 <strong>협업</strong>시키려면 공통의 대화 규약이 필요합니다. HTTP가 없었다면 서로 다른 웹 서버·브라우저가 대화할 수 없었던 것과 똑같습니다.</p>
+
+<p>A2A는 바로 그 공통 규약입니다. 서로 다른 프레임워크·벤더가 만든 에이전트가 <strong>서로를 발견하고, 안전하게 대화하고, 작업을 위임</strong>하게 해 주는 개방형 표준이죠. Google이 2025년 4월에 공개했고, 같은 해 6월 Linux Foundation에 기증해 특정 회사에 묶이지 않는 커뮤니티 표준이 됐습니다. 공개 저장소(<code>a2aproject/A2A</code>)는 GitHub 스타 2.5만 개를 넘겼고, AWS·Microsoft·Salesforce·SAP 등 150곳이 넘는 조직이 지지 명단에 이름을 올렸습니다.</p>
+
+<nav class="a2a-toc">
+  <div class="a2a-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 필요한가 — "에이전트는 도구가 아니다"</a></li>
+    <li><a href="#sec-2">배경 — MCP는 수직, A2A는 수평</a></li>
+    <li><a href="#sec-3">A2A의 핵심 4개념: Agent Card · Task · Message · Artifact</a></li>
+    <li><a href="#sec-4">동작 흐름 — 발견부터 Task 생명주기까지</a></li>
+    <li><a href="#sec-5">실전 — Agent Card와 SendMessage를 코드로</a></li>
+    <li><a href="#sec-6">MCP와 A2A를 함께 쓰기 (2계층 스택)</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 필요한가 — "에이전트는 도구가 아니다"</h2>
+
+<p>"그냥 그 에이전트를 도구로 등록해서 부르면 되잖아?" 처음엔 다들 이렇게 생각합니다. 실제로 오래 통했던 방식이기도 합니다. 상대 에이전트를 하나의 함수처럼 감싸서, 내 에이전트의 도구 목록에 얹는 거죠. 문제는 이렇게 하면 <strong>에이전트의 진짜 능력이 대부분 잘려 나간다</strong>는 데 있습니다.</p>
+
+<p>도구(tool)와 에이전트(agent)는 성격이 다릅니다. 도구는 대개 <strong>무상태(stateless)</strong>이고, 정해진 입력을 받아 정해진 결과를 내는 함수입니다. 계산기나 DB 조회처럼요. 반면 에이전트는 <strong>자율적</strong>이고, 여러 턴에 걸쳐 <strong>되묻고(clarify)·협상하고·오래 걸리는 일을 진행</strong>합니다. "여행을 예약해 줘"라는 요청에 예약 에이전트는 "출발일이 언제인가요?"라고 되물어야 하고, 좌석이 없으면 대안을 제시해야 하며, 결제까지 몇 분이 걸릴 수도 있습니다.</p>
+
+<p>이런 상호작용을 단순한 함수 호출 한 방으로 우겨넣으면, 되묻기도 협상도 진행 상황 알림도 사라집니다. A2A 공식 문서가 <a href="https://discuss.google.dev/t/agents-are-not-tools/192812" target="_blank" rel="noopener">"에이전트는 도구가 아니다"</a>라고 못 박는 이유가 이것입니다. A2A는 에이전트를 도구로 위장시키는 대신, <strong>에이전트 대 에이전트로, 여러 턴에 걸쳐, 자기 방식대로</strong> 대화하게 합니다.</p>
+
+<figure class="a2a-fig">
+<svg viewBox="0 0 720 250" role="img" aria-label="에이전트를 도구로 감싸는 방식과 A2A로 그대로 노출하는 방식을 비교한 그림. 왼쪽 '도구로 감싸기'에서는 원격 에이전트가 함수 하나로 축소돼 한 번 호출하고 한 번 응답받는 단발성 상호작용만 가능하고, 되묻기·협상·진행 알림이 잘려 나간다. 오른쪽 'A2A로 노출'에서는 두 에이전트가 여러 턴에 걸쳐 되묻고 진행 상황을 주고받으며 협업한다.">
+  <!-- 왼쪽: 도구로 감싸기 -->
+  <text x="16" y="26" fill="var(--a2a-rose)" font-size="15" font-weight="800">도구로 감싸기 (한계)</text>
+  <rect x="16" y="44" width="120" height="44" rx="10" fill="none" stroke="var(--a2a-slate)" stroke-width="1.6"/>
+  <text x="76" y="71" fill="var(--a2a-slate)" font-size="12.5" font-weight="700" text-anchor="middle">내 에이전트</text>
+  <path d="M136 66 H236" stroke="var(--a2a-slate)" stroke-width="2" fill="none" marker-end="url(#a2f1)"/>
+  <text x="186" y="58" fill="var(--a2a-slate)" font-size="10.5" text-anchor="middle">호출 1회</text>
+  <rect x="238" y="44" width="120" height="44" rx="10" fill="var(--entry)" stroke="var(--a2a-rose)" stroke-width="1.6" stroke-dasharray="5 3"/>
+  <text x="298" y="66" fill="var(--a2a-rose)" font-size="12" font-weight="800" text-anchor="middle">원격 에이전트</text>
+  <text x="298" y="82" fill="var(--a2a-slate)" font-size="10.5" text-anchor="middle">= 함수 1개로 축소</text>
+  <path d="M236 82 C 190 92, 186 94, 138 86" stroke="var(--a2a-slate)" stroke-width="2" fill="none" marker-end="url(#a2f1)"/>
+  <text x="16" y="122" fill="var(--a2a-rose)" font-size="11" font-weight="700">✗ 되묻기 · 협상 · 진행 알림이 사라짐</text>
+  <text x="16" y="140" fill="var(--a2a-slate)" font-size="11">단발성 요청-응답만 가능</text>
+
+  <line x1="372" y1="30" x2="372" y2="210" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 5"/>
+
+  <!-- 오른쪽: A2A -->
+  <text x="392" y="26" fill="var(--a2a-teal)" font-size="15" font-weight="800">A2A로 노출 (에이전트답게)</text>
+  <rect x="392" y="48" width="120" height="40" rx="10" fill="none" stroke="var(--a2a-indigo)" stroke-width="1.8"/>
+  <text x="452" y="73" fill="var(--a2a-indigo)" font-size="12.5" font-weight="700" text-anchor="middle">내 에이전트</text>
+  <rect x="584" y="48" width="120" height="40" rx="10" fill="none" stroke="var(--a2a-cyan)" stroke-width="1.8"/>
+  <text x="644" y="73" fill="var(--a2a-cyan)" font-size="12.5" font-weight="700" text-anchor="middle">원격 에이전트</text>
+  <path d="M512 60 H582" stroke="var(--a2a-slate)" stroke-width="1.8" fill="none" marker-end="url(#a2f2)"/>
+  <text x="547" y="54" fill="var(--a2a-slate)" font-size="9.5" text-anchor="middle">예약해 줘</text>
+  <path d="M582 72 H514" stroke="var(--a2a-amber)" stroke-width="1.8" fill="none" marker-end="url(#a2f3)"/>
+  <text x="547" y="88" fill="var(--a2a-amber)" font-size="9.5" text-anchor="middle">언제 출발? (되묻기)</text>
+  <path d="M512 104 H582" stroke="var(--a2a-slate)" stroke-width="1.8" fill="none" marker-end="url(#a2f2)"/>
+  <text x="547" y="118" fill="var(--a2a-slate)" font-size="9.5" text-anchor="middle">8/1</text>
+  <path d="M582 132 H514" stroke="var(--a2a-teal)" stroke-width="1.8" fill="none" marker-end="url(#a2f4)"/>
+  <text x="547" y="146" fill="var(--a2a-teal)" font-size="9.5" text-anchor="middle">진행중 → 완료 ✓</text>
+  <text x="392" y="182" fill="var(--a2a-teal)" font-size="11" font-weight="700">✓ 여러 턴 · 되묻기 · 진행 상태 · 산출물</text>
+
+  <defs>
+    <marker id="a2f1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-slate)"/></marker>
+    <marker id="a2f2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-slate)"/></marker>
+    <marker id="a2f3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-amber)"/></marker>
+    <marker id="a2f4" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-teal)"/></marker>
+  </defs>
+</svg>
+<figcaption>에이전트를 도구로 감싸면(왼쪽) 함수 하나로 축소돼 단발성 요청-응답만 남는다. A2A로 노출하면(오른쪽) 두 에이전트가 여러 턴에 걸쳐 되묻고 진행 상황과 산출물을 주고받는다.</figcaption>
+</figure>
+
+<h2 id="sec-2">2. 배경 — MCP는 수직, A2A는 수평</h2>
+
+<p>A2A를 이해하는 가장 빠른 길은 MCP와 나란히 놓는 것입니다. 둘은 자주 "경쟁 프로토콜"처럼 묶여 소개되지만, 사실은 <strong>서로 다른 층</strong>을 맡습니다. 실제로 Google은 처음부터 Anthropic과 상호 운용을 염두에 두고 A2A를 설계했다고 밝혔습니다.</p>
+
+<ul>
+  <li><strong>MCP = 수직 축.</strong> 한 에이전트를 그 아래의 <strong>도구·데이터</strong>에 연결합니다. 계산기, DB 조회, 파일 읽기 같은 기능이죠. 도구는 보통 무상태이고 역할이 정해져 있습니다. "모델이 손발(도구)을 얻는" 연결입니다.</li>
+  <li><strong>A2A = 수평 축.</strong> 한 에이전트를 그 옆의 <strong>다른 에이전트</strong>에 연결합니다. 위임·조율·협상처럼, 상대를 도구가 아니라 대등한 협업자로 대하는 연결입니다. "에이전트가 동료(다른 에이전트)를 얻는" 연결이죠.</li>
+</ul>
+
+<p>그래서 실전 배치는 대개 이 둘을 겹쳐 씁니다. 사용자의 복잡한 요청을 받은 <strong>오케스트레이터</strong> 에이전트가, A2A로 여러 전문 에이전트에게 일을 나눠 주고(수평), 각 전문 에이전트는 다시 MCP로 자기 도구를 부려 실제 일을 처리합니다(수직). 이 "MCP + A2A" 2계층 구조가 요즘 엔터프라이즈 에이전트의 기본 배치로 자리 잡는 중입니다. 표지 그림이 정확히 이 모습입니다.</p>
+
+<div class="a2a-note">
+  <strong>한 줄 비유:</strong> MCP는 한 사람이 쓰는 <em>연장통</em>이고, A2A는 여러 전문가가 함께 일하기 위한 <em>공용어</em>입니다. 목수 한 명에게 좋은 연장(MCP)을 쥐여 줘도, 목수·전기공·배관공이 한 현장에서 협업하려면 서로 통하는 말(A2A)이 따로 필요합니다.
+</div>
+
+<h2 id="sec-3">3. A2A의 핵심 4개념: Agent Card · Task · Message · Artifact</h2>
+
+<p>A2A는 웹에서 이미 검증된 것들 위에 세워졌습니다. 통신은 <strong>HTTP(S)</strong> 위에서 일어나고, 메시지 형식은 <strong>JSON-RPC 2.0</strong>을 씁니다(원격 함수를 JSON으로 호출하는 표준). 새로 외운다기보다, 익숙한 조각을 재조립한다고 보면 됩니다. 등장인물과 핵심 개념부터 정리합시다.</p>
+
+<p><strong>등장인물</strong>은 셋입니다. <strong>User</strong>(사람 또는 자동화 서비스)가 목표를 던지면, <strong>A2A Client</strong>(요청하는 에이전트, Client Agent)가 사용자를 대신해 통신을 시작하고, <strong>A2A Server</strong>(원격 에이전트, Remote Agent)가 HTTP 엔드포인트로 요청을 받아 처리합니다. 여기서 중요한 원칙 하나 — 원격 에이전트는 클라이언트 입장에서 <strong>불투명(opaque)한 블랙박스</strong>입니다. 내부 로직·메모리·도구를 밖에 드러내지 않고, 오직 <strong>선언한 능력</strong>과 <strong>주고받는 메시지</strong>로만 협업합니다. 서로의 영업 비밀을 지키면서도 협업할 수 있게 하는 설계죠.</p>
+
+<p>그 위에서 오가는 데이터는 네 가지 개념으로 정리됩니다.</p>
+
+<div class="a2a-tblwrap">
+<table class="a2a-tbl">
+  <thead><tr><th>개념</th><th>무엇인가</th><th>핵심 역할</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Agent Card</strong></td>
+      <td>에이전트의 신원·능력·엔드포인트·스킬·인증 요구사항을 담은 JSON 명함.</td>
+      <td>클라이언트가 <em>이 에이전트가 뭘 하고, 어떻게 안전하게 부르는지</em>를 파악하는 발견(discovery)의 출발점.</td>
+    </tr>
+    <tr>
+      <td><strong>Task</strong></td>
+      <td>고유 ID와 생명주기를 가진 <em>상태 있는</em> 작업 단위.</td>
+      <td>오래 걸리는 일을 추적하고, 여러 턴에 걸친 협업을 가능하게 함.</td>
+    </tr>
+    <tr>
+      <td><strong>Message</strong> / <strong>Part</strong></td>
+      <td>한 번의 대화 턴. <code>role</code>("user" 또는 "agent")과 여러 <code>Part</code>로 구성. Part는 텍스트·파일·구조화 데이터 중 하나를 담음.</td>
+      <td>지시·질문·답변·상태 같은, 꼭 산출물은 아닌 대화 내용을 전달.</td>
+    </tr>
+    <tr>
+      <td><strong>Artifact</strong></td>
+      <td>에이전트가 작업 중 만들어 낸 <em>실제 산출물</em>(문서·이미지·구조화 데이터). 고유 <code>artifactId</code>를 가짐.</td>
+      <td>작업의 최종 결과물을 구조적으로 전달. 스트리밍으로 조금씩 보낼 수도 있음.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>하나 더 알아 둘 개념이 <strong><code>contextId</code></strong>입니다. 서버가 발급하는 식별자로, 여러 <code>Task</code>를 하나의 논리적 세션으로 묶습니다. "이 여행 계획"이라는 큰 맥락 아래 항공권 Task·호텔 Task·환율 Task가 함께 묶이는 식이죠. 클라이언트가 다음 메시지에 같은 <code>contextId</code>를 실으면 "아까 그 맥락을 이어 간다"는 뜻이 됩니다.</p>
+
+<h2 id="sec-4">4. 동작 흐름 — 발견부터 Task 생명주기까지</h2>
+
+<p>이제 요청 하나가 처음부터 끝까지 어떻게 흐르는지 봅시다. 크게 <strong>발견 → 인증 → 메시지 전송 → Task 진행</strong>의 네 단계입니다.</p>
+
+<p><strong>① 발견(discovery).</strong> 클라이언트는 상대 에이전트의 도메인에서 표준 경로로 Agent Card를 가져옵니다. 경로는 <code>https://{도메인}/.well-known/agent-card.json</code>으로 정해져 있습니다(웹의 <code>/.well-known/</code> 관례, RFC 8615). 즉 "이 에이전트 명함 좀 줘"를 평범한 HTTP GET 한 번으로 끝냅니다.</p>
+
+<p><strong>② 인증(authentication).</strong> Agent Card 안의 <code>securitySchemes</code>를 보고 필요한 인증 방식(예: OAuth 2.0 / OpenID Connect)을 확인한 뒤, 토큰을 받아 둡니다. 이때 자격 증명은 <strong>A2A 메시지 본문이 아니라 HTTP 헤더</strong>로 실어 보냅니다. 웹 API가 늘 하던 방식 그대로라, 기존 보안 인프라를 재사용하기 좋습니다.</p>
+
+<p><strong>③ 메시지 전송.</strong> 클라이언트는 <code>SendMessage</code>로 사용자의 요청을 담아 보냅니다. 서버는 두 가지로 답할 수 있습니다. 바로 끝나는 간단한 일이면 <strong>Message</strong>로 즉답하고, 시간이 걸리거나 추적이 필요한 일이면 <strong>Task</strong>를 새로 만들어 돌려줍니다.</p>
+
+<p><strong>④ Task 진행.</strong> Task로 넘어가면, 진행 상황을 받는 방법이 세 가지입니다. (1) 주기적으로 <code>GetTask</code>로 <strong>폴링(polling)</strong>, (2) <strong>SSE(Server-Sent Events)</strong>로 실시간 스트리밍, (3) 아주 오래 걸리거나 연결이 끊긴 상황이면 서버가 <strong>푸시 알림(webhook)</strong>으로 알려 주기. 오래 걸리는 작업(LRO)과 비동기를 처음부터 염두에 둔 설계입니다.</p>
+
+<figure class="a2a-fig">
+<svg viewBox="0 0 720 300" role="img" aria-label="A2A 요청이 흐르는 네 단계를 나타낸 순서도. 1단계 발견에서 클라이언트가 well-known 경로로 Agent Card를 GET한다. 2단계 인증에서 Agent Card의 securitySchemes를 보고 인증 서버에서 토큰을 받는다. 3단계에서 SendMessage로 요청을 보내면 서버가 즉답 Message 또는 상태 있는 Task로 응답한다. 4단계에서 Task 진행 상황을 폴링, SSE 스트리밍, 푸시 알림 중 하나로 받는다.">
+  <rect x="16" y="40" width="120" height="52" rx="11" fill="none" stroke="var(--a2a-indigo)" stroke-width="1.8"/>
+  <text x="76" y="62" fill="var(--a2a-indigo)" font-size="12.5" font-weight="800" text-anchor="middle">A2A Client</text>
+  <text x="76" y="80" fill="var(--a2a-slate)" font-size="10.5" text-anchor="middle">(내 에이전트)</text>
+
+  <rect x="470" y="40" width="120" height="52" rx="11" fill="none" stroke="var(--a2a-cyan)" stroke-width="1.8"/>
+  <text x="530" y="62" fill="var(--a2a-cyan)" font-size="12.5" font-weight="800" text-anchor="middle">A2A Server</text>
+  <text x="530" y="80" fill="var(--a2a-slate)" font-size="10.5" text-anchor="middle">(원격 에이전트)</text>
+
+  <rect x="612" y="40" width="92" height="52" rx="11" fill="var(--entry)" stroke="var(--a2a-slate)" stroke-width="1.2"/>
+  <text x="658" y="70" fill="var(--a2a-slate)" font-size="11" font-weight="700" text-anchor="middle">Auth 서버</text>
+
+  <!-- 1 발견 -->
+  <text x="20" y="120" fill="var(--a2a-slate)" font-size="11" font-weight="800">① 발견</text>
+  <path d="M136 132 H468" stroke="var(--a2a-slate)" stroke-width="1.8" fill="none" marker-end="url(#a2s1)"/>
+  <text x="300" y="126" fill="var(--a2a-slate)" font-size="10.5" text-anchor="middle">GET /.well-known/agent-card.json</text>
+  <path d="M468 148 H138" stroke="var(--a2a-teal)" stroke-width="1.8" fill="none" marker-end="url(#a2s2)"/>
+  <text x="300" y="162" fill="var(--a2a-teal)" font-size="10.5" text-anchor="middle">← Agent Card (능력·스킬·인증)</text>
+
+  <!-- 2 인증 -->
+  <text x="20" y="190" fill="var(--a2a-slate)" font-size="11" font-weight="800">② 인증</text>
+  <path d="M136 196 H610" stroke="var(--a2a-amber)" stroke-width="1.8" fill="none" stroke-dasharray="5 3" marker-end="url(#a2s3)"/>
+  <text x="360" y="190" fill="var(--a2a-amber)" font-size="10.5" text-anchor="middle">securitySchemes 보고 토큰 획득 (OAuth/OIDC)</text>
+
+  <!-- 3 전송 -->
+  <text x="20" y="228" fill="var(--a2a-slate)" font-size="11" font-weight="800">③ 전송</text>
+  <path d="M136 234 H468" stroke="var(--a2a-indigo)" stroke-width="2" fill="none" marker-end="url(#a2s4)"/>
+  <text x="300" y="228" fill="var(--a2a-indigo)" font-size="10.5" text-anchor="middle">SendMessage (헤더에 토큰)</text>
+  <path d="M468 250 H138" stroke="var(--a2a-teal)" stroke-width="2" fill="none" marker-end="url(#a2s2)"/>
+  <text x="300" y="264" fill="var(--a2a-teal)" font-size="10.5" text-anchor="middle">← Message(즉답) 또는 Task(상태 있음)</text>
+
+  <!-- 4 진행 -->
+  <text x="20" y="288" fill="var(--a2a-slate)" font-size="11" font-weight="800">④ 진행</text>
+  <text x="360" y="288" fill="var(--a2a-slate)" font-size="10.5" text-anchor="middle">Task면: 폴링(GetTask) · SSE 스트리밍 · 푸시 알림 중 하나로 상태 수신</text>
+
+  <defs>
+    <marker id="a2s1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-slate)"/></marker>
+    <marker id="a2s2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-teal)"/></marker>
+    <marker id="a2s3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-amber)"/></marker>
+    <marker id="a2s4" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-indigo)"/></marker>
+  </defs>
+</svg>
+<figcaption>요청 한 건의 네 단계: 발견(Agent Card) → 인증(토큰) → 전송(SendMessage) → 진행(Task 상태 수신). 인증 토큰은 메시지 본문이 아니라 HTTP 헤더로 실린다.</figcaption>
+</figure>
+
+<p>이제 <strong>Task 생명주기</strong>를 조금 더 파 봅시다. Task는 8개의 상태를 오갑니다. 크게 <strong>진행 중</strong>, <strong>중단(입력·인증 대기)</strong>, <strong>종료</strong> 세 부류로 묶어서 이해하면 쉽습니다.</p>
+
+<figure class="a2a-fig">
+<svg viewBox="0 0 720 260" role="img" aria-label="Task의 8개 상태를 나타낸 상태 다이어그램. submitted에서 working으로 가고, working에서 추가 입력이 필요하면 input-required, 인증이 필요하면 auth-required로 잠깐 빠졌다가 입력을 받으면 다시 working으로 돌아온다. working에서 종료 상태인 completed, failed, canceled, rejected 중 하나로 끝난다. 종료 상태는 다시 시작할 수 없다.">
+  <!-- submitted -->
+  <rect x="24" y="112" width="112" height="40" rx="20" fill="var(--entry)" stroke="var(--a2a-slate)" stroke-width="1.8"/>
+  <text x="80" y="137" fill="var(--a2a-slate)" font-size="12.5" font-weight="800" text-anchor="middle">submitted</text>
+  <!-- working -->
+  <rect x="196" y="112" width="112" height="40" rx="20" fill="var(--entry)" stroke="var(--a2a-blue)" stroke-width="2.2"/>
+  <text x="252" y="137" fill="var(--a2a-blue)" font-size="12.5" font-weight="800" text-anchor="middle">working</text>
+  <path d="M136 132 H194" stroke="var(--a2a-slate)" stroke-width="2" fill="none" marker-end="url(#a2t1)"/>
+
+  <!-- interrupted (위) -->
+  <rect x="176" y="26" width="152" height="34" rx="9" fill="none" stroke="var(--a2a-amber)" stroke-width="1.8" stroke-dasharray="5 3"/>
+  <text x="252" y="48" fill="var(--a2a-amber)" font-size="11.5" font-weight="800" text-anchor="middle">input-required</text>
+  <rect x="176" y="66" width="152" height="34" rx="9" fill="none" stroke="var(--a2a-amber)" stroke-width="1.8" stroke-dasharray="5 3"/>
+  <text x="252" y="88" fill="var(--a2a-amber)" font-size="11.5" font-weight="800" text-anchor="middle">auth-required</text>
+  <path d="M240 112 V101" stroke="var(--a2a-amber)" stroke-width="1.6" fill="none" marker-end="url(#a2t2)"/>
+  <path d="M266 101 V112" stroke="var(--a2a-amber)" stroke-width="1.6" fill="none" marker-end="url(#a2t3)"/>
+  <text x="356" y="60" fill="var(--a2a-amber)" font-size="10" font-weight="700">중단: 입력·인증 받으면</text>
+  <text x="356" y="74" fill="var(--a2a-amber)" font-size="10" font-weight="700">다시 working 으로</text>
+
+  <!-- 종료 상태들 (오른쪽) -->
+  <rect x="470" y="24" width="150" height="34" rx="9" fill="var(--a2a-green)"/>
+  <text x="545" y="46" fill="#04240f" font-size="12.5" font-weight="800" text-anchor="middle">completed ✓</text>
+  <rect x="470" y="70" width="150" height="34" rx="9" fill="none" stroke="var(--a2a-rose)" stroke-width="1.8"/>
+  <text x="545" y="92" fill="var(--a2a-rose)" font-size="12.5" font-weight="800" text-anchor="middle">failed</text>
+  <rect x="470" y="116" width="150" height="34" rx="9" fill="none" stroke="var(--a2a-slate)" stroke-width="1.8"/>
+  <text x="545" y="138" fill="var(--a2a-slate)" font-size="12.5" font-weight="800" text-anchor="middle">canceled</text>
+  <rect x="470" y="162" width="150" height="34" rx="9" fill="none" stroke="var(--a2a-slate)" stroke-width="1.8"/>
+  <text x="545" y="184" fill="var(--a2a-slate)" font-size="12.5" font-weight="800" text-anchor="middle">rejected</text>
+
+  <path d="M308 128 C 400 100, 410 55, 468 43" stroke="var(--a2a-green)" stroke-width="2" fill="none" marker-end="url(#a2t4)"/>
+  <path d="M308 134 C 400 120, 410 92, 468 88" stroke="var(--a2a-rose)" stroke-width="1.6" fill="none" marker-end="url(#a2t5)"/>
+  <path d="M308 140 H468" stroke="var(--a2a-slate)" stroke-width="1.4" fill="none" stroke-dasharray="4 3" marker-end="url(#a2t6)"/>
+  <path d="M308 146 C 400 165, 410 178, 468 180" stroke="var(--a2a-slate)" stroke-width="1.4" fill="none" stroke-dasharray="4 3" marker-end="url(#a2t6)"/>
+
+  <text x="470" y="224" fill="var(--a2a-slate)" font-size="11" font-weight="700">종료 상태 → 재시작 불가</text>
+  <text x="470" y="240" fill="var(--a2a-slate)" font-size="10.5">이어가려면 같은 contextId로 새 Task</text>
+
+  <defs>
+    <marker id="a2t1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-slate)"/></marker>
+    <marker id="a2t2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-amber)"/></marker>
+    <marker id="a2t3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-amber)"/></marker>
+    <marker id="a2t4" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-green)"/></marker>
+    <marker id="a2t5" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-rose)"/></marker>
+    <marker id="a2t6" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--a2a-slate)"/></marker>
+  </defs>
+</svg>
+<figcaption>Task의 8개 상태. <code>submitted</code> → <code>working</code>으로 시작해, 추가 입력·인증이 필요하면 <code>input-required</code>·<code>auth-required</code>로 잠깐 빠졌다 돌아온다. 마지막엔 <code>completed</code>·<code>failed</code>·<code>canceled</code>·<code>rejected</code> 중 하나로 끝난다. 종료된 Task는 다시 시작할 수 없고, 이어가려면 같은 <code>contextId</code>로 새 Task를 만든다.</figcaption>
+</figure>
+
+<div class="a2a-note">
+  <strong>왜 Task가 한 번 끝나면 못 되살아날까?</strong> 종료된 Task를 불변으로 두면, 입력→출력의 대응이 깔끔하게 남습니다. 추적(tracing)과 오케스트레이션이 쉬워지고, 산출물이 어느 작업에서 나왔는지도 또렷해지죠. 후속 작업은 "되살리기"가 아니라 <em>같은 <code>contextId</code> 안의 새 Task</em>로 모델링합니다.
+</div>
+
+<h2 id="sec-5">5. 실전 — Agent Card와 SendMessage를 코드로</h2>
+
+<p>개념만 보면 뜬구름이니 실제 JSON을 봅시다. 먼저 원격 에이전트가 <code>/.well-known/agent-card.json</code>으로 내놓는 <strong>Agent Card</strong>입니다(핵심만 남긴 축약본).</p>
+
+{{< highlight json >}}
+{
+  "name": "환율 에이전트",
+  "description": "실시간 환율 조회와 통화 변환을 제공합니다.",
+  "supportedInterfaces": [
+    { "url": "https://fx-agent.example.com/a2a/v1",
+      "protocolBinding": "JSONRPC", "protocolVersion": "1.0" }
+  ],
+  "capabilities": {           // 이 에이전트가 지원하는 A2A 기능
+    "streaming": true,        // SSE 스트리밍 가능
+    "pushNotifications": true // webhook 푸시 알림 가능
+  },
+  "securitySchemes": {        // 어떻게 인증해야 하는지
+    "google": { "openIdConnectSecurityScheme": {
+      "openIdConnectUrl": "https://accounts.google.com/.well-known/openid-configuration"
+    } }
+  },
+  "defaultInputModes":  ["application/json", "text/plain"],
+  "defaultOutputModes": ["application/json"],
+  "skills": [                 // 사람·기계가 읽는 능력 카탈로그
+    { "id": "convert",
+      "name": "통화 변환",
+      "description": "한 통화 금액을 다른 통화로 변환합니다.",
+      "tags": ["fx", "currency", "money"],
+      "examples": ["100 USD를 KRW로 바꿔 줘"] }
+  ]
+}
+{{< /highlight >}}
+
+<p>클라이언트는 이 카드를 읽고 "streaming을 지원하는구나", "OIDC로 인증해야겠구나", "convert라는 스킬이 있구나"를 파악합니다. 스킬의 <code>examples</code>는 오케스트레이터가 "이 요청은 이 에이전트에게 보내면 되겠다"를 판단하는 힌트가 됩니다.</p>
+
+<p>다음은 실제 요청입니다. JSON-RPC 2.0 형식으로 <code>SendMessage</code>를 부릅니다. 사용자의 한 턴을 <code>message</code>로 담고, 그 안의 <code>parts</code>에 실제 내용을 넣습니다.</p>
+
+{{< highlight json >}}
+// → 클라이언트가 보내는 요청 (HTTP 헤더에 인증 토큰이 함께 실림)
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "SendMessage",
+  "params": {
+    "message": {
+      "role": "user",
+      "messageId": "m-001",
+      "parts": [ { "text": "100 USD를 KRW로 바꿔 줘" } ]
+    }
+  }
+}
+{{< /highlight >}}
+
+<p>서버가 즉시 답할 수 있으면 <code>Message</code>를, 시간이 걸리면 <code>Task</code>를 돌려줍니다. 아래는 Task로 응답한 경우입니다. <code>id</code>(taskId)와 <code>contextId</code>, 그리고 현재 <code>status.state</code>가 담깁니다.</p>
+
+{{< highlight json >}}
+// ← 서버 응답: 상태 있는 Task로 시작
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "id": "task-7f3a",          // taskId
+    "contextId": "ctx-91",      // 이 대화 맥락 (후속 Task를 여기에 묶음)
+    "status": { "state": "TASK_STATE_WORKING" }
+  }
+}
+{{< /highlight >}}
+
+<p>이제 클라이언트 쪽을 의사코드로 그려 봅시다. <strong>발견 → 전송 → (완료까지) 상태 확인</strong>의 흐름이 그대로 드러납니다. 라이브러리 API 이름은 SDK마다 조금씩 다르지만, 뼈대는 어디서나 같습니다.</p>
+
+{{< highlight python >}}
+import httpx
+
+BASE = "https://fx-agent.example.com"
+
+# ① 발견: well-known 경로에서 Agent Card 가져오기
+card = httpx.get(f"{BASE}/.well-known/agent-card.json").json()
+endpoint = card["supportedInterfaces"][0]["url"]
+token = get_oidc_token(card["securitySchemes"])   # ② 인증(축약)
+
+def rpc(method, params):
+    # JSON-RPC 2.0 호출. 인증 토큰은 '본문'이 아니라 '헤더'로
+    r = httpx.post(endpoint, headers={"Authorization": f"Bearer {token}"},
+                   json={"jsonrpc": "2.0", "id": 1,
+                         "method": method, "params": params})
+    return r.json()["result"]
+
+# ③ 전송: 사용자 한 턴을 message로
+task = rpc("SendMessage", {"message": {
+    "role": "user", "messageId": "m-001",
+    "parts": [{"text": "100 USD를 KRW로 바꿔 줘"}]}})
+
+# ④ 진행: 종료 상태가 될 때까지 폴링 (스트리밍/푸시로 대체 가능)
+TERMINAL = {"TASK_STATE_COMPLETED", "TASK_STATE_FAILED",
+            "TASK_STATE_CANCELED", "TASK_STATE_REJECTED"}
+while task["status"]["state"] not in TERMINAL:
+    task = rpc("GetTask", {"id": task["id"]})      # taskId로 조회
+    # 필요하면 input-required 상태일 때 추가 입력을 보내면 됨
+
+print(task.get("artifacts"))   # 완료 시 산출물(Artifact) 확인
+{{< /highlight >}}
+
+<div class="a2a-note a2a-good">
+  <strong>전송(transport) 선택지:</strong> 위 예시는 가장 단순한 JSON-RPC 바인딩입니다. A2A는 같은 동작을 <strong>세 가지 바인딩</strong>으로 제공합니다 — JSON-RPC 2.0, gRPC, 그리고 HTTP+JSON/REST. REST로 하면 <code>SendMessage</code>가 <code>POST /message:send</code>, <code>GetTask</code>가 <code>GET /tasks/{id}</code>처럼 익숙한 엔드포인트로 매핑됩니다. 팀 상황에 맞는 걸 고르면 됩니다.
+</div>
+
+<h2 id="sec-6">6. MCP와 A2A를 함께 쓰기 (2계층 스택)</h2>
+
+<p>이제 처음의 표지 그림으로 돌아가 전체를 조립해 봅시다. "국제 여행을 계획해 줘"라는 요청이 들어오면 흐름은 이렇습니다.</p>
+
+<ol>
+  <li>오케스트레이터 에이전트가 요청을 쪼갭니다: 항공권·호텔·환율.</li>
+  <li>각 하위 작업을 <strong>A2A(수평)</strong>로 해당 전문 에이전트에게 위임합니다. 항공권 에이전트에 <code>SendMessage</code>, 호텔 에이전트에 <code>SendMessage</code> 하는 식이죠. 오래 걸리면 각각 Task로 추적합니다.</li>
+  <li>각 전문 에이전트는 내부에서 <strong>MCP(수직)</strong>로 자기 도구를 부립니다. 항공권 에이전트는 항공 예약 API를, 호텔 에이전트는 재고·결제 도구를 MCP로 호출하죠. 이 내부 사정은 오케스트레이터에게 <strong>보이지 않습니다(opaque)</strong>.</li>
+  <li>결과가 <strong>Artifact</strong>로 돌아오면, 오케스트레이터가 하나의 여행 계획으로 합쳐 사용자에게 답합니다.</li>
+</ol>
+
+<p>핵심은 <strong>역할 분담</strong>입니다. A2A는 "누구에게 무엇을 위임하고, 진행 상태를 어떻게 추적할지"(에이전트 간 조율)를 맡고, MCP는 "각 에이전트가 실제 도구를 어떻게 부릴지"(도구 접근)를 맡습니다. 그래서 둘 중 하나를 고르는 문제가 아니라, <strong>층을 나눠 함께 쓰는</strong> 문제입니다.</p>
+
+<div class="a2a-note">
+  <strong>언제 무엇을?</strong> 상대가 <em>정해진 함수 하나</em>로 충분한가요? 그럼 MCP 도구가 맞습니다. 굳이 A2A로 감쌀 필요 없습니다. 반대로 상대가 <em>스스로 판단하고 되묻고 오래 일하는</em> 자율 주체인가요? 그럼 A2A로 에이전트답게 부르세요. "단순 기능은 MCP, 자율 협업은 A2A"가 실전 기준선입니다.
+</div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>Agent Card를 무조건 신뢰하기.</strong> 카드는 그냥 URL에서 받아 온 JSON입니다. 스푸핑되거나 악의적 엔드포인트를 가리킬 수 있으니, 출처를 검증하세요. 스펙에는 카드에 <code>signatures</code>(JWS 서명)를 붙일 수 있고, 민감 정보는 인증된 확장 카드(<code>GetExtendedAgentCard</code>)로 따로 받도록 되어 있습니다. 발견 엔드포인트에도 접근 제어를 거는 게 좋습니다.</li>
+  <li><strong>남의 에이전트를 도구로 감싸기.</strong> 1장의 함정을 실전에서 또 반복하기 쉽습니다. 자율적으로 되묻고 협상해야 하는 상대를 함수 한 방으로 축소하면, 다회차 상호작용이 통째로 막힙니다. 상대가 에이전트라면 A2A로 노출하세요.</li>
+  <li><strong>오래 걸리는 작업을 동기 호출로만 처리.</strong> 몇 분 걸리는 Task를 <code>SendMessage</code> 하나로 붙잡고 응답을 기다리면 타임아웃에 걸립니다. Task로 받고 <strong>스트리밍(SSE)이나 푸시 알림</strong>으로 진행 상황을 받으세요. A2A가 비동기를 기본으로 두는 이유가 이것입니다.</li>
+  <li><strong><code>contextId</code>를 안 넘겨서 맥락이 끊김.</strong> 후속 요청에 이전 <code>contextId</code>를 실어야 "아까 그 여행 계획"으로 이어집니다. 안 넘기면 서버 입장에선 매번 처음 보는 요청이 됩니다.</li>
+  <li><strong>opaque 원칙을 어기고 내부 상태 공유를 기대.</strong> 상대 에이전트의 메모리·프롬프트·도구는 밖에서 안 보이는 게 정상입니다. "그쪽 내부 변수를 직접 읽어서…" 같은 설계는 A2A와 맞지 않습니다. 협업은 <strong>선언된 능력과 주고받는 메시지</strong>로만 하세요.</li>
+  <li><strong>인증 정보를 A2A 메시지 본문에 담기.</strong> 자격 증명은 프로토콜 메시지가 아니라 <strong>HTTP 헤더</strong>로 보냅니다. 표준 웹 인증(OAuth/OIDC)과 결이 맞고, 로깅·전파에서 토큰이 새는 사고도 줄어듭니다.</li>
+  <li><strong>MCP로 될 일을 A2A로 과설계.</strong> 계산기 하나 붙이려고 그걸 A2A 에이전트로 감싸는 건 과합니다. 단순·무상태 기능은 MCP 도구가 더 가볍고 명확합니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>무엇:</strong> A2A(Agent2Agent)는 서로 다른 프레임워크·벤더가 만든 에이전트가 <strong>서로를 발견하고, 안전하게 대화하고, 작업을 위임</strong>하게 해 주는 개방형 표준이다. Google이 2025년 4월 공개, 6월 Linux Foundation에 기증.</li>
+  <li><strong>왜:</strong> 남의 에이전트를 "도구로 감싸면" 되묻기·협상·장기 작업 같은 에이전트 고유 능력이 잘려 나간다. A2A는 에이전트를 <strong>에이전트답게</strong> 부른다.</li>
+  <li><strong>MCP와의 관계:</strong> 경쟁이 아니라 층이 다르다. <strong>MCP = 수직</strong>(에이전트↔도구/데이터), <strong>A2A = 수평</strong>(에이전트↔에이전트). "MCP + A2A" 2계층이 표준 배치로 굳는 중.</li>
+  <li><strong>핵심 개념:</strong> <code>Agent Card</code>(<code>/.well-known/agent-card.json</code>의 명함), <code>Task</code>(상태 있는 작업, 8상태 생명주기), <code>Message</code>/<code>Part</code>(대화 턴), <code>Artifact</code>(산출물), <code>contextId</code>(맥락 묶기).</li>
+  <li><strong>어떻게:</strong> HTTP(S) 위 JSON-RPC 2.0(또는 gRPC·REST). 발견 → 인증(헤더 토큰) → <code>SendMessage</code> → Task를 폴링·SSE·푸시로 추적. 원격 에이전트는 opaque 블랙박스.</li>
+  <li><strong>기준선:</strong> 단순·무상태 기능은 MCP, 자율적으로 협업하는 상대는 A2A. 그리고 Agent Card는 항상 검증하고, 오래 걸리는 일은 비동기로.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>A2A Protocol, <a href="https://a2a-protocol.org/latest/topics/what-is-a2a/" target="_blank" rel="noopener">What is A2A?</a> — A2A의 정의·설계 원칙·MCP와의 관계(수직/수평)에 대한 1차 문서. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>A2A Protocol, <a href="https://a2a-protocol.org/latest/topics/key-concepts/" target="_blank" rel="noopener">Core Concepts</a> — Actors(Client/Server, opaque)·Agent Card·Task·Message·Part·Artifact·contextId 정의. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>A2A Protocol, <a href="https://a2a-protocol.org/latest/topics/life-of-a-task/" target="_blank" rel="noopener">Life of a Task</a> — Task 생명주기(진행·중단·종료 상태)와 불변성, 후속 작업 모델링. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>A2A Protocol, <a href="https://a2a-protocol.org/latest/topics/agent-discovery/" target="_blank" rel="noopener">Agent Discovery</a> — <code>/.well-known/agent-card.json</code> well-known 경로와 발견 전략. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>GitHub, <a href="https://github.com/a2aproject/A2A" target="_blank" rel="noopener">a2aproject/A2A</a> — 공식 사양 저장소("opaque agentic applications"), 스타 2.5만+. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Google Developers Blog, <a href="https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/" target="_blank" rel="noopener">Announcing the Agent2Agent Protocol (A2A)</a> — 2025년 4월 최초 발표. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Google Developers Blog, <a href="https://developers.googleblog.com/en/google-cloud-donates-a2a-to-linux-foundation/" target="_blank" rel="noopener">Google Cloud donates A2A to Linux Foundation</a> — 2025년 6월 Linux Foundation 기증(벤더 중립 표준화). <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>discuss.google.dev, <a href="https://discuss.google.dev/t/agents-are-not-tools/192812" target="_blank" rel="noopener">Agents are not tools</a> — "에이전트를 도구로 감싸는 것의 한계" 논거. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Google Open Source Blog, <a href="https://opensource.googleblog.com/2026/04/a-year-of-open-collaboration-celebrating-the-anniversary-of-a2a.html" target="_blank" rel="noopener">A year of open collaboration: the anniversary of A2A</a> — 1년간의 채택 현황(지지 조직 수 등). <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

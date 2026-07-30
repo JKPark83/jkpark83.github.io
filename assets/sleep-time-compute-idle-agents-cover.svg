@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="슬립타임 컴퓨트를 나타낸 그림. 위쪽 줄은 '테스트타임만' 방식으로, 질문이 도착하면 크고 느린 추론 블록이 그 자리에서 오래 생각한 뒤 답을 낸다. 아래쪽 줄은 '슬립타임 컴퓨트' 방식으로, 질문이 오기 전 유휴 시간에 백그라운드 에이전트가 컨텍스트를 미리 소화해 메모리에 정리해 두고, 질문이 도착하면 얇고 빠른 추론만으로 곧바로 답을 낸다.">
+  <defs>
+    <linearGradient id="stcbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="stcheavy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="stcsleep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="stclight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#stcbg)"/>
+
+  <text x="72" y="86" fill="#e2e8f0" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="46" font-weight="800">sleep-time compute</text>
+  <text x="72" y="128" fill="#93c5fd" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="25" font-weight="600">노는 시간에 미리 생각해 두는 에이전트</text>
+
+  <!-- lane 1: test-time only -->
+  <text x="72" y="212" fill="#fbbf24" font-family="system-ui,sans-serif" font-size="22" font-weight="700">① 테스트타임만</text>
+  <!-- query -->
+  <rect x="72" y="232" width="150" height="58" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+  <text x="147" y="267" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="20" font-weight="600" text-anchor="middle">질문 도착</text>
+  <!-- heavy reasoning -->
+  <rect x="262" y="222" width="470" height="78" rx="14" fill="url(#stcheavy)"/>
+  <text x="497" y="257" fill="#3b2606" font-family="system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">그 자리에서 오래 생각</text>
+  <text x="497" y="284" fill="#3b2606" font-family="system-ui,sans-serif" font-size="17" font-weight="600" text-anchor="middle">추론 토큰 ↑ · 느림 · 비쌈</text>
+  <!-- answer -->
+  <rect x="772" y="232" width="120" height="58" rx="12" fill="#334155" stroke="#64748b" stroke-width="1.5"/>
+  <text x="832" y="267" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="20" font-weight="600" text-anchor="middle">답변</text>
+  <path d="M900 261 h58" stroke="#64748b" stroke-width="3" fill="none"/>
+  <text x="1010" y="267" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="19" font-weight="600" text-anchor="middle">긴 대기</text>
+
+  <!-- divider -->
+  <line x1="72" y1="342" x2="1128" y2="342" stroke="#334155" stroke-width="1.5" stroke-dasharray="6 8"/>
+
+  <!-- lane 2: sleep-time + test-time -->
+  <text x="72" y="392" fill="#5eead4" font-family="system-ui,sans-serif" font-size="22" font-weight="700">② 슬립타임 컴퓨트</text>
+
+  <!-- idle / background precompute -->
+  <text x="80" y="432" fill="#a5b4fc" font-family="system-ui,sans-serif" font-size="16" font-weight="600">유휴 시간(질문 오기 전)</text>
+  <rect x="72" y="444" width="360" height="86" rx="14" fill="url(#stcsleep)"/>
+  <text x="252" y="480" fill="#eef2ff" font-family="system-ui,sans-serif" font-size="21" font-weight="800" text-anchor="middle">백그라운드 에이전트</text>
+  <text x="252" y="508" fill="#e0e7ff" font-family="system-ui,sans-serif" font-size="16" font-weight="600" text-anchor="middle">컨텍스트 미리 소화 → 메모리 정리</text>
+
+  <!-- arrow to memory -->
+  <path d="M432 487 h44" stroke="#818cf8" stroke-width="3" fill="none" marker-end="url(#ah)"/>
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#818cf8"/></marker>
+  </defs>
+
+  <!-- query arrives -->
+  <text x="560" y="432" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="16" font-weight="600" text-anchor="middle">질문 도착</text>
+  <rect x="492" y="444" width="136" height="86" rx="14" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+  <text x="560" y="494" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="19" font-weight="600" text-anchor="middle">질문</text>
+
+  <!-- thin fast reasoning -->
+  <rect x="660" y="458" width="270" height="58" rx="12" fill="url(#stclight)"/>
+  <text x="795" y="486" fill="#052e2b" font-family="system-ui,sans-serif" font-size="19" font-weight="800" text-anchor="middle">얇고 빠른 추론</text>
+  <text x="795" y="507" fill="#052e2b" font-family="system-ui,sans-serif" font-size="14" font-weight="600" text-anchor="middle">이미 정리된 메모리 재사용</text>
+
+  <!-- answer fast -->
+  <rect x="958" y="458" width="120" height="58" rx="12" fill="#334155" stroke="#5eead4" stroke-width="2"/>
+  <text x="1018" y="493" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="20" font-weight="700" text-anchor="middle">답변 ⚡</text>
+
+  <!-- footer stats -->
+  <text x="72" y="586" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="19" font-weight="600">같은 정확도까지 테스트타임 연산 <tspan fill="#5eead4" font-weight="800">약 5× 절감</tspan>  ·  질문 여러 개면 평균 비용 <tspan fill="#5eead4" font-weight="800">2.5× 절감</tspan></text>
+  <text x="72" y="614" fill="#64748b" font-family="system-ui,sans-serif" font-size="15">출처: Lin et al., “Sleep-time Compute” (arXiv:2504.13171, Letta · UC Berkeley)</text>
+</svg>

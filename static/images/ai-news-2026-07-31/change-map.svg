@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 460" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="오늘의 AI 변화 지도: MCP 도구 견고성">
+  <rect width="760" height="460" fill="#f7f8fa"/>
+  <text x="380" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — MCP 도구 견고성</text>
+
+  <!-- center -->
+  <rect x="250" y="190" width="260" height="80" rx="12" fill="#1f2937"/>
+  <text x="380" y="220" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">도구가 바뀌거나 실패하면</text>
+  <text x="380" y="242" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">에이전트는 조용히 틀린다</text>
+  <text x="380" y="260" text-anchor="middle" font-size="11" fill="#9ca3af">crash가 아니라 confident-wrong</text>
+
+  <!-- connectors -->
+  <line x1="250" y1="210" x2="150" y2="110" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="510" y1="210" x2="610" y2="110" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="250" y1="250" x2="150" y2="360" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="510" y1="250" x2="610" y2="360" stroke="#9ca3af" stroke-width="2"/>
+
+  <!-- 논문 -->
+  <rect x="30" y="70" width="240" height="90" rx="10" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="45" y="92" font-size="12" font-weight="700" fill="#4338ca">📚 논문</text>
+  <text x="45" y="114" font-size="12" fill="#1f2937">MCPEvol-Bench (2607.14642)</text>
+  <text x="45" y="132" font-size="11" fill="#4b5563">도구 진화 → 프런티어도 -13~14%</text>
+  <text x="45" y="150" font-size="12" fill="#1f2937">AgentCheck (2607.11098)</text>
+
+  <!-- 모델 -->
+  <rect x="490" y="70" width="240" height="90" rx="10" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+  <text x="505" y="92" font-size="12" font-weight="700" fill="#047857">🤖 모델 신호</text>
+  <text x="505" y="114" font-size="11" fill="#1f2937">신규 프런티어는 조용</text>
+  <text x="505" y="132" font-size="11" fill="#4b5563">진화한 MCP에서 GPT-5.4 -13.7%</text>
+  <text x="505" y="150" font-size="11" fill="#4b5563">Claude-Sonnet-4-6 -14.4%</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="330" width="240" height="90" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="45" y="352" font-size="12" font-weight="700" fill="#b45309">🛠 오픈소스</text>
+  <text x="45" y="374" font-size="12" fill="#1f2937">MCP Inspector (공식)</text>
+  <text x="45" y="392" font-size="12" fill="#1f2937">lastmile-ai/mcp-eval</text>
+  <text x="45" y="410" font-size="11" fill="#4b5563">도구를 테스트 대상으로 승격</text>
+
+  <!-- 팁 -->
+  <rect x="490" y="330" width="240" height="90" rx="10" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="505" y="352" font-size="12" font-weight="700" fill="#6d28d9">🧑‍💻 실전 팁</text>
+  <text x="505" y="374" font-size="11" fill="#1f2937">🟩 codex exec --json → CI 게이트</text>
+  <text x="505" y="392" font-size="11" fill="#1f2937">🟦 claude mcp add → eval 회귀</text>
+  <text x="505" y="410" font-size="11" fill="#1f2937">🟪 fault 12종을 회귀 테스트로</text>
+</svg>

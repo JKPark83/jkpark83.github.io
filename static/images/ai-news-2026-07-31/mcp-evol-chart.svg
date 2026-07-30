@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="MCPEvol-Bench: 도구 진화 시 프런티어 모델 성능 저하">
+  <rect width="720" height="380" fill="#ffffff"/>
+  <text x="360" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#111827">MCPEvol-Bench — 도구가 진화하면 프런티어도 무너진다</text>
+  <text x="360" y="50" text-anchor="middle" font-size="12" fill="#6b7280">11개 변형 연산자 · 123개 MCP 서버 · 12개 LLM (성능 저하 %)</text>
+
+  <!-- axis -->
+  <line x1="120" y1="90" x2="120" y2="300" stroke="#d1d5db" stroke-width="1.5"/>
+  <line x1="120" y1="300" x2="660" y2="300" stroke="#d1d5db" stroke-width="1.5"/>
+
+  <!-- gridlines for 0,-5,-10,-15 -->
+  <line x1="120" y1="100" x2="660" y2="100" stroke="#f3f4f6"/>
+  <text x="112" y="104" text-anchor="end" font-size="11" fill="#9ca3af">-15%</text>
+  <line x1="120" y1="167" x2="660" y2="167" stroke="#f3f4f6"/>
+  <text x="112" y="171" text-anchor="end" font-size="11" fill="#9ca3af">-10%</text>
+  <line x1="120" y1="234" x2="660" y2="234" stroke="#f3f4f6"/>
+  <text x="112" y="238" text-anchor="end" font-size="11" fill="#9ca3af">-5%</text>
+  <text x="112" y="304" text-anchor="end" font-size="11" fill="#9ca3af">0%</text>
+
+  <!-- bar 1: GPT-5.4 -13.7 -> height from 300 up. scale: 5% = 67px, so 13.7% ~= 183px -->
+  <rect x="220" y="117" width="120" height="183" rx="4" fill="#6366f1"/>
+  <text x="280" y="110" text-anchor="middle" font-size="15" font-weight="700" fill="#4338ca">-13.7%</text>
+  <text x="280" y="322" text-anchor="middle" font-size="12" fill="#374151">GPT-5.4</text>
+
+  <!-- bar 2: Claude-Sonnet-4-6 -14.4 ~= 193px -->
+  <rect x="440" y="107" width="120" height="193" rx="4" fill="#f59e0b"/>
+  <text x="500" y="100" text-anchor="middle" font-size="15" font-weight="700" fill="#b45309">-14.4%</text>
+  <text x="500" y="322" text-anchor="middle" font-size="12" fill="#374151">Claude-Sonnet-4-6</text>
+
+  <text x="360" y="358" text-anchor="middle" font-size="12" fill="#4b5563">진화한 MCP 서버에서 계획·추론 오류가 함께 급증 → 도구 인터페이스 변경을 회귀로 감시하라</text>
+</svg>

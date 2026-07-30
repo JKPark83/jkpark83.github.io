@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" font-family="'Segoe UI',system-ui,sans-serif" role="img" aria-label="AgentCheck 재현-개입-확인 루프와 완화 효과">
+  <rect width="760" height="400" fill="#f7f8fa"/>
+  <text x="380" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#111827">AgentCheck — 재현·개입·확인(Reproduce–Intervene–Confirm) 루프</text>
+
+  <!-- step boxes -->
+  <rect x="30" y="70" width="200" height="70" rx="10" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="130" y="98" text-anchor="middle" font-size="13" font-weight="700" fill="#3730a3">1. 재현 Reproduce</text>
+  <text x="130" y="120" text-anchor="middle" font-size="11" fill="#4b5563">실제 툴 응답 기록 후</text>
+  <text x="130" y="135" text-anchor="middle" font-size="11" fill="#4b5563">fault 12종 주입</text>
+
+  <rect x="280" y="70" width="200" height="70" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="380" y="98" text-anchor="middle" font-size="13" font-weight="700" fill="#b45309">2. 개입 Intervene</text>
+  <text x="380" y="120" text-anchor="middle" font-size="11" fill="#4b5563">완화책(retry 등) 토글</text>
+  <text x="380" y="135" text-anchor="middle" font-size="11" fill="#4b5563">동일 fault로 재실행</text>
+
+  <rect x="530" y="70" width="200" height="70" rx="10" fill="#dcfce7" stroke="#10b981" stroke-width="1.5"/>
+  <text x="630" y="98" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">3. 확인 Confirm</text>
+  <text x="630" y="120" text-anchor="middle" font-size="11" fill="#4b5563">배포 전 실패 소멸 여부</text>
+  <text x="630" y="135" text-anchor="middle" font-size="11" fill="#4b5563">규칙 + LLM 심판 채점</text>
+
+  <line x1="230" y1="105" x2="278" y2="105" stroke="#9ca3af" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="480" y1="105" x2="528" y2="105" stroke="#9ca3af" stroke-width="2" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#9ca3af"/></marker></defs>
+
+  <!-- result chart -->
+  <text x="380" y="185" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">최약체 에이전트 · retry 완화 효과 (성공률)</text>
+
+  <!-- timeout group -->
+  <text x="150" y="225" font-size="12" fill="#374151">timeout fault</text>
+  <rect x="150" y="235" width="60" height="30" fill="#fca5a5"/>
+  <text x="180" y="256" text-anchor="middle" font-size="12" font-weight="700" fill="#7f1d1d">30%</text>
+  <rect x="220" y="235" width="200" height="30" fill="#10b981"/>
+  <text x="320" y="256" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">100%</text>
+  <text x="440" y="256" font-size="11" fill="#047857">retry로 완전 회복 ✅</text>
+
+  <!-- stale group -->
+  <text x="150" y="300" font-size="12" fill="#374151">stale-data fault</text>
+  <rect x="150" y="310" width="70" height="30" fill="#fca5a5"/>
+  <text x="185" y="331" text-anchor="middle" font-size="12" font-weight="700" fill="#7f1d1d">~35%</text>
+  <rect x="220" y="310" width="72" height="30" fill="#fbbf24"/>
+  <text x="256" y="331" text-anchor="middle" font-size="12" font-weight="700" fill="#7f1d1d">~35%</text>
+  <text x="300" y="331" font-size="11" fill="#b45309">retry로도 안 낫는다 ⚠️</text>
+
+  <text x="380" y="375" text-anchor="middle" font-size="12" fill="#4b5563">교훈: 완화책은 fault 종류마다 효과가 다르다 — 배포 전 fault별로 검증하라</text>
+</svg>

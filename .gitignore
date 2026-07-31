@@ -8,3 +8,6 @@ hugo_stats.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Nested clone used by the market-brief automation task
+/blog/

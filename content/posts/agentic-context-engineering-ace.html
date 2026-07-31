@@ -1,0 +1,400 @@
+---
+title: "매번 같은 실수를 반복하는 에이전트: 컨텍스트를 스스로 자라는 '플레이북'으로 만드는 ACE"
+date: 2026-08-01T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 엔지니어링", "ACE", "agentic context engineering", "컨텍스트 엔지니어링", "context engineering", "self-improving", "자기개선", "context collapse", "에이전트", "agent", "메모리", "in-context learning", "GEPA", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "컨텍스트 엔지니어링이 2026년 실무 최대 화두로 굳어지면서, 컨텍스트를 '스스로 자라는 플레이북'으로 다루는 ACE(Agentic Context Engineering)가 다시 조명받고 있습니다. 핵심 아이디어는 반직관적입니다 — 쌓인 노하우를 자꾸 '요약'하면 오히려 지식이 무너진다(context collapse)는 것이죠. ACE는 컨텍스트 전체를 덮어쓰는 대신, 작은 '델타(delta)' 항목만 덧붙여 플레이북을 키웁니다. 이 글은 Stanford·UC Berkeley·SambaNova가 낸 ACE 논문(arXiv:2510.04618, ICLR 2026)을 junior 개발자 눈높이에서 쉽고 자세하게 풀어냅니다. brevity bias·context collapse가 왜 생기는지, Generator·Reflector·Curator 세 역할이 어떻게 돌아가는지, 그리고 미니 ACE 루프를 코드로 어떻게 짜는지까지 담았습니다."
+ShowToc: false
+cover:
+  image: "agentic-context-engineering-ace-cover.svg"
+  alt: "왼쪽은 컨텍스트를 요약으로 통째로 덮어써 몇 줄로 쪼그라든 context collapse, 오른쪽은 델타 항목을 하나씩 덧붙여 점점 커지는 '스스로 자라는 플레이북'을 나란히 비교한 그림."
+  caption: "컨텍스트를 자꾸 요약해 덮어쓰면 애써 쌓은 노하우가 무너진다(왼쪽). ACE는 작은 델타만 덧붙여 디테일을 지키며 플레이북을 키운다(오른쪽). (개념도)"
+  relative: false
+---
+
+<style>
+/* ── ACE 포스트 전용 스타일 (ace- 접두사) ── */
+.ace-fig{
+  --c-sky:#0284c7; --c-amber:#d97706; --c-green:#16a34a; --c-rose:#e11d48;
+  --c-slate:#64748b; --c-violet:#7c3aed; --c-teal:#0d9488; --c-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .ace-fig{
+  --c-sky:#38bdf8; --c-amber:#fbbf24; --c-green:#4ade80; --c-rose:#fb7185;
+  --c-slate:#94a3b8; --c-violet:#a78bfa; --c-teal:#2dd4bf; --c-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .ace-fig{
+    --c-sky:#38bdf8; --c-amber:#fbbf24; --c-green:#4ade80; --c-rose:#fb7185;
+    --c-slate:#94a3b8; --c-violet:#a78bfa; --c-teal:#2dd4bf; --c-blue:#60a5fa;
+  }
+}
+.ace-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.ace-fig text{font-family:inherit}
+.ace-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.ace-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.ace-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.ace-toc ol{margin:0;padding-left:1.25rem}
+.ace-toc li{margin:.22rem 0;font-size:.95rem}
+.ace-toc a{text-decoration:none}
+.ace-toc a:hover{text-decoration:underline}
+.ace-pull{font-size:1.12rem;line-height:1.72}
+.ace-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.ace-note{border-left:4px solid var(--c-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.ace-note strong{color:var(--c-blue,#2563eb)}
+.ace-warn{border-left:4px solid var(--c-rose,#e11d48)}
+.ace-warn strong{color:var(--c-rose,#e11d48)}
+.ace-good{border-left:4px solid var(--c-teal,#0d9488)}
+.ace-good strong{color:var(--c-teal,#0d9488)}
+.ace-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.ace-tbl th,.ace-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.ace-tbl th{background:var(--entry);font-weight:700}
+.ace-tbl code{font-size:.86em}
+.ace-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="ace-pull">
+  <p>어제 에이전트가 똑같은 API 실수로 넘어졌습니다. 오늘 또 같은 자리에서 넘어집니다. 사람이라면 "아, 여긴 이렇게 하면 안 되지" 하고 <strong>메모</strong>를 남길 텐데, 에이전트는 매번 백지에서 시작하죠.</p>
+  <footer>— 모델 가중치를 건드리지 않고도, 에이전트가 <strong>경험에서 배우게</strong> 만들 수 있을까요?</footer>
+</blockquote>
+
+<nav class="ace-toc" aria-label="목차">
+  <div class="ace-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 ACE가 화제인가</a></li>
+    <li><a href="#sec-2">배경: 모델을 바꾸는 두 가지 길</a></li>
+    <li><a href="#sec-3">함정: 요약이 지식을 갉아먹는다 (brevity bias · context collapse)</a></li>
+    <li><a href="#sec-4">ACE의 핵심: 세 역할 + 델타 업데이트</a></li>
+    <li><a href="#sec-5">실전: 미니 ACE 루프를 코드로</a></li>
+    <li><a href="#sec-6">숫자로 보는 효과</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 ACE가 화제인가</h2>
+
+<p>2026년 실무 담론의 중심에는 <strong>컨텍스트 엔지니어링(context engineering)</strong>이 있습니다. 모델에게 "무엇을, 어떤 순서로, 얼마나 넣어 줄까"를 설계하는 일이죠. 프롬프트를 손보는 것을 넘어, 검색 결과·툴 출력·과거 대화·메모리까지 컨텍스트라는 한정된 창에 어떻게 배치하느냐가 에이전트 품질을 좌우한다는 공감대가 굳어졌습니다.</p>
+
+<p>그 흐름에서 이번 주에도 반복해서 회자된 아이디어가 <strong>ACE(Agentic Context Engineering, 에이전트형 컨텍스트 엔지니어링)</strong>입니다. Stanford·UC Berkeley·SambaNova가 함께 낸 논문(<code>arXiv:2510.04618</code>, ICLR 2026)으로, 오픈소스 구현(<code>ace-agent/ace</code>)까지 공개되며 "State of Context Engineering 2026" 같은 회고 글들이 앞다퉈 다뤘습니다. 한 문장으로 요약하면 이렇습니다 — <strong>컨텍스트를 '고정된 지시문'이 아니라 '스스로 자라는 플레이북(evolving playbook)'으로 다루자.</strong></p>
+
+<p>핵심 매력은 반직관적인 결론에 있습니다. 보통 우리는 컨텍스트가 길어지면 "요약해서 깔끔하게 정리"하려고 합니다. 그런데 ACE 팀은 <strong>그 요약이 오히려 지식을 무너뜨린다</strong>는 걸 보여 줬습니다. 그리고 모델을 재훈련하지 않고 컨텍스트만 진화시켜서, 에이전트 벤치마크에서 강력한 기준선 대비 <strong>+10.6%</strong>, 금융 추론에서 <strong>+8.6%</strong>를 얻었습니다. 그것도 <strong>정답 라벨 없이</strong>, 에이전트가 스스로 만든 실행 피드백만으로요.</p>
+
+<p>이 글에서는 ACE가 어떤 문제를 푸는지, 왜 "요약"이 함정인지, 그리고 <strong>Generator·Reflector·Curator</strong> 세 역할이 어떻게 돌아가는지를 코드까지 함께 풀어 봅니다. 프레임워크를 그대로 쓰지 않더라도, 여기서 배우는 <em>델타 업데이트</em> 사고방식은 여러분의 에이전트 메모리 설계에 바로 써먹을 수 있습니다.</p>
+
+<h2 id="sec-2">2. 배경: 모델을 바꾸는 두 가지 길</h2>
+
+<p>에이전트를 "더 잘하게" 만드는 방법은 크게 두 갈래입니다. 이 구분을 잡고 가면 ACE의 위치가 선명해집니다.</p>
+
+<ul>
+  <li><strong>가중치를 바꾸는 길 (파인튜닝·RL)</strong> — 모델 내부 파라미터를 다시 학습시킵니다. 강력하지만 GPU·데이터·시간이 많이 들고, 한 번 구우면 되돌리기 어렵습니다. 무엇을 왜 배웠는지 들여다보기도 힘들죠.</li>
+  <li><strong>컨텍스트를 바꾸는 길 (context adaptation)</strong> — 모델은 그대로 두고, <em>입력으로 넣어 주는 컨텍스트</em>만 다듬습니다. 시스템 프롬프트, 규칙 모음, 참고 예시, 에이전트 메모리 같은 것들이죠. 사람이 읽을 수 있고, 즉시 고칠 수 있고, 비용도 훨씬 쌉니다.</li>
+</ul>
+
+<p>ACE는 두 번째 길을 극단까지 밀어붙입니다. LLM은 <strong>맥락 안에서 배우는(in-context learning)</strong> 능력이 뛰어납니다. 프롬프트에 좋은 예시와 규칙을 넣어 주면, 가중치를 안 바꿔도 그 자리에서 더 잘합니다. 그렇다면 "무엇을 넣어 줄지"를 <strong>에이전트 스스로 계속 개선</strong>하게 만들면 어떨까요? 이게 self-improving context, 곧 <strong>스스로 개선하는 컨텍스트</strong>의 발상입니다.</p>
+
+<p>비유하자면 이렇습니다. 신입에게 매번 똑같이 구두로 설명하는 대신, 팀이 공유하는 <strong>업무 노트(플레이북)</strong>를 하나 만들어 둡니다. 누군가 새 함정을 발견하면 노트에 한 줄 추가하고, 잘 먹힌 요령엔 별표를 칩니다. 시간이 지날수록 노트는 두꺼워지고, 그 노트만 읽으면 누구든 지난 실수를 반복하지 않죠. ACE는 이 "업무 노트"를 <strong>에이전트가 자기 손으로 쓰고 관리</strong>하게 만든 것입니다.</p>
+
+<div class="ace-note"><strong>한 줄 정리:</strong> ACE는 "모델을 다시 훈련"하는 대신 "컨텍스트를 계속 진화"시킵니다. 값싸고, 사람이 읽을 수 있고, 언제든 되돌릴 수 있습니다.</div>
+
+<h2 id="sec-3">3. 함정: 요약이 지식을 갉아먹는다</h2>
+
+<p>"컨텍스트를 계속 키운다"는 말에 곧바로 반문이 나옵니다. "그럼 컨텍스트가 무한정 길어지지 않나요? 당연히 주기적으로 요약해서 압축해야죠." 맞는 걱정입니다. 그런데 바로 그 <strong>요약</strong>이 ACE가 지목한 두 가지 함정의 원인입니다.</p>
+
+<h3>함정 ① brevity bias (간결함 편향)</h3>
+<p>사람이든 LLM이든 컨텍스트를 다듬으라고 하면 <strong>짧고 일반적인 문장</strong>으로 정리하려는 경향이 있습니다. "예외 상황에선 재시도 간격을 2초→4초→8초로 늘리고, 단 429 응답의 Retry-After 헤더가 있으면 그 값을 우선한다" 같은 <em>구체적 노하우</em>가, 요약을 거치면 "적절히 재시도하라" 정도로 뭉개집니다. 짧아서 깔끔해 보이지만, 정작 <strong>일을 되게 만들던 디테일이 사라집니다.</strong> 이걸 <strong>brevity bias(간결함 편향)</strong>라고 부릅니다.</p>
+
+<h3>함정 ② context collapse (컨텍스트 붕괴)</h3>
+<p>더 무서운 건 두 번째입니다. 컨텍스트 전체를 매번 <strong>통째로 다시 쓰는(monolithic rewrite)</strong> 방식이 문제입니다. 애써 수천 토큰까지 쌓아 올린 플레이북을, 모델에게 "정리해서 다시 써 줘"라고 시키는 순간 — 한 번의 재작성으로 <strong>몇 줄로 쪼그라드는</strong> 사고가 납니다. ACE 팀은 이걸 <strong>context collapse(컨텍스트 붕괴)</strong>라고 이름 붙였습니다.</p>
+
+<p>왜 이런 일이 생길까요? 전언 게임(telephone game)을 떠올리면 됩니다. 한 사람이 옆 사람에게 말을 전하고, 그게 또 다음 사람에게 전해지면서 조금씩 뭉개지죠. 컨텍스트를 <em>반복해서 다시 쓰면</em> 매번 아주 조금씩 정보가 새고, 그 손실이 누적됩니다. 게다가 재작성은 확률적이라, 어느 순간 모델이 "요약본"이라며 핵심을 통째로 날려 버릴 수 있습니다.</p>
+
+<figure class="ace-fig">
+<svg viewBox="0 0 760 320" role="img" aria-label="두 방식 비교. 왼쪽은 통째로 다시 쓰기(monolithic rewrite)로, 두껍게 쌓인 지식이 한 번의 재작성 뒤 몇 줄로 쪼그라드는 context collapse. 오른쪽은 델타 추가로, 기존 지식은 그대로 두고 새 항목만 아래에 덧붙여 점점 커지는 플레이북.">
+  <!-- 왼쪽: rewrite → collapse -->
+  <text x="190" y="30" text-anchor="middle" font-size="14.5" font-weight="800" fill="var(--c-rose)">통째로 다시 쓰기 → 붕괴</text>
+  <rect x="70" y="46" width="240" height="90" rx="8" fill="var(--c-slate)" opacity="0.16" stroke="var(--c-slate)" stroke-width="1.6"/>
+  <g fill="var(--c-slate)">
+    <rect x="86" y="58" width="208" height="7" rx="3"/>
+    <rect x="86" y="72" width="208" height="7" rx="3"/>
+    <rect x="86" y="86" width="176" height="7" rx="3"/>
+    <rect x="86" y="100" width="200" height="7" rx="3"/>
+    <rect x="86" y="114" width="150" height="7" rx="3"/>
+  </g>
+  <text x="190" y="162" text-anchor="middle" font-size="12.5" fill="var(--c-rose)">↓ "정리해서 다시 써 줘"</text>
+  <rect x="70" y="176" width="240" height="52" rx="8" fill="var(--c-rose)" opacity="0.12" stroke="var(--c-rose)" stroke-width="1.6"/>
+  <g fill="var(--c-rose)" opacity="0.85">
+    <rect x="86" y="192" width="120" height="7" rx="3"/>
+    <rect x="86" y="206" width="70" height="7" rx="3"/>
+  </g>
+  <text x="190" y="252" text-anchor="middle" font-size="12" fill="var(--c-slate)">디테일이 통째로 증발</text>
+
+  <!-- 오른쪽: delta append → grow -->
+  <text x="570" y="30" text-anchor="middle" font-size="14.5" font-weight="800" fill="var(--c-green)">델타로 덧붙이기 → 성장</text>
+  <rect x="450" y="46" width="240" height="90" rx="8" fill="var(--c-teal)" opacity="0.12" stroke="var(--c-teal)" stroke-width="1.6"/>
+  <g fill="var(--c-teal)">
+    <rect x="466" y="58" width="208" height="7" rx="3"/>
+    <rect x="466" y="72" width="208" height="7" rx="3"/>
+    <rect x="466" y="86" width="176" height="7" rx="3"/>
+    <rect x="466" y="100" width="200" height="7" rx="3"/>
+    <rect x="466" y="114" width="150" height="7" rx="3"/>
+  </g>
+  <text x="570" y="162" text-anchor="middle" font-size="12.5" fill="var(--c-green)">＋ 새 항목만 추가 (기존은 보존)</text>
+  <rect x="450" y="176" width="240" height="90" rx="8" fill="var(--c-green)" opacity="0.12" stroke="var(--c-green)" stroke-width="1.6"/>
+  <g fill="var(--c-teal)">
+    <rect x="466" y="58" width="208" height="7" rx="3"/>
+  </g>
+  <g fill="var(--c-green)">
+    <rect x="466" y="190" width="208" height="7" rx="3"/>
+    <rect x="466" y="204" width="188" height="7" rx="3"/>
+    <rect x="466" y="218" width="204" height="7" rx="3"/>
+    <rect x="466" y="232" width="160" height="7" rx="3"/>
+    <rect x="466" y="246" width="196" height="7" rx="3"/>
+  </g>
+  <text x="570" y="286" text-anchor="middle" font-size="12" fill="var(--c-slate)">디테일 유지하며 축적</text>
+</svg>
+<figcaption>컨텍스트를 통째로 다시 쓰면 한순간에 붕괴한다(왼쪽). ACE는 기존 항목을 건드리지 않고 작은 델타만 덧붙여, 디테일을 지키며 플레이북을 키운다(오른쪽).</figcaption>
+</figure>
+
+<p>ACE의 해법은 단순하면서 강력합니다. <strong>컨텍스트를 다시 쓰지 말고, 조금씩 덧붙여라.</strong> 기존 지식은 그대로 두고, 새로 배운 것만 <strong>델타(delta) 항목</strong>으로 추가합니다. 통째로 재작성하는 스텝이 없으니, 전언 게임 식 손실도 붕괴도 원천적으로 안 생깁니다.</p>
+
+<h2 id="sec-4">4. ACE의 핵심: 세 역할 + 델타 업데이트</h2>
+
+<p>ACE는 컨텍스트를 개선하는 일을 <strong>세 개의 역할</strong>로 나눕니다. 한 모델이 세 역할을 번갈아 맡아도 되고, 서로 다른 모델을 써도 됩니다. 중요한 건 "일을 하는 두뇌"와 "복기하는 두뇌"와 "노트를 정리하는 손"을 <strong>분리</strong>했다는 점입니다.</p>
+
+<ul>
+  <li><strong>Generator(생성자)</strong> — 현재 플레이북을 참고해 실제 과제를 풉니다. 그 과정에서 어떤 추론을 했고 어떤 툴을 호출했는지, 즉 <em>실행 궤적(trajectory)</em>이 그대로 남습니다. 이게 다음 단계의 재료입니다.</li>
+  <li><strong>Reflector(성찰자)</strong> — 그 궤적을 되짚어 <strong>구체적 교훈</strong>을 뽑습니다. "이 과제가 왜 성공/실패했나? 어떤 규칙이 도움이 됐고, 무엇을 몰라서 틀렸나?" 정답 라벨이 있으면 쓰고, 없으면 <em>실행 피드백</em>(에러 메시지, 테스트 통과 여부 등)만으로도 배웁니다.</li>
+  <li><strong>Curator(큐레이터)</strong> — Reflector가 뽑은 교훈을 <strong>작은 델타 항목</strong>으로 바꿔 플레이북에 병합합니다. "이 규칙 추가", "저 규칙의 성공 카운터 +1", "이건 이제 안 통하니 폐기 표시"처럼요. 병합은 <strong>결정론적(deterministic)</strong>으로 이뤄져, 여러 델타를 <em>동시에</em> 안전하게 적용할 수 있습니다.</li>
+</ul>
+
+<figure class="ace-fig">
+<svg viewBox="0 0 760 350" role="img" aria-label="ACE의 순환 루프. 플레이북을 보고 Generator가 과제를 풀어 실행 궤적을 만들고, Reflector가 궤적에서 교훈을 뽑고, Curator가 교훈을 작은 델타로 바꿔 플레이북에 병합한다. 갱신된 플레이북이 다시 Generator로 돌아가며 순환한다.">
+  <defs>
+    <marker id="acear" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--c-slate)"/>
+    </marker>
+  </defs>
+  <!-- Playbook (가운데 위) -->
+  <rect x="300" y="24" width="160" height="66" rx="12" fill="var(--c-green)" opacity="0.14" stroke="var(--c-green)" stroke-width="2.5"/>
+  <text x="380" y="52" text-anchor="middle" font-size="14" font-weight="800" fill="var(--c-green)">플레이북</text>
+  <text x="380" y="72" text-anchor="middle" font-size="11.5" fill="var(--c-slate)">(진화하는 컨텍스트)</text>
+
+  <!-- Generator (왼쪽 아래) -->
+  <rect x="70" y="180" width="170" height="86" rx="12" fill="none" stroke="var(--c-blue)" stroke-width="2.5"/>
+  <text x="155" y="212" text-anchor="middle" font-size="14" font-weight="800" fill="var(--c-blue)">① Generator</text>
+  <text x="155" y="233" text-anchor="middle" font-size="11.5" fill="var(--c-slate)">과제를 푼다</text>
+  <text x="155" y="250" text-anchor="middle" font-size="11.5" fill="var(--c-slate)">→ 실행 궤적</text>
+
+  <!-- Reflector (가운데 아래) -->
+  <rect x="295" y="180" width="170" height="86" rx="12" fill="none" stroke="var(--c-amber)" stroke-width="2.5"/>
+  <text x="380" y="212" text-anchor="middle" font-size="14" font-weight="800" fill="var(--c-amber)">② Reflector</text>
+  <text x="380" y="233" text-anchor="middle" font-size="11.5" fill="var(--c-slate)">궤적을 복기해</text>
+  <text x="380" y="250" text-anchor="middle" font-size="11.5" fill="var(--c-slate)">교훈을 뽑는다</text>
+
+  <!-- Curator (오른쪽 아래) -->
+  <rect x="520" y="180" width="170" height="86" rx="12" fill="none" stroke="var(--c-violet)" stroke-width="2.5"/>
+  <text x="605" y="212" text-anchor="middle" font-size="14" font-weight="800" fill="var(--c-violet)">③ Curator</text>
+  <text x="605" y="233" text-anchor="middle" font-size="11.5" fill="var(--c-slate)">델타로 바꿔</text>
+  <text x="605" y="250" text-anchor="middle" font-size="11.5" fill="var(--c-slate)">병합한다</text>
+
+  <!-- arrows -->
+  <!-- Playbook -> Generator -->
+  <path d="M300,74 C200,96 155,130 155,178" fill="none" stroke="var(--c-slate)" stroke-width="2.2" marker-end="url(#acear)"/>
+  <text x="188" y="132" text-anchor="middle" font-size="11" fill="var(--c-slate)">참고</text>
+  <!-- Generator -> Reflector -->
+  <line x1="240" y1="223" x2="293" y2="223" stroke="var(--c-slate)" stroke-width="2.2" marker-end="url(#acear)"/>
+  <!-- Reflector -> Curator -->
+  <line x1="465" y1="223" x2="518" y2="223" stroke="var(--c-slate)" stroke-width="2.2" marker-end="url(#acear)"/>
+  <!-- Curator -> Playbook -->
+  <path d="M605,178 C605,130 560,96 460,74" fill="none" stroke="var(--c-slate)" stroke-width="2.2" marker-end="url(#acear)"/>
+  <text x="575" y="132" text-anchor="middle" font-size="11" fill="var(--c-green)">＋ 델타 병합</text>
+
+  <text x="380" y="312" text-anchor="middle" font-size="12.5" fill="var(--c-slate)">이 루프가 돌 때마다 플레이북은 <tspan font-weight="700" fill="var(--c-green)">디테일을 잃지 않고</tspan> 조금씩 똑똑해진다</text>
+</svg>
+<figcaption>ACE의 순환 구조. 일(Generator)·복기(Reflector)·정리(Curator)를 나눠, 매 라운드 작은 델타만 더한다. "생성 → 성찰 → 큐레이션"이 계속 돌며 컨텍스트가 스스로 자란다.</figcaption>
+</figure>
+
+<h3>델타 항목은 어떻게 생겼나</h3>
+<p>플레이북은 자유 형식 글이 아니라, <strong>구조화된 항목(bullet)의 목록</strong>입니다. 각 항목엔 고유 ID와 메타데이터가 붙습니다. 그래서 "덮어쓰기" 없이도 개별 항목을 정확히 가리켜 추가·수정·폐기할 수 있죠. 대략 이런 모습입니다.</p>
+
+{{< highlight json >}}
+{
+  "id": "b-0007",
+  "content": "429(Too Many Requests) 응답에 Retry-After 헤더가 있으면, 지수 백오프 대신 그 값(초)을 그대로 기다린다.",
+  "tags": ["http", "rate-limit", "retry"],
+  "helpful": 12,     // 이 규칙을 따랐을 때 성공한 횟수
+  "harmful": 0,      // 이 규칙 때문에 틀린 횟수
+  "status": "active" // active | deprecated
+}
+{{< /highlight >}}
+
+<p>Curator는 이 목록에 대해 작은 연산만 합니다 — <em>새 항목 append</em>, <em>helpful/harmful 카운터 증가</em>, <em>status를 deprecated로</em>. 어느 것도 다른 항목을 다시 쓰지 않습니다. 이렇게 카운터가 쌓이면, 나중에 "잘 안 먹히는 규칙"을 데이터로 골라낼 수 있습니다.</p>
+
+<h3>grow-and-refine: 무한정 커지지 않게</h3>
+<p>"계속 추가만 하면 결국 터지지 않나?"라는 걱정은 <strong>grow-and-refine(키우고 다듬기)</strong> 원칙으로 답합니다. 새 항목을 더하며 <em>키우되(grow)</em>, 주기적으로 <strong>의미가 겹치는 항목을 중복 제거(dedup)</strong>하고 <em>폐기 표시된 것을 정리</em>해 <em>다듬습니다(refine)</em>. 여기서도 핵심은 "통째로 다시 쓰지 않는다"입니다. 중복 제거는 임베딩 유사도 같은 <strong>결정론적 방법</strong>으로 처리하지, 모델에게 전체를 재작성시키지 않습니다.</p>
+
+<div class="ace-good ace-note"><strong>포인트:</strong> ACE가 기존 "메모리에 요약을 쌓는" 방식과 갈리는 지점이 바로 여기입니다. 요약은 <em>손실 압축</em>이라 반복하면 무너지고, 델타 병합은 <em>무손실 축적</em>이라 안전하게 자랍니다.</div>
+
+<h2 id="sec-5">5. 실전: 미니 ACE 루프를 코드로</h2>
+
+<p>프레임워크를 통째로 들이지 않아도, ACE의 뼈대는 몇십 줄로 흉내 낼 수 있습니다. 아래는 세 역할과 델타 병합을 최소한으로 담은 개념 코드입니다. 실제 LLM 호출부(<code>llm_json</code>)는 여러분이 쓰는 API로 바꾸면 됩니다.</p>
+
+{{< highlight python >}}
+import json, hashlib
+
+# 플레이북: 구조화된 항목의 리스트. 통째로 덮어쓰지 않는 게 규칙.
+playbook = []
+
+def render(pb):
+    """플레이북을 프롬프트에 넣을 텍스트로. active 항목만, helpful 높은 순."""
+    items = [b for b in pb if b["status"] == "active"]
+    items.sort(key=lambda b: b["helpful"] - b["harmful"], reverse=True)
+    return "\n".join(f'- ({b["id"]}) {b["content"]}' for b in items) or "(아직 비어 있음)"
+
+# ── ① Generator: 현재 플레이북을 보고 과제를 푼다 ──
+def generator(task):
+    prompt = (
+        f"다음 플레이북을 참고해 과제를 풀어라.\n[플레이북]\n{render(playbook)}\n\n"
+        f"[과제]\n{task}\n\n푼 과정(추론·행동)과 최종 답을 함께 내라."
+    )
+    return llm_json(prompt, schema={"trajectory": "str", "answer": "str"})
+
+# ── ② Reflector: 궤적 + 실행 피드백에서 '교훈'을 뽑는다(정답 라벨은 선택) ──
+def reflector(task, gen, feedback):
+    prompt = (
+        f"[과제]\n{task}\n[에이전트가 한 일]\n{gen['trajectory']}\n"
+        f"[실행 결과/피드백]\n{feedback}\n\n"
+        "무엇이 성공/실패를 갈랐는지 '재사용 가능한 규칙'으로 1~3개만 뽑아라. "
+        "추상적 훈수 말고, 다음에 그대로 따를 수 있는 구체적 규칙으로."
+    )
+    return llm_json(prompt, schema={"lessons": ["str"]})
+
+# ── ③ Curator: 교훈을 '델타'로 바꿔 결정론적으로 병합한다 ──
+def curator(lessons):
+    for text in lessons:
+        bid = "b-" + hashlib.md5(text.encode()).hexdigest()[:6]
+        hit = next((b for b in playbook if b["id"] == bid), None)
+        if hit:                       # 이미 있는 규칙이면 → 카운터만 +1 (덮어쓰기 X)
+            hit["helpful"] += 1
+        else:                         # 없으면 → 새 항목 append (기존은 그대로)
+            playbook.append({"id": bid, "content": text,
+                             "helpful": 1, "harmful": 0, "status": "active"})
+
+# ── 루프: 과제를 풀고 → 복기하고 → 델타를 더한다 ──
+def ace_step(task, run_and_check):
+    gen = generator(task)
+    feedback = run_and_check(gen["answer"])   # 예: 테스트 실행, 에러 캡처 (라벨 불필요)
+    lessons = reflector(task, gen, feedback)["lessons"]
+    curator(lessons)                          # 플레이북이 조금 자란다
+    return gen["answer"]
+{{< /highlight >}}
+
+<p>눈여겨볼 대목은 <code>curator()</code>입니다. 어디에도 "플레이북 전체를 다시 써 줘" 같은 호출이 없습니다. 오직 <em>append</em>와 <em>카운터 증가</em>뿐이죠. 이 결정론적 병합이 context collapse를 구조적으로 막습니다. 또 <code>reflector()</code>는 정답 라벨 없이 <code>feedback</code>(테스트 통과 여부, 에러 메시지)만으로도 교훈을 뽑을 수 있어, 라벨이 없는 실무 환경에서도 돌아갑니다.</p>
+
+<p>주기적인 <em>refine</em>은 이렇게 덧붙일 수 있습니다. 완전히 별개의 정리 단계라, 과제 처리와 섞이지 않습니다.</p>
+
+{{< highlight python >}}
+def refine(pb, embed, sim_threshold=0.92):
+    """의미가 겹치는 항목을 결정론적으로 중복 제거(모델 재작성 없음)."""
+    kept = []
+    for b in sorted(pb, key=lambda x: x["helpful"], reverse=True):
+        v = embed(b["content"])
+        if all(cosine(v, embed(k["content"])) < sim_threshold for k in kept):
+            kept.append(b)            # 충분히 새로운 항목만 남긴다
+        else:
+            kept[-1]["helpful"] += b["helpful"]   # 겹치면 점수만 흡수
+    return kept
+{{< /highlight >}}
+
+<div class="ace-warn ace-note"><strong>주의:</strong> Reflector 프롬프트에서 "구체적 규칙"을 강하게 요구하지 않으면, 모델이 "코드를 꼼꼼히 확인하라" 같은 <em>하나 마나 한 훈수</em>를 뱉습니다. 그러면 brevity bias를 코드로 재현하는 꼴이 됩니다. "다음에 그대로 따를 수 있는가?"를 기준으로 삼으세요.</div>
+
+<h2 id="sec-6">6. 숫자로 보는 효과</h2>
+
+<p>ACE 논문이 보고한 결과 중 검증된 수치만 추립니다. 벤치마크는 에이전트 과제(AppWorld 계열)와 도메인 과제(금융 추론) 두 축입니다.</p>
+
+<div class="ace-tblwrap">
+<table class="ace-tbl">
+  <thead><tr><th>항목</th><th>수치</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td>에이전트 벤치마크 정확도</td><td><strong>+10.6%</strong></td><td>강한 기준선 대비 향상(가중치 훈련 없이)</td></tr>
+    <tr><td>금융 추론 정확도</td><td><strong>+8.6%</strong></td><td>도메인 과제에서도 동일한 이득</td></tr>
+    <tr><td>평균 적응 지연(adaptation latency)</td><td><strong>86.9% ↓</strong></td><td>컨텍스트를 갱신하는 데 드는 시간이 크게 감소</td></tr>
+    <tr><td>vs GEPA(오프라인)</td><td>지연 <strong>82.3% ↓</strong>, 롤아웃 <strong>75.1% ↓</strong></td><td>더 적은 시도로 더 빨리 적응</td></tr>
+    <tr><td>vs Dynamic Cheatsheet(온라인)</td><td>지연 <strong>91.5% ↓</strong>, 토큰 비용 <strong>83.6% ↓</strong></td><td>온라인 메모리 방식보다 훨씬 저렴</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>숫자 자체보다 <strong>맥락</strong>이 인상적입니다. AppWorld 리더보드에서 ACE는 <strong>더 작은 오픈소스 모델</strong>을 쓰고도 상위권 <em>프로덕션급</em> 에이전트와 평균 점수를 맞췄고, 더 어려운 test-challenge 구간에서는 오히려 앞섰습니다. "덜 정리하고(요약 안 하고) 델타만 더하는" 값싼 방법이, 무겁게 튜닝한 시스템에 견줬다는 얘기입니다.</p>
+
+<p>여기서 두 비교 대상도 짚어 둘 만합니다. <strong>GEPA</strong>는 프롬프트를 자동 최적화하는 옵티마이저이고, <strong>Dynamic Cheatsheet</strong>는 온라인으로 메모리를 쌓는 방식입니다. ACE가 둘보다 <em>지연·비용에서 크게 앞선</em> 핵심 이유는 반복적 재작성을 피하고 델타를 병렬·결정론적으로 병합하기 때문입니다. "어떻게 갱신하느냐"가 "무엇을 갱신하느냐"만큼 중요하다는 걸 보여 줍니다.</p>
+
+<div class="ace-note"><strong>주의:</strong> 위 수치는 논문의 특정 세팅·벤치마크 결과입니다. 여러분 과제에 그대로 재현된다는 보장은 없으니, 늘 그렇듯 <strong>자기 데이터로 A/B</strong>를 돌려 확인하세요.</div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="ace-tblwrap">
+<table class="ace-tbl">
+  <thead><tr><th>흔한 실수</th><th>왜 문제인가</th><th>대신 이렇게</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>컨텍스트가 길어지면 "요약해서 다시 써"로 정리</td>
+      <td>brevity bias·context collapse로 디테일이 통째로 증발</td>
+      <td>재작성 대신 <strong>델타 append</strong>. 정리는 dedup으로만</td>
+    </tr>
+    <tr>
+      <td>Reflector가 추상적 훈수를 뱉게 방치</td>
+      <td>"꼼꼼히 하라" 같은 규칙은 도움이 안 되고 자리만 차지</td>
+      <td>"다음에 <strong>그대로 따를 수 있는</strong> 구체적 규칙"만 요구</td>
+    </tr>
+    <tr>
+      <td>정답 라벨이 있어야만 학습된다고 가정</td>
+      <td>실무엔 라벨이 없는 경우가 대부분</td>
+      <td>테스트 결과·에러 등 <strong>실행 피드백</strong>으로 복기</td>
+    </tr>
+    <tr>
+      <td>플레이북을 자유 형식 글로 관리</td>
+      <td>개별 항목을 가리켜 폐기·수정하기 어려움</td>
+      <td>ID·카운터가 붙은 <strong>구조화된 항목</strong> 목록으로</td>
+    </tr>
+    <tr>
+      <td>helpful/harmful 카운터를 안 씀</td>
+      <td>안 먹히는 규칙이 계속 쌓여 노이즈가 됨</td>
+      <td>harmful이 잦은 항목은 <strong>deprecated</strong>로 내림</td>
+    </tr>
+    <tr>
+      <td>refine(정리)을 매 스텝 모델로 돌림</td>
+      <td>비용·지연이 커지고 collapse 위험이 되살아남</td>
+      <td>refine은 <strong>가끔·결정론적으로</strong>(임베딩 dedup)</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>한 가지 더. ACE가 만병통치는 아닙니다. 플레이북이 커질수록 매 호출에 들어가는 입력 토큰이 늘어, 컨텍스트 로트(context rot)나 비용 문제를 다시 불러올 수 있습니다. 그래서 helpful 순 정렬로 <strong>상위 항목만 주입</strong>하거나, 과제 종류별로 플레이북을 나눠 관련된 항목만 넣는 식의 조합이 현실적입니다. "무손실로 쌓되, 넣을 땐 골라서"가 실전 감각입니다.</p>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>ACE(Agentic Context Engineering)</strong> = 모델 가중치를 안 건드리고, <strong>컨텍스트를 '스스로 자라는 플레이북'으로</strong> 계속 개선하는 방법. (arXiv:2510.04618, ICLR 2026)</li>
+  <li>함정은 <strong>요약</strong>이다. 통째로 다시 쓰면 <em>brevity bias</em>(디테일 뭉개짐)와 <em>context collapse</em>(한순간에 붕괴)가 난다.</li>
+  <li>해법은 <strong>델타 업데이트</strong>. 기존 항목은 그대로 두고 새 항목만 <em>append</em>, 카운터만 증가. 결정론적 병합이라 붕괴가 구조적으로 없다.</li>
+  <li>세 역할로 나눈다 — <strong>Generator</strong>(푼다) · <strong>Reflector</strong>(복기해 교훈을 뽑는다) · <strong>Curator</strong>(델타로 병합). <em>grow-and-refine</em>으로 키우고 dedup으로 다듬는다.</li>
+  <li><strong>정답 라벨 없이</strong> 실행 피드백만으로 학습 가능. 에이전트 <strong>+10.6%</strong>, 금융 <strong>+8.6%</strong>, 적응 지연 평균 <strong>86.9%↓</strong> — 더 작은 모델로 프로덕션급 에이전트와 대등.</li>
+  <li>프레임워크를 안 써도 좋다. <strong>"요약 말고 델타"</strong>라는 사고방식만 가져가도 에이전트 메모리 설계가 달라진다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://arxiv.org/abs/2510.04618" target="_blank" rel="noopener">Qizheng Zhang et al. — Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models (arXiv:2510.04618, ICLR 2026)</a></li>
+  <li><a href="https://huggingface.co/papers/2510.04618" target="_blank" rel="noopener">Hugging Face Papers — ACE 요약 페이지</a></li>
+  <li><a href="https://openreview.net/forum?id=eC4ygDs02R" target="_blank" rel="noopener">OpenReview — Agentic Context Engineering (리뷰·토론)</a></li>
+  <li><a href="https://github.com/ace-agent/ace" target="_blank" rel="noopener">GitHub — ace-agent/ace (오픈소스 구현)</a></li>
+  <li><a href="https://sambanova.ai/blog/ace-open-sourced-on-github" target="_blank" rel="noopener">SambaNova — Your Agents Just Got a Memory Upgrade: ACE Open-Sourced on GitHub</a></li>
+  <li><a href="https://venturebeat.com/ai/ace-prevents-context-collapse-with-evolving-playbooks-for-self-improving-ai" target="_blank" rel="noopener">VentureBeat — ACE prevents context collapse with 'evolving playbooks' for self-improving AI</a></li>
+  <li><a href="https://www.newsletter.swirlai.com/p/state-of-context-engineering-in-2026" target="_blank" rel="noopener">Aurimas Griciūnas — State of Context Engineering in 2026 (ACE를 핵심 기법으로 소개)</a></li>
+  <li><a href="https://arxiv.org/abs/2507.19457" target="_blank" rel="noopener">참고 — GEPA: Reflective Prompt Evolution (ACE의 비교 기준선)</a></li>
+</ul>

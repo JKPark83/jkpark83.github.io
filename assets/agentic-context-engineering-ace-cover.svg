@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="왼쪽은 요약으로 컨텍스트를 통째로 덮어써 몇 줄로 쪼그라든 'context collapse' 모습, 오른쪽은 델타 항목을 하나씩 덧붙여 점점 커지는 '스스로 자라는 플레이북' 모습을 나란히 비교한 표지.">
+  <defs>
+    <linearGradient id="acebg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#12182e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#acebg)"/>
+
+  <text x="80" y="92" font-family="ui-sans-serif,system-ui,sans-serif" font-size="45" font-weight="800" fill="#f1f5f9">스스로 자라는 컨텍스트, ACE</text>
+  <text x="80" y="140" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="600" fill="#94a3b8">요약으로 덮어쓰지 말고, 델타로 덧붙여라</text>
+
+  <!-- 왼쪽: context collapse -->
+  <text x="300" y="215" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="23" font-weight="700" fill="#fb7185">덮어쓰기(요약)</text>
+  <rect x="150" y="235" width="300" height="300" rx="16" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+  <!-- 위: 두꺼운 지식 -->
+  <g fill="#64748b">
+    <rect x="180" y="262" width="240" height="9" rx="4"/>
+    <rect x="180" y="280" width="240" height="9" rx="4"/>
+    <rect x="180" y="298" width="200" height="9" rx="4"/>
+    <rect x="180" y="316" width="230" height="9" rx="4"/>
+  </g>
+  <!-- 화살표 아래로 -->
+  <text x="300" y="360" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="34" fill="#fb7185">↓</text>
+  <text x="300" y="388" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" fill="#fb7185">한 번의 재작성</text>
+  <!-- 쪼그라든 결과 -->
+  <g fill="#fb7185" opacity="0.85">
+    <rect x="180" y="470" width="120" height="9" rx="4"/>
+    <rect x="180" y="488" width="80" height="9" rx="4"/>
+  </g>
+  <text x="300" y="522" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" fill="#94a3b8">몇 줄로 붕괴 (collapse)</text>
+
+  <!-- 가운데 vs -->
+  <text x="600" y="395" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="26" font-weight="800" fill="#e2e8f0">vs</text>
+
+  <!-- 오른쪽: 자라는 플레이북 -->
+  <text x="900" y="215" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="23" font-weight="700" fill="#4ade80">델타로 덧붙이기</text>
+  <rect x="750" y="235" width="300" height="300" rx="16" fill="#14261c" stroke="#166534" stroke-width="2"/>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="15" fill="#bbf7d0">
+    <text x="775" y="272">＋ 규칙 #12 추가</text>
+    <text x="775" y="304">＋ 규칙 #13 추가</text>
+    <text x="775" y="336">↻ #7 성공 카운터 +1</text>
+    <text x="775" y="368">✗ #4 실패로 표시</text>
+    <text x="775" y="400">＋ 규칙 #14 추가</text>
+    <text x="775" y="432">＋ 규칙 #15 추가</text>
+    <text x="775" y="464">↻ #12 카운터 +1</text>
+  </g>
+  <text x="900" y="522" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" fill="#94a3b8">디테일 유지하며 성장</text>
+
+  <text x="600" y="595" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" fill="#64748b">Agentic Context Engineering · Generator → Reflector → Curator</text>
+</svg>

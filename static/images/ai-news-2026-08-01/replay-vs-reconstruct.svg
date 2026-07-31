@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 430" width="100%" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="820" height="430" fill="#0f172a"/>
+  <text x="410" y="32" fill="#f8fafc" font-size="20" font-weight="700" text-anchor="middle">Replay vs Reconstruct — MemHarness 핵심 아이디어</text>
+
+  <!-- REPLAY row -->
+  <text x="30" y="78" fill="#f87171" font-size="15" font-weight="700">✗ Replay (기존): 검색한 경험을 그대로 주입</text>
+  <g>
+    <rect x="30" y="92" width="150" height="56" rx="9" fill="#1e293b" stroke="#475569"/>
+    <text x="105" y="116" fill="#e2e8f0" font-size="13" text-anchor="middle">과거 경험</text>
+    <text x="105" y="134" fill="#94a3b8" font-size="11.5" text-anchor="middle">memory store</text>
+
+    <rect x="240" y="92" width="150" height="56" rx="9" fill="#1e293b" stroke="#475569"/>
+    <text x="315" y="116" fill="#e2e8f0" font-size="13" text-anchor="middle">verbatim 주입</text>
+    <text x="315" y="134" fill="#94a3b8" font-size="11.5" text-anchor="middle">context에 복붙</text>
+
+    <rect x="450" y="92" width="150" height="56" rx="9" fill="#1e293b" stroke="#475569"/>
+    <text x="525" y="116" fill="#e2e8f0" font-size="13" text-anchor="middle">현재 상태와</text>
+    <text x="525" y="134" fill="#94a3b8" font-size="11.5" text-anchor="middle">불일치</text>
+
+    <rect x="660" y="92" width="130" height="56" rx="9" fill="#7f1d1d" stroke="#f87171"/>
+    <text x="725" y="116" fill="#fecaca" font-size="13" font-weight="700" text-anchor="middle">negative</text>
+    <text x="725" y="134" fill="#fecaca" font-size="13" font-weight="700" text-anchor="middle">transfer</text>
+  </g>
+  <g stroke="#f87171" stroke-width="2" fill="none">
+    <path d="M180 120 L238 120" marker-end="url(#ar)"/>
+    <path d="M390 120 L448 120" marker-end="url(#ar)"/>
+    <path d="M600 120 L658 120" marker-end="url(#ar)"/>
+  </g>
+
+  <line x1="30" y1="188" x2="790" y2="188" stroke="#334155" stroke-width="1"/>
+
+  <!-- RECONSTRUCT row -->
+  <text x="30" y="228" fill="#34d399" font-size="15" font-weight="700">✓ Reconstruct (MemHarness): 지금 상황에 맞게 다시 쓴다</text>
+  <g>
+    <rect x="30" y="244" width="150" height="56" rx="9" fill="#1e293b" stroke="#475569"/>
+    <text x="105" y="268" fill="#e2e8f0" font-size="13" text-anchor="middle">과거 경험</text>
+    <text x="105" y="286" fill="#94a3b8" font-size="11.5" text-anchor="middle">memory store</text>
+
+    <rect x="240" y="240" width="170" height="64" rx="9" fill="#064e3b" stroke="#34d399"/>
+    <text x="325" y="264" fill="#d1fae5" font-size="13" font-weight="700" text-anchor="middle">policy가 비평 + 재구성</text>
+    <text x="325" y="282" fill="#a7f3d0" font-size="11.5" text-anchor="middle">현재 state 조건부</text>
+    <text x="325" y="298" fill="#a7f3d0" font-size="11.5" text-anchor="middle">(GRPO로 학습)</text>
+
+    <rect x="470" y="244" width="150" height="56" rx="9" fill="#1e293b" stroke="#475569"/>
+    <text x="545" y="268" fill="#e2e8f0" font-size="13" text-anchor="middle">맥락 기반 지침</text>
+    <text x="545" y="286" fill="#94a3b8" font-size="11.5" text-anchor="middle">grounded guidance</text>
+
+    <rect x="680" y="244" width="110" height="56" rx="9" fill="#065f46" stroke="#34d399"/>
+    <text x="735" y="268" fill="#d1fae5" font-size="13" font-weight="700" text-anchor="middle">행동</text>
+    <text x="735" y="286" fill="#a7f3d0" font-size="11.5" text-anchor="middle">OOD robust</text>
+  </g>
+  <g stroke="#34d399" stroke-width="2" fill="none">
+    <path d="M180 272 L238 272" marker-end="url(#ag)"/>
+    <path d="M410 272 L468 272" marker-end="url(#ag)"/>
+    <path d="M620 272 L678 272" marker-end="url(#ag)"/>
+  </g>
+
+  <rect x="30" y="336" width="760" height="72" rx="10" fill="#1e293b" stroke="#334155"/>
+  <text x="46" y="362" fill="#f59e0b" font-size="13.5" font-weight="700">검증된 결과 (ALFWorld · WebShop)</text>
+  <text x="46" y="385" fill="#e2e8f0" font-size="12.5">순수 RL·정적 메모리 베이스라인 대비 성능 우위, OOD에서 강건. 재구성 목표는 학습 중 잠재 지침으로도 작동해 추론 능력 자체를 끌어올림.</text>
+  <text x="46" y="403" fill="#94a3b8" font-size="11.5">출처: arXiv 2607.28272 초록 · 자체 제작 SVG</text>
+
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#f87171"/></marker>
+    <marker id="ag" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#34d399"/></marker>
+  </defs>
+</svg>

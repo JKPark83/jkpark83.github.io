@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 420" width="100%" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="820" height="420" fill="#0f172a"/>
+  <text x="410" y="34" fill="#f8fafc" font-size="20" font-weight="700" text-anchor="middle">ORCA-bench — 온콜 RCA는 아직 프런티어에게도 벽</text>
+  <text x="410" y="57" fill="#94a3b8" font-size="12.5" text-anchor="middle">프런티어 에이전트 5종 · 실제 OpenTelemetry(Prometheus·Jaeger·OpenSearch) 위 1,079 태스크</text>
+
+  <!-- axis -->
+  <line x1="90" y1="90" x2="90" y2="300" stroke="#475569" stroke-width="1.5"/>
+  <line x1="90" y1="300" x2="770" y2="300" stroke="#475569" stroke-width="1.5"/>
+  <g fill="#64748b" font-size="11" text-anchor="end">
+    <text x="82" y="304">0%</text>
+    <text x="82" y="248">25%</text>
+    <text x="82" y="196">50%</text>
+    <text x="82" y="144">75%</text>
+    <text x="82" y="94">100%</text>
+  </g>
+  <!-- gridlines -->
+  <g stroke="#1e293b" stroke-width="1">
+    <line x1="90" y1="248" x2="770" y2="248"/>
+    <line x1="90" y1="196" x2="770" y2="196"/>
+    <line x1="90" y1="144" x2="770" y2="144"/>
+  </g>
+
+  <!-- bars: 100% = 210px height range (y from 300 up to 90) => 2.1px per % -->
+  <!-- Medium best 25.3 -> 53.1px -->
+  <rect x="160" y="246.9" width="130" height="53.1" rx="4" fill="#34d399"/>
+  <text x="225" y="238" fill="#e2e8f0" font-size="14" font-weight="700" text-anchor="middle">25.3%</text>
+  <text x="225" y="320" fill="#cbd5e1" font-size="12" text-anchor="middle">Medium 최고</text>
+  <text x="225" y="337" fill="#64748b" font-size="10.5" text-anchor="middle">(현실적 입력)</text>
+
+  <!-- Hard best 10.0 -> 21px -->
+  <rect x="360" y="279" width="130" height="21" rx="4" fill="#fbbf24"/>
+  <text x="425" y="270" fill="#e2e8f0" font-size="14" font-weight="700" text-anchor="middle">10.0%</text>
+  <text x="425" y="320" fill="#cbd5e1" font-size="12" text-anchor="middle">Hard 최고</text>
+  <text x="425" y="337" fill="#64748b" font-size="10.5" text-anchor="middle">(Fable 5도 못 넘음)</text>
+
+  <!-- Hallucination 40 -> 84px -->
+  <rect x="560" y="216" width="130" height="84" rx="4" fill="#f87171"/>
+  <text x="625" y="207" fill="#e2e8f0" font-size="14" font-weight="700" text-anchor="middle">40%</text>
+  <text x="625" y="320" fill="#cbd5e1" font-size="12" text-anchor="middle">최약체 환각률</text>
+  <text x="625" y="337" fill="#64748b" font-size="10.5" text-anchor="middle">근거 없는 원인 지목</text>
+
+  <!-- takeaway -->
+  <rect x="40" y="355" width="744" height="50" rx="10" fill="#0b2545" stroke="#38bdf8" stroke-width="1.2"/>
+  <text x="60" y="378" fill="#7dd3fc" font-size="12.5" font-weight="700">🛠 시사점</text>
+  <text x="120" y="378" fill="#e2e8f0" font-size="12.5">소스코드 접근을 빼면 모든 지표가 하락 — 온콜 에이전트엔 로그·트레이스 + 코드 접근이 필수.</text>
+  <text x="120" y="396" fill="#e2e8f0" font-size="12.5">아직 사람 대체 불가. "가설 제시 + 근거 링크" 보조 역할로 스코프를 좁혀라.</text>
+</svg>

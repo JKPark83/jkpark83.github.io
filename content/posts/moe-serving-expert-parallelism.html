@@ -1,0 +1,393 @@
+---
+title: "671B 모델이 GPU 한 장에 안 들어갈 때: Expert Parallelism으로 거대 MoE 서빙하기"
+date: 2026-08-02T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 엔지니어링", "MoE", "Mixture of Experts", "전문가 혼합", "Expert Parallelism", "expert parallelism", "EP", "DeepEP", "EPLB", "load balancing", "부하 분산", "DeepSeek", "Kimi K2", "vLLM", "SGLang", "inference", "추론", "serving", "서빙", "all-to-all", "PD 분리", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "2026년 프런티어 오픈 모델은 대부분 MoE(Mixture of Experts)입니다. DeepSeek-V3는 총 671B 파라미터인데 토큰 하나당 37B만 켜지죠. 문제는 서빙입니다. 켜지는 건 일부라도 전문가(expert) 전체를 어딘가에는 올려 둬야 하는데, 이게 GPU 한 장에 안 들어갑니다. 그래서 전문가를 여러 GPU에 쪼개 얹는 Expert Parallelism(EP)이 등장하고, 토큰을 자기 전문가가 있는 GPU로 보냈다가 다시 모으는 all-to-all 통신(DeepEP), 특정 전문가에 부하가 몰리는 hot expert 문제와 EPLB, 그리고 prefill/decode 분리까지 한 세트로 엮입니다. 이 글은 왜 MoE 서빙이 dense 모델과 다른지부터 DeepEP·EPLB의 원리, vLLM·SGLang 실전 플래그, 흔한 함정까지 junior 개발자 눈높이로 풀었습니다."
+ShowToc: true
+cover:
+  image: "moe-serving-expert-parallelism-cover.svg"
+  alt: "왼쪽에는 671B짜리 거대한 MoE 모델 하나가 GPU 한 장보다 커서 담기지 않는 모습, 오른쪽에는 전문가들을 여러 GPU에 나눠 얹고 all-to-all 통신으로 토큰을 주고받는 Expert Parallelism 구조를 나란히 그린 개념도."
+  caption: "총 671B 모델은 GPU 한 장에 안 들어간다(왼쪽). 전문가를 여러 GPU에 쪼개 얹고, 토큰을 자기 전문가가 있는 GPU로 보냈다 모으는 게 Expert Parallelism이다(오른쪽). (개념도)"
+  relative: false
+---
+
+<style>
+/* ── MoE 서빙 포스트 전용 스타일 (moe- 접두사) ── */
+.moe-fig{
+  --c-sky:#0284c7; --c-amber:#d97706; --c-green:#16a34a; --c-rose:#e11d48;
+  --c-slate:#64748b; --c-violet:#7c3aed; --c-teal:#0d9488; --c-blue:#2563eb;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .moe-fig{
+  --c-sky:#38bdf8; --c-amber:#fbbf24; --c-green:#4ade80; --c-rose:#fb7185;
+  --c-slate:#94a3b8; --c-violet:#a78bfa; --c-teal:#2dd4bf; --c-blue:#60a5fa;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .moe-fig{
+    --c-sky:#38bdf8; --c-amber:#fbbf24; --c-green:#4ade80; --c-rose:#fb7185;
+    --c-slate:#94a3b8; --c-violet:#a78bfa; --c-teal:#2dd4bf; --c-blue:#60a5fa;
+  }
+}
+.moe-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.moe-fig text{font-family:inherit}
+.moe-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.moe-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.moe-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.moe-toc ol{margin:0;padding-left:1.25rem}
+.moe-toc li{margin:.22rem 0;font-size:.95rem}
+.moe-toc a{text-decoration:none}
+.moe-pull{border-left:4px solid var(--c-violet,#7c3aed);background:var(--entry);margin:1.8rem 0;padding:1rem 1.3rem;border-radius:0 10px 10px 0}
+.moe-pull p{margin:0 0 .4rem}
+.moe-pull footer{opacity:.62;font-size:.9rem}
+.moe-tbl{width:100%;border-collapse:collapse;margin:1.4rem 0;font-size:.92rem}
+.moe-tbl th,.moe-tbl td{border:1px solid var(--border);padding:.55rem .7rem;text-align:left;vertical-align:top}
+.moe-tbl th{background:var(--entry);font-weight:700}
+.moe-note{background:var(--entry);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem;margin:1.4rem 0;font-size:.94rem}
+.moe-note strong{color:var(--c-rose,#e11d48)}
+</style>
+
+<blockquote class="moe-pull">
+  <p>2026년의 오픈 프런티어 모델은 사실상 전부 MoE입니다. "이 모델 몇 B야?"라는 질문의 답이 이제 <strong>두 개</strong>가 된 이유죠 — 총 파라미터와, 토큰 하나당 실제로 켜지는 파라미터.</p>
+  <footer>— DeepSeek-V3: 총 671B, 토큰당 37B 활성. 서빙 난이도는 이 간극에서 시작됩니다.</footer>
+</blockquote>
+
+<p>요즘 오픈 모델 소식을 보면 숫자가 부쩍 커졌습니다. DeepSeek-V3는 <strong>총 671B(6,710억) 파라미터</strong>, Kimi K2는 <strong>1T(1조)</strong>급이라고 하죠. 그런데 벤치마크를 보면 이 모델들이 그렇게까지 무겁게 돌지 않습니다. 비결은 <strong>MoE(Mixture of Experts, 전문가 혼합)</strong>입니다. 파라미터는 어마어마하게 많지만, 토큰 하나를 처리할 때는 그중 <strong>극히 일부만 켜서</strong> 씁니다. DeepSeek-V3는 671B 중 토큰당 <strong>37B</strong>만 활성화합니다.</p>
+
+<p>여기까지는 좋은 소식입니다. 연산량(FLOPs)이 activation 크기에 비례하니, 37B만 켜면 671B dense 모델보다 훨씬 싸게 답을 냅니다. 문제는 <strong>서빙</strong>에서 터집니다. 켜지는 건 일부라도, 어떤 전문가가 필요할지 미리 알 수 없으니 <strong>전문가 전체를 어딘가에는 항상 올려 둬야</strong> 합니다. 671B는 GPU 한 장(H100 80GB)에 절대 안 들어가죠. 그래서 등장하는 게 이번 글의 주인공, <strong>Expert Parallelism(EP, 전문가 병렬)</strong>입니다.</p>
+
+<p>이 주제가 최근 실무의 단골 화두인 이유가 있습니다. MoE가 오픈 모델의 표준 아키텍처로 굳으면서, "이 거대한 스파스 모델을 어떻게 싸게 굴리지?"가 추론 서빙 팀의 핵심 과제가 됐거든요. <code>vLLM</code>·<code>SGLang</code>의 wide expert parallelism 문서가 잇따라 정리되고, DeepSeek가 <a href="https://github.com/deepseek-ai/DeepEP" target="_blank" rel="noopener">DeepEP</a>·<a href="https://github.com/deepseek-ai/EPLB" target="_blank" rel="noopener">EPLB</a>를 오픈소스로 풀고, LMSYS가 96장의 H100으로 DeepSeek를 재현하며 원가를 <a href="https://www.lmsys.org/blog/2025-05-05-large-scale-ep/" target="_blank" rel="noopener">출력 100만 토큰당 $0.20</a>까지 낮춘 사례가 계속 회자되는 배경입니다.</p>
+
+<p>이 글에서는 왜 MoE 서빙이 dense 모델과 다른지, EP가 무엇을 나누는지, 토큰을 전문가에게 보내는 all-to-all 통신(DeepEP), 특정 전문가에 부하가 쏠리는 hot expert 문제와 EPLB, 그리고 prefill/decode 분리까지 하나씩 풀어 보겠습니다.</p>
+
+<nav class="moe-toc">
+  <div class="moe-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">문제 — MoE는 왜 서빙이 다른가</a></li>
+    <li><a href="#sec-2">배경 — MoE 레이어 30초 복습</a></li>
+    <li><a href="#sec-3">Expert Parallelism — 전문가를 GPU에 쪼개 얹기</a></li>
+    <li><a href="#sec-4">all-to-all — 토큰을 전문가에게 배달하기 (DeepEP)</a></li>
+    <li><a href="#sec-5">hot expert 문제와 EPLB</a></li>
+    <li><a href="#sec-6">prefill과 decode는 다른 EP를 원한다</a></li>
+    <li><a href="#sec-7">실전 — vLLM · SGLang 최소 설정</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 — TL;DR</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 문제 — MoE는 왜 서빙이 다른가</h2>
+
+<p>먼저 용어를 하나로 맞추겠습니다. MoE 모델에는 숫자가 두 개 붙습니다.</p>
+
+<ul>
+  <li><strong>총 파라미터(total)</strong> — 모델 파일 전체 크기. 메모리에 올려 둬야 할 양을 결정합니다.</li>
+  <li><strong>활성 파라미터(active)</strong> — 토큰 하나를 처리할 때 실제로 곱셈에 참여하는 양. 속도(연산량)를 결정합니다.</li>
+</ul>
+
+<p>dense 모델은 이 둘이 같습니다. 70B dense면 70B가 다 켜지죠. 반면 DeepSeek-V3는 총 671B인데 토큰당 37B만 켜집니다(<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener">DeepSeek-V3 기술 보고서</a>). 활성 비율이 약 5.5%입니다. 연산은 37B짜리처럼 하면서, 지식 용량은 671B급으로 담는 거죠. "싸게 크게"를 노린 설계입니다.</p>
+
+<p>그런데 서빙 관점에서 보면 <strong>결정적인 비용은 총 파라미터가 좌우</strong>합니다. 어떤 전문가가 호출될지는 입력마다 다르고 미리 알 수 없으니, 671B 전부를 GPU 메모리(HBM)에 상주시켜야 합니다. FP8로 양자화해도 대략 <strong>파라미터 수 × 1바이트</strong> ≈ 671GB입니다. H100 한 장(80GB)에는 어림도 없고, 8장을 묶어도 KV 캐시·activation 여유까지 생각하면 빠듯합니다.</p>
+
+<p>여기서 핵심 통찰이 나옵니다. dense 모델은 "무거워서" 여러 GPU로 쪼갭니다(연산을 나누려고). MoE 모델은 <strong>"안 들어가서"</strong> 쪼갭니다(메모리에 담으려고). 그리고 MoE에는 dense에 없는 자연스러운 쪼갬 축이 하나 더 있습니다. 바로 <strong>전문가</strong>입니다. 전문가 256개를 GPU 8장에 32개씩 나눠 얹으면 되죠. 이게 Expert Parallelism의 출발점입니다.</p>
+
+<h2 id="sec-2">2. 배경 — MoE 레이어 30초 복습</h2>
+
+<p>MoE가 처음이라면 여기만 이해하면 됩니다. Transformer 블록은 크게 <strong>attention</strong>과 <strong>FFN(feed-forward network)</strong>으로 나뉩니다. dense 모델은 이 FFN이 딱 하나의 큰 신경망입니다. MoE는 이 FFN 자리를 <strong>여러 개의 작은 FFN(=전문가)</strong>과 <strong>router(라우터)</strong>로 갈아 끼웁니다.</p>
+
+<p>토큰이 들어오면 router가 점수를 매겨 <strong>가장 잘 맞는 전문가 top-k개만 골라</strong> 그 토큰을 흘려보냅니다. DeepSeek-V3는 한 MoE 레이어에 <strong>routed expert 256개 + shared expert 1개</strong>를 두고, 토큰마다 routed 중 <strong>8개</strong>를 켭니다. shared expert는 모든 토큰이 공통으로 통과하는 "공용 전문가"고, routed는 router가 골라 주는 "전문 전문가"입니다.</p>
+
+<figure class="moe-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="위쪽은 dense 모델로, 토큰 하나가 커다란 FFN 하나를 통째로 통과한다. 아래쪽은 MoE로, 토큰이 먼저 router를 거치고 router가 여러 전문가 중 일부(예: 8개 중 2개)만 골라 그 전문가들로만 흐른다. 나머지 전문가는 이 토큰에 대해 꺼져 있다.">
+  <!-- dense -->
+  <text x="30" y="52" fill="currentColor" font-size="15" font-weight="700" opacity=".85">dense FFN</text>
+  <circle cx="70" cy="95" r="12" fill="var(--c-slate)"/>
+  <text x="70" y="130" text-anchor="middle" fill="currentColor" font-size="12" opacity=".7">토큰</text>
+  <line x1="82" y1="95" x2="150" y2="95" stroke="var(--c-slate)" stroke-width="2"/>
+  <rect x="150" y="65" width="150" height="60" rx="10" fill="var(--c-slate)" opacity=".28" stroke="var(--c-slate)" stroke-width="1.6"/>
+  <text x="225" y="100" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700">큰 FFN 하나</text>
+  <line x1="300" y1="95" x2="360" y2="95" stroke="var(--c-slate)" stroke-width="2"/>
+  <circle cx="372" cy="95" r="10" fill="var(--c-slate)"/>
+  <text x="470" y="100" fill="currentColor" font-size="13" opacity=".7">→ 전부 켜짐(활성=총)</text>
+
+  <!-- divider -->
+  <line x1="30" y1="155" x2="730" y2="155" stroke="var(--c-slate)" stroke-width="1" opacity=".3" stroke-dasharray="4 4"/>
+
+  <!-- moe -->
+  <text x="30" y="190" fill="currentColor" font-size="15" font-weight="700" opacity=".85">MoE FFN</text>
+  <circle cx="70" cy="235" r="12" fill="var(--c-violet)"/>
+  <line x1="82" y1="235" x2="130" y2="235" stroke="var(--c-violet)" stroke-width="2"/>
+  <rect x="130" y="212" width="60" height="46" rx="9" fill="var(--c-violet)" opacity=".25" stroke="var(--c-violet)" stroke-width="1.6"/>
+  <text x="160" y="240" text-anchor="middle" fill="currentColor" font-size="12" font-weight="700">router</text>
+  <!-- experts -->
+  <g>
+    <rect x="250" y="175" width="70" height="30" rx="7" fill="var(--c-slate)" opacity=".18" stroke="var(--c-slate)" stroke-width="1.3"/><text x="285" y="195" text-anchor="middle" fill="currentColor" font-size="11" opacity=".55">E1 (off)</text>
+    <rect x="250" y="212" width="70" height="30" rx="7" fill="var(--c-green)" opacity=".9"/><text x="285" y="232" text-anchor="middle" fill="#06281a" font-size="11" font-weight="700">E2 ✓</text>
+    <rect x="250" y="249" width="70" height="30" rx="7" fill="var(--c-slate)" opacity=".18" stroke="var(--c-slate)" stroke-width="1.3"/><text x="285" y="269" text-anchor="middle" fill="currentColor" font-size="11" opacity=".55">E3 (off)</text>
+    <rect x="340" y="175" width="70" height="30" rx="7" fill="var(--c-sky)" opacity=".9"/><text x="375" y="195" text-anchor="middle" fill="#04202e" font-size="11" font-weight="700">E4 ✓</text>
+    <rect x="340" y="212" width="70" height="30" rx="7" fill="var(--c-slate)" opacity=".18" stroke="var(--c-slate)" stroke-width="1.3"/><text x="375" y="232" text-anchor="middle" fill="currentColor" font-size="11" opacity=".55">E5 (off)</text>
+    <rect x="340" y="249" width="70" height="30" rx="7" fill="var(--c-slate)" opacity=".18" stroke="var(--c-slate)" stroke-width="1.3"/><text x="375" y="269" text-anchor="middle" fill="currentColor" font-size="11" opacity=".55">E6 (off)</text>
+  </g>
+  <line x1="190" y1="228" x2="250" y2="227" stroke="var(--c-green)" stroke-width="2"/>
+  <line x1="190" y1="240" x2="340" y2="190" stroke="var(--c-sky)" stroke-width="2"/>
+  <text x="470" y="235" fill="currentColor" font-size="13" opacity=".7">→ top-k(예: 8개 중 2개)만 켜짐</text>
+  <text x="470" y="256" fill="currentColor" font-size="12" opacity=".55">활성 ≪ 총 파라미터</text>
+</svg>
+<figcaption>dense는 토큰이 큰 FFN 하나를 통째로 통과한다(위). MoE는 router가 토큰마다 top-k 전문가만 골라 켜고 나머지는 끈다(아래). 그래서 활성 파라미터가 총 파라미터보다 훨씬 작다.</figcaption>
+</figure>
+
+<p>이 구조가 서빙에 던지는 두 가지 사실이 있습니다. 첫째, 전문가들은 서로 <strong>독립적</strong>이라 여러 GPU에 나눠 얹기 딱 좋습니다. 둘째, 어느 토큰이 어느 전문가로 갈지는 <strong>런타임에 router가 정합니다</strong> — 이 "동적 라우팅"이 뒤에서 통신과 부하 불균형 문제를 낳습니다.</p>
+
+<h2 id="sec-3">3. Expert Parallelism — 전문가를 GPU에 쪼개 얹기</h2>
+
+<p>병렬화 방식부터 정리하겠습니다. LLM을 여러 GPU에 나누는 축은 크게 세 가지입니다.</p>
+
+<table class="moe-tbl">
+  <thead><tr><th>방식</th><th>무엇을 나누나</th><th>MoE에서의 역할</th></tr></thead>
+  <tbody>
+    <tr><td><strong>TP</strong> (Tensor Parallelism)<br>텐서 병렬</td><td>하나의 큰 행렬곱을 여러 GPU가 조각내서 계산</td><td>attention·전문가 <em>내부</em>를 더 쪼갤 때. 매 레이어 all-reduce가 필요해 통신이 잦음</td></tr>
+    <tr><td><strong>DP</strong> (Data Parallelism)<br>데이터 병렬</td><td>서로 다른 요청(배치)을 다른 GPU가 각자 처리</td><td>attention 부분을 복제해 처리량을 늘릴 때 자주 씀</td></tr>
+    <tr><td><strong>EP</strong> (Expert Parallelism)<br>전문가 병렬</td><td><em>전문가 단위</em>로 통째 나눠 각 GPU가 일부 전문가만 보유</td><td>MoE의 FFN을 담는 주력 축. GPU당 메모리를 줄이는 핵심</td></tr>
+  </tbody>
+</table>
+
+<p>EP의 아이디어는 단순합니다. 전문가 256개를 GPU 8장에 <strong>32개씩</strong> 나눠 얹습니다(이때 "EP 크기 = 8"이라고 합니다). 그러면 각 GPU는 전문가 전체가 아니라 <strong>1/8만</strong> 메모리에 이고 있으면 됩니다. GPU를 16장, 32장으로 늘릴수록 GPU당 전문가 수는 더 줄어들죠. 이렇게 EP를 크게 키우는 걸 요즘 <strong>wide expert parallelism(wide EP)</strong>이라 부릅니다.</p>
+
+<p>여기서 흔한 오해 하나. "그럼 attention도 EP로 나누면 되지 않나?" 아닙니다. attention에는 전문가가 없습니다. 그래서 실전 배치는 대개 <strong>MoE의 FFN은 EP로, attention은 DP(또는 TP)로</strong> 서로 다르게 나눕니다. 한 모델 안에서 부위별로 병렬화 축이 다른 게 MoE 서빙의 특징입니다.</p>
+
+<div class="moe-note">
+<strong>주의:</strong> EP는 "공짜로 메모리를 줄여 주는" 게 아닙니다. 전문가를 흩어 놓는 순간, 토큰을 <em>자기 전문가가 있는 GPU까지 배달했다가 다시 데려오는</em> 통신 비용이 생깁니다. 이 배달이 바로 다음 절의 all-to-all입니다. EP의 이득과 비용은 항상 세트로 옵니다.
+</div>
+
+<h2 id="sec-4">4. all-to-all — 토큰을 전문가에게 배달하기 (DeepEP)</h2>
+
+<p>전문가가 GPU마다 흩어져 있으면 문제가 생깁니다. GPU0이 지금 처리 중인 토큰의 router가 "너는 GPU3에 있는 전문가한테 가"라고 하면, 그 토큰을 <strong>GPU3으로 보내고</strong>, 계산이 끝나면 <strong>결과를 다시 GPU0으로 가져와야</strong> 합니다. 모든 GPU가 동시에 이걸 하니, 서로가 서로에게 토큰을 흩뿌리는 <strong>all-to-all 통신</strong>이 됩니다.</p>
+
+<p>MoE 서빙에서는 이 all-to-all이 레이어마다 <strong>두 번</strong> 일어납니다.</p>
+
+<ul>
+  <li><strong>dispatch(디스패치)</strong> — 각 토큰을 router가 고른 top-k 전문가가 있는 GPU들로 흩어 보냅니다.</li>
+  <li><strong>combine(컴바인)</strong> — 전문가 계산이 끝난 결과를 원래 토큰이 있던 GPU로 다시 모읍니다.</li>
+</ul>
+
+<figure class="moe-fig">
+<svg viewBox="0 0 760 340" role="img" aria-label="네 개의 GPU가 위에 놓여 있고 각 GPU는 서로 다른 전문가들을 들고 있다. 가운데 dispatch 단계에서는 각 GPU의 토큰들이 자기가 가야 할 전문가가 있는 다른 GPU들로 화살표를 따라 흩어져 이동한다. 오른쪽 combine 단계에서는 전문가 계산이 끝난 결과가 원래 토큰이 있던 GPU로 다시 모인다. 이 두 번의 all-to-all 통신이 EP의 핵심 비용이다.">
+  <!-- gpus -->
+  <g font-size="12">
+    <rect x="30" y="30" width="150" height="60" rx="10" fill="var(--c-sky)" opacity=".16" stroke="var(--c-sky)" stroke-width="1.6"/>
+    <text x="105" y="52" text-anchor="middle" fill="currentColor" font-weight="700">GPU0</text><text x="105" y="72" text-anchor="middle" fill="currentColor" opacity=".7">experts 0–7</text>
+    <rect x="200" y="30" width="150" height="60" rx="10" fill="var(--c-green)" opacity=".16" stroke="var(--c-green)" stroke-width="1.6"/>
+    <text x="275" y="52" text-anchor="middle" fill="currentColor" font-weight="700">GPU1</text><text x="275" y="72" text-anchor="middle" fill="currentColor" opacity=".7">experts 8–15</text>
+    <rect x="410" y="30" width="150" height="60" rx="10" fill="var(--c-amber)" opacity=".16" stroke="var(--c-amber)" stroke-width="1.6"/>
+    <text x="485" y="52" text-anchor="middle" fill="currentColor" font-weight="700">GPU2</text><text x="485" y="72" text-anchor="middle" fill="currentColor" opacity=".7">experts 16–23</text>
+    <rect x="580" y="30" width="150" height="60" rx="10" fill="var(--c-violet)" opacity=".16" stroke="var(--c-violet)" stroke-width="1.6"/>
+    <text x="655" y="52" text-anchor="middle" fill="currentColor" font-weight="700">GPU3</text><text x="655" y="72" text-anchor="middle" fill="currentColor" opacity=".7">experts 24–31</text>
+  </g>
+
+  <!-- dispatch label -->
+  <text x="120" y="150" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700">① dispatch</text>
+  <text x="120" y="170" text-anchor="middle" fill="currentColor" font-size="11" opacity=".65">토큰 → 자기 전문가 GPU로</text>
+  <!-- dispatch arrows (cross) -->
+  <g stroke-width="2" opacity=".8" fill="none" marker-end="url(#moe-a)">
+    <path d="M105 92 C 130 140, 240 150, 275 92" stroke="var(--c-sky)"/>
+    <path d="M275 92 C 340 150, 600 150, 655 92" stroke="var(--c-green)"/>
+    <path d="M485 92 C 400 150, 160 150, 105 92" stroke="var(--c-amber)"/>
+    <path d="M655 92 C 560 150, 540 150, 485 92" stroke="var(--c-violet)"/>
+  </g>
+
+  <!-- middle bus -->
+  <rect x="30" y="190" width="700" height="34" rx="9" fill="var(--c-slate)" opacity=".14" stroke="var(--c-slate)" stroke-width="1.4"/>
+  <text x="380" y="212" text-anchor="middle" fill="currentColor" font-size="13" font-weight="700">all-to-all 네트워크 — 노드 안은 NVLink, 노드 간은 RDMA (DeepEP)</text>
+
+  <!-- combine label -->
+  <text x="630" y="270" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700">② combine</text>
+  <text x="630" y="290" text-anchor="middle" fill="currentColor" font-size="11" opacity=".65">결과 → 원래 GPU로 되모음</text>
+  <g stroke-width="2" opacity=".8" fill="none" marker-end="url(#moe-a)" stroke-dasharray="5 4">
+    <path d="M275 224 C 240 270, 130 275, 105 232" stroke="var(--c-sky)"/>
+    <path d="M655 224 C 600 275, 340 275, 275 232" stroke="var(--c-green)"/>
+    <path d="M105 224 C 160 275, 400 275, 485 232" stroke="var(--c-amber)"/>
+    <path d="M485 224 C 540 275, 560 275, 655 232" stroke="var(--c-violet)"/>
+  </g>
+
+  <defs>
+    <marker id="moe-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+  </defs>
+</svg>
+<figcaption>EP에서는 레이어마다 두 번의 all-to-all이 돈다. dispatch는 토큰을 전문가가 있는 GPU로 흩고(①), combine은 결과를 원래 자리로 되모은다(②). 이 통신이 MoE 서빙 성능의 승부처다.</figcaption>
+</figure>
+
+<p>이 all-to-all이 느리면 아무리 GPU가 놀아도 전체가 통신에 발목 잡힙니다. 그래서 DeepSeek는 이 배달만 전담하는 통신 라이브러리 <a href="https://github.com/deepseek-ai/DeepEP" target="_blank" rel="noopener">DeepEP</a>(별 약 9.9k)를 오픈소스로 공개했습니다. 같은 노드 안에서는 <strong>NVLink</strong>로, 노드를 건너뛸 때는 <strong>RDMA</strong>로 토큰을 실어 나르죠. 핵심은 DeepEP가 상황에 맞춰 <strong>두 가지 모드</strong>를 제공한다는 점입니다.</p>
+
+<table class="moe-tbl">
+  <thead><tr><th>DeepEP 모드</th><th>최적화 대상</th><th>어울리는 단계</th></tr></thead>
+  <tbody>
+    <tr><td><strong>normal</strong> (high-throughput)</td><td>긴 입력을 한 번에 밀어 넣는 대량 처리량</td><td><strong>prefill</strong> — 프롬프트를 통째로 읽는 단계</td></tr>
+    <tr><td><strong>low-latency</strong></td><td>토큰 한 개씩 뽑는 지연 최소화 (CUDA Graph 친화)</td><td><strong>decode</strong> — 토큰을 하나씩 생성하는 단계</td></tr>
+  </tbody>
+</table>
+
+<p>왜 모드가 둘로 갈리는지는 6절에서 prefill/decode와 함께 이어서 설명하겠습니다. 먼저 EP를 켜면 바로 부딪히는, 더 골치 아픈 문제를 봐야 합니다.</p>
+
+<h2 id="sec-5">5. hot expert 문제와 EPLB</h2>
+
+<p>이론상 EP는 아름답습니다. 전문가를 GPU에 고르게 나눴으니 부하도 고르겠지 — 라고 생각하면 실전에서 크게 데입니다. router는 "고르게" 분배하도록 강제되지 않습니다. 어떤 전문가는 인기가 많아 토큰이 몰리고(<strong>hot expert</strong>), 어떤 전문가는 거의 놀죠. 그러면 hot expert가 얹힌 GPU만 과부하가 걸리고, 나머지 GPU는 그 GPU가 끝나기를 기다립니다.</p>
+
+<p>여기서 EP 특유의 함정이 나옵니다. all-to-all은 <strong>모든 GPU가 서로를 기다리는 동기 지점</strong>입니다. 한 GPU라도 늦으면 전체가 그만큼 늦어집니다. 즉 <strong>가장 바쁜 GPU 하나가 전체 속도를 결정</strong>합니다(straggler, 낙오자 문제). 전문가를 아무리 잘게 쪼개도, 부하가 한쪽으로 쏠리면 EP의 이득이 통째로 날아갑니다.</p>
+
+<figure class="moe-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="왼쪽은 부하 불균형 상태로, GPU0에 얹힌 인기 전문가에 토큰 막대가 잔뜩 쌓여 GPU0만 아주 바쁘고 나머지 GPU들은 한가하다. 전체 속도는 가장 바쁜 GPU0에 맞춰진다. 오른쪽은 EPLB를 적용한 상태로, 인기 전문가를 복제해 여러 GPU에 나눠 얹었더니 토큰 부하가 GPU들에 고르게 퍼져 모든 GPU의 막대 높이가 비슷해졌다.">
+  <!-- left: imbalance -->
+  <text x="185" y="34" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700">EPLB 없음 — hot expert 쏠림</text>
+  <g>
+    <!-- bars -->
+    <rect x="70" y="70" width="46" height="150" rx="5" fill="var(--c-rose)"/><text x="93" y="240" text-anchor="middle" fill="currentColor" font-size="11">GPU0</text><text x="93" y="62" text-anchor="middle" fill="currentColor" font-size="10" opacity=".7">과부하</text>
+    <rect x="140" y="185" width="46" height="35" rx="5" fill="var(--c-slate)" opacity=".6"/><text x="163" y="240" text-anchor="middle" fill="currentColor" font-size="11">GPU1</text>
+    <rect x="210" y="170" width="46" height="50" rx="5" fill="var(--c-slate)" opacity=".6"/><text x="233" y="240" text-anchor="middle" fill="currentColor" font-size="11">GPU2</text>
+    <rect x="280" y="195" width="46" height="25" rx="5" fill="var(--c-slate)" opacity=".6"/><text x="303" y="240" text-anchor="middle" fill="currentColor" font-size="11">GPU3</text>
+    <line x1="60" y1="70" x2="340" y2="70" stroke="var(--c-rose)" stroke-width="1.3" stroke-dasharray="4 4"/>
+    <text x="200" y="270" text-anchor="middle" fill="currentColor" font-size="11" opacity=".7">전체 속도 = 가장 바쁜 GPU0에 묶임</text>
+  </g>
+
+  <!-- arrow -->
+  <text x="390" y="150" text-anchor="middle" fill="currentColor" font-size="22">→</text>
+  <text x="390" y="172" text-anchor="middle" fill="currentColor" font-size="10" opacity=".7">EPLB</text>
+
+  <!-- right: balanced -->
+  <text x="575" y="34" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700">EPLB 적용 — 인기 전문가 복제</text>
+  <g>
+    <rect x="440" y="150" width="46" height="70" rx="5" fill="var(--c-green)"/><text x="463" y="240" text-anchor="middle" fill="currentColor" font-size="11">GPU0</text>
+    <rect x="510" y="145" width="46" height="75" rx="5" fill="var(--c-green)"/><text x="533" y="240" text-anchor="middle" fill="currentColor" font-size="11">GPU1</text>
+    <rect x="580" y="152" width="46" height="68" rx="5" fill="var(--c-green)"/><text x="603" y="240" text-anchor="middle" fill="currentColor" font-size="11">GPU2</text>
+    <rect x="650" y="148" width="46" height="72" rx="5" fill="var(--c-green)"/><text x="673" y="240" text-anchor="middle" fill="currentColor" font-size="11">GPU3</text>
+    <line x1="430" y1="145" x2="710" y2="145" stroke="var(--c-green)" stroke-width="1.3" stroke-dasharray="4 4"/>
+    <text x="568" y="270" text-anchor="middle" fill="currentColor" font-size="11" opacity=".7">부하가 고르게 → 낙오자 없음</text>
+  </g>
+</svg>
+<figcaption>router는 부하를 고르게 나눠 주지 않는다. 인기 전문가에 토큰이 몰리면 그 GPU만 과부하가 걸리고 all-to-all은 가장 느린 GPU에 묶인다(왼쪽). EPLB는 인기 전문가를 복제·재배치해 부하를 고르게 편다(오른쪽).</figcaption>
+</figure>
+
+<p>이 문제를 겨냥한 게 DeepSeek의 <a href="https://github.com/deepseek-ai/EPLB" target="_blank" rel="noopener">EPLB(Expert Parallelism Load Balancer)</a>입니다. 발상은 캐시 서버를 늘리는 것과 똑같습니다. 트래픽이 몰리는 페이지를 서버 여러 대에 복제해 부하를 나누듯, EPLB는 <strong>인기 전문가를 복제(redundant expert)해 여러 GPU에 나눠 얹습니다</strong>.</p>
+
+<p>구체적으로는 이렇게 돌아갑니다.</p>
+
+<ol>
+  <li>실제 트래픽에서 <strong>전문가별 호출 통계</strong>를 모읍니다("어느 전문가에 토큰이 몰리나").</li>
+  <li>기존 256개 전문가에 <strong>여분(redundant) 전문가 슬롯</strong>을 얹습니다. 예를 들어 32개를 더해 288개 슬롯을 만듭니다.</li>
+  <li>이 여분 슬롯에 <strong>hot expert의 복제본</strong>을 배치하고, 각 GPU의 부하가 최대한 고르도록 전문가들을 재배치합니다.</li>
+  <li>트래픽 패턴이 바뀌면 주기적으로 다시 배치합니다.</li>
+</ol>
+
+<p>정리하면, EP가 메모리를 줄여 주는 대가로 부하 불균형이라는 새 문제를 안기고, EPLB가 "복제 + 재배치"로 그걸 되받아치는 구조입니다. 실제로 LMSYS의 대규모 재현에서도 DeepEP·DeepGEMM과 함께 EPLB·redundant expert가 성능의 필수 요소로 언급됩니다.</p>
+
+<h2 id="sec-6">6. prefill과 decode는 다른 EP를 원한다</h2>
+
+<p>이제 4절에서 미룬 "모드가 왜 둘이냐"를 마무리하겠습니다. LLM 추론은 성격이 완전히 다른 두 단계로 나뉩니다.</p>
+
+<ul>
+  <li><strong>prefill</strong> — 프롬프트 전체를 한 번에 읽어 KV 캐시를 만드는 단계. 토큰이 <em>수천 개씩 한꺼번에</em> 몰려 연산 집약적이고, all-to-all에 실리는 토큰도 많습니다. → 처리량 위주인 <strong>normal 모드</strong>가 맞습니다.</li>
+  <li><strong>decode</strong> — 토큰을 <em>한 개씩</em> 생성하는 단계. all-to-all에 실리는 토큰이 적고, 응답 지연이 곧 사용자 체감입니다. → 지연 최소화인 <strong>low-latency 모드</strong>가 맞습니다.</li>
+</ul>
+
+<p>문제는 이 둘을 <strong>한 GPU에 섞어 두면 서로 방해</strong>한다는 점입니다. 긴 prefill이 도는 동안 decode 토큰들이 뒤에서 기다리며 응답이 뚝뚝 끊기죠. 그래서 대규모 MoE 서빙은 대개 <strong>PD 분리(prefill-decode disaggregation)</strong>를 함께 씁니다. prefill 전용 GPU 풀과 decode 전용 GPU 풀을 나누고, 각 풀이 자기에게 맞는 DeepEP 모드를 쓰는 거죠. <code>SGLang</code> 기준으로 prefill 인스턴스는 <code>--deepep-mode normal</code>, decode 인스턴스는 <code>--deepep-mode low_latency</code>로 둡니다.</p>
+
+<div class="moe-note">
+PD 분리 자체는 이 블로그의 <a href="/posts/prefill-decode-disaggregation/">별도 글</a>에서 자세히 다뤘습니다. 여기서 기억할 건 하나입니다 — <strong>wide EP는 PD 분리와 짝으로 다닌다</strong>는 것. 거대 MoE를 싸게 굴린 사례들은 거의 예외 없이 "PD 분리 + wide EP + DeepEP + EPLB"를 한 세트로 씁니다.</div>
+
+<p>이 조합이 실제로 얼마나 효과가 있을까요? LMSYS는 <code>SGLang</code>으로 12노드 × 8 H100(총 96장)에 DeepSeek를 올려, 2,000토큰 입력 기준 <strong>노드당 입력 52.3k tok/s, 출력 22.3k tok/s</strong>를 냈습니다. 단순 tensor parallelism 대비 출력 처리량이 <strong>최대 5배</strong>였고, 원가는 <strong>출력 100만 토큰당 약 $0.20</strong> — 공식 DeepSeek Chat API의 약 1/5 수준이었죠. wide EP가 "학술적 최적화"가 아니라 실전 원가를 바꾸는 레버라는 걸 보여 준 사례입니다.</p>
+
+<h2 id="sec-7">7. 실전 — vLLM · SGLang 최소 설정</h2>
+
+<p>개념을 코드로 만져 보겠습니다. 먼저 EP를 켜는 가장 단순한 형태입니다. <code>vLLM</code>은 <code>--enable-expert-parallel</code> 한 줄로 MoE의 FFN을 전문가 단위로 나눕니다.</p>
+
+{{< highlight bash >}}
+# vLLM — 8장짜리 한 노드에서 MoE를 EP로 서빙 (개념 예시)
+#  · attention은 데이터 병렬(DP)로 복제해 처리량을 늘리고,
+#  · MoE FFN은 전문가 병렬(EP)로 나눠 GPU당 메모리를 줄인다.
+vllm serve deepseek-ai/DeepSeek-V3 \
+  --tensor-parallel-size 1 \
+  --data-parallel-size 8 \        # attention: DP로 8-way 복제
+  --enable-expert-parallel \      # MoE FFN: EP 켜기 (핵심 플래그)
+  --trust-remote-code
+{{< /highlight >}}
+
+<p>여러 노드로 넘어가 wide EP를 하려면, all-to-all을 DeepEP가 맡도록 하고 prefill/decode에 맞는 모드를 줍니다. <code>SGLang</code>은 PD 분리와 EP를 함께 굴리는 조합을 명시적으로 지원합니다.</p>
+
+{{< highlight bash >}}
+# SGLang — PD 분리 + 대규모 EP (개념 예시, 플래그 이름 위주로)
+# prefill 인스턴스: 긴 입력을 대량으로 → normal 모드
+python -m sglang.launch_server \
+  --model-path deepseek-ai/DeepSeek-V3 \
+  --enable-dp-attention \         # attention은 DP
+  --enable-deepep-moe \               # MoE는 EP
+  --deepep-mode normal            # prefill: 처리량 우선
+
+# decode 인스턴스: 토큰을 하나씩 → low_latency 모드
+python -m sglang.launch_server \
+  --model-path deepseek-ai/DeepSeek-V3 \
+  --enable-dp-attention \
+  --enable-deepep-moe \
+  --deepep-mode low_latency       # decode: 지연 우선
+{{< /highlight >}}
+
+<p>다음은 이해를 돕는 <strong>장난감 수준의 dispatch/combine</strong>입니다. 실제 커널은 훨씬 정교하지만, "토큰을 전문가 GPU로 보냈다가 되모은다"는 뼈대는 이게 전부입니다.</p>
+
+{{< highlight python >}}
+# 개념용 의사 코드 — EP의 dispatch/combine 뼈대
+# expert_of_gpu[g] = 그 GPU가 들고 있는 전문가 id 집합
+# router가 각 토큰의 top-k 전문가를 이미 골라 줬다고 가정한다.
+
+def moe_layer_ep(tokens, topk_experts, gpu_of_expert, my_gpu):
+    # ── ① dispatch: 각 토큰을 자기 전문가가 있는 GPU로 흩어 보낸다
+    outbox = {g: [] for g in all_gpus}          # GPU별 보낼 토큰 묶음
+    for tok, experts in zip(tokens, topk_experts):
+        for e in experts:                        # 보통 top-8
+            outbox[gpu_of_expert[e]].append((tok, e))
+    inbox = all_to_all(outbox)                   # ← 여기서 all-to-all 통신 발생
+
+    # ── 내 GPU가 맡은 전문가로 실제 FFN 계산
+    results = []
+    for tok, e in inbox[my_gpu]:
+        results.append((tok.id, e, run_expert(e, tok)))
+
+    # ── ② combine: 결과를 원래 토큰이 있던 GPU로 되모아 가중합
+    gathered = all_to_all_back(results)          # ← 두 번째 all-to-all
+    return weighted_sum_by_token(gathered)       # 토큰별 top-k 전문가 출력 합치기
+{{< /highlight >}}
+
+<p>여기서 성능의 핵심이 드러납니다. <code>all_to_all</code> 두 줄이 <strong>레이어마다</strong> 실행되고, 그 사이에 낀 <code>run_expert</code>는 <strong>내 GPU가 받은 토큰 수에 비례</strong>합니다. 그래서 (1) all-to-all을 빠르게(DeepEP), (2) GPU마다 받는 토큰 수를 고르게(EPLB) 만드는 게 서빙 성능의 두 축인 겁니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"활성 파라미터만 보고 GPU 메모리를 잡는다"</strong> — 가장 흔한 사고입니다. 속도는 활성(37B)이 정하지만, <strong>메모리는 총 파라미터(671B)</strong>가 정합니다. 전문가 전체를 상주시켜야 하니, VRAM 산정은 반드시 총 파라미터 기준으로 하세요.</li>
+  <li><strong>EP만 켜면 빨라진다고 기대하기</strong> — EP는 메모리를 줄이지, 자동으로 빠르게 만들지 않습니다. all-to-all 통신이 새로 생기고, 부하 불균형까지 겹치면 오히려 느려질 수 있습니다. EP는 <strong>DeepEP(통신) + EPLB(부하)</strong>와 한 세트로 봐야 합니다.</li>
+  <li><strong>노드 간 대역폭을 무시하기</strong> — 노드 안 NVLink는 빠르지만(수백 GB/s급), 노드를 건너는 RDMA는 그보다 한참 좁습니다. EP 크기를 한 노드(보통 8장)를 넘겨 키우면 all-to-all이 느린 노드 간 링크를 타기 시작합니다. wide EP를 할수록 <strong>네트워크가 병목</strong>이 되니, DeepEP의 노드 간 경로 최적화가 중요해집니다.</li>
+  <li><strong>prefill·decode에 같은 모드를 쓰기</strong> — decode에 normal 모드를 쓰면 지연이 나빠지고, prefill에 low-latency를 쓰면 처리량이 떨어집니다. 단계별로 DeepEP 모드를 나누세요(가능하면 PD 분리까지).</li>
+  <li><strong>부하 통계를 안 보고 EPLB를 방치</strong> — 라우팅 쏠림은 워크로드(도메인·언어·프롬프트 형태)에 따라 달라집니다. 실제 트래픽의 전문가 호출 분포를 주기적으로 확인하고 EPLB 배치를 갱신하세요. "한 번 설정하고 끝"이 아닙니다.</li>
+  <li><strong>작은 배치에서 EP를 과하게 키우기</strong> — 토큰이 적으면 전문가마다 받는 토큰이 몇 개 안 돼 GPU가 놀고, 통신 오버헤드만 남습니다. wide EP는 <strong>토큰이 많이 몰리는 대규모 처리량 환경</strong>에서 빛납니다. 트래픽이 적다면 EP 크기를 줄이거나, 아예 단일 노드 TP가 더 나을 수 있습니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 — TL;DR</h2>
+
+<ul>
+  <li><strong>MoE 모델은 숫자가 둘</strong> — 총 파라미터(메모리를 정함)와 활성 파라미터(속도를 정함). DeepSeek-V3는 671B 총 / 37B 활성.</li>
+  <li>서빙이 어려운 건 <strong>활성은 일부라도 전문가 전체를 상주</strong>시켜야 하기 때문. 671B는 GPU 한 장에 안 들어간다.</li>
+  <li><strong>Expert Parallelism(EP)</strong> — 전문가를 여러 GPU에 나눠 얹어 GPU당 메모리를 줄인다. attention은 보통 DP, MoE FFN은 EP로 서로 다르게 나눈다.</li>
+  <li>EP의 대가는 <strong>all-to-all 통신</strong>(dispatch + combine, 레이어마다 두 번). DeepSeek의 <strong>DeepEP</strong>가 이걸 전담하며 prefill용 normal / decode용 low-latency 모드를 나눈다.</li>
+  <li>router가 부하를 고르게 안 나눠 주는 <strong>hot expert</strong> 문제가 생긴다. all-to-all은 가장 느린 GPU에 묶이므로 치명적. <strong>EPLB</strong>가 인기 전문가를 복제·재배치해 부하를 편다.</li>
+  <li>대규모에서는 <strong>PD 분리 + wide EP + DeepEP + EPLB</strong>가 한 세트. LMSYS는 이 조합으로 96 H100에서 출력 100만 토큰당 약 $0.20, TP 대비 최대 5배 출력 처리량을 냈다.</li>
+  <li>실전 스위치는 단순하다 — <code>vLLM</code> <code>--enable-expert-parallel</code>, <code>SGLang</code> <code>--enable-deepep-moe</code> + <code>--deepep-mode</code>. 하지만 <strong>총 파라미터 기준 메모리 산정</strong>과 <strong>부하 통계 확인</strong>을 빼먹으면 반드시 데인다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li><a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener">DeepSeek-V3 Technical Report</a> — 671B 총 / 37B 활성, routed 256 + shared 1, top-8, ≤4 노드/토큰, auxiliary-loss-free 로드 밸런싱 (arXiv:2412.19437)</li>
+  <li><a href="https://github.com/deepseek-ai/DeepEP" target="_blank" rel="noopener">deepseek-ai/DeepEP</a> — EP 전용 all-to-all 통신 라이브러리. dispatch/combine, normal(prefill)·low-latency(decode) 모드, NVLink·RDMA</li>
+  <li><a href="https://github.com/deepseek-ai/EPLB" target="_blank" rel="noopener">deepseek-ai/EPLB</a> — Expert Parallelism Load Balancer. redundant expert 복제·재배치로 부하 불균형 완화</li>
+  <li><a href="https://www.lmsys.org/blog/2025-05-05-large-scale-ep/" target="_blank" rel="noopener">LMSYS — Deploying DeepSeek with PD Disaggregation and Large-Scale EP on 96 H100 GPUs</a> — 노드당 입력 52.3k / 출력 22.3k tok/s, TP 대비 최대 5배, $0.20/1M 출력 토큰</li>
+  <li><a href="https://www.lmsys.org/blog/2025-07-20-k2-large-scale-ep/" target="_blank" rel="noopener">LMSYS — Deploying Kimi K2 with PD Disaggregation and Large-Scale EP on 128 H200 GPUs</a> — 1T급 MoE의 대규모 EP 배포 사례</li>
+  <li><a href="https://docs.vllm.ai/en/latest/serving/expert_parallel_deployment/" target="_blank" rel="noopener">vLLM — Expert Parallel Deployment</a> — <code>--enable-expert-parallel</code>, DP attention + EP MoE 조합, DeepEP 연동</li>
+  <li><a href="https://github.com/sgl-project/sglang/blob/main/docs/advanced_features/expert_parallelism.md" target="_blank" rel="noopener">SGLang — Expert Parallelism</a> — PD 분리 시 <code>--deepep-mode normal</code>(prefill)·<code>low_latency</code>(decode) 설정</li>
+  <li><a href="https://llm-d.ai/docs/well-lit-paths/foundations/wide-expert-parallelism" target="_blank" rel="noopener">llm-d — Multi-Node Wide Expert Parallelism</a> — 노드를 넘는 wide EP 배포 가이드</li>
+</ul>

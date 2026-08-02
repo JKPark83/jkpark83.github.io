@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="임베딩 양자화를 나타낸 그림. 왼쪽에는 float32 임베딩을 뜻하는 커다란 블록이 4기가바이트라고 적혀 있다. 가운데 양자화 단계를 거치면 오른쪽에서는 32분의 1로 줄어든 아주 작은 바이너리 블록이 되고 128메가바이트라고 적혀 있다. 아래쪽에는 그렇게 빠르게 뽑은 후보를 원본 float32로 다시 채점하는 rescore 화살표가 그려져, 속도와 정확도를 함께 얻는다는 것을 보여 준다.">
+  <defs>
+    <linearGradient id="eqg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#0c2a2a"/>
+    </linearGradient>
+    <linearGradient id="eq-f32" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+    <linearGradient id="eq-bin" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+    <linearGradient id="eq-amber" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+    <marker id="eq-arrow" markerWidth="16" markerHeight="16" refX="11" refY="8" orient="auto">
+      <path d="M0,1 L15,8 L0,15 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#eqg)"/>
+
+  <!-- title -->
+  <text x="80" y="92" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="48" font-weight="800">임베딩 양자화</text>
+  <text x="80" y="140" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="26" font-weight="600">벡터 검색 메모리를 32배 줄이고, 정확도는 rescore로 되찾기</text>
+
+  <!-- float32 big block -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="80" y="210" width="300" height="240" rx="16" fill="url(#eq-f32)"/>
+    <text x="230" y="288" fill="#fff" font-size="30" font-weight="800" text-anchor="middle">float32</text>
+    <text x="230" y="330" fill="#fff" font-size="22" font-weight="600" text-anchor="middle" opacity="0.95">1024차원 × 4바이트</text>
+    <text x="230" y="392" fill="#fff" font-size="40" font-weight="800" text-anchor="middle">≈ 4 GB</text>
+    <text x="230" y="426" fill="#fff" font-size="18" text-anchor="middle" opacity="0.9">문서 100만 개</text>
+  </g>
+
+  <!-- quantize arrow -->
+  <line x1="400" y1="330" x2="560" y2="330" stroke="#94a3b8" stroke-width="4" marker-end="url(#eq-arrow)"/>
+  <text x="480" y="312" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="700" text-anchor="middle">양자화</text>
+  <text x="480" y="360" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" text-anchor="middle">0보다 크면 1</text>
+
+  <!-- binary tiny block -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="600" y="285" width="120" height="90" rx="12" fill="url(#eq-bin)"/>
+    <text x="660" y="322" fill="#0f172a" font-size="20" font-weight="800" text-anchor="middle">binary</text>
+    <text x="660" y="348" fill="#0f172a" font-size="15" font-weight="700" text-anchor="middle">1비트/차원</text>
+    <text x="660" y="410" fill="#2dd4bf" font-size="34" font-weight="800" text-anchor="middle">≈ 128 MB</text>
+    <text x="660" y="440" fill="#94a3b8" font-size="18" text-anchor="middle">32배 절감</text>
+  </g>
+
+  <!-- rescore arrow region -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="820" y="230" width="300" height="200" rx="16" fill="none" stroke="#fbbf24" stroke-width="3"/>
+    <text x="970" y="272" fill="#fbbf24" font-size="24" font-weight="800" text-anchor="middle">+ rescore</text>
+    <text x="970" y="308" fill="#e2e8f0" font-size="18" text-anchor="middle">후보만 원본 float32로</text>
+    <text x="970" y="334" fill="#e2e8f0" font-size="18" text-anchor="middle">다시 채점</text>
+    <text x="970" y="392" fill="#4ade80" font-size="30" font-weight="800" text-anchor="middle">정확도 ≈ 96%</text>
+  </g>
+  <line x1="720" y1="330" x2="812" y2="330" stroke="#94a3b8" stroke-width="4" marker-end="url(#eq-arrow)"/>
+
+  <!-- bottom strip -->
+  <text x="80" y="520" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="600">저장은 작게(바이너리) · 채점은 정확하게(float32)</text>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" fill="#94a3b8">
+    <rect x="80" y="548" width="270" height="44" rx="10" fill="#1e293b"/>
+    <text x="100" y="576">int8 · 4배 · 유지율 ~99%</text>
+    <rect x="368" y="548" width="300" height="44" rx="10" fill="#1e293b"/>
+    <text x="388" y="576">binary · 32배 · Hamming 초고속</text>
+    <rect x="686" y="548" width="300" height="44" rx="10" fill="#1e293b"/>
+    <text x="706" y="576">Matryoshka · 차원 자르기</text>
+  </g>
+</svg>

@@ -1,0 +1,341 @@
+---
+title: "벡터 DB가 메모리를 통째로 먹는다면: 임베딩 양자화(embedding quantization)로 검색 비용을 32배 줄이는 법"
+date: 2026-08-03T07:30:00+09:00
+draft: false
+tags: ["AI", "임베딩 양자화", "embedding quantization", "벡터 검색", "vector search", "RAG", "retrieval", "binary quantization", "int8", "Matryoshka", "MRL", "sentence-transformers", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "RAG는 잘 돌아가는데, 문서가 수백만 개로 늘자 벡터 DB가 메모리를 통째로 먹고 검색이 느려지기 시작합니다. 원인은 대개 임베딩이 float32라서입니다. 1024차원 벡터 하나가 4KB, 100만 개면 4GB가 오롯이 RAM에 올라가야 하거든요. 그래서 2026년 대규모 검색의 정석은 임베딩 양자화입니다. float32를 int8(4배 절감)이나 1비트 바이너리(32배 절감)로 압축하고, 잃어버린 정확도는 float32로 상위 후보만 다시 채점(rescore)하는 2단계로 되찾습니다. 이 글은 스칼라·바이너리 양자화의 원리, Hamming distance가 왜 빠른지, retrieve-then-rescore 패턴, Matryoshka 임베딩과의 조합, 그리고 sentence-transformers로 직접 돌려 볼 코드와 흔한 함정까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "embedding-quantization-vector-search-cover.svg"
+  alt: "왼쪽의 커다란 float32 벡터 블록(4GB)이 가운데 양자화 단계를 거쳐 오른쪽에서는 아주 작은 바이너리 벡터 블록(128MB)으로 32배 줄어드는 그림. 아래에는 그렇게 빠르게 뽑은 후보를 원본 float32로 다시 채점(rescore)해 정확도를 되찾는 2단계 화살표가 그려져 있다."
+  caption: "임베딩 양자화: float32를 1비트 바이너리로 압축해 메모리·속도를 32배 벌고, 잃은 정확도는 원본 벡터로 상위 후보만 다시 채점해 되찾는다."
+  relative: false
+---
+
+<style>
+/* ── 임베딩 양자화 포스트 전용 스타일 (eqz- 접두사) ── */
+.eqz-fig{
+  --eqz-sky:#0284c7; --eqz-amber:#d97706; --eqz-green:#16a34a; --eqz-rose:#e11d48;
+  --eqz-slate:#64748b; --eqz-violet:#7c3aed; --eqz-teal:#0d9488; --eqz-blue:#2563eb;
+  --eqz-grid:#cbd5e1;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .eqz-fig{
+  --eqz-sky:#38bdf8; --eqz-amber:#fbbf24; --eqz-green:#4ade80; --eqz-rose:#fb7185;
+  --eqz-slate:#94a3b8; --eqz-violet:#a78bfa; --eqz-teal:#2dd4bf; --eqz-blue:#60a5fa;
+  --eqz-grid:#334155;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .eqz-fig{
+    --eqz-sky:#38bdf8; --eqz-amber:#fbbf24; --eqz-green:#4ade80; --eqz-rose:#fb7185;
+    --eqz-slate:#94a3b8; --eqz-violet:#a78bfa; --eqz-teal:#2dd4bf; --eqz-blue:#60a5fa;
+    --eqz-grid:#334155;
+  }
+}
+.eqz-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.eqz-fig text{font-family:inherit}
+.eqz-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.eqz-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.eqz-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.eqz-toc ol{margin:0;padding-left:1.25rem}
+.eqz-toc li{margin:.22rem 0;font-size:.95rem}
+.eqz-toc a{text-decoration:none}
+.eqz-toc a:hover{text-decoration:underline}
+.eqz-pull{font-size:1.12rem;line-height:1.72}
+.eqz-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.eqz-note{border-left:4px solid var(--eqz-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.eqz-note strong{color:var(--eqz-blue,#2563eb)}
+.eqz-warn{border-left:4px solid var(--eqz-rose,#e11d48)}
+.eqz-warn strong{color:var(--eqz-rose,#e11d48)}
+.eqz-good{border-left:4px solid var(--eqz-teal,#0d9488)}
+.eqz-good strong{color:var(--eqz-teal,#0d9488)}
+.eqz-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.eqz-tbl th,.eqz-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.eqz-tbl th{background:var(--entry);font-weight:700}
+.eqz-tbl code{font-size:.86em}
+.eqz-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="eqz-pull">
+  <p>RAG가 데모에서 잘 돌던 이유는 문서가 <strong>1만 개뿐이라서</strong>였을 수도 있습니다. 문서를 100만 개로 늘리는 순간, 1024차원 float32 임베딩은 조용히 <em>4GB의 RAM</em>을 요구하기 시작합니다. 모델은 그대로인데 청구서만 폭발하죠.</p>
+  <footer>— 답은 더 큰 서버가 아니라, 벡터를 <em>더 작게 저장하는</em> 한 단계입니다.</footer>
+</blockquote>
+
+<nav class="eqz-toc" aria-label="목차">
+  <div class="eqz-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">왜 벡터 검색이 비싸지는가</a></li>
+    <li><a href="#sec-2">배경 — 임베딩과 float32의 무게</a></li>
+    <li><a href="#sec-3">스칼라 양자화(int8) — 4배 줄이기</a></li>
+    <li><a href="#sec-4">바이너리 양자화 — 32배 줄이기</a></li>
+    <li><a href="#sec-5">잃은 정확도를 되찾는 열쇠: rescore</a></li>
+    <li><a href="#sec-6">Matryoshka 임베딩과 조합하기</a></li>
+    <li><a href="#sec-7">실전 — 코드로 돌려 보기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 벡터 검색이 비싸지는가</h2>
+
+<p>RAG(retrieval-augmented generation, 검색으로 문서를 찾아 LLM에 붙여 주는 방식)를 처음 붙일 때는 대개 문제가 없습니다. 문서 몇천 개를 임베딩해 벡터 DB에 넣고, 질문이 오면 가까운 벡터를 찾아 LLM에 넘기면 끝이니까요. 그런데 서비스가 커져 문서가 수백만 개, 수천만 개로 늘면 이야기가 달라집니다.</p>
+
+<p>가장 먼저 아파 오는 곳은 <strong>메모리</strong>입니다. 벡터 검색이 빠른 이유는 벡터를 디스크가 아니라 RAM에 올려 두고 비교하기 때문인데, 임베딩이 float32(32비트 부동소수점)라면 이 RAM 요구량이 문서 수에 정비례해 커집니다. 1024차원 벡터 하나가 <code>1024 × 4바이트 = 4KB</code>, 100만 개면 약 4GB, 1억 개면 약 400GB. 인덱스 오버헤드까지 더하면 실제로는 더 나갑니다. 여기서부터는 “더 큰 인스턴스”가 곧 “더 큰 청구서”입니다.</p>
+
+<p>그래서 이번 주 검색·RAG 실무자들 사이에서 다시 화제가 된 게 <strong>임베딩 양자화(embedding quantization)</strong>입니다. Vespa가 Matryoshka 임베딩과 바이너리 양자화를 한데 묶어 벡터 검색 비용을 크게 줄이는 방법을 정리해 올렸고, “양자화와 Matryoshka로 벡터 검색 비용을 80% 줄였다”는 사례 글이 커뮤니티에서 널리 공유됐습니다. 핵심 아이디어는 놀랄 만큼 단순합니다 — <em>벡터를 굳이 float32로 저장할 필요가 없다</em>는 겁니다.</p>
+
+<div class="eqz-note"><strong>한 줄 요약.</strong> 임베딩 양자화는 float32 벡터를 int8(1바이트)이나 1비트로 압축해 메모리·속도를 4~32배 벌고, 그렇게 잃은 정확도는 원본 벡터로 상위 후보만 다시 채점(rescore)해 되찾는 기법입니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 임베딩과 float32의 무게</h2>
+
+<p>임베딩(embedding)은 텍스트를 숫자 벡터로 바꾼 것입니다. “고양이”와 “강아지”는 벡터 공간에서 가깝고, “고양이”와 “주식”은 멀죠. 벡터 검색은 이 거리를 재서 질문과 가까운 문서를 찾습니다. 대표적인 임베딩 모델은 벡터 차원이 768(e5-base), 1024(mxbai·Cohere), 1536(OpenAI text-embedding-3-small)쯤 됩니다.</p>
+
+<p>문제는 각 차원의 값을 <strong>float32</strong>, 즉 4바이트로 저장한다는 데 있습니다. 아래 계산을 보면 무게가 실감 납니다.</p>
+
+<figure class="eqz-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="정밀도별로 벡터 하나와 100만 개가 차지하는 메모리 비교 막대그래프. float32는 차원당 4바이트라 1024차원 벡터 하나가 4킬로바이트, 100만 개면 약 4기가바이트로 가장 긴 막대다. int8은 차원당 1바이트로 벡터 하나가 1킬로바이트, 100만 개면 약 1기가바이트로 4분의 1 길이다. 바이너리는 차원당 1비트로 벡터 하나가 128바이트, 100만 개면 약 128메가바이트로 32분의 1 길이의 아주 짧은 막대다. 정밀도를 낮출수록 저장 공간이 계단처럼 급격히 줄어든다.">
+  <text x="30" y="34" fill="var(--eqz-slate)" font-size="16" font-weight="700">1024차원 임베딩 100만 개가 차지하는 메모리</text>
+
+  <!-- float32 -->
+  <text x="30" y="80" fill="var(--eqz-slate)" font-size="14" font-weight="700">float32</text>
+  <text x="30" y="98" fill="var(--eqz-slate)" font-size="11.5" opacity="0.75">차원당 4바이트</text>
+  <rect x="150" y="62" width="560" height="34" rx="6" fill="var(--eqz-rose)"/>
+  <text x="165" y="84" fill="#fff" font-size="14" font-weight="700">≈ 4 GB  (벡터 1개 = 4 KB)</text>
+
+  <!-- int8 -->
+  <text x="30" y="150" fill="var(--eqz-slate)" font-size="14" font-weight="700">int8</text>
+  <text x="30" y="168" fill="var(--eqz-slate)" font-size="11.5" opacity="0.75">차원당 1바이트</text>
+  <rect x="150" y="132" width="140" height="34" rx="6" fill="var(--eqz-amber)"/>
+  <text x="300" y="154" fill="var(--eqz-slate)" font-size="14" font-weight="700">≈ 1 GB · 4배 절감</text>
+
+  <!-- binary -->
+  <text x="30" y="220" fill="var(--eqz-slate)" font-size="14" font-weight="700">binary</text>
+  <text x="30" y="238" fill="var(--eqz-slate)" font-size="11.5" opacity="0.75">차원당 1비트</text>
+  <rect x="150" y="202" width="18" height="34" rx="4" fill="var(--eqz-teal)"/>
+  <text x="178" y="224" fill="var(--eqz-slate)" font-size="14" font-weight="700">≈ 128 MB · 32배 절감  (벡터 1개 = 128 B)</text>
+
+  <line x1="150" y1="262" x2="710" y2="262" stroke="var(--eqz-grid)" stroke-width="1"/>
+  <text x="150" y="282" fill="var(--eqz-slate)" font-size="12" opacity="0.8">막대 길이 = 실제 저장 크기에 비례</text>
+</svg>
+<figcaption>정밀도를 float32 → int8 → binary로 낮출 때마다 저장 공간이 4배, 32배씩 계단처럼 줄어든다. 인덱스를 RAM에 올려 두는 벡터 검색에서 이 차이는 곧 인스턴스 크기와 요금의 차이다.</figcaption>
+</figure>
+
+<p>“그러면 값을 대충 줄여도 검색이 될까?”가 자연스러운 의문입니다. 놀랍게도 됩니다. 임베딩이 담고 있는 건 <em>정확한 좌표값</em>이 아니라 <em>방향과 상대적 위치</em>에 가깝기 때문입니다. 소수점 아래를 조금 뭉개도 “고양이는 강아지 쪽, 주식은 반대쪽”이라는 큰 구도는 잘 살아남습니다. 이 여유를 활용하는 게 양자화입니다.</p>
+
+<h2 id="sec-3">3. 스칼라 양자화(int8) — 4배 줄이기</h2>
+
+<p>가장 온건한 방법은 <strong>스칼라 양자화(scalar quantization)</strong>입니다. float32 값을 int8, 즉 −128부터 127까지 256단계 정수로 옮겨 담습니다. 4바이트가 1바이트가 되니 저장 공간이 딱 <strong>4배</strong> 줄죠.</p>
+
+<p>원리는 자를 하나 만드는 것과 같습니다. 어떤 차원의 값이 대체로 −0.2에서 0.2 사이에 분포한다면, 그 구간을 256칸으로 잘게 나눠 각 값을 가장 가까운 칸 번호(정수)로 바꿉니다. 검색할 때는 이 정수를 다시 대략의 실수로 되돌려 거리(내적)를 계산합니다.</p>
+
+<p>여기서 중요한 게 <strong>보정(calibration)</strong>입니다. 각 차원의 최소·최대 범위를 알아야 자를 만들 수 있는데, 이 범위는 실제 데이터에서 뽑아야 합니다. 그래서 대표 문서 임베딩 수천 개를 <code>calibration_embeddings</code>로 넘겨 “이 차원은 −0.2~0.2, 저 차원은 −0.5~0.5” 하는 범위를 계산하게 합니다. 이 보정을 건너뛰거나 표본이 너무 적으면 자의 눈금이 엉터리가 되어 정확도가 크게 떨어집니다.</p>
+
+<p>대신 int8은 손실이 아주 작습니다. 공개된 벤치마크에서 스칼라 양자화는 원본 float32 대비 검색 성능의 <strong>약 99%</strong>를 유지합니다. 예를 들어 <code>mxbai-embed-large-v1</code>(1024차원)의 MTEB 검색 점수(NDCG@10)는 float32에서 54.39, int8에서 52.79로 약 97% 수준입니다. 저장 공간을 4분의 1로 줄이면서 정확도는 거의 그대로 — 사실상 공짜 점심에 가깝습니다.</p>
+
+<h2 id="sec-4">4. 바이너리 양자화 — 32배 줄이기</h2>
+
+<p>더 과감한 방법이 <strong>바이너리 양자화(binary quantization)</strong>입니다. 각 차원을 딱 <strong>1비트</strong>로 만듭니다. 규칙도 단순합니다 — <em>값이 0보다 크면 1, 아니면 0</em>. 그게 전부입니다. 32비트가 1비트가 되니 저장 공간은 <strong>32배</strong>, 1024차원 벡터 하나가 4KB에서 128바이트로 쪼그라듭니다.</p>
+
+<figure class="eqz-fig">
+<svg viewBox="0 0 760 260" role="img" aria-label="바이너리 양자화 원리 그림. 위쪽에는 float32 임베딩의 예시 값들이 나열돼 있다. 0.42는 양수라 아래에서 1이 되고, 마이너스 0.17은 음수라 0, 0.03은 양수라 1, 마이너스 0.88은 음수라 0, 0.51은 양수라 1이 된다. 각 값이 0보다 큰지 작은지만 보고 1 또는 0으로 바뀐다. 오른쪽에는 이렇게 만들어진 두 비트열 사이의 거리를 XOR로 다른 비트 개수를 세는 Hamming distance로 계산한다는 설명이 있다. Hamming distance는 CPU 명령 두 번이면 계산돼 매우 빠르다.">
+  <text x="30" y="34" fill="var(--eqz-slate)" font-size="16" font-weight="700">바이너리 양자화: 0보다 크면 1, 아니면 0</text>
+
+  <!-- float32 row -->
+  <text x="30" y="86" fill="var(--eqz-slate)" font-size="13" font-weight="700">float32</text>
+  <g font-size="14" font-weight="700" text-anchor="middle">
+    <rect x="110" y="66" width="88" height="34" rx="6" fill="none" stroke="var(--eqz-grid)"/><text x="154" y="88" fill="var(--eqz-green)">+0.42</text>
+    <rect x="206" y="66" width="88" height="34" rx="6" fill="none" stroke="var(--eqz-grid)"/><text x="250" y="88" fill="var(--eqz-rose)">−0.17</text>
+    <rect x="302" y="66" width="88" height="34" rx="6" fill="none" stroke="var(--eqz-grid)"/><text x="346" y="88" fill="var(--eqz-green)">+0.03</text>
+    <rect x="398" y="66" width="88" height="34" rx="6" fill="none" stroke="var(--eqz-grid)"/><text x="442" y="88" fill="var(--eqz-rose)">−0.88</text>
+    <rect x="494" y="66" width="88" height="34" rx="6" fill="none" stroke="var(--eqz-grid)"/><text x="538" y="88" fill="var(--eqz-green)">+0.51</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="var(--eqz-slate)" stroke-width="1.5" opacity="0.6">
+    <line x1="154" y1="104" x2="154" y2="130" marker-end="url(#eqz-ar)"/>
+    <line x1="250" y1="104" x2="250" y2="130" marker-end="url(#eqz-ar)"/>
+    <line x1="346" y1="104" x2="346" y2="130" marker-end="url(#eqz-ar)"/>
+    <line x1="442" y1="104" x2="442" y2="130" marker-end="url(#eqz-ar)"/>
+    <line x1="538" y1="104" x2="538" y2="130" marker-end="url(#eqz-ar)"/>
+  </g>
+  <defs>
+    <marker id="eqz-ar" markerWidth="8" markerHeight="8" refX="4" refY="7" orient="auto">
+      <path d="M0,0 L4,7 L8,0" fill="none" stroke="var(--eqz-slate)" stroke-width="1.5"/>
+    </marker>
+  </defs>
+
+  <!-- binary row -->
+  <text x="30" y="160" fill="var(--eqz-slate)" font-size="13" font-weight="700">binary</text>
+  <g font-size="16" font-weight="800" text-anchor="middle" fill="#fff">
+    <rect x="110" y="138" width="88" height="34" rx="6" fill="var(--eqz-teal)"/><text x="154" y="161">1</text>
+    <rect x="206" y="138" width="88" height="34" rx="6" fill="var(--eqz-slate)"/><text x="250" y="161">0</text>
+    <rect x="302" y="138" width="88" height="34" rx="6" fill="var(--eqz-teal)"/><text x="346" y="161">1</text>
+    <rect x="398" y="138" width="88" height="34" rx="6" fill="var(--eqz-slate)"/><text x="442" y="161">0</text>
+    <rect x="494" y="138" width="88" height="34" rx="6" fill="var(--eqz-teal)"/><text x="538" y="161">1</text>
+  </g>
+
+  <text x="30" y="216" fill="var(--eqz-slate)" font-size="13">거리 계산 = <tspan fill="var(--eqz-blue)" font-weight="700">Hamming distance</tspan> (XOR로 다른 비트 수 세기 · CPU 명령 2번이면 끝)</text>
+  <text x="30" y="238" fill="var(--eqz-slate)" font-size="12" opacity="0.75">→ 1024비트 = 128바이트. float32 4KB의 1/32.</text>
+</svg>
+<figcaption>바이너리 양자화는 각 차원의 부호만 남긴다. 두 비트열의 거리는 Hamming distance(XOR 후 1의 개수)로 재는데, 이는 CPU 명령 두 번이면 끝나 코사인 유사도보다 훨씬 빠르다. 그래서 메모리뿐 아니라 검색 속도도 크게 오른다.</figcaption>
+</figure>
+
+<p>이렇게 극단적으로 뭉개도 검색이 되는 이유는, 고차원에서 벡터의 <em>부호 패턴</em>만으로도 방향 정보의 상당 부분이 남기 때문입니다. 게다가 비트열끼리의 거리는 <strong>Hamming distance</strong>로 잽니다. 두 비트열을 XOR한 뒤 1이 몇 개인지 세는 건데, 현대 CPU에서는 명령어 두어 개면 끝납니다. 그래서 바이너리 검색은 float32 대비 최대 40배 이상(평균 약 25배) 빨라집니다.</p>
+
+<p>공짜는 아닙니다. 그냥 바이너리로만 검색하면 성능 유지율이 <strong>약 92.5%</strong>로, int8보다 눈에 띄게 떨어집니다. 상위권 후보의 미세한 순위가 흔들리기 때문입니다. 바로 이 손실을 메우는 게 다음 절의 rescore입니다.</p>
+
+<h2 id="sec-5">5. 잃은 정확도를 되찾는 열쇠: rescore</h2>
+
+<p>핵심 아이디어는 이렇습니다. <strong>빠르고 거친 검색으로 후보를 넉넉히 뽑은 뒤, 정확한 원본 벡터로 그 후보만 다시 채점한다.</strong> 리랭킹(reranking)의 2단계 검색과 정확히 같은 발상인데, 여기서는 “다시 채점”을 무거운 cross-encoder가 아니라 <em>원본 float32 벡터 내적</em>으로 합니다.</p>
+
+<figure class="eqz-fig">
+<svg viewBox="0 0 760 320" role="img" aria-label="retrieve-then-rescore 2단계 파이프라인 그림. 왼쪽에서 질문이 들어오면 1단계에서 바이너리 인덱스를 Hamming distance로 아주 빠르게 훑어 후보를 넉넉히, 예를 들어 최종 개수의 네 배인 40개를 뽑는다. 이 단계는 메모리에 올린 작은 바이너리 벡터만 쓰므로 빠르고 싸다. 2단계에서는 그 40개 후보에 대해서만 원본 float32 벡터를 디스크에서 불러와 정확한 내적으로 다시 채점한다. 후보가 40개뿐이라 원본을 써도 비용이 작다. 마지막으로 다시 채점한 순서대로 상위 10개만 최종 결과로 남긴다. 이렇게 하면 바이너리의 속도와 float32의 정확도를 동시에 얻어 성능 유지율이 약 96%까지 올라간다.">
+  <defs>
+    <marker id="eqz-ar2" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="var(--eqz-slate)"/>
+    </marker>
+  </defs>
+  <text x="30" y="30" fill="var(--eqz-slate)" font-size="16" font-weight="700">retrieve-then-rescore: 빠르게 넓게 뽑고, 정확하게 좁게 다듬기</text>
+
+  <!-- query -->
+  <rect x="24" y="120" width="96" height="60" rx="10" fill="var(--eqz-blue)"/>
+  <text x="72" y="148" fill="#fff" font-size="14" font-weight="700" text-anchor="middle">질문</text>
+  <text x="72" y="167" fill="#fff" font-size="11" text-anchor="middle" opacity="0.9">query</text>
+  <line x1="120" y1="150" x2="168" y2="150" stroke="var(--eqz-slate)" stroke-width="2" marker-end="url(#eqz-ar2)"/>
+
+  <!-- stage 1 -->
+  <rect x="172" y="86" width="210" height="128" rx="12" fill="none" stroke="var(--eqz-teal)" stroke-width="2"/>
+  <text x="277" y="112" fill="var(--eqz-teal)" font-size="14" font-weight="800" text-anchor="middle">1단계 · 바이너리 검색</text>
+  <text x="277" y="138" fill="var(--eqz-slate)" font-size="12.5" text-anchor="middle">Hamming distance로 초고속 스캔</text>
+  <text x="277" y="160" fill="var(--eqz-slate)" font-size="12.5" text-anchor="middle">RAM의 작은 바이너리 벡터만 사용</text>
+  <rect x="205" y="174" width="144" height="28" rx="6" fill="var(--eqz-teal)" opacity="0.18"/>
+  <text x="277" y="193" fill="var(--eqz-teal)" font-size="12.5" font-weight="700" text-anchor="middle">후보 40개 (top_k×4)</text>
+  <line x1="382" y1="150" x2="430" y2="150" stroke="var(--eqz-slate)" stroke-width="2" marker-end="url(#eqz-ar2)"/>
+
+  <!-- stage 2 -->
+  <rect x="434" y="86" width="214" height="128" rx="12" fill="none" stroke="var(--eqz-amber)" stroke-width="2"/>
+  <text x="541" y="112" fill="var(--eqz-amber)" font-size="14" font-weight="800" text-anchor="middle">2단계 · float32 rescore</text>
+  <text x="541" y="138" fill="var(--eqz-slate)" font-size="12.5" text-anchor="middle">후보 40개만 원본 벡터로</text>
+  <text x="541" y="160" fill="var(--eqz-slate)" font-size="12.5" text-anchor="middle">정확한 내적 다시 계산</text>
+  <rect x="467" y="174" width="148" height="28" rx="6" fill="var(--eqz-amber)" opacity="0.18"/>
+  <text x="541" y="193" fill="var(--eqz-amber)" font-size="12.5" font-weight="700" text-anchor="middle">정밀 재정렬</text>
+  <line x1="648" y1="150" x2="694" y2="150" stroke="var(--eqz-slate)" stroke-width="2" marker-end="url(#eqz-ar2)"/>
+
+  <!-- final -->
+  <rect x="698" y="120" width="52" height="60" rx="10" fill="var(--eqz-green)"/>
+  <text x="724" y="146" fill="#fff" font-size="12.5" font-weight="700" text-anchor="middle">상위</text>
+  <text x="724" y="164" fill="#fff" font-size="12.5" font-weight="700" text-anchor="middle">10개</text>
+
+  <!-- footnote -->
+  <text x="30" y="258" fill="var(--eqz-slate)" font-size="13">비용의 대부분은 1단계(바이너리)가 지고, 2단계(float32)는 <tspan font-weight="700">후보 40개에만</tspan> 걸리므로 거의 공짜다.</text>
+  <text x="30" y="284" fill="var(--eqz-slate)" font-size="13">→ 결과: 바이너리의 <tspan fill="var(--eqz-teal)" font-weight="700">속도·메모리</tspan> + float32의 <tspan fill="var(--eqz-amber)" font-weight="700">정확도</tspan>, 성능 유지율 약 <tspan font-weight="800">96%</tspan></text>
+</svg>
+<figcaption>rescore는 “거친 검색으로 후보를 넉넉히 뽑고, 그 후보에만 원본 벡터를 써서 다시 줄 세우는” 2단계다. 원본 float32는 RAM이 아니라 디스크에 두었다가 소수의 후보를 채점할 때만 불러오면 되므로, 32배 메모리 절감을 지키면서 정확도를 약 92.5%에서 96%까지 끌어올린다.</figcaption>
+</figure>
+
+<p>왜 이게 통할까요? 바이너리 검색은 <em>정답을 상위 몇 개에 정확히 세우는</em> 데는 약하지만, <em>정답을 후보 40개 안에 포함시키는</em> 건 꽤 잘합니다(recall이 높습니다). 그러니 후보를 넉넉히 뽑아 정답을 그물 안에 넣어 두고, 최종 순위만 원본 벡터로 정확히 매기면 됩니다. 후보가 40개뿐이라 원본을 써도 계산량이 미미합니다.</p>
+
+<p>실제 구현에서는 <code>rescore_multiplier</code>라는 값으로 후보를 얼마나 넉넉히 뽑을지 정합니다. 최종 10개가 필요하고 배수가 4면 1단계에서 40개를 뽑아 rescore하는 식입니다. 이 rescore를 붙이면 바이너리의 성능 유지율이 약 92.5%에서 <strong>약 96%</strong>로 올라갑니다. int8은 rescore까지 더하면 원본과 거의 구분되지 않는 수준(약 99%)이 됩니다.</p>
+
+<div class="eqz-good"><strong>기억할 그림.</strong> 저장은 <em>작게(바이너리·int8)</em>, 최종 채점은 <em>정확하게(float32)</em>. 메모리는 압축된 벡터가, 정확도는 소수의 후보에만 쓰는 원본이 책임집니다. 이 역할 분담이 임베딩 양자화의 전부라고 해도 됩니다.</p></div>
+
+<h2 id="sec-6">6. Matryoshka 임베딩과 조합하기</h2>
+
+<p>양자화가 “각 숫자를 더 적은 비트로” 줄이는 축이라면, <strong>Matryoshka 임베딩</strong>(matryoshka representation learning, MRL)은 “숫자 개수(차원)를 줄이는” 다른 축입니다. 이름은 러시아 인형에서 왔습니다 — 큰 인형 안에 작은 인형이 들어 있듯, 하나의 임베딩 안에 저차원 버전이 겹겹이 들어 있습니다.</p>
+
+<p>보통 임베딩은 앞부분을 잘라 내면 정보가 망가집니다. 하지만 MRL로 학습한 모델은 <em>앞쪽 차원에 중요한 정보를 몰아넣도록</em> 훈련돼서, 1536차원을 256차원으로 잘라 써도 성능이 거의 유지됩니다. 즉 임베딩 하나를 만들어 두고 상황에 따라 “앞 256개만”, “앞 512개만” 하고 잘라 쓸 수 있습니다.</p>
+
+<p>두 축은 곱해집니다. Vespa의 정리에 따르면 바이너리 양자화로 32배, 거기에 MRL로 차원을 잘라 추가로 몇 배를 더 벌 수 있습니다. 1536차원을 256차원으로 줄이면 저장 공간이 원본의 약 16%로 떨어지는데도 정확도 손실은 미미합니다. 양자화와 MRL을 함께 쓰면 저장 비용을 훨씬 극적으로 낮출 수 있는 셈입니다.</p>
+
+<div class="eqz-note"><strong>어떤 모델이 MRL을 지원하나요?</strong> OpenAI <code>text-embedding-3</code> 계열, Nomic, mxbai, Voyage 등 최근 임베딩 모델 상당수가 MRL로 학습돼 차원 자르기를 공식 지원합니다. 모델 카드에 “Matryoshka” 또는 “truncate dimensions”가 있으면 앞부분을 잘라 써도 됩니다. 그렇지 않은 모델을 함부로 자르면 성능이 무너지니 주의하세요.</p></div>
+
+<h2 id="sec-7">7. 실전 — 코드로 돌려 보기</h2>
+
+<p>말보다 코드가 빠릅니다. 오픈소스 <code>sentence-transformers</code>가 버전 2.6.0부터 양자화를 기본 지원합니다. 핵심 함수는 <code>quantize_embeddings</code> 하나입니다.</p>
+
+{{< highlight python >}}
+from sentence_transformers import SentenceTransformer
+from sentence_transformers.quantization import quantize_embeddings
+
+model = SentenceTransformer("mixedbread-ai/mxbai-embed-large-v1")
+
+docs = [
+    "고양이는 대표적인 반려동물이다.",
+    "강아지는 사람을 잘 따른다.",
+    "오늘 코스피 지수가 하락했다.",
+]
+# 1) 평소처럼 float32 임베딩을 만든다
+emb = model.encode(docs)                     # shape: (3, 1024), dtype float32
+
+# 2) 바이너리로 양자화 — 0보다 크면 1, 아니면 0 → 1비트씩 8개를 1바이트로 묶음
+bin_emb = quantize_embeddings(emb, precision="binary")   # shape: (3, 128), int8(비트팩)
+
+# 3) int8로 양자화하려면 보정용 임베딩을 함께 넘긴다 (범위 계산용)
+int8_emb = quantize_embeddings(
+    emb, precision="int8",
+    calibration_embeddings=emb,              # 실제로는 수천 개의 대표 임베딩을 쓴다
+)
+print(emb.nbytes, bin_emb.nbytes, int8_emb.nbytes)   # 12288  384  3072 (byte)
+{{< /highlight >}}
+
+<p>출력에서 보이듯 같은 문서 3개의 임베딩이 float32에서는 12288바이트, 바이너리에서는 384바이트로 정확히 <strong>32분의 1</strong>이 됩니다. 이제 이걸 검색에 쓰려면 rescore를 붙여야 합니다. <code>sentence-transformers</code>의 <code>semantic_search_faiss</code>가 이 2단계를 대신 해 줍니다.</p>
+
+{{< highlight python >}}
+from sentence_transformers.quantization import semantic_search_faiss
+
+# 코퍼스: 바이너리로 저장(메모리 절약) + 원본 float32는 rescore용으로 보관
+corpus_emb = model.encode(corpus_docs)                          # float32 원본
+corpus_bin = quantize_embeddings(corpus_emb, precision="binary")  # 인덱스는 바이너리
+
+# 질문은 float32 그대로 인코딩 (rescore에 원본 정밀도가 필요하다)
+q_emb = model.encode(["사람을 잘 따르는 동물은?"])
+
+results, search_time, _ = semantic_search_faiss(
+    q_emb,
+    corpus_index=None,
+    corpus_embeddings=corpus_bin,      # 1단계: 바이너리로 빠르게 후보 검색
+    corpus_precision="binary",
+    top_k=10,                          # 최종 10개
+    rescore=True,                      # 2단계 rescore 켜기
+    rescore_embeddings=corpus_emb,     # 후보를 원본 float32로 다시 채점
+    rescore_multiplier=4,              # 1단계에서 40개(10×4) 뽑아 rescore
+    exact=True,
+)
+# results[0]: corpus_id와 score가 정밀 재정렬된 상위 10개
+{{< /highlight >}}
+
+<p>패턴을 한 번 익히면 어디서든 똑같습니다. <em>인덱스는 압축본으로 가볍게, rescore는 원본으로 정확하게.</em> Qdrant·Milvus·Weaviate·Elasticsearch·Vespa 같은 실무 벡터 DB도 대부분 이 “양자화 인덱스 + 원본 rescore”를 옵션 하나로 지원합니다. 직접 FAISS를 만지지 않아도, DB 설정에서 <code>quantization: binary</code>와 <code>rescore: true</code>를 켜는 것으로 같은 효과를 얻습니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>모델마다 견디는 정도가 다릅니다.</strong> 바이너리 양자화가 <code>mxbai</code>·<code>Cohere</code>에서는 성능을 96% 안팎 지키지만, <code>e5-base-v2</code> 같은 모델은 바이너리에서 유지율이 약 75%까지 무너집니다. “양자화 친화적”으로 학습됐는지가 중요합니다. <strong>반드시 내 데이터로 양자화 전후 검색 품질을 재보고 도입하세요.</strong></li>
+  <li><strong>int8 보정(calibration)을 건너뛰지 마세요.</strong> 범위를 표본 몇 개로만 잡으면 자의 눈금이 틀어져 정확도가 크게 떨어집니다. 실제 분포를 대표하는 임베딩 수천 개로 보정하는 게 안전합니다. 바이너리는 임계값이 0으로 고정이라 이 함정은 없습니다.</li>
+  <li><strong>질문은 양자화하지 마세요(rescore를 쓸 때).</strong> rescore가 동작하려면 질문(query) 임베딩은 float32, 코퍼스만 양자화돼 있어야 합니다. 질문까지 바이너리로 만들면 다시 채점할 정밀도가 사라져 rescore가 무의미해집니다.</li>
+  <li><strong>차원을 자를 땐 MRL 모델인지 확인하세요.</strong> Matryoshka로 학습되지 않은 모델의 임베딩을 앞부분만 잘라 쓰면 정보가 골고루 흩어져 있어 성능이 급락합니다. 모델 카드에서 지원 여부를 먼저 보세요.</li>
+  <li><strong>rescore 배수는 튜닝 대상입니다.</strong> <code>rescore_multiplier</code>가 너무 작으면 정답이 후보 그물을 빠져나가 정확도가 떨어지고, 너무 크면 rescore 비용이 커집니다. 보통 3~5에서 시작해 리콜을 보며 조정합니다.</li>
+  <li><strong>원본을 버리지 마세요.</strong> rescore에는 float32 원본이 필요합니다. RAM에서 내려 디스크(또는 오브젝트 스토리지)에 두더라도 <em>보관은 해야</em> 합니다. 원본을 지우면 바이너리만으로 검색해야 해서 정확도를 되찾을 길이 없어집니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>문제:</strong> float32 임베딩은 무겁다. 1024차원 100만 개면 약 4GB가 RAM에 올라가고, 문서가 늘수록 비용이 정비례로 폭발한다.</li>
+  <li><strong>스칼라 양자화(int8):</strong> 4바이트 → 1바이트로 <strong>4배</strong> 절감, 성능 유지율 약 99%. 대신 <em>보정(calibration)</em>이 필수.</li>
+  <li><strong>바이너리 양자화:</strong> 부호만 남겨 1비트로 <strong>32배</strong> 절감, Hamming distance로 검색은 최대 40배 빠름. 단독 유지율은 약 92.5%.</li>
+  <li><strong>rescore가 핵심:</strong> 바이너리로 후보를 넉넉히 뽑고 원본 float32로 상위만 다시 채점하면 유지율이 <strong>약 96%</strong>로 오른다. 저장은 작게, 채점은 정확하게.</li>
+  <li><strong>Matryoshka(MRL):</strong> 차원 자르기라는 또 다른 절감 축. 양자화와 곱해져 저장 비용을 더 크게 낮춘다. 단, MRL로 학습된 모델에서만.</li>
+  <li><strong>실무:</strong> <code>sentence-transformers</code>의 <code>quantize_embeddings</code>로 바로 실험 가능. Qdrant·Milvus·Weaviate·Elasticsearch·Vespa도 옵션으로 지원. <strong>도입 전 반드시 내 데이터로 품질을 재볼 것.</strong></li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Hugging Face, <a href="https://huggingface.co/blog/embedding-quantization" target="_blank" rel="noopener">Binary and Scalar Embedding Quantization for Significantly Faster &amp; Cheaper Retrieval</a> — 바이너리·int8 양자화 원리, rescore, 성능 유지율(92.5%·96%·99%)과 벤치마크의 표준 출처. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Sentence Transformers, <a href="https://sbert.net/examples/sentence_transformer/applications/embedding-quantization/README.html" target="_blank" rel="noopener">Embedding Quantization</a> · <a href="https://sbert.net/docs/package_reference/util/quantization.html" target="_blank" rel="noopener">quantization API</a> — <code>quantize_embeddings</code>·<code>calibration_embeddings</code>·<code>semantic_search_faiss</code> 공식 문서와 예제 코드. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Kusupati et al., <a href="https://arxiv.org/abs/2205.13147" target="_blank" rel="noopener">Matryoshka Representation Learning</a> (arXiv:2205.13147) — MRL 원 논문. 하나의 임베딩에 저차원 표현을 겹겹이 담아 차원을 잘라 써도 정확도를 유지하는 방법. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Vespa Blog, <a href="https://blog.vespa.ai/combining-matryoshka-with-binary-quantization-using-embedder/" target="_blank" rel="noopener">Combining Matryoshka with Binary Quantization</a> — 바이너리 양자화(32배)와 MRL 차원 자르기를 곱해 벡터 검색 비용을 줄이는 실무 정리. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Towards Data Science, <a href="https://towardsdatascience.com/649627-2/" target="_blank" rel="noopener">Scaling Vector Search: Comparing Quantization and Matryoshka Embeddings for 80% Cost Reduction</a> — 양자화·MRL로 인프라 비용을 낮춘 사례 분석. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Qdrant, <a href="https://qdrant.tech/documentation/guides/quantization/" target="_blank" rel="noopener">Quantization</a> — 벡터 DB에서 스칼라·바이너리 양자화와 rescore(oversampling)를 켜는 실무 설정. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

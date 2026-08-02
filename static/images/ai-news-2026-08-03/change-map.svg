@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 500" width="100%" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="820" height="500" fill="#0f172a"/>
+  <text x="410" y="34" fill="#f8fafc" font-size="21" font-weight="700" text-anchor="middle">오늘의 AI 변화 지도 · 2026-08-03</text>
+  <text x="410" y="58" fill="#94a3b8" font-size="13" text-anchor="middle">축: 에이전트 하나가 아니라 "여러 에이전트를 어떻게 조직·감독하나"</text>
+
+  <!-- center -->
+  <rect x="285" y="212" width="250" height="76" rx="12" fill="#a78bfa"/>
+  <text x="410" y="242" fill="#1e1b2e" font-size="15" font-weight="700" text-anchor="middle">에이전트 함대 · 오케스트레이션</text>
+  <text x="410" y="263" fill="#1e1b2e" font-size="12.5" text-anchor="middle">조직도는 고정이 아니다</text>
+  <text x="410" y="279" fill="#1e1b2e" font-size="12.5" text-anchor="middle">감독 예산은 유한하다</text>
+
+  <!-- edges -->
+  <g stroke="#475569" stroke-width="2">
+    <line x1="285" y1="232" x2="205" y2="140"/>
+    <line x1="535" y1="232" x2="615" y2="140"/>
+    <line x1="285" y1="268" x2="205" y2="368"/>
+    <line x1="535" y1="268" x2="615" y2="368"/>
+  </g>
+
+  <!-- papers -->
+  <rect x="28" y="96" width="290" height="92" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="44" y="120" fill="#38bdf8" font-size="14" font-weight="700">📚 논문</text>
+  <text x="44" y="142" fill="#e2e8f0" font-size="12.5">MANTA — 실행 중 토폴로지 자가진화</text>
+  <text x="44" y="161" fill="#e2e8f0" font-size="12.5">One Human, N Agents — 감독 예산</text>
+  <text x="44" y="179" fill="#94a3b8" font-size="11.5">arXiv 2607.28527 · 2607.28317</text>
+
+  <!-- model -->
+  <rect x="502" y="96" width="290" height="92" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="518" y="120" fill="#f59e0b" font-size="14" font-weight="700">🤖 모델·툴</text>
+  <text x="518" y="142" fill="#e2e8f0" font-size="12.5">Claude Code: subagent 기본 백그라운드</text>
+  <text x="518" y="161" fill="#e2e8f0" font-size="12.5">Sonnet 5 기본값 · 1M 컨텍스트</text>
+  <text x="518" y="179" fill="#94a3b8" font-size="11.5">code.claude.com whats-new</text>
+
+  <!-- repos -->
+  <rect x="28" y="322" width="290" height="92" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="44" y="346" fill="#34d399" font-size="14" font-weight="700">🛠 오픈소스</text>
+  <text x="44" y="368" fill="#e2e8f0" font-size="12.5">CrewAI — 역할 기반 멀티에이전트</text>
+  <text x="44" y="387" fill="#e2e8f0" font-size="12.5">AutoGen — 대화형 멀티에이전트</text>
+  <text x="44" y="405" fill="#94a3b8" font-size="11.5">토폴로지를 코드로 정의</text>
+
+  <!-- tips -->
+  <rect x="502" y="322" width="290" height="92" rx="10" fill="#1e293b" stroke="#f472b6" stroke-width="1.5"/>
+  <text x="518" y="346" fill="#f472b6" font-size="14" font-weight="700">🧑‍💻 실전 팁</text>
+  <text x="518" y="368" fill="#e2e8f0" font-size="12.5">Codex: /review 로 커밋 전 리뷰</text>
+  <text x="518" y="387" fill="#e2e8f0" font-size="12.5">Claude Code: subagent 병렬 팬아웃</text>
+  <text x="518" y="405" fill="#94a3b8" font-size="11.5">리뷰·검증을 파이프라인에</text>
+
+  <text x="410" y="460" fill="#64748b" font-size="12" text-anchor="middle">모두 generated SVG · 수치는 각 primary source에서 검증</text>
+  <text x="410" y="482" fill="#64748b" font-size="11.5" text-anchor="middle">공통 메시지: 프런티어가 잠잠할 때 "조직도·감독·검증 루프"를 손볼 때</text>
+</svg>

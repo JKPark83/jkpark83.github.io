@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 430" width="100%" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <rect width="820" height="430" fill="#0f172a"/>
+  <text x="410" y="32" fill="#f8fafc" font-size="20" font-weight="700" text-anchor="middle">MANTA — 실행 중 통신 토폴로지 자가진화</text>
+  <text x="410" y="55" fill="#94a3b8" font-size="12.5" text-anchor="middle">조직도를 "설계 시 고정"이 아니라 "추론 중 갱신 대상"으로</text>
+
+  <!-- Stage 1: init -->
+  <rect x="30" y="95" width="215" height="255" rx="12" fill="#111c33" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="137" y="122" fill="#38bdf8" font-size="13.5" font-weight="700" text-anchor="middle">① 태스크 조건부 초기화</text>
+  <text x="137" y="144" fill="#94a3b8" font-size="11.5" text-anchor="middle">과거 구조 경험 기반</text>
+  <!-- simple star topology -->
+  <circle cx="137" cy="215" r="20" fill="#38bdf8"/>
+  <text x="137" y="219" fill="#0f172a" font-size="11" font-weight="700" text-anchor="middle">허브</text>
+  <g fill="#1e293b" stroke="#38bdf8" stroke-width="1.5">
+    <circle cx="72" cy="190" r="15"/><circle cx="72" cy="260" r="15"/>
+    <circle cx="202" cy="190" r="15"/><circle cx="202" cy="260" r="15"/>
+  </g>
+  <g stroke="#475569" stroke-width="1.5">
+    <line x1="120" y1="203" x2="85" y2="197"/><line x1="120" y1="228" x2="85" y2="253"/>
+    <line x1="154" y1="203" x2="189" y2="197"/><line x1="154" y1="228" x2="189" y2="253"/>
+  </g>
+  <text x="137" y="320" fill="#e2e8f0" font-size="11.5" text-anchor="middle">역할·링크·실행순서·가시성</text>
+  <text x="137" y="337" fill="#e2e8f0" font-size="11.5" text-anchor="middle">·검증경로를 세팅</text>
+
+  <!-- arrow -->
+  <text x="272" y="228" fill="#64748b" font-size="26" text-anchor="middle">→</text>
+
+  <!-- Stage 2: monitor -->
+  <rect x="302" y="95" width="215" height="255" rx="12" fill="#111c33" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="409" y="122" fill="#f59e0b" font-size="13.5" font-weight="700" text-anchor="middle">② 협업 트레이스 감시</text>
+  <text x="409" y="144" fill="#94a3b8" font-size="11.5" text-anchor="middle">현 조직이 "부족"해지면</text>
+  <rect x="335" y="170" width="148" height="120" rx="8" fill="#1e293b"/>
+  <text x="409" y="196" fill="#e2e8f0" font-size="11.5" text-anchor="middle">진행 로그 모니터링</text>
+  <text x="409" y="220" fill="#fbbf24" font-size="12" text-anchor="middle" font-weight="700">병목·실패 감지 시</text>
+  <text x="409" y="248" fill="#e2e8f0" font-size="11.5" text-anchor="middle">경계 있는(bounded)</text>
+  <text x="409" y="266" fill="#e2e8f0" font-size="11.5" text-anchor="middle">구조 업데이트 트리거</text>
+  <text x="409" y="322" fill="#94a3b8" font-size="11" text-anchor="middle">태스크 인터페이스·예산은 보존</text>
+
+  <!-- arrow -->
+  <text x="544" y="228" fill="#64748b" font-size="26" text-anchor="middle">→</text>
+
+  <!-- Stage 3: adapt -->
+  <rect x="574" y="95" width="216" height="255" rx="12" fill="#111c33" stroke="#34d399" stroke-width="1.5"/>
+  <text x="682" y="122" fill="#34d399" font-size="13.5" font-weight="700" text-anchor="middle">③ 토폴로지 재구성</text>
+  <text x="682" y="144" fill="#94a3b8" font-size="11.5" text-anchor="middle">더 나은 협업 구조로 진화</text>
+  <!-- denser mesh topology -->
+  <g fill="#34d399">
+    <circle cx="640" cy="195" r="15"/><circle cx="724" cy="195" r="15"/>
+    <circle cx="640" cy="270" r="15"/><circle cx="724" cy="270" r="15"/>
+    <circle cx="682" cy="232" r="15"/>
+  </g>
+  <g stroke="#34d399" stroke-width="1.3" opacity="0.7">
+    <line x1="640" y1="195" x2="724" y2="195"/><line x1="640" y1="270" x2="724" y2="270"/>
+    <line x1="640" y1="195" x2="640" y2="270"/><line x1="724" y1="195" x2="724" y2="270"/>
+    <line x1="640" y1="195" x2="682" y2="232"/><line x1="724" y1="195" x2="682" y2="232"/>
+    <line x1="640" y1="270" x2="682" y2="232"/><line x1="724" y1="270" x2="682" y2="232"/>
+  </g>
+  <text x="682" y="322" fill="#e2e8f0" font-size="11.5" text-anchor="middle">추론 시 자가개선을 "구조"까지</text>
+
+  <text x="410" y="392" fill="#facc15" font-size="14" font-weight="700" text-anchor="middle">평균 74.0점 · 최강 베이스라인 대비 +5.8pp · PlanCraft 최고</text>
+  <text x="410" y="414" fill="#64748b" font-size="11.5" text-anchor="middle">출처: arXiv 2607.28527 초록 (5개 벤치마크 평균) · generated SVG</text>
+</svg>

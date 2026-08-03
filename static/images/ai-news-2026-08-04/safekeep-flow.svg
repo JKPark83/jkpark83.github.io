@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 560" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect width="840" height="560" fill="#0f172a"/>
+  <text x="420" y="38" text-anchor="middle" fill="#f8fafc" font-size="21" font-weight="700">SafeKeep — 안전 판단을 툴 실행에서 분리</text>
+  <text x="420" y="62" text-anchor="middle" fill="#94a3b8" font-size="13.5">논문: Tool Specifications Matter (arXiv 2607.29254)</text>
+
+  <!-- Row A: problem -->
+  <text x="40" y="104" fill="#f87171" font-size="14" font-weight="700">문제 — 기존 방식</text>
+  <rect x="40" y="116" width="200" height="70" rx="10" fill="#111827" stroke="#475569" stroke-width="1.5"/>
+  <text x="140" y="146" text-anchor="middle" fill="#e5e7eb" font-size="12.5">스키마 형식</text>
+  <text x="140" y="166" text-anchor="middle" fill="#e5e7eb" font-size="12.5">tool spec</text>
+  <path d="M240 151 H300" stroke="#f87171" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="300" y="116" width="210" height="70" rx="10" fill="#3f1d1d" stroke="#f87171" stroke-width="1.5"/>
+  <text x="405" y="146" text-anchor="middle" fill="#fecaca" font-size="12.5">내부 refusal 신호 약화</text>
+  <text x="405" y="166" text-anchor="middle" fill="#fecaca" font-size="12.5">(white-box 분석)</text>
+  <path d="M510 151 H570" stroke="#f87171" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="570" y="116" width="230" height="70" rx="10" fill="#3f1d1d" stroke="#f87171" stroke-width="1.5"/>
+  <text x="685" y="146" text-anchor="middle" fill="#fecaca" font-size="12.5">위험 요청도 툴 실행</text>
+  <text x="685" y="166" text-anchor="middle" fill="#fecaca" font-size="12.5">주입 공격에 취약</text>
+
+  <!-- Row B: SafeKeep -->
+  <text x="40" y="244" fill="#34d399" font-size="14" font-weight="700">SafeKeep — 추론 시점 세이프가드</text>
+  <rect x="40" y="256" width="200" height="70" rx="10" fill="#111827" stroke="#475569" stroke-width="1.5"/>
+  <text x="140" y="286" text-anchor="middle" fill="#e5e7eb" font-size="12.5">요청 도착</text>
+  <text x="140" y="306" text-anchor="middle" fill="#94a3b8" font-size="11.5">두 갈래로 분리</text>
+
+  <path d="M240 280 H320" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
+  <path d="M240 302 H320" stroke="#38bdf8" stroke-width="2" marker-end="url(#ab)"/>
+
+  <rect x="320" y="244" width="240" height="46" rx="9" fill="#052e2b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="440" y="266" text-anchor="middle" fill="#a7f3d0" font-size="12" font-weight="600">안전 판단</text>
+  <text x="440" y="283" text-anchor="middle" fill="#a7f3d0" font-size="11.5">flatten한 평문 tool spec 사용</text>
+
+  <rect x="320" y="296" width="240" height="46" rx="9" fill="#082f49" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="440" y="318" text-anchor="middle" fill="#bae6fd" font-size="12" font-weight="600">툴 실행</text>
+  <text x="440" y="335" text-anchor="middle" fill="#bae6fd" font-size="11.5">원래 스키마 spec 유지</text>
+
+  <path d="M560 267 H620" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
+  <rect x="620" y="256" width="180" height="70" rx="10" fill="#111827" stroke="#34d399" stroke-width="1.5"/>
+  <text x="710" y="284" text-anchor="middle" fill="#e5e7eb" font-size="12.5">유해 요청 거부</text>
+  <text x="710" y="304" text-anchor="middle" fill="#e5e7eb" font-size="12.5">안전 시 실행 진행</text>
+
+  <!-- results -->
+  <rect x="120" y="390" width="600" height="118" rx="12" fill="#111827" stroke="#334155" stroke-width="1.5"/>
+  <text x="420" y="416" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="700">검증 결과 (2개 벤치 · 4개 LLM)</text>
+  <!-- bar 1 refusal -->
+  <text x="150" y="446" fill="#cbd5e1" font-size="12.5">유해 요청 거부율</text>
+  <rect x="300" y="436" width="80" height="14" rx="3" fill="#f87171"/>
+  <text x="388" y="447" fill="#fca5a5" font-size="11.5">23.8%</text>
+  <rect x="440" y="436" width="200" height="14" rx="3" fill="#34d399"/>
+  <text x="648" y="447" fill="#a7f3d0" font-size="11.5">70.6%</text>
+  <!-- bar 2 asr -->
+  <text x="150" y="478" fill="#cbd5e1" font-size="12.5">주입 공격 성공률</text>
+  <rect x="300" y="468" width="86" height="14" rx="3" fill="#f87171"/>
+  <text x="394" y="479" fill="#fca5a5" font-size="11.5">25.6%</text>
+  <rect x="440" y="468" width="20" height="14" rx="3" fill="#34d399"/>
+  <text x="468" y="479" fill="#a7f3d0" font-size="11.5">2.5%</text>
+  <text x="420" y="500" text-anchor="middle" fill="#64748b" font-size="11">수치는 arXiv 2607.29254 초록 기준 · 자체 제작 SVG</text>
+
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#f87171"/></marker>
+    <marker id="ag" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#34d399"/></marker>
+    <marker id="ab" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#38bdf8"/></marker>
+  </defs>
+</svg>

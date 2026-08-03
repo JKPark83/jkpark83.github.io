@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 600" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect width="840" height="600" fill="#0f172a"/>
+  <text x="420" y="40" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="700">오늘의 AI 변화 지도 — 2026-08-04</text>
+  <text x="420" y="66" text-anchor="middle" fill="#94a3b8" font-size="14">축: 툴 정의(tool spec)가 에이전트 안전·신뢰성을 좌우한다</text>
+
+  <!-- center -->
+  <rect x="300" y="256" width="240" height="88" rx="14" fill="#1d4ed8" stroke="#60a5fa" stroke-width="2"/>
+  <text x="420" y="292" text-anchor="middle" fill="#ffffff" font-size="16" font-weight="700">tool spec = 안전·신뢰성 레버</text>
+  <text x="420" y="316" text-anchor="middle" fill="#dbeafe" font-size="13">스키마 형식이 refusal 신호를 약화</text>
+
+  <!-- connectors -->
+  <g stroke="#475569" stroke-width="2">
+    <line x1="300" y1="278" x2="180" y2="170"/>
+    <line x1="540" y1="278" x2="660" y2="170"/>
+    <line x1="300" y1="322" x2="180" y2="440"/>
+    <line x1="540" y1="322" x2="660" y2="440"/>
+  </g>
+
+  <!-- 논문 (top-left) -->
+  <rect x="30" y="110" width="300" height="96" rx="12" fill="#111827" stroke="#f59e0b" stroke-width="2"/>
+  <text x="46" y="134" fill="#f59e0b" font-size="14" font-weight="700">📚 주목 논문</text>
+  <text x="46" y="156" fill="#e5e7eb" font-size="12.5">SafeKeep · Tool Specs Matter (2607.29254)</text>
+  <text x="46" y="175" fill="#e5e7eb" font-size="12.5">refusal 23.8%→70.6%, 주입 ASR 25.6%→2.5%</text>
+  <text x="46" y="194" fill="#9ca3af" font-size="12.5">AMTFV 툴-플로우 검증 (2607.29549) +8.3pp</text>
+
+  <!-- 모델/도구 (top-right) -->
+  <rect x="510" y="110" width="300" height="96" rx="12" fill="#111827" stroke="#38bdf8" stroke-width="2"/>
+  <text x="526" y="134" fill="#38bdf8" font-size="14" font-weight="700">🤖 모델 &amp; 도구 레이더</text>
+  <text x="526" y="156" fill="#e5e7eb" font-size="12.5">새 프런티어 모델은 조용</text>
+  <text x="526" y="175" fill="#e5e7eb" font-size="12.5">무게중심 → 안전·신뢰성 인프라</text>
+  <text x="526" y="194" fill="#9ca3af" font-size="12.5">Codex 샌드박스/승인 정책이 통제점</text>
+
+  <!-- 오픈소스 (bottom-left) -->
+  <rect x="30" y="404" width="300" height="96" rx="12" fill="#111827" stroke="#34d399" stroke-width="2"/>
+  <text x="46" y="428" fill="#34d399" font-size="14" font-weight="700">🛠 오픈소스</text>
+  <text x="46" y="450" fill="#e5e7eb" font-size="12.5">mcp-scan — 툴 설명의 주입/포이즈닝 스캔</text>
+  <text x="46" y="469" fill="#e5e7eb" font-size="12.5">NeMo-Guardrails — 런타임 툴-사용 가드레일</text>
+  <text x="46" y="488" fill="#9ca3af" font-size="12.5">사전 스캔 + 실행 시 레일</text>
+
+  <!-- 팁 (bottom-right) -->
+  <rect x="510" y="404" width="300" height="96" rx="12" fill="#111827" stroke="#c084fc" stroke-width="2"/>
+  <text x="526" y="428" fill="#c084fc" font-size="14" font-weight="700">🧑‍💻 실전 팁</text>
+  <text x="526" y="450" fill="#e5e7eb" font-size="12.5">🟩 Codex: 최소권한 샌드박스로 시작</text>
+  <text x="526" y="469" fill="#e5e7eb" font-size="12.5">🟦 Claude Code: deny/allow 권한 규칙</text>
+  <text x="526" y="488" fill="#9ca3af" font-size="12.5">🟪 안전판단↔툴실행 분리 + MCP 스캔</text>
+
+  <text x="420" y="560" text-anchor="middle" fill="#64748b" font-size="11.5">출처: arXiv 2607.29254 / 2607.29549, code.claude.com/docs, developers.openai.com/codex · 자체 제작 SVG</text>
+</svg>

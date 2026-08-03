@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 470" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect width="840" height="470" fill="#0f172a"/>
+  <text x="420" y="38" text-anchor="middle" fill="#f8fafc" font-size="21" font-weight="700">툴 안전 오픈소스 — 파이프라인에서 어디에 놓나</text>
+
+  <!-- pipeline bar -->
+  <text x="60" y="86" fill="#94a3b8" font-size="12.5">MCP 서버 연결</text>
+  <text x="300" y="86" fill="#94a3b8" font-size="12.5">배포 전 스캔</text>
+  <text x="540" y="86" fill="#94a3b8" font-size="12.5">런타임 실행</text>
+  <line x1="60" y1="96" x2="790" y2="96" stroke="#334155" stroke-width="2"/>
+  <circle cx="70" cy="96" r="5" fill="#64748b"/>
+  <circle cx="360" cy="96" r="6" fill="#34d399"/>
+  <circle cx="620" cy="96" r="6" fill="#38bdf8"/>
+
+  <!-- card mcp-scan -->
+  <rect x="40" y="120" width="370" height="300" rx="14" fill="#111827" stroke="#34d399" stroke-width="2"/>
+  <text x="60" y="152" fill="#34d399" font-size="16" font-weight="700">invariantlabs-ai / mcp-scan</text>
+  <text x="60" y="176" fill="#94a3b8" font-size="12.5">Python · 배포 전 정적 스캔</text>
+  <text x="60" y="208" fill="#e5e7eb" font-size="13">· 설치된 MCP 서버의 tool 설명을 정적 검사</text>
+  <text x="60" y="232" fill="#e5e7eb" font-size="13">· prompt injection / tool poisoning 탐지</text>
+  <text x="60" y="256" fill="#e5e7eb" font-size="13">· tool shadowing(교차 출처 탈취) 감지</text>
+  <text x="60" y="280" fill="#e5e7eb" font-size="13">· rug-pull / toxic-flow 패턴 검사</text>
+  <rect x="60" y="300" width="330" height="46" rx="8" fill="#052e2b"/>
+  <text x="75" y="320" fill="#a7f3d0" font-size="12">쓸 때: 낯선 MCP 서버를 에이전트에</text>
+  <text x="75" y="338" fill="#a7f3d0" font-size="12">붙이기 전 CI에서 툴 설명 1차 검문</text>
+  <text x="60" y="378" fill="#64748b" font-size="11.5">★ 수는 2차 출처 기준, API 미검증</text>
+  <text x="60" y="400" fill="#64748b" font-size="11.5">github.com/invariantlabs-ai/mcp-scan</text>
+
+  <!-- card NeMo -->
+  <rect x="430" y="120" width="370" height="300" rx="14" fill="#111827" stroke="#38bdf8" stroke-width="2"/>
+  <text x="450" y="152" fill="#38bdf8" font-size="16" font-weight="700">NVIDIA / NeMo-Guardrails</text>
+  <text x="450" y="176" fill="#94a3b8" font-size="12.5">Python · 런타임 프로그래머블 레일 · 약 6.5K★(2차)</text>
+  <text x="450" y="208" fill="#e5e7eb" font-size="13">· 입력/출력/대화/툴-사용 가드레일</text>
+  <text x="450" y="232" fill="#e5e7eb" font-size="13">· Colang DSL로 다중 턴 흐름 제어</text>
+  <text x="450" y="256" fill="#e5e7eb" font-size="13">· jailbreak/주입 탐지, 사실 확인</text>
+  <text x="450" y="280" fill="#e5e7eb" font-size="13">· OpenTelemetry 트레이싱, Apache-2.0</text>
+  <rect x="450" y="300" width="330" height="46" rx="8" fill="#082f49"/>
+  <text x="465" y="320" fill="#bae6fd" font-size="12">쓸 때: 앱↔모델 사이에서 실행 순간</text>
+  <text x="465" y="338" fill="#bae6fd" font-size="12">위험 툴 호출을 실시간 차단·조향</text>
+  <text x="450" y="378" fill="#64748b" font-size="11.5">★ 약 6.5K, 2차 출처 근사 · API 미검증</text>
+  <text x="450" y="400" fill="#64748b" font-size="11.5">github.com/NVIDIA/NeMo-Guardrails</text>
+
+  <text x="420" y="452" text-anchor="middle" fill="#64748b" font-size="11">사전 스캔(mcp-scan) + 런타임 레일(NeMo-Guardrails)은 상호 보완 · 자체 제작 SVG</text>
+</svg>

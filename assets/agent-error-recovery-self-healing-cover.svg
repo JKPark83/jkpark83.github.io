@@ -1,0 +1,45 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="에이전트가 툴 호출에 실패해 빨간 엑스 표시가 뜨지만, 가운데의 복구 레이어가 실패를 붙잡아 실패 유형을 분류하고 재시도·폴백·서킷 브레이커로 되돌린 끝에 오른쪽에서 초록 체크로 작업을 완수하는 그림. 더 좋은 모델이 아니라 실행마다 감싸는 복구 레이어가 신뢰성을 만든다.">
+  <defs>
+    <linearGradient id="hrbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#3b0764"/>
+    </linearGradient>
+    <marker id="hrar" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto">
+      <path d="M0,0 L10,6 L0,12 Z" fill="#a78bfa"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#hrbg)"/>
+
+  <text x="600" y="82" text-anchor="middle" fill="#f1f5f9" font-family="system-ui,sans-serif" font-size="42" font-weight="800">실수한 뒤가 진짜 승부다</text>
+  <text x="600" y="126" text-anchor="middle" fill="#c4b5fd" font-family="system-ui,sans-serif" font-size="23">에이전트 오류 복구와 self-healing 설계</text>
+
+  <!-- left: failing action -->
+  <text x="185" y="238" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="21" font-weight="700">툴 호출 실패</text>
+  <circle cx="185" cy="360" r="82" fill="#450a0a" stroke="#f87171" stroke-width="7"/>
+  <path d="M150 325 l70 70 M220 325 l-70 70" stroke="#f87171" stroke-width="13" stroke-linecap="round"/>
+  <text x="185" y="490" text-anchor="middle" fill="#f87171" font-family="system-ui,sans-serif" font-size="22" font-weight="800">timeout · 429 · 400</text>
+
+  <!-- arrow to guard -->
+  <line x1="278" y1="360" x2="372" y2="360" stroke="#a78bfa" stroke-width="5" marker-end="url(#hrar)"/>
+
+  <!-- middle: recovery layer -->
+  <rect x="392" y="196" width="416" height="330" rx="20" fill="#1e1b4b" stroke="#a78bfa" stroke-width="3"/>
+  <text x="600" y="238" text-anchor="middle" fill="#e9d5ff" font-family="system-ui,sans-serif" font-size="24" font-weight="800">복구 레이어</text>
+  <g font-family="system-ui,sans-serif" font-size="21" font-weight="700" text-anchor="middle">
+    <rect x="424" y="262" width="352" height="52" rx="10" fill="#312e81" stroke="#818cf8" stroke-width="2"/><text x="600" y="295" fill="#c7d2fe">① 실패 분류 (일시 / 영구 / 치명)</text>
+    <rect x="424" y="326" width="352" height="52" rx="10" fill="#312e81" stroke="#818cf8" stroke-width="2"/><text x="600" y="359" fill="#c7d2fe">② 재시도 · 백오프 + 지터</text>
+    <rect x="424" y="390" width="352" height="52" rx="10" fill="#312e81" stroke="#818cf8" stroke-width="2"/><text x="600" y="423" fill="#c7d2fe">③ 서킷 브레이커 · 폴백</text>
+    <rect x="424" y="454" width="352" height="52" rx="10" fill="#312e81" stroke="#818cf8" stroke-width="2"/><text x="600" y="487" fill="#c7d2fe">④ 자기 검증 · 에스컬레이션</text>
+  </g>
+
+  <!-- arrow to success -->
+  <line x1="828" y1="360" x2="922" y2="360" stroke="#a78bfa" stroke-width="5" marker-end="url(#hrar)"/>
+
+  <!-- right: recovered -->
+  <text x="1015" y="238" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="21" font-weight="700">복구 성공</text>
+  <circle cx="1015" cy="360" r="82" fill="#064e3b" stroke="#34d399" stroke-width="7"/>
+  <path d="M975 362 l28 30 l54 -66" fill="none" stroke="#34d399" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1015" y="490" text-anchor="middle" fill="#34d399" font-family="system-ui,sans-serif" font-size="22" font-weight="800">작업 완수</text>
+
+  <text x="600" y="580" text-anchor="middle" fill="#a5b4fc" font-family="system-ui,sans-serif" font-size="20">더 좋은 모델이 아니라, 실행마다 감싸는 복구 레이어가 신뢰성을 만든다</text>
+</svg>

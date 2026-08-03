@@ -1,0 +1,410 @@
+---
+title: "에이전트가 실수한 뒤가 진짜 승부다: 오류에서 스스로 복구하는 self-healing 설계"
+date: 2026-08-04T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "agent", "오류 복구", "error recovery", "self-healing", "resilience", "retry", "circuit breaker", "idempotency", "reliability", "Recovery-Bench", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "데모에서는 잘 돌던 에이전트가 프로덕션에서 자꾸 멈춥니다. 툴 호출이 timeout 나고, 잘못된 인자를 넣어 상태를 망가뜨리고, 그 뒤로는 복구를 못 해 헛발질만 반복하죠. 놀랍게도 '실수에서 회복하는 능력'은 작업 자체를 푸는 능력과 별개입니다. Letta의 Recovery-Bench에서 최상위 모델도 정상 과제 대비 절반 넘게 점수가 떨어졌습니다. 답은 더 좋은 모델이 아니라, 모든 행동을 감싸는 복구 레이어입니다. 이 글은 실패 분류, 지수 백오프+지터 재시도, 서킷 브레이커, 우아한 폴백, 체크포인트와 멱등성, 자기 검증 루프까지 self-healing 에이전트의 핵심 패턴을 코드와 다이어그램으로 junior 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-error-recovery-self-healing-cover.svg"
+  alt: "왼쪽에서 에이전트의 툴 호출이 빨간 엑스로 실패하지만, 가운데 복구 레이어가 실패를 붙잡아 유형을 분류하고 재시도·서킷 브레이커·폴백·자기 검증으로 처리한 끝에 오른쪽에서 초록 체크로 작업을 완수하는 그림."
+  caption: "에이전트 신뢰성은 더 좋은 모델이 아니라, 실행하는 모든 행동을 감싸는 복구 레이어에서 나온다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 오류 복구 포스트 전용 스타일 (hrec- 접두사) ── */
+.hrec-fig{
+  --hrec-sky:#0284c7; --hrec-amber:#d97706; --hrec-green:#16a34a; --hrec-rose:#e11d48;
+  --hrec-slate:#64748b; --hrec-violet:#7c3aed; --hrec-teal:#0d9488; --hrec-blue:#2563eb;
+  --hrec-grid:#cbd5e1;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .hrec-fig{
+  --hrec-sky:#38bdf8; --hrec-amber:#fbbf24; --hrec-green:#4ade80; --hrec-rose:#fb7185;
+  --hrec-slate:#94a3b8; --hrec-violet:#a78bfa; --hrec-teal:#2dd4bf; --hrec-blue:#60a5fa;
+  --hrec-grid:#334155;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .hrec-fig{
+    --hrec-sky:#38bdf8; --hrec-amber:#fbbf24; --hrec-green:#4ade80; --hrec-rose:#fb7185;
+    --hrec-slate:#94a3b8; --hrec-violet:#a78bfa; --hrec-teal:#2dd4bf; --hrec-blue:#60a5fa;
+    --hrec-grid:#334155;
+  }
+}
+.hrec-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.hrec-fig text{font-family:inherit}
+.hrec-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.hrec-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.hrec-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.hrec-toc ol{margin:0;padding-left:1.25rem}
+.hrec-toc li{margin:.22rem 0;font-size:.95rem}
+.hrec-toc a{text-decoration:none}
+.hrec-toc a:hover{text-decoration:underline}
+.hrec-pull{font-size:1.12rem;line-height:1.72}
+.hrec-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.hrec-note{border-left:4px solid var(--hrec-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.hrec-note strong{color:var(--hrec-blue,#2563eb)}
+.hrec-warn{border-left:4px solid var(--hrec-rose,#e11d48)}
+.hrec-warn strong{color:var(--hrec-rose,#e11d48)}
+.hrec-good{border-left:4px solid var(--hrec-teal,#0d9488)}
+.hrec-good strong{color:var(--hrec-teal,#0d9488)}
+.hrec-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.hrec-tbl th,.hrec-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.hrec-tbl th{background:var(--entry);font-weight:700}
+.hrec-tbl code{font-size:.86em}
+.hrec-tblwrap{overflow-x:auto}
+.hrec-refs{font-size:.92rem;line-height:1.9}
+.hrec-refs a{word-break:break-all}
+</style>
+
+<blockquote class="hrec-pull">
+“왜 데모에서는 완벽하던 에이전트가 실제 서비스에만 올리면 자꾸 멈추죠?”
+<footer>— 프로덕션에 에이전트를 처음 올려 본 거의 모든 팀</footer>
+</blockquote>
+
+<p>에이전트를 처음 만들 때는 “모델만 좋으면 다 된다”고 생각하기 쉽습니다. 그런데 실제로 배포해 보면 문제는 대개 모델의 지능이 아니라 <strong>실수한 뒤의 처리</strong>에서 터집니다. 툴 호출이 timeout 나고, 잘못된 인자를 넣어 파일을 반쯤 지우고, 그 뒤로는 뭘 어떻게 되돌려야 할지 몰라 같은 실수를 반복하죠. 이 글은 그 “실수한 뒤”를 다루는 기술, 즉 <strong>에이전트 오류 복구(error recovery)</strong>와 스스로 회복하는 <strong>self-healing</strong> 설계를 junior 개발자 눈높이에서 정리합니다.</p>
+
+<nav class="hrec-toc" aria-label="목차">
+  <div class="hrec-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 ‘복구’가 화두인가</a></li>
+    <li><a href="#sec-2">배경 — 에이전트 루프의 어디서 무너지나</a></li>
+    <li><a href="#sec-3">1단계: 실패를 분류하라</a></li>
+    <li><a href="#sec-4">2단계: 지수 백오프 + 지터 재시도</a></li>
+    <li><a href="#sec-5">3단계: 서킷 브레이커</a></li>
+    <li><a href="#sec-6">4단계: 우아한 폴백</a></li>
+    <li><a href="#sec-7">5단계: 체크포인트·롤백과 멱등성</a></li>
+    <li><a href="#sec-8">6단계: 자기 검증 루프</a></li>
+    <li><a href="#sec-9">실전 예제 — 복구 레이어 하나로 묶기</a></li>
+    <li><a href="#sec-10">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-11">마무리 — TL;DR</a></li>
+    <li><a href="#sec-12">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 ‘복구’가 화두인가</h2>
+
+<p>2026년의 에이전트 담론은 “만들 수 있느냐”에서 “<strong>안정적으로 굴릴 수 있느냐</strong>”로 완전히 넘어왔습니다. LangChain의 <em>State of Agent Engineering</em> 설문(응답자 1,300여 명)을 보면 방향이 뚜렷합니다. 관측성(observability)을 갖춘 팀은 89%인데 eval을 갖춘 팀은 52%뿐이고, 프로덕션에 에이전트를 올린 팀은 57%, 그중 가장 큰 걸림돌로 “품질”을 꼽은 응답이 32%로 1위였습니다. 요약하면 <em>“지켜보고는 있는데, 무너지는 걸 막지는 못한다”</em>는 상태죠.</p>
+
+<p>여기서 반직관적인 사실이 하나 있습니다. <strong>실수에서 회복하는 능력은 작업을 푸는 능력과 별개</strong>라는 점입니다. Letta가 공개한 <strong>Recovery-Bench</strong>가 이걸 수치로 보여 줍니다. 방식은 이렇습니다 — 약한 에이전트가 Terminal-Bench(터미널에서 실제 작업을 시키는 벤치마크) 과제를 시도하다 실패해 환경을 이미 “망가뜨린” 상태를 만든 뒤, 그 오염된 상태에서 다른 에이전트가 복구를 시도하게 합니다. 결과가 인상적입니다.</p>
+
+<figure class="hrec-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="Recovery-Bench 결과 막대그래프. 정상 Terminal-Bench에서는 모델 평균 점수가 26.3퍼센트, 최고 모델인 Claude 4 Sonnet이 34.8퍼센트로 비교적 길다. 그런데 이미 망가진 상태에서 복구를 시켜 보는 Recovery-Bench에서는 모델 평균 점수가 11.2퍼센트로 뚝 떨어져 절반도 안 되는 짧은 막대가 된다. 정상 과제 대비 상대적으로 약 57퍼센트 하락으로, 실수를 되돌리는 능력이 별개의 약점임을 보여 준다.">
+  <text x="30" y="34" fill="var(--hrec-slate)" font-size="16" font-weight="700">같은 모델, 정상 과제 vs 망가진 상태 복구</text>
+
+  <!-- baseline avg -->
+  <text x="30" y="86" fill="var(--hrec-slate)" font-size="13.5" font-weight="700">Terminal-Bench 평균</text>
+  <rect x="250" y="68" width="263" height="30" rx="6" fill="var(--hrec-teal)"/>
+  <text x="523" y="89" fill="var(--hrec-slate)" font-size="13.5" font-weight="700">26.3%</text>
+
+  <!-- best model -->
+  <text x="30" y="134" fill="var(--hrec-slate)" font-size="13.5" font-weight="700">최고 모델(정상)</text>
+  <text x="30" y="151" fill="var(--hrec-slate)" font-size="11" opacity="0.75">Claude 4 Sonnet</text>
+  <rect x="250" y="116" width="348" height="30" rx="6" fill="var(--hrec-green)"/>
+  <text x="608" y="137" fill="var(--hrec-slate)" font-size="13.5" font-weight="700">34.8%</text>
+
+  <!-- recovery avg -->
+  <text x="30" y="200" fill="var(--hrec-slate)" font-size="13.5" font-weight="700">Recovery-Bench 평균</text>
+  <rect x="250" y="182" width="112" height="30" rx="6" fill="var(--hrec-rose)"/>
+  <text x="372" y="203" fill="var(--hrec-slate)" font-size="13.5" font-weight="700">11.2%</text>
+
+  <line x1="250" y1="238" x2="710" y2="238" stroke="var(--hrec-grid)" stroke-width="1"/>
+  <text x="250" y="262" fill="var(--hrec-rose)" font-size="13" font-weight="700">정상 과제 대비 상대적으로 약 57% 하락</text>
+  <text x="250" y="284" fill="var(--hrec-slate)" font-size="12" opacity="0.8">막대 길이 = 성공률에 비례 · 출처: Letta, Recovery-Bench</text>
+</svg>
+<figcaption>이미 망가진 상태에서 되돌리는 일은 처음부터 푸는 일보다 훨씬 어렵다. “더 똑똑한 모델”만으로는 안 되고, 복구는 따로 설계해 줘야 하는 이유다.</figcaption>
+</figure>
+
+<p>메시지는 분명합니다. 모델을 아무리 키워도 “실수 뒤 회복”은 저절로 따라오지 않습니다. 그래서 신뢰할 수 있는 에이전트와 그렇지 못한 에이전트를 가르는 건 모델이 아니라, <strong>모든 행동을 감싸는 예외 처리·복구 레이어</strong>입니다. 지금부터 그 레이어를 6단계로 쌓아 보겠습니다.</p>
+
+<h2 id="sec-2">2. 배경 — 에이전트 루프의 어디서 무너지나</h2>
+
+<p>에이전트는 본질적으로 반복 루프입니다. <em>계획 → 툴 호출 → 결과 관찰 → 다음 행동 결정</em>을 목표를 이룰 때까지 돕니다. 문제는 이 루프의 “툴 호출”이 바깥세상과 부딪히는 지점이라는 데 있습니다. 네트워크가 끊기고, API가 429(rate limit)를 던지고, 잘못된 인자로 400이 나고, 파일이 이미 반쯤 바뀌어 버리죠.</p>
+
+<p>사람이라면 “아, 방금 게 잘못됐네” 하고 되돌아가지만, LLM은 기본적으로 <strong>매 스텝을 깨끗한 상태라고 가정</strong>하는 경향이 있습니다. 그래서 오염된 상태를 만나면 오히려 헷갈려서 같은 실패를 반복하거나, 엉뚱한 곳을 건드려 상황을 더 악화시킵니다. Recovery-Bench의 낮은 점수가 바로 이 현상입니다.</p>
+
+<div class="hrec-note">
+<strong>이 글의 범위</strong> — 여기서 다루는 건 <em>루프 안에서 툴 실패를 감지하고 되돌리는</em> 층입니다. 프로세스가 통째로 죽었다가 다시 살아나도 작업이 이어지게 하는 <em>durable execution</em>(Temporal 같은 워크플로 엔진)이나, 신뢰성을 <em>측정</em>하는 eval은 인접하지만 다른 층입니다. 셋을 함께 쓰면 가장 튼튼하지만, 이 글은 “복구 로직” 자체에 집중합니다.</div>
+
+<h2 id="sec-3">3. 1단계: 실패를 분류하라</h2>
+
+<p>복구의 출발점은 “무조건 다시 시도”가 아니라 <strong>실패를 유형별로 나누는 것</strong>입니다. 유형이 다르면 처방이 완전히 다르기 때문입니다. 실무에서 잘 쓰는 3분류는 이렇습니다.</p>
+
+<div class="hrec-tblwrap">
+<table class="hrec-tbl">
+<thead><tr><th>유형</th><th>뜻 · 예시</th><th>처방</th></tr></thead>
+<tbody>
+<tr><td><strong>일시적(transient)</strong></td><td>잠깐 삐끗한 것. timeout, 429 rate limit, 5xx 서버 오류, 일시적 네트워크 단절</td><td>잠시 뒤 <strong>재시도</strong>하면 대개 풀림</td></tr>
+<tr><td><strong>영구적(permanent)</strong></td><td>다시 해도 똑같이 실패. 400 잘못된 인자, 401/403 권한 없음, 404, 논리 오류</td><td>재시도 금물 → <strong>고쳐서</strong> 다시 하거나 <strong>폴백</strong></td></tr>
+<tr><td><strong>치명적(critical)</strong></td><td>그냥 두면 피해가 커짐. 데이터 손상, 예산 초과, 무한 루프 조짐</td><td>즉시 <strong>중단·롤백</strong> 후 사람에게 에스컬레이션</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>이 분류를 결정 트리로 그리면 복구 레이어의 뼈대가 그대로 보입니다.</p>
+
+<figure class="hrec-fig">
+<svg viewBox="0 0 760 360" role="img" aria-label="실패 분류 결정 트리. 맨 위 툴 호출 실패에서 시작해 세 갈래로 나뉜다. 일시적 오류(timeout, 429, 5xx)는 백오프 후 재시도로 가고, 재시도 한도를 넘으면 폴백으로 넘어간다. 영구적 오류(400, 403, 논리 오류)는 재시도해도 소용없으니 인자를 고쳐 다시 하거나 대체 경로인 폴백으로 간다. 치명적 오류(데이터 손상, 예산 초과)는 즉시 중단하고 롤백한 뒤 사람에게 에스컬레이션한다.">
+  <!-- root -->
+  <rect x="300" y="20" width="160" height="46" rx="10" fill="var(--hrec-rose)"/>
+  <text x="380" y="48" fill="#fff" font-size="14.5" font-weight="700" text-anchor="middle">툴 호출 실패</text>
+
+  <!-- branches -->
+  <g stroke="var(--hrec-grid)" stroke-width="1.6" fill="none">
+    <path d="M380 66 L150 108"/>
+    <path d="M380 66 L380 108"/>
+    <path d="M380 66 L610 108"/>
+  </g>
+
+  <!-- transient -->
+  <rect x="40" y="108" width="220" height="52" rx="10" fill="none" stroke="var(--hrec-teal)" stroke-width="2"/>
+  <text x="150" y="130" fill="var(--hrec-teal)" font-size="13.5" font-weight="700" text-anchor="middle">일시적</text>
+  <text x="150" y="149" fill="var(--hrec-slate)" font-size="11.5" text-anchor="middle">timeout · 429 · 5xx</text>
+  <!-- permanent -->
+  <rect x="270" y="108" width="220" height="52" rx="10" fill="none" stroke="var(--hrec-amber)" stroke-width="2"/>
+  <text x="380" y="130" fill="var(--hrec-amber)" font-size="13.5" font-weight="700" text-anchor="middle">영구적</text>
+  <text x="380" y="149" fill="var(--hrec-slate)" font-size="11.5" text-anchor="middle">400 · 403 · 논리 오류</text>
+  <!-- critical -->
+  <rect x="500" y="108" width="220" height="52" rx="10" fill="none" stroke="var(--hrec-rose)" stroke-width="2"/>
+  <text x="610" y="130" fill="var(--hrec-rose)" font-size="13.5" font-weight="700" text-anchor="middle">치명적</text>
+  <text x="610" y="149" fill="var(--hrec-slate)" font-size="11.5" text-anchor="middle">데이터 손상 · 예산 초과</text>
+
+  <!-- actions -->
+  <g stroke="var(--hrec-grid)" stroke-width="1.6" fill="none">
+    <path d="M150 160 L150 214"/>
+    <path d="M380 160 L380 214"/>
+    <path d="M610 160 L610 214"/>
+  </g>
+  <rect x="40" y="214" width="220" height="50" rx="10" fill="var(--hrec-teal)"/>
+  <text x="150" y="244" fill="#fff" font-size="13.5" font-weight="700" text-anchor="middle">백오프 후 재시도</text>
+  <rect x="270" y="214" width="220" height="50" rx="10" fill="var(--hrec-amber)"/>
+  <text x="380" y="238" fill="#fff" font-size="13" font-weight="700" text-anchor="middle">인자 고쳐 재시도</text>
+  <text x="380" y="255" fill="#fff" font-size="11.5" text-anchor="middle">또는 폴백</text>
+  <rect x="500" y="214" width="220" height="50" rx="10" fill="var(--hrec-rose)"/>
+  <text x="610" y="238" fill="#fff" font-size="13.5" font-weight="700" text-anchor="middle">중단 · 롤백</text>
+  <text x="610" y="255" fill="#fff" font-size="11.5" text-anchor="middle">→ 사람에게 에스컬레이션</text>
+
+  <!-- transient overflow -> fallback -->
+  <path d="M150 264 L150 318" stroke="var(--hrec-grid)" stroke-width="1.6" fill="none" stroke-dasharray="4 4"/>
+  <rect x="40" y="318" width="220" height="30" rx="8" fill="none" stroke="var(--hrec-slate)" stroke-width="1.5"/>
+  <text x="150" y="338" fill="var(--hrec-slate)" font-size="12" font-weight="700" text-anchor="middle">한도 초과 시 → 폴백</text>
+</svg>
+<figcaption>모든 복구는 “이 실패가 어떤 종류인가?”를 먼저 물어야 한다. 분류를 건너뛰고 무조건 재시도하면, 영구적 오류를 붙잡고 무한히 헛발질하게 된다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 2단계: 지수 백오프 + 지터 재시도</h2>
+
+<p>일시적 오류의 표준 처방은 <strong>지수 백오프(exponential backoff)</strong>입니다. 실패할 때마다 대기 시간을 2배씩 늘려 가며 재시도합니다. 1초 → 2초 → 4초 → 8초 식이죠. 서버가 잠깐 과부하일 때 곧바로 다시 때리면 상황만 악화되니, 점점 뜸을 들이는 겁니다.</p>
+
+<p>여기에 반드시 <strong>지터(jitter)</strong>, 즉 무작위 흔들림을 더해야 합니다. 지터가 없으면 실패한 클라이언트 수천 개가 “정확히 4초 뒤”에 동시에 몰려들어 서버를 다시 쓰러뜨립니다(이걸 thundering herd, 우르르 몰림이라 부릅니다). 대기 시간에 난수를 섞어 시점을 흩뿌리면 이 파도를 막을 수 있습니다.</p>
+
+{{< highlight python >}}
+import random, time
+
+def call_with_retry(fn, max_attempts=5, base=1.0, cap=30.0):
+    """일시적 오류에만 재시도. 지수 백오프 + 지터."""
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except TransientError as e:      # 일시적 오류만 잡는다
+            if attempt == max_attempts - 1:
+                raise                     # 마지막 시도까지 실패 → 상위로 던짐
+            # 2^attempt 로 늘리되 cap으로 상한, 그 위에 지터를 섞는다
+            delay = min(cap, base * (2 ** attempt))
+            delay = random.uniform(0, delay)   # full jitter: 0~delay 사이 무작위
+        except PermanentError:
+            raise                          # 영구적 오류는 재시도하지 않는다!
+        time.sleep(delay)
+{{< /highlight >}}
+
+<div class="hrec-warn hrec-note">
+<strong>핵심 함정</strong> — <code>except</code>로 <em>모든</em> 예외를 잡아 재시도하면 안 됩니다. 400·403 같은 영구적 오류는 백 번 다시 해도 똑같이 실패하는데, 그 사이 토큰과 시간만 태우고 rate limit까지 더 깎아 먹습니다. 재시도는 “일시적”이라고 분류된 것에만 거세요.</div>
+
+<h2 id="sec-5">5. 3단계: 서킷 브레이커</h2>
+
+<p>재시도만으로는 부족한 상황이 있습니다. 특정 툴이나 외부 API가 아예 뻗어 버려 <em>계속</em> 실패하는 경우죠. 이때 재시도를 반복하면 이미 죽은 서비스를 두들기며 자원만 낭비하고, 사용자 응답만 느려집니다. 여기서 필요한 게 <strong>서킷 브레이커(circuit breaker)</strong>, 즉 두꺼비집입니다.</p>
+
+<p>전기 두꺼비집이 과부하 때 회로를 끊듯, 실패가 임계치를 넘으면 그 툴로 가는 호출을 <em>일정 시간 아예 차단</em>합니다. 상태는 셋입니다.</p>
+
+<figure class="hrec-fig">
+<svg viewBox="0 0 760 250" role="img" aria-label="서킷 브레이커 상태 기계 다이어그램. 세 가지 상태가 있다. 닫힘 상태에서는 호출이 정상적으로 통과하며, 연속 실패가 임계치를 넘으면 열림 상태로 넘어간다. 열림 상태에서는 호출을 즉시 차단해 죽은 서비스를 두들기지 않으며, 쿨다운 시간이 지나면 반열림 상태로 넘어간다. 반열림 상태에서는 시험 호출을 하나만 보내 보고, 성공하면 닫힘으로 돌아가고 실패하면 다시 열림으로 돌아간다.">
+  <!-- closed -->
+  <circle cx="130" cy="130" r="66" fill="none" stroke="var(--hrec-green)" stroke-width="3"/>
+  <text x="130" y="122" fill="var(--hrec-green)" font-size="15" font-weight="700" text-anchor="middle">닫힘</text>
+  <text x="130" y="144" fill="var(--hrec-slate)" font-size="11.5" text-anchor="middle">호출 통과</text>
+  <!-- open -->
+  <circle cx="630" cy="130" r="66" fill="none" stroke="var(--hrec-rose)" stroke-width="3"/>
+  <text x="630" y="122" fill="var(--hrec-rose)" font-size="15" font-weight="700" text-anchor="middle">열림</text>
+  <text x="630" y="144" fill="var(--hrec-slate)" font-size="11.5" text-anchor="middle">즉시 차단</text>
+  <!-- half-open -->
+  <circle cx="380" cy="130" r="66" fill="none" stroke="var(--hrec-amber)" stroke-width="3"/>
+  <text x="380" y="122" fill="var(--hrec-amber)" font-size="15" font-weight="700" text-anchor="middle">반열림</text>
+  <text x="380" y="144" fill="var(--hrec-slate)" font-size="11.5" text-anchor="middle">시험 호출 1개</text>
+
+  <defs>
+    <marker id="hrec-cb" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto">
+      <path d="M0,0 L7,4.5 L0,9 Z" fill="var(--hrec-slate)"/>
+    </marker>
+  </defs>
+  <g stroke="var(--hrec-slate)" stroke-width="1.8" fill="none" marker-end="url(#hrec-cb)">
+    <!-- closed -> open (top) -->
+    <path d="M188 100 Q380 24 572 100"/>
+    <!-- open -> half (bottom) -->
+    <path d="M572 160 Q505 210 446 160"/>
+    <!-- half -> closed (bottom) -->
+    <path d="M314 160 Q255 210 188 160"/>
+    <!-- half -> open (top) -->
+    <path d="M438 108 Q505 78 572 108"/>
+  </g>
+  <text x="380" y="52" fill="var(--hrec-rose)" font-size="11.5" font-weight="700" text-anchor="middle">연속 실패 &gt; 임계치</text>
+  <text x="508" y="205" fill="var(--hrec-amber)" font-size="11" text-anchor="middle">쿨다운 경과</text>
+  <text x="250" y="205" fill="var(--hrec-green)" font-size="11" text-anchor="middle">시험 성공 → 복구</text>
+  <text x="508" y="72" fill="var(--hrec-rose)" font-size="11" text-anchor="middle">시험 실패 → 재차단</text>
+</svg>
+<figcaption>서킷 브레이커는 “죽은 서비스를 계속 두들기지 않기” 위한 장치다. 열림 상태에서는 재시도조차 건너뛰고 곧장 폴백으로 넘어가, 장애가 전체 시스템으로 번지는 걸 막는다.</figcaption>
+</figure>
+
+<p><strong>닫힘(closed)</strong>은 평상시로 호출이 그냥 통과합니다. 연속 실패가 임계치(예: 5회)를 넘으면 <strong>열림(open)</strong>으로 바뀌어, 이후 호출을 즉시 실패 처리합니다(빠른 실패, fail-fast). 쿨다운(예: 30초)이 지나면 <strong>반열림(half-open)</strong>이 되어 시험 삼아 호출 하나만 보내 보고, 성공하면 닫힘으로 복귀, 실패하면 다시 열림으로 돌아갑니다. 덕분에 장애가 난 툴 하나 때문에 에이전트 전체가 멈추는 <em>연쇄 장애(cascading failure)</em>를 끊을 수 있습니다.</p>
+
+<h2 id="sec-6">6. 4단계: 우아한 폴백</h2>
+
+<p>재시도도 안 되고 서킷도 열렸다면, 그냥 죽는 대신 <strong>우아하게 물러설(graceful fallback)</strong> 차례입니다. 완벽한 답 대신 “충분히 쓸 만한” 답으로 서비스를 이어 가는 거죠. 흔한 폴백 사다리는 이렇습니다.</p>
+
+<ul>
+<li><strong>대체 툴/경로</strong> — 실시간 검색 API가 죽으면 캐시된 인덱스로, 1순위 결제 게이트웨이가 막히면 2순위로.</li>
+<li><strong>캐시된 결과</strong> — 조금 오래됐더라도 마지막으로 성공한 응답을 돌려줍니다(<em>stale-while-revalidate</em>).</li>
+<li><strong>더 싼/작은 모델</strong> — 메인 모델이 rate limit에 걸리면 경량 모델로 내려 답의 질을 조금 낮추더라도 응답을 냅니다.</li>
+<li><strong>부분 응답</strong> — “세 곳 중 두 곳 예약을 마쳤고, 마지막은 곧 다시 시도하겠습니다”처럼 <em>지금까지 된 것</em>을 정직하게 반환합니다.</li>
+</ul>
+
+<div class="hrec-good hrec-note">
+<strong>원칙</strong> — 폴백의 목표는 “완벽”이 아니라 “<em>예측 가능한 최소 품질</em>”입니다. 무엇으로 물러설지, 그때 사용자에게 뭐라고 알릴지를 미리 정해 두면, 장애가 나도 서비스가 통째로 침묵하지 않습니다.</div>
+
+<h2 id="sec-7">7. 5단계: 체크포인트·롤백과 멱등성</h2>
+
+<p>지금까지는 “읽기”처럼 되돌리기 쉬운 호출을 가정했습니다. 그런데 에이전트가 <strong>부작용(side effect)</strong>을 남기는 행동 — 이메일 발송, 결제, 파일 삭제, DB 쓰기 — 을 하면 이야기가 완전히 달라집니다. 여기서 junior가 가장 많이 데는 함정이 있습니다.</p>
+
+<div class="hrec-warn hrec-note">
+<strong>DB를 롤백해도 부작용은 롤백되지 않는다</strong> — DB를 깨끗한 시점으로 복원해도, <em>이미 보낸 이메일</em>이나 <em>이미 빠져나간 결제</em>는 되돌아오지 않습니다. 그래서 재시도가 그대로 “이메일 두 번 발송·결제 두 번 청구”가 되기 쉽습니다.</div>
+
+<p>해법의 핵심은 <strong>멱등성(idempotency)</strong>입니다. “같은 요청을 여러 번 보내도 결과가 한 번 보낸 것과 같다”는 성질이죠. 방법은 각 작업에 고유한 <code>idempotency key</code>를 붙이고, 서버·툴이 그 키로 중복 실행을 걸러 내게 하는 겁니다.</p>
+
+{{< highlight python >}}
+def charge_once(order_id, amount, seen: set):
+    # order_id를 멱등 키로 사용 — 같은 주문은 딱 한 번만 청구된다
+    if order_id in seen:               # 이미 처리한 주문이면
+        return "already_charged"       # 재청구 없이 이전 결과를 반환
+    result = payment_api.charge(amount, idempotency_key=order_id)
+    seen.add(order_id)                 # 성공 기록을 남겨 재시도에 대비
+    return result
+{{< /highlight >}}
+
+<p>여기에 <strong>체크포인트(checkpoint)</strong>를 곁들이면 더 튼튼해집니다. 긴 작업을 여러 단계로 쪼개 각 단계가 끝날 때마다 진행 상태를 저장해 두면, 5단계 중 3단계에서 실패해도 처음이 아니라 3단계부터 이어서 복구할 수 있습니다. 이때도 “각 단계가 멱등한가?”를 함께 챙겨야 재개가 안전합니다.</p>
+
+<h2 id="sec-8">8. 6단계: 자기 검증 루프</h2>
+
+<p>지금까지는 “툴이 에러를 던졌을 때”를 다뤘습니다. 하지만 더 교묘한 실패가 있습니다. 툴은 200 OK를 돌려줬는데 <em>결과가 틀린</em> 경우죠. 파일은 만들었는데 내용이 엉뚱하거나, 코드는 짰는데 테스트가 깨지는 식입니다. 에러가 안 났으니 재시도 로직은 조용하고, 에이전트는 “다 됐다”며 넘어갑니다.</p>
+
+<p>그래서 필요한 게 <strong>자기 검증(self-verification) 루프</strong>입니다. 행동한 결과를 그대로 믿지 말고, <em>명시적인 성공 기준</em>에 비춰 “내가 요구받은 걸 정말 만들었나?”를 스스로 확인하게 하는 겁니다. 검증에 실패하면 무작정 다시 하지 말고, 실패 원인을 분류해 <strong>겨냥된(targeted) 재시도</strong>를 합니다.</p>
+
+{{< highlight python >}}
+def act_and_verify(task, max_loops=3):
+    for _ in range(max_loops):
+        result = agent.act(task)
+        check = verify(result, task.success_criteria)  # 실행 가능한 체크로 검증
+        if check.ok:
+            return result                               # 기준 통과 → 종료
+        # 실패 이유를 다음 시도의 힌트로 넘긴다 (막연한 재시도 금지)
+        task = task.with_feedback(check.reason)
+    raise NeedsHumanReview(task)                        # 반복 실패 → 사람에게
+{{< /highlight >}}
+
+<p>여기서 성공 기준은 가능하면 <strong>실행 가능한 형태</strong>여야 합니다. 코딩 작업이면 “테스트가 통과하는가”, 데이터 작업이면 “행 수가 맞는가·스키마가 유효한가”처럼 기계가 판정할 수 있는 것이 좋습니다. Recovery-Bench가 에이전트의 말(transcript)이 아니라 <em>환경의 최종 상태</em>를 테스트로 채점하는 것도 같은 이유입니다 — 에이전트의 자기 보고는 못 믿거든요.</p>
+
+<div class="hrec-warn hrec-note">
+<strong>낡은 기준의 함정</strong> — 검증 루프가 <em>틀린 성공 기준</em>을 들고 있으면, 잘못된 결과를 매번 “통과”시키며 오류를 눈덩이처럼 키웁니다. 기준 자체가 맞는지도 주기적으로 점검해야 합니다. 검증자가 곧 품질의 상한선입니다.</div>
+
+<h2 id="sec-9">9. 실전 예제 — 복구 레이어 하나로 묶기</h2>
+
+<p>여섯 단계를 하나의 흐름으로 엮으면, 에이전트가 부르는 모든 툴을 감싸는 <strong>복구 레이어</strong>가 됩니다. 아래는 분류 → (일시적) 재시도+백오프 → 서킷 브레이커 → 폴백을 한 함수에 담은 골격입니다.</p>
+
+{{< highlight python >}}
+def resilient_call(tool, args, *, breaker, fallback=None):
+    # 0) 서킷이 열려 있으면 재시도조차 건너뛰고 곧장 폴백
+    if breaker.is_open(tool.name):
+        return fallback() if fallback else _fail("circuit_open")
+
+    try:
+        # 1) 일시적 오류에만 백오프+지터 재시도 (4장 로직 재사용)
+        result = call_with_retry(lambda: tool.run(args))
+        breaker.record_success(tool.name)
+        return result
+
+    except PermanentError as e:
+        # 2) 영구적 오류: 재시도 대신 인자를 고쳐 다시 하거나 폴백
+        breaker.record_success(tool.name)   # 서비스는 살아있음 → 서킷 유지
+        return fallback() if fallback else _fail(f"permanent:{e}")
+
+    except TransientError as e:
+        # 3) 재시도까지 실패: 서킷 카운터 올리고 폴백으로 물러남
+        breaker.record_failure(tool.name)
+        return fallback() if fallback else _fail(f"exhausted:{e}")
+
+    except CriticalError as e:
+        # 4) 치명적 오류: 즉시 중단·롤백 후 사람에게
+        rollback()
+        raise NeedsHumanReview(e)
+{{< /highlight >}}
+
+<p>포인트는 <strong>에이전트의 “머리”(LLM)와 복구 “근육”(이 레이어)을 분리</strong>했다는 점입니다. LLM은 무엇을 할지 정하고, 실제 실행의 안전은 결정론적인 코드가 책임집니다. 여기에 8장의 자기 검증 루프를 바깥에 한 겹 더 씌우면, 툴 에러(이 레이어)와 조용한 오답(검증 루프)을 모두 잡는 self-healing 구조가 완성됩니다.</p>
+
+<h2 id="sec-10">10. 흔한 실수 · 팁</h2>
+
+<ul>
+<li><strong>무조건 재시도(blind retry)</strong> — 영구적 오류까지 재시도하면 토큰·시간만 태웁니다. 재시도 전에 반드시 분류하세요.</li>
+<li><strong>지터 생략</strong> — 백오프만 넣고 지터를 빼면, 실패한 클라이언트들이 같은 시각에 몰려(thundering herd) 서버를 또 무너뜨립니다.</li>
+<li><strong>무한 복구 루프</strong> — 복구가 또 실패하고 그걸 또 복구하다 보면 끝이 없습니다. 재시도·검증·복구 각각에 <em>명확한 상한</em>을 두고, 넘으면 사람에게 넘기세요.</li>
+<li><strong>멱등성 없는 재시도</strong> — 부작용 있는 호출을 멱등 키 없이 재시도하면 이메일·결제가 두 번 나갑니다. 쓰기 작업엔 멱등 키가 필수입니다.</li>
+<li><strong>에러 메시지가 컨텍스트를 오염</strong> — 실패 로그와 스택 트레이스를 계속 컨텍스트에 쌓으면 창이 넘치고 모델이 헷갈립니다. 실패 이력은 <em>요약해서</em> 짧게 전달하세요.</li>
+<li><strong>조용한 오답을 놓침</strong> — 200 OK만 보고 성공으로 처리하지 마세요. 실행 가능한 성공 기준으로 결과를 검증해야 진짜 실패를 잡습니다.</li>
+<li><strong>관측 없는 복구</strong> — 어떤 실패가 얼마나 자주, 어떤 유형으로 나는지 로깅하지 않으면 복구 로직을 개선할 수 없습니다. 실패 유형·재시도 횟수·서킷 상태를 지표로 남기세요.</li>
+</ul>
+
+<h2 id="sec-11">11. 마무리 — TL;DR</h2>
+
+<ul>
+<li><strong>복구는 별개의 능력이다.</strong> Recovery-Bench에서 최상위 모델도 정상 과제 대비 절반 넘게(약 57% 상대 하락) 무너졌습니다. “더 좋은 모델”은 답이 아닙니다.</li>
+<li><strong>먼저 분류하라.</strong> 일시적 / 영구적 / 치명적 — 유형이 처방을 정합니다. 무조건 재시도는 안티패턴입니다.</li>
+<li><strong>재시도엔 지수 백오프 + 지터.</strong> 일시적 오류에만, 상한을 두고, 무작위 흔들림으로 우르르 몰림을 막습니다.</li>
+<li><strong>서킷 브레이커로 연쇄 장애를 끊어라.</strong> 죽은 툴은 그만 두들기고 빠르게 실패시켜 폴백으로 넘깁니다.</li>
+<li><strong>우아하게 물러서라.</strong> 대체 경로·캐시·경량 모델·부분 응답으로 “예측 가능한 최소 품질”을 지킵니다.</li>
+<li><strong>부작용엔 멱등성.</strong> DB를 롤백해도 보낸 이메일·결제는 안 돌아옵니다. 멱등 키와 체크포인트로 안전한 재개를 설계하세요.</li>
+<li><strong>결과를 믿지 말고 검증하라.</strong> 실행 가능한 성공 기준으로 자기 검증 루프를 돌려, 조용한 오답까지 잡습니다.</li>
+<li><strong>신뢰성은 모델이 아니라 레이어에서 나온다.</strong> LLM은 결정하고, 결정론적 복구 코드가 안전을 책임지게 분리하세요.</li>
+</ul>
+
+<h2 id="sec-12">12. 참고 자료</h2>
+
+<div class="hrec-refs">
+<p><strong>벤치마크 · 데이터</strong></p>
+<ul>
+<li><a href="https://www.letta.com/blog/recovery-bench" target="_blank" rel="noopener">Letta — Introducing Recovery-Bench: Evaluating LLMs' Ability to Recover from Mistakes</a></li>
+<li><a href="https://github.com/letta-ai/recovery-bench" target="_blank" rel="noopener">GitHub — letta-ai/recovery-bench (방법론·실행 코드)</a></li>
+<li><a href="https://www.langchain.com/state-of-agent-engineering" target="_blank" rel="noopener">LangChain — State of Agent Engineering (설문 리포트)</a></li>
+</ul>
+<p><strong>패턴 · 실무 가이드</strong></p>
+<ul>
+<li><a href="https://www.taskade.com/blog/ai-agent-error-recovery" target="_blank" rel="noopener">Taskade — AI Agent Error Handling &amp; Self-Healing Patterns (2026)</a></li>
+<li><a href="https://zylos.ai/research/2026-02-20-graceful-degradation-ai-agent-systems/" target="_blank" rel="noopener">Zylos Research — Graceful Degradation Patterns in AI Agent Systems</a></li>
+<li><a href="https://www.bestaiweb.ai/how-to-implement-retry-fallback-and-self-correction-loops-in-ai-agents-in-2026/" target="_blank" rel="noopener">Retry, Fallback &amp; Self-Correction in AI Agents (2026)</a></li>
+<li><a href="https://www.cockroachlabs.com/blog/agent-loops-production-database-patterns/" target="_blank" rel="noopener">Cockroach Labs — Why Agent Loops Fail in Production</a></li>
+</ul>
+<p><strong>관련 연구</strong></p>
+<ul>
+<li><a href="https://arxiv.org/abs/2606.01416" target="_blank" rel="noopener">Self-Healing Agentic Orchestrators for Reliable Tool-Augmented LLM Systems (arXiv:2606.01416)</a></li>
+<li><a href="https://arxiv.org/abs/2605.06737" target="_blank" rel="noopener">A Self-Healing Framework for Reliable LLM-Based Autonomous Agents (arXiv:2605.06737)</a></li>
+</ul>
+<p style="opacity:.7;font-size:.9rem">※ 위 자료는 모두 영어 원문입니다. 본문의 수치는 각 출처에 보고된 값을 인용했으며, 벤치마크 점수는 측정 시점·모델 버전에 따라 달라질 수 있습니다.</p>
+</div>

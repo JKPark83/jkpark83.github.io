@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="프롬프트 압축을 나타낸 그림. 왼쪽에는 명령·RAG 문서·few-shot 예시·질문이 쌓인 커다란 긴 프롬프트 블록이 있고 토큰 수가 많다고 적혀 있다. 가운데에는 작은 언어 모델로 만든 압축기가 있어서, 정보량이 낮은 토큰을 솎아낸다. 오른쪽에는 2배에서 20배까지 줄어든 짧은 프롬프트 블록이 있다. 아래쪽 경고 띠에는 명령·코드·JSON 같은 구조는 압축하지 말고, RAG 문서와 few-shot·대화 기록만 압축하라고 적혀 있다.">
+  <defs>
+    <linearGradient id="pcg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#101c33"/>
+    </linearGradient>
+    <linearGradient id="pc-long" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+    <linearGradient id="pc-short" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+    <linearGradient id="pc-mid" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#2563eb"/></linearGradient>
+    <marker id="pc-arrow" markerWidth="16" markerHeight="16" refX="11" refY="8" orient="auto">
+      <path d="M0,1 L15,8 L0,15 Z" fill="#93c5fd"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#pcg)"/>
+
+  <!-- title -->
+  <text x="80" y="92" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="48" font-weight="800">프롬프트 압축</text>
+  <text x="80" y="138" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="25" font-weight="600">긴 컨텍스트를 2~20배 줄여 토큰 값을 아끼기 — 되는 곳과 안 되는 곳</text>
+
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <!-- long prompt block -->
+    <rect x="80" y="196" width="300" height="300" rx="16" fill="#1e293b" stroke="#334155"/>
+    <rect x="80" y="196" width="300" height="46" rx="16" fill="url(#pc-long)"/>
+    <text x="104" y="226" fill="#fff" font-size="21" font-weight="800">긴 프롬프트</text>
+    <text x="104" y="284" fill="#cbd5e1" font-size="18">· 명령(instruction)</text>
+    <text x="104" y="322" fill="#cbd5e1" font-size="18">· RAG 문서 청크</text>
+    <text x="104" y="360" fill="#cbd5e1" font-size="18">· few-shot 예시</text>
+    <text x="104" y="398" fill="#cbd5e1" font-size="18">· 대화 기록</text>
+    <text x="104" y="436" fill="#cbd5e1" font-size="18">· 질문(query)</text>
+    <text x="104" y="474" fill="#fca5a5" font-size="17" font-weight="700">토큰 수 ▮▮▮▮▮▮▮▮</text>
+
+    <!-- compressor -->
+    <line x1="392" y1="346" x2="486" y2="346" stroke="#93c5fd" stroke-width="3" marker-end="url(#pc-arrow)"/>
+    <rect x="490" y="270" width="220" height="152" rx="16" fill="#0b213f" stroke="url(#pc-mid)" stroke-width="2"/>
+    <text x="600" y="322" fill="#93c5fd" font-size="20" font-weight="800" text-anchor="middle">압축기</text>
+    <text x="600" y="352" fill="#cbd5e1" font-size="15" text-anchor="middle">작은 LM이</text>
+    <text x="600" y="376" fill="#cbd5e1" font-size="15" text-anchor="middle">정보량 낮은</text>
+    <text x="600" y="400" fill="#cbd5e1" font-size="15" text-anchor="middle">토큰을 솎아냄</text>
+    <line x1="716" y1="346" x2="810" y2="346" stroke="#93c5fd" stroke-width="3" marker-end="url(#pc-arrow)"/>
+    <text x="600" y="250" fill="#f8fafc" font-size="30" font-weight="800" text-anchor="middle">2~20×</text>
+
+    <!-- short prompt block -->
+    <rect x="820" y="286" width="300" height="120" rx="16" fill="#1e293b" stroke="#334155"/>
+    <rect x="820" y="286" width="300" height="46" rx="16" fill="url(#pc-short)"/>
+    <text x="844" y="316" fill="#052e2b" font-size="21" font-weight="800">짧은 프롬프트</text>
+    <text x="844" y="366" fill="#cbd5e1" font-size="18">같은 뜻, 더 적은 토큰</text>
+    <text x="844" y="392" fill="#6ee7b7" font-size="17" font-weight="700">토큰 수 ▮▮</text>
+
+    <!-- caution strip -->
+    <rect x="80" y="536" width="1040" height="58" rx="12" fill="#3f1d2b" stroke="#e11d48" stroke-width="1.5"/>
+    <text x="104" y="572" fill="#fecdd3" font-size="19" font-weight="700">주의 · 명령 · 코드 · JSON 구조는 압축 금지  ·  RAG 문서 · few-shot · 대화 기록만 압축  ·  에이전트엔 함부로 쓰지 말 것</text>
+  </g>
+</svg>

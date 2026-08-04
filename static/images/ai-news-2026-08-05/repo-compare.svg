@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 340" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="760" height="340" fill="#ffffff"/>
+  <text x="24" y="32" font-size="18" font-weight="700" fill="#0f172a">오픈소스 두 갈래 — 관측 vs 메모리</text>
+  <text x="24" y="53" font-size="12" fill="#64748b">에이전트 스택의 서로 다른 층. 오늘 논문 두 편과 1:1로 붙는다.</text>
+
+  <!-- AgentOps card -->
+  <rect x="24" y="76" width="344" height="228" rx="12" fill="#fefce8" stroke="#eab308"/>
+  <text x="44" y="106" font-size="16" font-weight="700" fill="#854d0e">AgentOps</text>
+  <text x="44" y="128" font-size="12" fill="#475569">AgentOps-AI/agentops · Python</text>
+  <text x="44" y="150" font-size="12" fill="#475569">⭐ ~5.5k (2차 출처, 세션 내 API 미검증)</text>
+  <line x1="44" y1="162" x2="348" y2="162" stroke="#e2e8f0"/>
+  <text x="44" y="184" font-size="12" fill="#1e293b">• 스텝/세션 리플레이·비용·실패 추적</text>
+  <text x="44" y="204" font-size="12" fill="#1e293b">• CrewAI/OpenAI Agents SDK/LangChain 연동</text>
+  <text x="44" y="224" font-size="12" fill="#1e293b">• 2줄 init 로 대시보드 관측</text>
+  <rect x="44" y="240" width="304" height="48" rx="8" fill="#fff7cc"/>
+  <text x="56" y="260" font-size="11" font-weight="700" fill="#854d0e">➜ 논문 ①과 연결</text>
+  <text x="56" y="278" font-size="11" fill="#475569">텔레메트리를 수집해 루프·실패 알람의 재료로</text>
+
+  <!-- Cognee card -->
+  <rect x="392" y="76" width="344" height="228" rx="12" fill="#f0f9ff" stroke="#38bdf8"/>
+  <text x="412" y="106" font-size="16" font-weight="700" fill="#0369a1">Cognee</text>
+  <text x="412" y="128" font-size="12" fill="#475569">topoteretes/cognee · Python · Apache-2.0</text>
+  <text x="412" y="150" font-size="12" fill="#475569">⭐ ~28.3k (2차 출처, 세션 내 API 미검증)</text>
+  <line x1="412" y1="162" x2="716" y2="162" stroke="#e2e8f0"/>
+  <text x="412" y="184" font-size="12" fill="#1e293b">• ECL(extract-cognify-load) 파이프라인</text>
+  <text x="412" y="204" font-size="12" fill="#1e293b">• 그래프+벡터+세션 메모리, Postgres 자가호스팅</text>
+  <text x="412" y="224" font-size="12" fill="#1e293b">• MCP·LangGraph 네이티브 연동</text>
+  <rect x="412" y="240" width="304" height="48" rx="8" fill="#e0f2fe"/>
+  <text x="424" y="260" font-size="11" font-weight="700" fill="#0369a1">➜ 논문 ②와 연결</text>
+  <text x="424" y="278" font-size="11" fill="#475569">폐루프 메모리(CoEvo-Mem) 아이디어의 실전 저장소</text>
+</svg>

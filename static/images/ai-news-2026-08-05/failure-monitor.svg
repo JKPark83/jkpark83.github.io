@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="760" height="400" fill="#ffffff"/>
+  <text x="24" y="32" font-size="18" font-weight="700" fill="#0f172a">에이전트 실패, LLM 심판 없이 잡기 (arXiv 2608.02464)</text>
+  <text x="24" y="53" font-size="12" fill="#64748b">정상 실행만으로 학습한 마이크로초급 모니터 → 이상만 심판/복구로 에스컬레이션</text>
+
+  <!-- step 1 -->
+  <rect x="24" y="78" width="160" height="96" rx="10" fill="#f1f5f9" stroke="#94a3b8"/>
+  <text x="104" y="104" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">① 스텝 텔레메트리</text>
+  <text x="104" y="126" font-size="11" fill="#334155" text-anchor="middle">툴 에러 연속</text>
+  <text x="104" y="143" font-size="11" fill="#334155" text-anchor="middle">동일 호출 반복(루프)</text>
+  <text x="104" y="160" font-size="11" fill="#334155" text-anchor="middle">지연·목표 이탈</text>
+
+  <!-- arrow -->
+  <path d="M184 126 L 214 126" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- step 2 -->
+  <rect x="214" y="78" width="176" height="96" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="302" y="104" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="middle">② 원클래스 ESN 앙상블</text>
+  <text x="302" y="126" font-size="11" fill="#1e293b" text-anchor="middle">정상 실행만 학습</text>
+  <text x="302" y="143" font-size="11" fill="#1e293b" text-anchor="middle">+ CUSUM 알람</text>
+  <text x="302" y="160" font-size="11" fill="#1e293b" text-anchor="middle">스텝당 마이크로초</text>
+
+  <path d="M390 126 L 420 126" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- step 3 -->
+  <rect x="420" y="78" width="150" height="96" rx="10" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="495" y="104" font-size="13" font-weight="700" fill="#991b1b" text-anchor="middle">③ 이상 알람</text>
+  <text x="495" y="128" font-size="11" fill="#1e293b" text-anchor="middle">루프·에러 폭주·</text>
+  <text x="495" y="145" font-size="11" fill="#1e293b" text-anchor="middle">환각·오염 감지</text>
+
+  <path d="M570 126 L 600 126" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- step 4 -->
+  <rect x="600" y="78" width="136" height="96" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="668" y="104" font-size="13" font-weight="700" fill="#166534" text-anchor="middle">④ 에스컬레이션</text>
+  <text x="668" y="128" font-size="11" fill="#1e293b" text-anchor="middle">플래그된 스텝만</text>
+  <text x="668" y="145" font-size="11" fill="#1e293b" text-anchor="middle">LLM 심판·복구</text>
+
+  <!-- results panel -->
+  <rect x="24" y="210" width="712" height="118" rx="10" fill="#0f172a"/>
+  <text x="44" y="240" font-size="14" font-weight="700" fill="#ffffff">검증된 수치 (2,823 에피소드 · 3 프레임워크 · qwen2.5 7b/3b·llama3.1 8b + gemini-2.5-flash)</text>
+  <text x="60" y="278" font-size="34" font-weight="800" fill="#38bdf8">0.71</text>
+  <text x="60" y="300" font-size="12" fill="#cbd5e1">오탐 5% 예산에서 실패 탐지율</text>
+  <text x="320" y="278" font-size="34" font-weight="800" fill="#4ade80">0.872</text>
+  <text x="320" y="300" font-size="12" fill="#cbd5e1">AUROC (탐지 성능)</text>
+  <text x="560" y="278" font-size="34" font-weight="800" fill="#fbbf24">μs</text>
+  <text x="560" y="300" font-size="12" fill="#cbd5e1">스텝당 모니터 비용</text>
+
+  <text x="24" y="356" font-size="12" fill="#334155" font-weight="700">그래서 개발자는?</text>
+  <text x="24" y="376" font-size="12" fill="#475569">값싼 이상탐지로 1차 알람 → 의심 스텝만 LLM 심판. judge-every-step 비용을 크게 절감.</text>
+
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="760" height="440" fill="#ffffff"/>
+  <text x="24" y="34" font-size="20" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 — 2026-08-05</text>
+  <text x="24" y="56" font-size="13" fill="#64748b">테마: 값싼 결정적(deterministic) 체크로 에이전트 신뢰성 높이기</text>
+
+  <!-- center -->
+  <rect x="300" y="185" width="160" height="66" rx="12" fill="#0f172a"/>
+  <text x="380" y="212" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">신뢰성 &amp; 메모리</text>
+  <text x="380" y="233" font-size="12" fill="#cbd5e1" text-anchor="middle">judge-every-step 탈피</text>
+
+  <!-- connectors -->
+  <g stroke="#94a3b8" stroke-width="2" fill="none">
+    <path d="M300 205 C 220 150, 180 120, 150 108"/>
+    <path d="M300 232 C 220 300, 190 330, 160 348"/>
+    <path d="M460 205 C 560 150, 600 120, 632 108"/>
+    <path d="M460 232 C 560 300, 600 330, 630 348"/>
+  </g>
+
+  <!-- paper node -->
+  <rect x="24" y="82" width="250" height="70" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="36" y="104" font-size="13" font-weight="700" fill="#1e3a8a">📚 논문</text>
+  <text x="36" y="123" font-size="12" fill="#1e293b">Real-Time Failure Detect/Repair · 2608.02464</text>
+  <text x="36" y="141" font-size="12" fill="#1e293b">CoEvo-Mem 메모리 폐루프 · 2608.01739</text>
+
+  <!-- tip node -->
+  <rect x="24" y="322" width="250" height="72" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="36" y="344" font-size="13" font-weight="700" fill="#166534">🧑‍💻 실전 팁</text>
+  <text x="36" y="363" font-size="12" fill="#1e293b">🟦 Focus view (v2.1.221)</text>
+  <text x="36" y="381" font-size="12" fill="#1e293b">🟩 중첩 AGENTS.md · 🟪 런타임 헬스 모니터</text>
+
+  <!-- repo node -->
+  <rect x="486" y="82" width="250" height="70" rx="10" fill="#fefce8" stroke="#eab308"/>
+  <text x="498" y="104" font-size="13" font-weight="700" fill="#854d0e">🛠 오픈소스</text>
+  <text x="498" y="123" font-size="12" fill="#1e293b">AgentOps · 관측(observability)</text>
+  <text x="498" y="141" font-size="12" fill="#1e293b">Cognee · 그래프+벡터 메모리</text>
+
+  <!-- model node -->
+  <rect x="486" y="322" width="250" height="72" rx="10" fill="#faf5ff" stroke="#a855f7"/>
+  <text x="498" y="344" font-size="13" font-weight="700" fill="#6b21a8">🤖 모델 레이더</text>
+  <text x="498" y="363" font-size="12" fill="#1e293b">신규 프런티어 없음 (조용)</text>
+  <text x="498" y="381" font-size="12" fill="#1e293b">Opus 5·Gemini 3.6 Flash·DeepSeek V4-Flash</text>
+
+  <text x="24" y="426" font-size="11" fill="#94a3b8">화살표 = 오늘 항목의 연결 관계 · 논문/모델은 API·1차 출처로 검증, 별점은 2차 출처(세션 내 API 검증 불가)</text>
+</svg>

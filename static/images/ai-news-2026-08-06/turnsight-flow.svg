@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 470" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="TurnSight 방법 다이어그램">
+  <rect width="820" height="470" fill="#0f172a"/>
+  <text x="410" y="34" text-anchor="middle" fill="#f1f5f9" font-size="20" font-weight="700">TurnSight: trajectory 보상 → turn 단위 hindsight</text>
+
+  <!-- Left: baseline -->
+  <rect x="24" y="60" width="360" height="170" rx="12" fill="#1e1b18" stroke="#f87171" stroke-width="1.5"/>
+  <text x="204" y="86" text-anchor="middle" fill="#fca5a5" font-size="13" font-weight="700">기존 RL · trajectory-level 보상</text>
+  <g font-size="12" fill="#e2e8f0">
+    <rect x="48" y="104" width="70" height="34" rx="6" fill="#334155"/><text x="83" y="126" text-anchor="middle">turn 1</text>
+    <rect x="140" y="104" width="70" height="34" rx="6" fill="#334155"/><text x="175" y="126" text-anchor="middle">turn 2</text>
+    <rect x="232" y="104" width="70" height="34" rx="6" fill="#334155"/><text x="267" y="126" text-anchor="middle">turn 3</text>
+    <rect x="140" y="160" width="128" height="34" rx="6" fill="#7f1d1d"/><text x="204" y="182" text-anchor="middle" fill="#fecaca">최종 정답 1개</text>
+  </g>
+  <text x="204" y="216" text-anchor="middle" fill="#fca5a5" font-size="11">어느 turn이 좋았는지 credit 배분 불가</text>
+
+  <!-- Right: turnsight -->
+  <rect x="436" y="60" width="360" height="170" rx="12" fill="#101a2e" stroke="#34d399" stroke-width="1.5"/>
+  <text x="616" y="86" text-anchor="middle" fill="#6ee7b7" font-size="13" font-weight="700">TurnSight · turn-level hindsight</text>
+  <g font-size="12" fill="#e2e8f0">
+    <rect x="460" y="104" width="70" height="34" rx="6" fill="#334155"/><text x="495" y="126" text-anchor="middle">turn 1</text>
+    <rect x="552" y="104" width="70" height="34" rx="6" fill="#334155"/><text x="587" y="126" text-anchor="middle">turn 2</text>
+    <rect x="644" y="104" width="70" height="34" rx="6" fill="#334155"/><text x="679" y="126" text-anchor="middle">turn 3</text>
+    <rect x="460" y="152" width="80" height="30" rx="6" fill="#065f46"/><text x="500" y="172" text-anchor="middle" fill="#a7f3d0" font-size="11">시야 짧게</text>
+    <rect x="548" y="152" width="80" height="30" rx="6" fill="#065f46"/><text x="588" y="172" text-anchor="middle" fill="#a7f3d0" font-size="11">시야 중간</text>
+    <rect x="636" y="152" width="80" height="30" rx="6" fill="#065f46"/><text x="676" y="172" text-anchor="middle" fill="#a7f3d0" font-size="11">시야 길게</text>
+  </g>
+  <text x="616" y="204" text-anchor="middle" fill="#6ee7b7" font-size="11">여러 lookahead 뷰의 방향이 일치할 때만 채택</text>
+  <text x="616" y="221" text-anchor="middle" fill="#94a3b8" font-size="11">→ turn별 신호로 RL advantage 조절</text>
+
+  <!-- bottom pipeline -->
+  <text x="410" y="266" text-anchor="middle" fill="#f1f5f9" font-size="14" font-weight="700">핵심 파이프라인</text>
+  <g font-size="12">
+    <rect x="40" y="286" width="170" height="64" rx="10" fill="#1e293b" stroke="#64748b"/>
+    <text x="125" y="312" text-anchor="middle" fill="#e2e8f0" font-weight="700">① 실행-조건부</text>
+    <text x="125" y="332" text-anchor="middle" fill="#94a3b8">hindsight 생성</text>
+
+    <rect x="252" y="286" width="170" height="64" rx="10" fill="#1e293b" stroke="#64748b"/>
+    <text x="337" y="312" text-anchor="middle" fill="#e2e8f0" font-weight="700">② cross-horizon</text>
+    <text x="337" y="332" text-anchor="middle" fill="#94a3b8">방향 합의 선별</text>
+
+    <rect x="464" y="286" width="170" height="64" rx="10" fill="#1e293b" stroke="#64748b"/>
+    <text x="549" y="312" text-anchor="middle" fill="#e2e8f0" font-weight="700">③ sibling rollout</text>
+    <text x="549" y="332" text-anchor="middle" fill="#94a3b8">정규화</text>
+
+    <rect x="676" y="286" width="110" height="64" rx="10" fill="#134e4a" stroke="#2dd4bf"/>
+    <text x="731" y="312" text-anchor="middle" fill="#99f6e4" font-weight="700">④ advantage</text>
+    <text x="731" y="332" text-anchor="middle" fill="#5eead4">조절</text>
+  </g>
+  <g stroke="#475569" stroke-width="2">
+    <line x1="210" y1="318" x2="250" y2="318" marker-end="url(#ar)"/>
+    <line x1="422" y1="318" x2="462" y2="318" marker-end="url(#ar)"/>
+    <line x1="634" y1="318" x2="674" y2="318" marker-end="url(#ar)"/>
+  </g>
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+
+  <text x="410" y="392" text-anchor="middle" fill="#cbd5e1" font-size="12">3개 벤치마크에서 효과 확인 · 원 optimization 방향은 보존</text>
+  <text x="410" y="424" text-anchor="middle" fill="#64748b" font-size="11">출처: arXiv 2608.04007 (Changle Qu et al., 2026-08-04) · code: github.com/quchangle1/TurnSight</text>
+  <text x="410" y="448" text-anchor="middle" fill="#475569" font-size="10.5">수치는 논문 요약 기준. 벤치마크별 세부 값은 원문 참고.</text>
+</svg>

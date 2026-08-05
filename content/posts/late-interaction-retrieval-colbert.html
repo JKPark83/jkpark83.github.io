@@ -1,0 +1,442 @@
+---
+title: "문서를 '점 하나'로 뭉개지 마라: 토큰마다 벡터를 두는 레이트 인터랙션 검색 (ColBERT·ColPali)"
+date: 2026-08-06T07:30:00+09:00
+draft: false
+tags: ["AI", "레이트 인터랙션", "late interaction", "ColBERT", "ColBERTv2", "PLAID", "ColPali", "ColQwen", "멀티 벡터 검색", "multi-vector retrieval", "MaxSim", "RAG", "리랭킹", "PyLate", "검색", "임베딩", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "보통의 벡터 검색은 문서 하나를 벡터 하나로 뭉갭니다. 문장이 아무리 길고 표·그림이 많아도 결국 '점 하나'로 요약되니, 정확히 걸려야 할 키워드나 특정 문장이 평균에 묻혀 사라지죠. 레이트 인터랙션(late interaction)은 발상을 바꿉니다 — 토큰마다 벡터를 하나씩 두고, 질의 토큰과 문서 토큰을 검색 '마지막에' 세밀하게 맞춰 봅니다(MaxSim). ColBERT가 문을 열었고, ColBERTv2·PLAID가 저장·속도 문제를 풀었으며, ColPali는 아예 OCR을 버리고 PDF 페이지를 이미지째 이 방식으로 검색합니다. 2026년 들어 ECIR에 전용 워크숍이 생기고 'RAG를 바꾼 변화' 목록에 빠지지 않는 이 방식을, 원리·저장 비용·실전 코드·함정까지 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "late-interaction-retrieval-colbert-cover.svg"
+  alt: "왼쪽의 질의(query)가 '한국·GDP·성장률' 세 토큰 벡터로 쪼개지고, 오른쪽의 문서(document)는 토큰(또는 이미지 패치)마다 벡터 하나를 가진 격자로 표현된 그림. 가운데에서 각 질의 토큰이 문서 토큰 중 가장 비슷한 것 하나와 노란 선으로 이어지며, 이 최대 유사도를 모두 더하는 MaxSim이 점수를 만든다. 단일 벡터는 문서를 점 하나로, 레이트 인터랙션은 토큰마다 벡터 하나로 본다고 적혀 있다."
+  caption: "레이트 인터랙션: 문서를 벡터 하나로 뭉개지 않고 토큰마다 벡터를 둔 뒤, 검색 마지막에 질의 토큰과 문서 토큰을 세밀하게 맞춘다(MaxSim). ColBERT·ColBERTv2·PLAID·ColPali·ColQwen."
+  relative: false
+---
+
+<style>
+/* ── 레이트 인터랙션 포스트 전용 스타일 (lir- 접두사) ── */
+.lir-fig{
+  --lir-sky:#0284c7; --lir-amber:#d97706; --lir-green:#16a34a; --lir-rose:#e11d48;
+  --lir-slate:#64748b; --lir-violet:#7c3aed; --lir-teal:#0d9488; --lir-blue:#2563eb;
+  --lir-grid:#cbd5e1;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .lir-fig{
+  --lir-sky:#38bdf8; --lir-amber:#fbbf24; --lir-green:#4ade80; --lir-rose:#fb7185;
+  --lir-slate:#94a3b8; --lir-violet:#a78bfa; --lir-teal:#2dd4bf; --lir-blue:#60a5fa;
+  --lir-grid:#334155;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .lir-fig{
+    --lir-sky:#38bdf8; --lir-amber:#fbbf24; --lir-green:#4ade80; --lir-rose:#fb7185;
+    --lir-slate:#94a3b8; --lir-violet:#a78bfa; --lir-teal:#2dd4bf; --lir-blue:#60a5fa;
+    --lir-grid:#334155;
+  }
+}
+.lir-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.lir-fig text{font-family:inherit}
+.lir-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.lir-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.lir-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.lir-toc ol{margin:0;padding-left:1.25rem}
+.lir-toc li{margin:.22rem 0;font-size:.95rem}
+.lir-toc a{text-decoration:none}
+.lir-toc a:hover{text-decoration:underline}
+.lir-pull{font-size:1.12rem;line-height:1.72}
+.lir-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.lir-note{border-left:4px solid var(--lir-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.lir-note strong{color:var(--lir-blue,#2563eb)}
+.lir-warn{border-left:4px solid var(--lir-rose,#e11d48)}
+.lir-warn strong{color:var(--lir-rose,#e11d48)}
+.lir-good{border-left:4px solid var(--lir-teal,#0d9488)}
+.lir-good strong{color:var(--lir-teal,#0d9488)}
+.lir-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.lir-tbl th,.lir-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.lir-tbl th{background:var(--entry);font-weight:700}
+.lir-tbl code{font-size:.86em}
+.lir-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="lir-pull">
+  <p>RAG가 자꾸 헛다리를 짚는다면, 범인은 종종 <em>검색의 첫 단추</em>입니다. 보통의 벡터 검색은 문서가 아무리 길어도 <strong>벡터 하나</strong>로 요약해 버립니다. 그 한 점에 &#8220;정확히 이 단어&#8221;가 뭉개져 사라지면, 뒤에 붙인 리랭커도 LLM도 없는 문장을 살려낼 수 없습니다.</p>
+  <footer>&#8212; 답은 &#8220;문서를 점 하나로 보지 않는 것&#8221; &#8212; 토큰마다 벡터를 두는 레이트 인터랙션입니다.</footer>
+</blockquote>
+
+<nav class="lir-toc" aria-label="목차">
+  <div class="lir-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">왜 &#8216;점 하나&#8217;로는 부족한가</a></li>
+    <li><a href="#sec-2">배경 &#8212; 검색의 세 가지 방식</a></li>
+    <li><a href="#sec-3">ColBERT &#8212; 토큰마다 벡터, 그리고 MaxSim</a></li>
+    <li><a href="#sec-4">저장 비용 문제와 그 해법 (ColBERTv2·PLAID)</a></li>
+    <li><a href="#sec-5">ColPali &#8212; OCR을 버리고 페이지를 &#8216;이미지째&#8217; 검색</a></li>
+    <li><a href="#sec-6">실전 &#8212; 2단계 파이프라인에 리랭커로 얹기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 &#8216;점 하나&#8217;로는 부족한가</h2>
+
+<p>RAG(retrieval-augmented generation, 검색으로 찾은 문서를 붙여 LLM이 답하게 하는 방식)를 처음 붙일 때 우리가 쓰는 검색은 대개 이렇습니다. 문서를 임베딩 모델에 넣어 <strong>벡터 하나</strong>로 바꾸고, 질문도 벡터 하나로 바꾼 뒤, 둘의 거리가 가까운 문서를 고릅니다. 이걸 단일 벡터 검색, 정확히는 <strong>바이 인코더(bi-encoder)</strong> 방식이라고 부릅니다.</p>
+
+<p>빠르고 단순해서 대부분의 경우 잘 돌아갑니다. 그런데 문제가 하나 있습니다. 500 토큰짜리 문서를 벡터 하나로 뭉개면, 그 안의 <em>모든</em> 의미가 평균으로 섞여 버립니다. 문서에 &#8220;2019년 한국 GDP 성장률&#8221;이라는 딱 필요한 문장이 한 줄 있어도, 나머지 490 토큰의 잡담에 묻혀 &#8220;평균 벡터&#8221;에서는 잘 드러나지 않습니다. 정확히 걸려야 할 고유명사·제품 코드·특정 수치가 검색에서 자꾸 빠지는 이유가 이겁니다.</p>
+
+<p>그래서 실무자들은 오래전부터 이 &#8220;정보 뭉개짐&#8221;을 피할 방법을 찾아 왔습니다. 그중 2026년 들어 부쩍 다시 화제가 된 것이 <strong>레이트 인터랙션(late interaction)</strong>, 다른 말로 <strong>멀티 벡터 검색(multi-vector retrieval)</strong>입니다. 발상은 한 줄로 요약됩니다 &#8212; <em>문서를 벡터 하나로 뭉개지 말고, 토큰마다 벡터를 하나씩 두자.</em></p>
+
+<div class="lir-note"><strong>왜 이번 주에 화제였나.</strong> 2026년 초 유럽 정보검색 학회 <strong>ECIR 2026</strong>에 레이트 인터랙션만 다루는 <em>첫 전용 워크숍</em>(LIR)이 열렸고, Mixedbread AI·LightOn·MIT·HuggingFace 등이 조직에 이름을 올렸습니다. 같은 시기 여러 엔지니어링 블로그의 &#8220;2026년 RAG를 바꾼 변화&#8221; 목록에 레이트 인터랙션이 빠지지 않고 등장했고, 특히 <code>ColPali</code>로 <em>OCR 없이</em> PDF·표·인포그래픽을 검색하는 사례가 실무 talking point가 됐습니다. 연구 주제이던 방식이 이제 &#8220;production RAG의 표준 후보&#8221;로 넘어온 것이죠.</p></div>
+
+<p>이 글은 그 방식을 바닥부터 봅니다. 왜 토큰마다 벡터를 두는지, 점수는 어떻게 매기는지(MaxSim), 그러면 저장 용량이 폭발하는데 어떻게 감당하는지(ColBERTv2·PLAID), 그리고 텍스트를 넘어 이미지로 확장한 ColPali까지 &#8212; 마지막엔 직접 돌려 볼 수 있는 코드로 마무리합니다.</p>
+
+<h2 id="sec-2">2. 배경 &#8212; 검색의 세 가지 방식</h2>
+
+<p>레이트 인터랙션이 왜 &#8220;중간 지점&#8221;인지 이해하려면, 검색 모델을 세 부류로 나눠 보는 게 가장 빠릅니다. 셋은 <strong>질의와 문서를 언제, 얼마나 세밀하게 맞춰 보는가</strong>로 갈립니다.</p>
+
+<div class="lir-tblwrap">
+<table class="lir-tbl">
+  <thead><tr><th>방식</th><th>문서를 어떻게 표현</th><th>질의·문서를 맞추는 시점</th><th>정확도 / 속도</th></tr></thead>
+  <tbody>
+    <tr><td><strong>바이 인코더</strong><br>(bi-encoder, 단일 벡터)</td><td>문서 = 벡터 <strong>1개</strong></td><td>미리 각자 인코딩 → 내적 한 번</td><td>속도 최고 / 정밀도 낮음</td></tr>
+    <tr><td><strong>크로스 인코더</strong><br>(cross-encoder, 리랭커)</td><td>표현을 미리 만들지 않음</td><td>질의+문서를 <em>붙여서</em> 매번 통째로 인코딩</td><td>정밀도 최고 / 속도 최악</td></tr>
+    <tr><td><strong>레이트 인터랙션</strong><br>(late interaction, 멀티 벡터)</td><td>문서 = 토큰마다 벡터<br>(N토큰 → 벡터 <strong>N개</strong>)</td><td>미리 인코딩 → 검색 &#8216;마지막에&#8217; 토큰끼리 맞춤(MaxSim)</td><td>정밀도 높음 / 속도 중간</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>핵심은 &#8216;인터랙션(질의와 문서가 서로를 보며 맞춰지는 것)&#8217;이 <strong>언제</strong> 일어나느냐입니다. 바이 인코더는 질의와 문서가 <em>서로를 아예 안 보고</em> 각자 벡터가 된 뒤 마지막에 내적만 합니다(인터랙션이 거의 없음). 크로스 인코더는 반대로 질의와 문서를 처음부터 <em>붙여서</em> 모델에 통째로 넣으니, 단어 하나하나가 상대를 보며 맞춰집니다(인터랙션 최대). 대신 문서마다 질의를 붙여 매번 새로 계산해야 하니, 후보 1,000개를 이렇게 처리하면 느려서 못 씁니다.</p>
+
+<p><strong>레이트 인터랙션</strong>은 이름 그대로 인터랙션을 <em>늦게(late)</em> 합니다. 문서 토큰 벡터들은 크로스 인코더처럼 &#8220;붙여서&#8221;가 아니라 바이 인코더처럼 <em>미리 따로</em> 계산해 저장해 둡니다. 그리고 검색 순간, 질의 토큰 벡터와 문서 토큰 벡터를 <em>토큰 단위로</em> 맞춰 봅니다. 무거운 인코딩은 미리 끝내고, 마지막의 &#8220;맞춰 보기&#8221;만 실시간으로 하니 &#8212; 크로스 인코더의 세밀함과 바이 인코더의 속도를 절충한 셈입니다.</p>
+
+<figure class="lir-fig">
+<svg viewBox="0 0 780 340" role="img" aria-label="검색 세 방식을 나란히 비교하는 그림. 왼쪽 바이 인코더는 질의와 문서가 각각 벡터 하나가 되어 내적 한 번으로 비교하며 빠르지만 거칠다. 가운데 크로스 인코더는 질의와 문서를 붙여 통째로 인코딩해 가장 정밀하지만 문서마다 다시 계산해 느리다. 오른쪽 레이트 인터랙션은 문서를 토큰마다 벡터로 미리 저장해 두고 질의 토큰과 토큰 단위로 맞춰 정밀도와 속도를 절충한다.">
+  <text x="30" y="28" fill="var(--lir-slate)" font-size="15" font-weight="700">검색 세 방식 &#8212; 질의(파랑)와 문서(보라)를 &#8216;언제&#8217; 맞추는가</text>
+
+  <!-- bi-encoder -->
+  <text x="30" y="58" fill="var(--lir-sky)" font-size="13" font-weight="800">바이 인코더 · 빠름</text>
+  <rect x="30" y="70" width="60" height="26" rx="6" fill="var(--lir-sky)"/><text x="60" y="88" fill="#fff" font-size="11" text-anchor="middle" font-weight="700">질의</text>
+  <rect x="30" y="70" width="60" height="26" rx="6" fill="none"/>
+  <circle cx="120" cy="83" r="9" fill="var(--lir-sky)"/>
+  <rect x="150" y="70" width="80" height="26" rx="6" fill="var(--lir-violet)"/><text x="190" y="88" fill="#fff" font-size="11" text-anchor="middle" font-weight="700">문서</text>
+  <circle cx="120" cy="126" r="9" fill="var(--lir-violet)"/>
+  <line x1="120" y1="92" x2="120" y2="117" stroke="var(--lir-grid)" stroke-width="2"/>
+  <text x="150" y="130" fill="var(--lir-slate)" font-size="11">내적 1회</text>
+  <text x="30" y="165" fill="var(--lir-rose)" font-size="11.5" font-weight="700">문서=점 하나 → 세부 뭉개짐</text>
+
+  <!-- cross-encoder -->
+  <text x="285" y="58" fill="var(--lir-amber)" font-size="13" font-weight="800">크로스 인코더 · 정밀·느림</text>
+  <rect x="285" y="70" width="200" height="34" rx="7" fill="var(--lir-amber)" opacity="0.9"/>
+  <text x="385" y="92" fill="#fff" font-size="11.5" text-anchor="middle" font-weight="700">질의+문서를 붙여 통째 인코딩</text>
+  <rect x="285" y="112" width="200" height="26" rx="6" fill="none" stroke="var(--lir-amber)" stroke-dasharray="4 3"/>
+  <text x="385" y="129" fill="var(--lir-amber)" font-size="11" text-anchor="middle" font-weight="700">단어끼리 전부 맞춤</text>
+  <text x="285" y="165" fill="var(--lir-rose)" font-size="11.5" font-weight="700">문서마다 매번 재계산 → 대량 검색엔 못 씀</text>
+
+  <!-- late interaction -->
+  <text x="540" y="58" fill="var(--lir-teal)" font-size="13" font-weight="800">레이트 인터랙션 · 절충</text>
+  <!-- query tokens -->
+  <rect x="540" y="70" width="34" height="20" rx="4" fill="var(--lir-sky)"/>
+  <rect x="540" y="94" width="34" height="20" rx="4" fill="var(--lir-sky)"/>
+  <rect x="540" y="118" width="34" height="20" rx="4" fill="var(--lir-sky)"/>
+  <text x="557" y="152" fill="var(--lir-sky)" font-size="10.5" text-anchor="middle">질의 토큰</text>
+  <!-- doc token grid -->
+  <g fill="var(--lir-violet)">
+    <rect x="650" y="66" width="26" height="18" rx="4"/><rect x="682" y="66" width="26" height="18" rx="4"/><rect x="714" y="66" width="26" height="18" rx="4"/>
+    <rect x="650" y="90" width="26" height="18" rx="4"/><rect x="682" y="90" width="26" height="18" rx="4"/><rect x="714" y="90" width="26" height="18" rx="4"/>
+    <rect x="650" y="114" width="26" height="18" rx="4"/><rect x="682" y="114" width="26" height="18" rx="4"/><rect x="714" y="114" width="26" height="18" rx="4"/>
+  </g>
+  <text x="695" y="152" fill="var(--lir-violet)" font-size="10.5" text-anchor="middle">문서 토큰(미리 저장)</text>
+  <!-- maxsim lines -->
+  <g stroke="var(--lir-amber)" stroke-width="2" fill="none">
+    <path d="M574,80 C610,80 620,75 650,75"/>
+    <path d="M574,104 C610,104 620,99 650,99"/>
+    <path d="M574,128 C610,128 620,123 650,123"/>
+  </g>
+  <text x="540" y="182" fill="var(--lir-teal)" font-size="11.5" font-weight="700" >토큰 단위로 맞춤(MaxSim)</text>
+  <text x="540" y="198" fill="var(--lir-teal)" font-size="11.5" font-weight="700">인코딩은 미리 → 검색은 빠르게</text>
+
+  <!-- axis -->
+  <line x1="30" y1="250" x2="740" y2="250" stroke="var(--lir-grid)" stroke-width="1.5"/>
+  <text x="30" y="242" fill="var(--lir-slate)" font-size="11">← 거칠고 빠름</text>
+  <text x="740" y="242" fill="var(--lir-slate)" font-size="11" text-anchor="end">정밀하고 느림 →</text>
+  <circle cx="90" cy="250" r="7" fill="var(--lir-sky)"/><text x="90" y="278" fill="var(--lir-sky)" font-size="11" text-anchor="middle" font-weight="700">바이</text>
+  <circle cx="420" cy="250" r="7" fill="var(--lir-teal)"/><text x="420" y="278" fill="var(--lir-teal)" font-size="11" text-anchor="middle" font-weight="700">레이트 인터랙션</text>
+  <circle cx="700" cy="250" r="7" fill="var(--lir-amber)"/><text x="700" y="278" fill="var(--lir-amber)" font-size="11" text-anchor="middle" font-weight="700">크로스</text>
+  <text x="385" y="312" fill="var(--lir-slate)" font-size="12" text-anchor="middle" opacity="0.8">레이트 인터랙션은 정밀도와 속도의 &#8216;가운데&#8217;를 노린다</text>
+</svg>
+<figcaption>바이 인코더는 빠르지만 문서를 점 하나로 뭉갠다. 크로스 인코더는 가장 정밀하지만 문서마다 재계산해 느리다. 레이트 인터랙션은 문서 토큰 벡터를 미리 저장해 두고 검색 마지막에 토큰끼리 맞춰, 둘의 가운데를 노린다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. ColBERT &#8212; 토큰마다 벡터, 그리고 MaxSim</h2>
+
+<p>이 아이디어를 처음 제대로 세운 모델이 <strong>ColBERT</strong>입니다(Khattab &amp; Zaharia, 2020). 이름은 &#8220;Contextualized Late Interaction over BERT&#8221;의 줄임말이고, 동작은 두 단계로 나뉩니다.</p>
+
+<p><strong>(1) 인코딩 &#8212; 토큰마다 벡터 하나.</strong> 일반 임베딩 모델은 문장을 넣으면 벡터 하나가 나옵니다. ColBERT는 다릅니다. 문장을 BERT 계열 인코더에 넣되, <em>마지막 층의 토큰별 출력</em>을 그대로 씁니다. 100 토큰 문서라면 벡터 100개(각 128차원)가 나옵니다. 질의도 마찬가지로 토큰마다 벡터가 됩니다. 문서 벡터들은 검색 <em>전에</em> 미리 계산해 색인(index)에 저장해 둡니다.</p>
+
+<p><strong>(2) 점수 &#8212; MaxSim.</strong> 이제 질의 토큰 벡터와 문서 토큰 벡터로 점수를 매깁니다. 방법이 <strong>MaxSim</strong>입니다. 이름이 곧 설명이에요 &#8212; <em>Max</em>(최대) + <em>Sim</em>(유사도). 질의 토큰 <em>하나마다</em>, 문서의 <em>모든</em> 토큰과 유사도를 재서 그중 <strong>가장 큰 값 하나</strong>만 취합니다. 그 최댓값들을 질의 토큰 전체에 대해 <strong>더하면</strong> 그 문서의 점수입니다.</p>
+
+<div class="lir-note"><strong>MaxSim을 한 줄로.</strong> &#8220;내 질의의 단어 하나하나가, 이 문서 어딘가에서 <em>가장 잘 맞는 짝</em>을 찾았는가?&#8221;를 묻고, 그 &#8216;최고의 짝&#8217; 점수들을 합칩니다. 질의의 모든 단어가 문서 어딘가에서 좋은 짝을 찾을수록 점수가 높아집니다. 한 문장이 아니라 <em>단어 단위</em>로 맞추니, 500 토큰 잡담 속 한 줄짜리 정답도 놓치지 않습니다.</p></div>
+
+<p>왜 &#8220;최대&#8221;일까요? 질의 토큰 &#8220;GDP&#8221;는 문서 전체와 관계있는 게 아니라, 문서 안 어딘가의 &#8220;GDP&#8221;(또는 그와 비슷한 표현)와만 관계있으면 됩니다. 그러니 문서의 딱 그 지점과의 유사도만 크면 되고, 나머지 토큰과의 유사도는 무시하는 게 맞습니다. 평균이 아니라 최댓값을 쓰는 이유가 여기 있습니다 &#8212; <em>정답은 문서 전체가 아니라 문서의 한 조각에 있으니까요.</em></p>
+
+<figure class="lir-fig">
+<svg viewBox="0 0 720 380" role="img" aria-label="MaxSim 연산을 표로 보여 주는 그림. 세로축은 질의 토큰 한국, GDP, 성장률 세 개, 가로축은 문서 토큰 여섯 개다. 칸마다 유사도 값이 적혀 있고, 각 질의 토큰 행에서 가장 큰 값 하나에 노란 테두리가 쳐져 있다. 오른쪽에 그 최댓값들 0.91, 0.88, 0.85를 더해 문서 점수 2.64를 만든다고 표시돼 있다.">
+  <text x="30" y="28" fill="var(--lir-slate)" font-size="15" font-weight="700">MaxSim &#8212; 질의 토큰마다 &#8216;가장 잘 맞는 문서 토큰 1개&#8217;를 골라 더한다</text>
+
+  <!-- column headers (doc tokens) -->
+  <g font-size="11.5" fill="var(--lir-violet)" font-weight="700" text-anchor="middle">
+    <text x="230" y="66">한국은</text>
+    <text x="300" y="66">2019년</text>
+    <text x="370" y="66">GDP가</text>
+    <text x="440" y="66">약3.2%</text>
+    <text x="510" y="66">성장했다</text>
+    <text x="580" y="66">…</text>
+  </g>
+  <text x="400" y="48" fill="var(--lir-violet)" font-size="12" text-anchor="middle" font-weight="800">문서 토큰 (미리 저장된 벡터)</text>
+
+  <!-- row: 한국 -->
+  <text x="120" y="98" fill="var(--lir-sky)" font-size="12.5" font-weight="800" text-anchor="end">질의: "한국"</text>
+  <g font-size="12" text-anchor="middle" fill="var(--lir-slate)">
+    <rect x="200" y="82" width="60" height="26" rx="5" fill="var(--lir-amber)" opacity="0.18" stroke="var(--lir-amber)" stroke-width="2"/><text x="230" y="99" fill="var(--lir-amber)" font-weight="800">0.91</text>
+    <text x="300" y="99">0.22</text><text x="370" y="99">0.30</text><text x="440" y="99">0.12</text><text x="510" y="99">0.19</text><text x="580" y="99">…</text>
+  </g>
+
+  <!-- row: GDP -->
+  <text x="120" y="140" fill="var(--lir-sky)" font-size="12.5" font-weight="800" text-anchor="end">질의: "GDP"</text>
+  <g font-size="12" text-anchor="middle" fill="var(--lir-slate)">
+    <text x="230" y="141">0.28</text><text x="300" y="141">0.25</text>
+    <rect x="340" y="124" width="60" height="26" rx="5" fill="var(--lir-amber)" opacity="0.18" stroke="var(--lir-amber)" stroke-width="2"/><text x="370" y="141" fill="var(--lir-amber)" font-weight="800">0.88</text>
+    <text x="440" y="141">0.33</text><text x="510" y="141">0.24</text><text x="580" y="141">…</text>
+  </g>
+
+  <!-- row: 성장률 -->
+  <text x="120" y="182" fill="var(--lir-sky)" font-size="12.5" font-weight="800" text-anchor="end">질의: "성장률"</text>
+  <g font-size="12" text-anchor="middle" fill="var(--lir-slate)">
+    <text x="230" y="183">0.18</text><text x="300" y="183">0.21</text><text x="370" y="183">0.35</text><text x="440" y="183">0.41</text>
+    <rect x="480" y="166" width="60" height="26" rx="5" fill="var(--lir-amber)" opacity="0.18" stroke="var(--lir-amber)" stroke-width="2"/><text x="510" y="183" fill="var(--lir-amber)" font-weight="800">0.85</text>
+    <text x="580" y="183">…</text>
+  </g>
+
+  <!-- max column -->
+  <line x1="620" y1="82" x2="620" y2="192" stroke="var(--lir-grid)" stroke-width="1.5"/>
+  <text x="670" y="66" fill="var(--lir-amber)" font-size="12" text-anchor="middle" font-weight="800">max</text>
+  <text x="670" y="99" fill="var(--lir-amber)" font-size="13" text-anchor="middle" font-weight="800">0.91</text>
+  <text x="670" y="141" fill="var(--lir-amber)" font-size="13" text-anchor="middle" font-weight="800">0.88</text>
+  <text x="670" y="183" fill="var(--lir-amber)" font-size="13" text-anchor="middle" font-weight="800">0.85</text>
+
+  <!-- sum -->
+  <rect x="200" y="228" width="470" height="52" rx="12" fill="var(--lir-teal)" opacity="0.13" stroke="var(--lir-teal)"/>
+  <text x="220" y="260" fill="var(--lir-teal)" font-size="14" font-weight="800">문서 점수 = 0.91 + 0.88 + 0.85 = 2.64</text>
+  <text x="220" y="312" fill="var(--lir-slate)" font-size="12.5">각 질의 토큰이 문서 어딘가에서 좋은 짝을 찾을수록 합이 커진다.</text>
+  <text x="220" y="332" fill="var(--lir-slate)" font-size="12.5">&#8220;평균&#8221;이 아니라 &#8220;최댓값의 합&#8221;이라, 문서 속 한 줄짜리 정답도 살아남는다.</text>
+</svg>
+<figcaption>MaxSim: 질의 토큰(행)마다 문서 토큰(열) 전체와 유사도를 재고 그중 최댓값 하나만 취한 뒤, 그 최댓값들을 모두 더해 문서 점수를 만든다. 문서를 벡터 하나로 뭉갤 때와 달리, 특정 토큰의 정확한 일치가 점수에 그대로 반영된다.</figcaption>
+</figure>
+
+<p>결과는 인상적이었습니다. ColBERT는 단일 벡터 방식보다 정확하면서도, 크로스 인코더처럼 문서마다 재계산하지 않아 훨씬 빠릅니다. 특히 <strong>학습 때 못 본 도메인(out-of-domain)</strong>에서 잘 버티는 것으로 유명합니다. 단어 단위로 맞추는 방식이라, 낯선 분야의 고유명사·전문용어에도 덜 흔들리기 때문입니다.</p>
+
+<h2 id="sec-4">4. 저장 비용 문제와 그 해법 (ColBERTv2·PLAID)</h2>
+
+<p>여기까지 들으면 &#8220;그럼 다 이걸 쓰지 왜 안 써?&#8221; 싶습니다. 함정은 <strong>저장 용량</strong>입니다. 문서를 벡터 하나가 아니라 <em>토큰마다</em> 벡터로 저장하니, 색인이 통째로 커집니다.</p>
+
+<p>얼마나 커질까요? 단일 벡터라면 200 토큰 문서도 벡터 하나(약 4KB)면 됩니다. 그런데 ColBERT는 토큰마다 128차원 벡터를 저장하니, 같은 문서가 약 100KB가 됩니다 &#8212; 대략 <strong>25배</strong>. 문서가 더 길거나 차원이 크면 이 배수는 더 벌어져, 일반적으로 단일 벡터 대비 <strong>30&#8211;100배</strong> 저장 공간을 먹습니다. 실제로 초창기 ColBERT로 MS MARCO(약 880만 문단)를 색인하면 <strong>154 GiB</strong>가 필요했습니다. 노트북에 담기 힘든 크기죠.</p>
+
+<div class="lir-tblwrap">
+<table class="lir-tbl">
+  <thead><tr><th></th><th>단일 벡터(바이 인코더)</th><th>ColBERT (초기)</th><th>ColBERTv2 (압축)</th></tr></thead>
+  <tbody>
+    <tr><td>문서당 벡터 수</td><td>1개</td><td>토큰 수만큼(N개)</td><td>토큰 수만큼(N개)</td></tr>
+    <tr><td>MS MARCO 색인 크기</td><td>수 GiB급</td><td><strong>~154 GiB</strong></td><td><strong>~16&#8211;25 GiB</strong></td></tr>
+    <tr><td>토큰당 저장</td><td>&#8212;</td><td>full-precision 벡터</td><td>1&#8211;2 bit/차원 잔차 압축</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>이 문제를 정면으로 푼 게 <strong>ColBERTv2</strong>(2021)입니다. 핵심은 <strong>잔차 압축(residual compression)</strong>입니다. 토큰 벡터들이 사실 몇 개의 대표점(centroid) 근처에 몰려 있다는 점을 이용해, &#8220;가장 가까운 대표점 번호 + 그 대표점으로부터의 작은 차이(잔차)&#8221;만 저장합니다. 잔차는 차원당 1&#8211;2비트로 거칠게 양자화(quantization)해도 검색 품질이 거의 유지됩니다. 그 결과 MS MARCO 색인이 154 GiB에서 <strong>16&#8211;25 GiB</strong>로, 약 6&#8211;10배 줄었습니다.</p>
+
+<p>속도는 <strong>PLAID</strong>(2022)가 맡았습니다. 문서가 수백만 개면 매번 모든 문서와 MaxSim을 계산할 수 없습니다. PLAID는 문서를 &#8220;대표점들의 묶음&#8221;으로 보고, 질의 토큰과 가까운 대표점을 가진 문서만 후보로 남기는 <strong>중심점 가지치기(centroid pruning)</strong>를 먼저 합니다. MaxSim을 단 한 번도 계산하지 않고 수백만 후보를 수천 개로 줄인 뒤, 남은 후보에만 정밀 MaxSim을 돌립니다. 논문 보고로는 순수 ColBERTv2 대비 GPU에서 최대 7배, CPU에서 최대 45배 빨라져, 1억4천만 문단 규모에서도 GPU 수십 밀리초 수준을 냅니다.</p>
+
+<div class="lir-note lir-good"><strong>큰 그림.</strong> ColBERT가 &#8220;토큰마다 벡터&#8221;로 정밀도를 얻고, ColBERTv2가 <em>잔차 압축</em>으로 저장 용량을, PLAID가 <em>중심점 가지치기</em>로 속도를 되찾았습니다. 세 조각이 합쳐지며 레이트 인터랙션은 &#8220;논문 속 아이디어&#8221;에서 &#8220;프로덕션에서 돌릴 만한 것&#8221;이 됐습니다. 참고로 2026년에는 이보다 더 빠른 엔진(WARP 등)도 나오며 이 흐름이 이어지고 있습니다.</p></div>
+
+<h2 id="sec-5">5. ColPali &#8212; OCR을 버리고 페이지를 &#8216;이미지째&#8217; 검색</h2>
+
+<p>여기까지는 텍스트 얘기였습니다. 그런데 레이트 인터랙션이 2026년 들어 특히 뜨거워진 계기는 따로 있습니다. <strong>ColPali</strong>(Faysse et al., ICLR 2025)가 이 아이디어를 <em>이미지</em>로 가져왔거든요.</p>
+
+<p>실무에서 진짜 골치인 문서는 순수 텍스트가 아닙니다. 표·차트·인포그래픽·스캔 PDF처럼 <em>보이는 방식</em>에 정보가 담긴 문서죠. 지금까지 이런 문서로 RAG를 하려면 파이프라인이 길었습니다 &#8212; OCR로 글자를 뜯어내고, 레이아웃을 분석해 표를 복원하고, 캡션을 붙이고&#8230; 단계마다 오류가 쌓이고, 표의 셀 위치나 그래프의 모양 같은 &#8220;시각 정보&#8221;는 그 과정에서 대부분 사라집니다.</p>
+
+<p>ColPali의 발상은 과감합니다 &#8212; <em>OCR을 아예 하지 말자.</em> 대신 문서 페이지를 <strong>이미지 그대로</strong> 비전-언어 모델(VLM, vision-language model)에 넣습니다. VLM은 페이지 이미지를 작은 조각(패치, patch)들의 격자로 보고, <strong>패치마다 벡터 하나</strong>를 만듭니다. 텍스트 ColBERT에서 &#8220;토큰마다 벡터&#8221;였던 게, 여기서는 &#8220;이미지 패치마다 벡터&#8221;가 된 것뿐입니다. 그리고 질의(텍스트) 토큰 벡터와 이 패치 벡터들 사이에 <strong>똑같은 MaxSim</strong>을 돌립니다.</p>
+
+<figure class="lir-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="두 방식을 비교하는 그림. 위쪽 전통 방식은 PDF 페이지를 OCR, 레이아웃 분석, 표 복원, 캡션 붙이기 여러 단계를 거쳐 텍스트로 바꾼 뒤 임베딩하며, 단계마다 오류가 쌓이고 시각 정보가 사라진다고 빨간색으로 표시된다. 아래쪽 ColPali 방식은 페이지 이미지를 그대로 비전-언어 모델에 넣어 패치마다 벡터를 만들고, 질의 토큰과 MaxSim으로 맞춘다. OCR 단계가 없다고 초록색으로 표시된다.">
+  <text x="30" y="26" fill="var(--lir-slate)" font-size="15" font-weight="700">시각 문서 검색 &#8212; 긴 OCR 파이프라인 vs ColPali</text>
+
+  <!-- traditional -->
+  <text x="30" y="58" fill="var(--lir-rose)" font-size="12.5" font-weight="800">전통 방식 · 단계마다 오류가 쌓인다</text>
+  <g font-size="10.5" text-anchor="middle" font-weight="700">
+    <rect x="30" y="70" width="70" height="40" rx="7" fill="var(--lir-slate)" opacity="0.85"/><text x="65" y="94" fill="#fff">PDF 페이지</text>
+    <rect x="120" y="70" width="60" height="40" rx="7" fill="var(--lir-rose)" opacity="0.8"/><text x="150" y="94" fill="#fff">OCR</text>
+    <rect x="200" y="70" width="76" height="40" rx="7" fill="var(--lir-rose)" opacity="0.8"/><text x="238" y="88" fill="#fff">레이아웃</text><text x="238" y="102" fill="#fff">분석</text>
+    <rect x="296" y="70" width="76" height="40" rx="7" fill="var(--lir-rose)" opacity="0.8"/><text x="334" y="88" fill="#fff">표 복원·</text><text x="334" y="102" fill="#fff">캡션</text>
+    <rect x="392" y="70" width="70" height="40" rx="7" fill="var(--lir-slate)" opacity="0.85"/><text x="427" y="88" fill="#fff">텍스트</text><text x="427" y="102" fill="#fff">임베딩</text>
+  </g>
+  <g stroke="var(--lir-rose)" stroke-width="2" fill="none" marker-end="url(#lir-a2)">
+    <line x1="100" y1="90" x2="118" y2="90"/><line x1="180" y1="90" x2="198" y2="90"/><line x1="276" y1="90" x2="294" y2="90"/><line x1="372" y1="90" x2="390" y2="90"/>
+  </g>
+  <text x="480" y="86" fill="var(--lir-rose)" font-size="11" font-weight="700">표 위치·그래프</text>
+  <text x="480" y="100" fill="var(--lir-rose)" font-size="11" font-weight="700">모양은 소실 ✘</text>
+
+  <!-- colpali -->
+  <text x="30" y="168" fill="var(--lir-teal)" font-size="12.5" font-weight="800">ColPali · OCR 없이 이미지째</text>
+  <g font-size="10.5" text-anchor="middle" font-weight="700">
+    <rect x="30" y="180" width="70" height="46" rx="7" fill="var(--lir-slate)" opacity="0.85"/><text x="65" y="200" fill="#fff">PDF 페이지</text><text x="65" y="214" fill="#fff">(이미지)</text>
+    <rect x="140" y="180" width="90" height="46" rx="7" fill="var(--lir-violet)"/><text x="185" y="200" fill="#fff">VLM 인코더</text><text x="185" y="214" fill="#fff">(패치→벡터)</text>
+  </g>
+  <!-- patch grid -->
+  <g fill="var(--lir-violet)">
+    <rect x="270" y="180" width="16" height="14" rx="3"/><rect x="290" y="180" width="16" height="14" rx="3"/><rect x="310" y="180" width="16" height="14" rx="3"/><rect x="330" y="180" width="16" height="14" rx="3"/>
+    <rect x="270" y="198" width="16" height="14" rx="3"/><rect x="290" y="198" width="16" height="14" rx="3"/><rect x="310" y="198" width="16" height="14" rx="3"/><rect x="330" y="198" width="16" height="14" rx="3"/>
+    <rect x="270" y="216" width="16" height="14" rx="3"/><rect x="290" y="216" width="16" height="14" rx="3"/><rect x="310" y="216" width="16" height="14" rx="3"/><rect x="330" y="216" width="16" height="14" rx="3"/>
+  </g>
+  <text x="308" y="248" fill="var(--lir-violet)" font-size="10" text-anchor="middle">패치마다 벡터 1개</text>
+  <!-- query + maxsim -->
+  <rect x="420" y="188" width="70" height="30" rx="6" fill="var(--lir-sky)"/><text x="455" y="207" fill="#fff" font-size="10.5" text-anchor="middle" font-weight="700">질의 토큰</text>
+  <g stroke="var(--lir-amber)" stroke-width="2" fill="none">
+    <path d="M420,196 C400,196 370,190 348,190"/>
+    <path d="M420,203 C400,203 370,205 348,205"/>
+    <path d="M420,210 C400,210 370,220 348,220"/>
+  </g>
+  <rect x="520" y="182" width="210" height="46" rx="9" fill="var(--lir-teal)" opacity="0.14" stroke="var(--lir-teal)"/>
+  <text x="625" y="202" fill="var(--lir-teal)" font-size="11.5" text-anchor="middle" font-weight="800">MaxSim &#8212; 텍스트와 똑같이</text>
+  <text x="625" y="219" fill="var(--lir-teal)" font-size="11" text-anchor="middle" font-weight="700">OCR 단계 없음 ✔ 시각정보 보존 ✔</text>
+
+  <g stroke="var(--lir-violet)" stroke-width="2" fill="none" marker-end="url(#lir-a3)">
+    <line x1="100" y1="203" x2="138" y2="203"/><line x1="230" y1="203" x2="266" y2="203"/>
+  </g>
+  <defs>
+    <marker id="lir-a2" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto"><path d="M1,1 L8,5 L1,9" fill="none" stroke="var(--lir-rose)" stroke-width="1.6"/></marker>
+    <marker id="lir-a3" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto"><path d="M1,1 L8,5 L1,9" fill="none" stroke="var(--lir-violet)" stroke-width="1.6"/></marker>
+  </defs>
+</svg>
+<figcaption>ColPali는 OCR·레이아웃 분석·표 복원 같은 긴 파이프라인을 통째로 건너뛴다. 페이지를 이미지째 VLM에 넣어 패치마다 벡터를 만들고, 질의 토큰과 MaxSim으로 맞춘다 &#8212; 텍스트 ColBERT와 완전히 같은 방식이다.</figcaption>
+</figure>
+
+<p>효과는 컸습니다. ColPali 저자들은 시각 문서 검색을 재려고 <strong>ViDoRe</strong>(Visual Document Retrieval) 벤치마크를 함께 내놓았는데, 여기서 ColPali는 기존 OCR 기반 파이프라인을 크게 앞섰고 시각적으로 복잡한 과제(인포그래픽·그림·표)에서 최대 <strong>+29%</strong>까지 성능이 올랐다고 보고합니다. 파이프라인은 오히려 단순해졌는데 성능은 올라간 것이죠. Qwen2-VL을 백본으로 쓴 <strong>ColQwen</strong> 같은 변형도 나오며, &#8220;시각 문서는 이미지째 레이트 인터랙션&#8221;이 하나의 갈래로 자리 잡았습니다.</p>
+
+<h2 id="sec-6">6. 실전 &#8212; 2단계 파이프라인에 리랭커로 얹기</h2>
+
+<p>이론은 됐고, 실제로 어떻게 붙일까요? 가장 현실적이고 실무에서 표준으로 굳은 패턴은 &#8220;레이트 인터랙션을 <strong>1차 검색 엔진으로 통째로</strong> 쓰기&#8221;가 아니라, <strong>2단계 리랭커로 얹기</strong>입니다.</p>
+
+<ul>
+  <li><strong>1단계(값싼 후보 뽑기).</strong> 기존 BM25(키워드)나 단일 벡터 검색으로 후보 상위 100&#8211;200개를 빠르게 뽑습니다.</li>
+  <li><strong>2단계(레이트 인터랙션 리랭킹).</strong> 그 후보에만 ColBERT식 MaxSim을 돌려 정밀하게 재정렬하고, 최종 상위 5&#8211;10개만 LLM에 넘깁니다.</li>
+</ul>
+
+<p>이렇게 하면 저장 폭발과 대규모 색인의 부담을 지지 않고도(문서 전체를 멀티 벡터로 색인할 필요가 없죠), &#8220;정밀한 토큰 단위 매칭&#8221;의 이득만 후보에 얹을 수 있습니다. 2026년 기준 파이썬 도구로는 <strong>PyLate</strong>(LightOn)와 <strong>RAGatouille</strong>가 대표적입니다. 여기서는 PyLate로 &#8220;후보를 재정렬하는 리랭커&#8221; 패턴을 보겠습니다.</p>
+
+{{< highlight bash >}}
+pip install pylate
+{{< /highlight >}}
+
+{{< highlight python >}}
+from pylate import models, rank
+
+# 1) 레이트 인터랙션 모델 로드 — 토큰마다 벡터를 뱉는 ColBERT 계열
+model = models.ColBERT(model_name_or_path="lightonai/GTE-ModernColBERT-v1")
+
+# 2) 1단계(BM25/단일 벡터)로 이미 뽑아 둔 후보 문서들
+query = "2019년 한국 GDP 성장률은?"
+candidate_ids  = ["doc-12", "doc-7", "doc-31"]          # 1단계 검색 결과 id
+candidate_docs = [
+    "2019년 한국의 실질 GDP는 약 2.0% 성장했다. ...",
+    "한국은행은 기준금리를 동결하기로 결정했다. ...",
+    "2019년 미국 GDP 성장률은 2.3%로 집계됐다. ...",
+]
+
+# 3) 질의와 문서를 각각 '토큰마다 벡터'로 인코딩
+#    is_query 플래그로 질의/문서를 구분한다(전처리가 다르다)
+query_emb = model.encode([query], is_query=True)                 # 질의: 토큰 벡터들
+docs_emb  = model.encode([candidate_docs], is_query=False)       # 문서: 문서마다 토큰 벡터들
+
+# 4) MaxSim으로 후보만 재정렬 — 이게 레이트 인터랙션 리랭킹
+reranked = rank.rerank(
+    documents_ids=[candidate_ids],
+    queries_embeddings=query_emb,
+    documents_embeddings=docs_emb,
+)
+
+for item in reranked[0]:                # 점수 높은 순으로 정렬돼 나온다
+    print(item["id"], round(item["score"], 3))
+# 기대 결과: 'GDP'와 '한국'이 같은 문서에서 좋은 짝을 찾은 doc-12가 1위
+{{< /highlight >}}
+
+<p>코드가 하는 일은 앞에서 본 그림 그대로입니다. <code>encode</code>가 질의·문서를 <em>토큰마다 벡터</em>로 바꾸고, <code>rank.rerank</code>가 그 사이에 MaxSim을 돌려 점수를 매깁니다. &#8220;한국&#8221;과 &#8220;GDP&#8221; 두 토큰이 <em>같은 문서</em>에서 나란히 좋은 짝을 찾는 <code>doc-12</code>가, &#8220;GDP&#8221;만 걸리는 미국 문서(<code>doc-31</code>)보다 위로 올라옵니다. 단일 벡터라면 &#8220;GDP 성장률&#8221; 평균에 묻혀 둘이 헷갈리기 쉬운 상황이죠.</p>
+
+<div class="lir-note"><strong>대규모라면 색인까지.</strong> 후보 재정렬을 넘어 수백만 문서를 레이트 인터랙션으로 <em>1차 검색</em>까지 하고 싶다면, PyLate의 PLAID 계열 색인(<code>indexes</code> 모듈)으로 문서 토큰 벡터를 압축·색인해 두고 질의합니다. 이때 4절의 저장·속도 최적화(잔차 압축·중심점 가지치기)가 그대로 작동합니다. 다만 색인이 무거우니, <em>대부분의 팀에는 &#8220;BM25/단일 벡터 → 레이트 인터랙션 리랭킹&#8221; 2단계가 비용 대비 가장 무난합니다.</em></p></div>
+
+<figure class="lir-fig">
+<svg viewBox="0 0 760 250" role="img" aria-label="2단계 검색 파이프라인 그림. 왼쪽에서 질의가 들어오면 1단계에서 BM25 또는 단일 벡터 검색이 수백만 문서에서 후보 100에서 200개를 값싸게 뽑는다. 2단계에서 레이트 인터랙션 리랭커가 그 후보에만 MaxSim을 돌려 정밀하게 재정렬하고 상위 5에서 10개를 남긴다. 마지막에 그 문서들을 LLM에 넘겨 답을 만든다.">
+  <text x="30" y="28" fill="var(--lir-slate)" font-size="15" font-weight="700">실전 표준 &#8212; 값싼 1차 검색 뒤에 레이트 인터랙션을 리랭커로</text>
+
+  <rect x="20" y="70" width="90" height="60" rx="10" fill="var(--lir-sky)"/><text x="65" y="98" fill="#fff" font-size="12.5" text-anchor="middle" font-weight="800">질의</text><text x="65" y="116" fill="#fff" font-size="11" text-anchor="middle">query</text>
+
+  <rect x="150" y="60" width="180" height="80" rx="12" fill="var(--lir-blue)" opacity="0.16" stroke="var(--lir-blue)"/>
+  <text x="240" y="86" fill="var(--lir-blue)" font-size="13" text-anchor="middle" font-weight="800">1단계 · 값싼 후보</text>
+  <text x="240" y="106" fill="var(--lir-slate)" font-size="11.5" text-anchor="middle">BM25 / 단일 벡터</text>
+  <text x="240" y="124" fill="var(--lir-slate)" font-size="11.5" text-anchor="middle">수백만 → 상위 100&#8211;200</text>
+
+  <rect x="370" y="60" width="190" height="80" rx="12" fill="var(--lir-teal)" opacity="0.16" stroke="var(--lir-teal)"/>
+  <text x="465" y="86" fill="var(--lir-teal)" font-size="13" text-anchor="middle" font-weight="800">2단계 · 레이트 인터랙션</text>
+  <text x="465" y="106" fill="var(--lir-slate)" font-size="11.5" text-anchor="middle">MaxSim 정밀 재정렬</text>
+  <text x="465" y="124" fill="var(--lir-slate)" font-size="11.5" text-anchor="middle">100&#8211;200 → 상위 5&#8211;10</text>
+
+  <rect x="600" y="60" width="140" height="80" rx="12" fill="var(--lir-violet)" opacity="0.16" stroke="var(--lir-violet)"/>
+  <text x="670" y="92" fill="var(--lir-violet)" font-size="13" text-anchor="middle" font-weight="800">LLM</text>
+  <text x="670" y="112" fill="var(--lir-slate)" font-size="11.5" text-anchor="middle">상위 문서로</text>
+  <text x="670" y="128" fill="var(--lir-slate)" font-size="11.5" text-anchor="middle">답 생성</text>
+
+  <g stroke="var(--lir-slate)" stroke-width="2.4" fill="none" marker-end="url(#lir-a4)">
+    <line x1="112" y1="100" x2="146" y2="100"/>
+    <line x1="332" y1="100" x2="366" y2="100"/>
+    <line x1="562" y1="100" x2="596" y2="100"/>
+  </g>
+  <defs><marker id="lir-a4" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M1,1 L10,6 L1,11" fill="none" stroke="var(--lir-slate)" stroke-width="2"/></marker></defs>
+
+  <text x="380" y="185" fill="var(--lir-slate)" font-size="12.5" text-anchor="middle" opacity="0.85">문서 전체를 멀티 벡터로 색인하지 않아도, 정밀 매칭의 이득만 후보에 얹는다.</text>
+  <text x="380" y="210" fill="var(--lir-slate)" font-size="12.5" text-anchor="middle" opacity="0.7">리랭킹은 후보 20&#8211;50개까지가 지연·비용 균형점 &#8212; 무작정 200개를 다 돌리지 말 것.</text>
+</svg>
+<figcaption>대부분의 팀에 무난한 표준 구성. 1단계에서 BM25/단일 벡터로 후보를 싸게 뽑고, 2단계에서만 레이트 인터랙션 MaxSim으로 정밀 재정렬한다. 문서 전체를 멀티 벡터로 색인하는 부담 없이 정확도를 끌어올린다.</figcaption>
+</figure>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>&#8220;무조건 이걸로 다 바꾸자&#8221;는 함정.</strong> 레이트 인터랙션의 대가는 저장·색인 비용입니다. 문서가 적거나 단일 벡터로도 정확도가 충분하면 굳이 갈 필요 없습니다. <em>먼저 리랭커로 얹어 보고</em>, 정확도 이득이 확인될 때 색인까지 확장하세요.</li>
+  <li><strong>압축을 건너뛰지 마세요.</strong> ColBERT를 full-precision으로 그대로 색인하면 용량이 30&#8211;100배로 튑니다. 실전에서는 ColBERTv2식 잔차 압축(1&#8211;2 bit/차원)이 사실상 기본값입니다. &#8220;레이트 인터랙션이 너무 무겁다&#8221;는 불평은 대개 압축을 안 켠 경우입니다.</li>
+  <li><strong>리랭킹 후보 수를 욕심내지 마세요.</strong> MaxSim도 공짜가 아닙니다. 후보 200개를 전부 재정렬하면 지연이 커집니다. 보통 <em>상위 20&#8211;50개</em>만 재정렬하는 게 지연·정확도 균형점이고, 같은 질의의 재정렬 결과는 캐싱하면 좋습니다.</li>
+  <li><strong>질의와 문서 인코딩을 뒤섞지 마세요.</strong> ColBERT 계열은 질의와 문서의 전처리가 다릅니다(질의엔 특수 토큰·패딩 등). 라이브러리의 <code>is_query</code> 같은 플래그를 반드시 맞게 주세요. 뒤바꾸면 점수가 조용히 나빠집니다.</li>
+  <li><strong>ColPali엔 GPU와 이미지 파이프라인이 필요합니다.</strong> 페이지를 이미지로 렌더링해 VLM에 넣는 구조라, 텍스트 ColBERT보다 인코딩이 무겁고 GPU가 사실상 필요합니다. &#8220;스캔 PDF·표·인포그래픽이 진짜 많을 때&#8221;처럼 시각 정보가 핵심인 문서에 골라 쓰는 게 맞습니다.</li>
+  <li><strong>BM25와 경쟁이 아니라 협업입니다.</strong> 레이트 인터랙션은 의미 매칭에 강하지만, 정확한 제품 코드·희귀 고유명사는 여전히 키워드 검색(BM25)이 잘 잡습니다. 1단계를 BM25(또는 BM25+단일 벡터 하이브리드)로 두고 2단계에 레이트 인터랙션을 얹으면 서로의 약점을 메웁니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>문제:</strong> 단일 벡터(바이 인코더) 검색은 문서를 벡터 하나로 뭉갠다. 500 토큰 속 한 줄짜리 정답이 평균에 묻혀 사라진다.</li>
+  <li><strong>레이트 인터랙션:</strong> 문서를 <em>토큰마다 벡터 하나</em>로 두고, 검색 마지막에 질의 토큰과 문서 토큰을 세밀하게 맞춘다. 크로스 인코더의 정밀함과 바이 인코더의 속도를 절충한 &#8216;가운데&#8217; 방식.</li>
+  <li><strong>MaxSim:</strong> 질의 토큰마다 문서에서 &#8216;가장 잘 맞는 토큰 1개&#8217;의 유사도를 취하고, 그 최댓값들을 모두 더해 문서 점수를 만든다. 평균이 아니라 최댓값이라 정확한 일치가 살아남는다.</li>
+  <li><strong>ColBERT → ColBERTv2 → PLAID:</strong> ColBERT가 정밀도를, ColBERTv2가 <em>잔차 압축</em>으로 저장 용량(MS MARCO 154 GiB → 16&#8211;25 GiB)을, PLAID가 <em>중심점 가지치기</em>로 속도를 되찾았다.</li>
+  <li><strong>ColPali·ColQwen:</strong> OCR을 버리고 페이지를 이미지째 VLM에 넣어 <em>패치마다 벡터</em>로 만든 뒤 똑같이 MaxSim. 표·인포그래픽 등 시각 문서에서 ViDoRe 기준 최대 +29%.</li>
+  <li><strong>실전 표준:</strong> 문서 전체를 멀티 벡터로 색인하지 말고, ① BM25/단일 벡터로 후보를 싸게 뽑고 ② 레이트 인터랙션으로 상위 20&#8211;50개만 리랭킹. 압축은 기본값, 후보 수는 절제.</li>
+  <li><strong>왜 지금:</strong> ECIR 2026에 전용 워크숍(LIR)이 생기고 &#8220;2026 RAG를 바꾼 변화&#8221;에 단골로 오르며, 연구 아이디어에서 프로덕션 표준 후보로 넘어왔다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+<ul>
+  <li>Khattab &amp; Zaharia, <a href="https://arxiv.org/abs/2004.12832" target="_blank" rel="noopener">ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT</a> (arXiv:2004.12832, SIGIR 2020) &#8212; 토큰마다 벡터와 MaxSim을 세운 원 논문. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Santhanam et al., <a href="https://arxiv.org/abs/2112.01488" target="_blank" rel="noopener">ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction</a> (arXiv:2112.01488, NAACL 2022) &#8212; 잔차 압축으로 색인 용량을 6&#8211;10배 줄인 후속작. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Santhanam et al., <a href="https://arxiv.org/abs/2205.09707" target="_blank" rel="noopener">PLAID: An Efficient Engine for Late Interaction Retrieval</a> (arXiv:2205.09707, CIKM 2022) &#8212; 중심점 가지치기로 GPU 최대 7배·CPU 최대 45배 가속. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Faysse et al., <a href="https://arxiv.org/abs/2407.01449" target="_blank" rel="noopener">ColPali: Efficient Document Retrieval with Vision Language Models</a> (arXiv:2407.01449, ICLR 2025) &#8212; OCR 없이 페이지를 이미지째 검색, ViDoRe 벤치마크 제안. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Louis et al., <a href="https://arxiv.org/abs/2511.00444" target="_blank" rel="noopener">LIR: The First Workshop on Late Interaction and Multi Vector Retrieval @ ECIR 2026</a> (arXiv:2511.00444) &#8212; 레이트 인터랙션 전용 첫 워크숍. 이 글의 &#8220;왜 지금&#8221; 근거. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>LightOn, <a href="https://github.com/lightonai/pylate" target="_blank" rel="noopener">PyLate</a> (GitHub) &#8212; <code>models.ColBERT</code>·<code>rank.rerank</code>·PLAID 색인의 공식 구현. 이 글의 코드 API 출처. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Weaviate, <a href="https://weaviate.io/blog/late-interaction-overview" target="_blank" rel="noopener">An Overview of Late Interaction Retrieval Models: ColBERT, ColPali, and ColQwen</a> &#8212; 세 모델을 한눈에 비교한 실무 개관. <span style="opacity:.7">(한국어 아님)</span></li>
+  <li>Ozgur Guler, <a href="https://medium.com/microsoftazure/10-rag-shifts-redefining-production-ai-in-2026-7acbdd66076c" target="_blank" rel="noopener">10 RAG Shifts Redefining Production AI in 2026</a> (Microsoft Azure, Medium) &#8212; 2026년 RAG의 변화로 레이트 인터랙션을 꼽은 실무 글. <span style="opacity:.7">(한국어 아님)</span></li>
+</ul>

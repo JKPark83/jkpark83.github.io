@@ -1,0 +1,388 @@
+---
+title: "코딩 에이전트에게 매번 같은 걸 설명하고 있다면: AGENTS.md 제대로 쓰는 법 (그리고 언제 독이 되는가)"
+date: 2026-08-07T07:30:00+09:00
+draft: false
+tags: ["AI", "AGENTS.md", "coding agent", "context engineering", "코딩 에이전트", "Codex", "Cursor", "Copilot", "Claude Code", "monorepo", "repository context", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "코딩 에이전트에게 '테스트는 pnpm test로 돌려', '이 폴더는 건드리지 마'를 매번 다시 설명하고 있나요? AGENTS.md는 저장소 루트에 두는 Markdown 한 장으로, Codex·Cursor·Copilot·Aider 등 대부분의 에이전트가 기본으로 읽어 들이는 표준 지시 파일입니다. CLAUDE.md·.cursorrules처럼 도구마다 따로 관리하던 파일을 하나로 합치죠. 이 글은 AGENTS.md가 왜 생겼는지, 어떻게 발견·우선순위가 정해지는지(가장 가까운 파일이 이긴다), 무엇을 넣어야 하는지 실제 예제로 보여 줍니다. 그리고 최근 화제가 된 반전 — ETH·GitHub 연구가 밝힌 '길고 자동 생성한 파일은 오히려 성공률을 떨어뜨리고 추론 비용만 20% 늘린다'는 결과까지, junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agents-md-repo-context-files-cover.svg"
+  alt: "왼쪽에는 CLAUDE.md, .cursorrules, copilot-instructions.md, .windsurfrules처럼 도구마다 따로 관리하던 지시 파일 더미가 '파일마다 따로'라고 적힌 채 쌓여 있고, 가운데의 한 장짜리 AGENTS.md로 합쳐진 뒤 오른쪽의 Codex·Cursor·Copilot·Aider 등 여러 에이전트로 화살표가 뻗어 나가는 그림. '한 파일, 모든 에이전트'. 아래 띠에는 150줄을 넘겨 부풀면 비용만 20% 늘고 성공률은 나아지지 않는다는 경고가 적혀 있다."
+  caption: "AGENTS.md: 저장소를 설명하는 Markdown 한 장을 대부분의 코딩 에이전트가 공유해서 읽는다. 단, 짧고 정확할 때만 도움이 된다."
+  relative: false
+---
+
+<style>
+/* ── AGENTS.md 포스트 전용 스타일 (amd- 접두사) ── */
+.amd-fig{
+  --amd-sky:#0284c7; --amd-amber:#d97706; --amd-green:#16a34a; --amd-rose:#e11d48;
+  --amd-slate:#64748b; --amd-violet:#7c3aed; --amd-teal:#0d9488; --amd-blue:#2563eb;
+  --amd-grid:#cbd5e1;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .amd-fig{
+  --amd-sky:#38bdf8; --amd-amber:#fbbf24; --amd-green:#4ade80; --amd-rose:#fb7185;
+  --amd-slate:#94a3b8; --amd-violet:#a78bfa; --amd-teal:#2dd4bf; --amd-blue:#60a5fa;
+  --amd-grid:#334155;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .amd-fig{
+    --amd-sky:#38bdf8; --amd-amber:#fbbf24; --amd-green:#4ade80; --amd-rose:#fb7185;
+    --amd-slate:#94a3b8; --amd-violet:#a78bfa; --amd-teal:#2dd4bf; --amd-blue:#60a5fa;
+    --amd-grid:#334155;
+  }
+}
+.amd-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.amd-fig text{font-family:inherit}
+.amd-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.amd-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.amd-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.amd-toc ol{margin:0;padding-left:1.25rem}
+.amd-toc li{margin:.22rem 0;font-size:.95rem}
+.amd-toc a{text-decoration:none}
+.amd-toc a:hover{text-decoration:underline}
+.amd-pull{font-size:1.12rem;line-height:1.72}
+.amd-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.amd-note{border-left:4px solid var(--amd-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.amd-note strong{color:var(--amd-blue,#2563eb)}
+.amd-warn{border-left:4px solid var(--amd-rose,#e11d48)}
+.amd-warn strong{color:var(--amd-rose,#e11d48)}
+.amd-good{border-left:4px solid var(--amd-teal,#0d9488)}
+.amd-good strong{color:var(--amd-teal,#0d9488)}
+.amd-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.amd-tbl th,.amd-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.amd-tbl th{background:var(--entry);font-weight:700}
+.amd-tbl code{font-size:.86em}
+.amd-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="amd-pull">
+  <p>새 코딩 에이전트를 열 때마다 같은 말을 반복하고 있지 않나요? “테스트는 <code>pnpm test</code>로 돌려”, “<code>src/legacy</code>는 건드리지 마”, “커밋 메시지는 이런 형식으로”… 대화창을 닫으면 이 지식은 <em>매번</em> 증발합니다.</p>
+  <footer>— 사람이라면 신입에게 한 번 알려 주고 위키에 적어 두겠죠. 에이전트에게 그 위키가 <strong>AGENTS.md</strong>입니다.</footer>
+</blockquote>
+
+<nav class="amd-toc" aria-label="목차">
+  <div class="amd-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 AGENTS.md가 화제인가</a></li>
+    <li><a href="#sec-2">배경 — 파편화된 지시 파일의 시대</a></li>
+    <li><a href="#sec-3">어떻게 발견되고, 누가 이기는가</a></li>
+    <li><a href="#sec-4">좋은 AGENTS.md의 해부 — 무엇을 넣나</a></li>
+    <li><a href="#sec-5">반전 — 연구가 밝힌 '독이 되는' 경우</a></li>
+    <li><a href="#sec-6">실전 — 5분 만에 쓸모 있는 파일 만들기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 AGENTS.md가 화제인가</h2>
+
+<p>코딩 에이전트(coding agent)는 저장소를 처음 보는 <strong>능력 좋은 신입</strong>과 비슷합니다. 코드는 잘 읽지만, 이 프로젝트만의 “집안 규칙”은 모릅니다. 테스트를 <code>npm test</code>로 돌리는지 <code>pytest</code>로 돌리는지, 포매터가 있는지, 절대 만지면 안 되는 생성 파일이 어디인지 — 이런 건 코드에 안 적혀 있죠. 그래서 에이전트는 <em>추측</em>하고, 종종 틀립니다.</p>
+
+<p><strong>AGENTS.md</strong>는 이 문제를 겨냥한 파일입니다. 저장소 루트에 두는 Markdown 한 장에 프로젝트의 규칙을 적어 두면, Codex·Cursor·GitHub Copilot·Aider·Gemini CLI 같은 <em>대부분의</em> 코딩 에이전트가 작업을 시작할 때 이 파일을 자동으로 읽어 컨텍스트에 넣습니다. 원래 OpenAI가 2025년 8월에 공개한 단순한 규약인데, 지금은 6만 개가 넘는 오픈소스 저장소가 쓰고 있습니다.</p>
+
+<p>그런데 왜 <em>이번 주</em> 다시 talking point가 됐을까요? 두 갈래입니다. 하나는 거버넌스 — AGENTS.md는 2025년 말 Linux Foundation 산하 <strong>Agentic AI Foundation(AAIF)</strong>로 넘어가 MCP·goose와 나란히 표준으로 관리되는데, 2026년 7월 AAIF가 첫 앰배서더 코호트(41개국 138명)와 ‘Agentic AI Momentum Report’를 발표하며 다시 주목받았습니다. 다른 하나가 더 흥미롭습니다 — GitHub가 <em>2,500여 개 저장소</em>를 분석한 글과 ETH Zürich의 <em>‘AGENTS.md가 정말 도움이 되나’</em> 연구가 나란히 퍼지면서, “다들 쓰라고 하는데, <strong>진짜 도움이 되긴 하나?</strong>”라는 논쟁에 불이 붙었죠. 결론부터 말하면 답은 “쓰기 나름”입니다. 이 글에서 그 “나름”을 구체적으로 풀어 봅니다.</p>
+
+<div class="amd-note"><strong>한 줄 요약.</strong> AGENTS.md는 코딩 에이전트에게 저장소의 집안 규칙(빌드·테스트 명령, 코드 스타일, 하지 말 것)을 알려 주는 <em>표준 지시 파일</em>입니다. 잘 쓰면 에이전트가 헤매지 않고, 잘못 쓰면 비용만 늘고 오히려 방해가 됩니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 파편화된 지시 파일의 시대</h2>
+
+<p>AGENTS.md가 왜 필요했는지는 그 <em>이전</em>을 보면 바로 이해됩니다. 코딩 에이전트마다 “나한테 규칙을 주려면 이 파일에 써”라고 요구하는 파일 이름이 제각각이었습니다.</p>
+
+<ul>
+  <li>Claude Code → <code>CLAUDE.md</code></li>
+  <li>Cursor → <code>.cursorrules</code></li>
+  <li>GitHub Copilot → <code>.github/copilot-instructions.md</code></li>
+  <li>Windsurf → <code>.windsurfrules</code> …</li>
+</ul>
+
+<p>같은 팀이 Cursor와 Copilot을 섞어 쓰면, <em>똑같은 규칙</em>을 파일 서너 개에 복붙해 두고 하나 고칠 때마다 나머지도 손봐야 했습니다. 전형적인 파편화(fragmentation) 문제죠. AGENTS.md의 발상은 단순합니다 — <strong>파일 하나, 모든 에이전트.</strong> 도구 이름이 아니라 <em>역할</em>로 파일을 정의하니, 새 에이전트가 나와도 같은 파일을 읽으면 됩니다.</p>
+
+<p>핵심은 <strong>특별할 게 없다</strong>는 점입니다. AGENTS.md는 그냥 Markdown이고, 필수 항목도, 정해진 스키마도 없습니다. 사람이 읽는 README가 “사람을 위한 안내서”라면, AGENTS.md는 “에이전트를 위한 안내서”입니다. README에는 홍보 문구와 배지가 들어가지만, AGENTS.md에는 에이전트가 실제로 작업할 때 필요한 <em>실행 가능한</em> 정보만 담습니다.</p>
+
+<div class="amd-note amd-good"><strong>README와 뭐가 다른가요?</strong> 역할이 다릅니다. README는 “이 프로젝트가 뭐고 왜 좋은지”를 사람에게 팔고, AGENTS.md는 “빌드는 이렇게, 테스트는 이렇게, 이건 건드리지 마”를 에이전트에게 지시합니다. 둘을 합치지 마세요. 에이전트에게 배지와 스크린샷은 토큰 낭비일 뿐입니다.</p></div>
+
+<h2 id="sec-3">3. 어떻게 발견되고, 누가 이기는가</h2>
+
+<p>여기서부터가 실무 지식입니다. 큰 저장소, 특히 모노레포(monorepo)에서는 규칙이 폴더마다 다릅니다. 프런트엔드는 Prettier를 쓰고 백엔드는 gofmt를 쓰는데, 루트에 규칙 하나만 두면 서로 안 맞죠. 그래서 AGENTS.md는 <strong>여러 개를 중첩(nested)해서 둘 수 있습니다.</strong></p>
+
+<p>규칙은 딱 하나만 기억하면 됩니다 — <strong>작업 중인 파일에서 가장 가까운(위쪽으로 가장 먼저 만나는) AGENTS.md가 이깁니다.</strong> 루트의 파일은 저장소 전체에 적용되고, 하위 폴더의 파일이 그 아래 영역에서 루트를 덮어씁니다. 실제로 OpenAI 자기 저장소에도 AGENTS.md가 88개나 들어 있습니다.</p>
+
+<figure class="amd-fig" role="group" aria-labelledby="amd-fig1-cap">
+  <svg viewBox="0 0 760 430" xmlns="http://www.w3.org/2000/svg" aria-label="모노레포에서 AGENTS.md가 중첩되는 트리 그림. 루트에 AGENTS.md가 있고 그 아래 apps/web과 services/api 폴더에 각각 AGENTS.md가 있다. web 폴더 안의 파일을 고칠 때는 apps/web의 AGENTS.md가 이기고, api 폴더 안에서는 services/api의 AGENTS.md가 이긴다. 어느 경우든 사용자가 프롬프트에 직접 준 지시가 파일보다 우선한다.">
+    <!-- root -->
+    <rect x="280" y="24" width="200" height="52" rx="10" fill="var(--amd-teal)" opacity="0.16" stroke="var(--amd-teal)"/>
+    <text x="380" y="47" text-anchor="middle" font-size="15" font-weight="700" fill="var(--amd-teal)">/ (루트)</text>
+    <text x="380" y="66" text-anchor="middle" font-size="13" fill="var(--amd-slate)" font-family="ui-monospace,monospace">AGENTS.md · 전체 공통</text>
+
+    <!-- lines -->
+    <path d="M330,76 L190,132" stroke="var(--amd-grid)" stroke-width="2" fill="none"/>
+    <path d="M430,76 L565,132" stroke="var(--amd-grid)" stroke-width="2" fill="none"/>
+
+    <!-- left branch: apps/web -->
+    <rect x="80" y="132" width="230" height="52" rx="10" fill="var(--amd-blue)" opacity="0.16" stroke="var(--amd-blue)"/>
+    <text x="195" y="155" text-anchor="middle" font-size="14" font-weight="700" fill="var(--amd-blue)">apps/web/</text>
+    <text x="195" y="174" text-anchor="middle" font-size="12.5" fill="var(--amd-slate)" font-family="ui-monospace,monospace">AGENTS.md · 프런트 규칙</text>
+
+    <!-- right branch: services/api -->
+    <rect x="450" y="132" width="230" height="52" rx="10" fill="var(--amd-violet)" opacity="0.16" stroke="var(--amd-violet)"/>
+    <text x="565" y="155" text-anchor="middle" font-size="14" font-weight="700" fill="var(--amd-violet)">services/api/</text>
+    <text x="565" y="174" text-anchor="middle" font-size="12.5" fill="var(--amd-slate)" font-family="ui-monospace,monospace">AGENTS.md · 백엔드 규칙</text>
+
+    <!-- files being edited -->
+    <path d="M195,184 L195,232" stroke="var(--amd-grid)" stroke-width="2" fill="none"/>
+    <path d="M565,184 L565,232" stroke="var(--amd-grid)" stroke-width="2" fill="none"/>
+    <rect x="95" y="232" width="200" height="44" rx="8" fill="var(--entry)" stroke="var(--amd-grid)"/>
+    <text x="195" y="259" text-anchor="middle" font-size="13" fill="var(--amd-slate)" font-family="ui-monospace,monospace">Button.tsx 수정</text>
+    <rect x="465" y="232" width="200" height="44" rx="8" fill="var(--entry)" stroke="var(--amd-grid)"/>
+    <text x="565" y="259" text-anchor="middle" font-size="13" fill="var(--amd-slate)" font-family="ui-monospace,monospace">handler.go 수정</text>
+
+    <!-- who wins labels -->
+    <text x="195" y="304" text-anchor="middle" font-size="13" font-weight="700" fill="var(--amd-blue)">→ apps/web 규칙이 이김</text>
+    <text x="565" y="304" text-anchor="middle" font-size="13" font-weight="700" fill="var(--amd-violet)">→ services/api 규칙이 이김</text>
+
+    <!-- prompt override band -->
+    <rect x="80" y="340" width="600" height="62" rx="12" fill="var(--amd-amber)" opacity="0.14" stroke="var(--amd-amber)"/>
+    <text x="380" y="366" text-anchor="middle" font-size="14.5" font-weight="800" fill="var(--amd-amber)">그리고 무엇보다: 프롬프트에 직접 준 지시 &gt; 모든 AGENTS.md</text>
+    <text x="380" y="388" text-anchor="middle" font-size="12.5" fill="var(--amd-slate)">“이번엔 테스트 건너뛰고 커밋해” 라고 말하면 파일 규칙을 덮어쓴다</text>
+  </svg>
+  <figcaption id="amd-fig1-cap">가장 가까운 AGENTS.md가 이긴다. 폴더마다 규칙을 따로 줄 수 있고, 사용자가 대화창에서 직접 준 지시는 어떤 파일보다도 우선한다.</figcaption>
+</figure>
+
+<p>정리하면 우선순위는 이렇습니다.</p>
+
+<ol>
+  <li><strong>사용자의 직접 지시(프롬프트)</strong> — 가장 셉니다. “이번만 lint 건너뛰어”가 파일을 이깁니다.</li>
+  <li><strong>가장 가까운 AGENTS.md</strong> — 수정 중인 파일에서 위로 올라가며 처음 만나는 파일.</li>
+  <li><strong>상위 폴더 / 루트의 AGENTS.md</strong> — 더 가까운 파일이 말하지 않은 부분을 채웁니다.</li>
+</ol>
+
+<div class="amd-note amd-warn"><strong>주의:</strong> 도구마다 중첩 지원이 아직 완전하지 않습니다. 예를 들어 하위 폴더의 AGENTS.md를 자동으로 찾아 읽는 기능은 도구·버전에 따라 켜야 하거나 아직 개발 중일 수 있습니다. 모노레포라면 “내 에이전트가 하위 폴더 파일을 정말 읽는가”를 한 번 확인하고 쓰세요. 안 읽는다면 루트 파일에 폴더별 섹션으로 나눠 적는 게 안전합니다.</p></div>
+
+<h2 id="sec-4">4. 좋은 AGENTS.md의 해부 — 무엇을 넣나</h2>
+
+<p>정해진 스키마는 없지만, 수천 개 저장소가 공통으로 쓰는 <em>사실상의 표준 섹션</em>이 있습니다. 핵심 원칙은 하나 — <strong>“코드를 봐도 알 수 없는 것”만 적는다.</strong> 언어의 기본값이나 코드에 이미 드러난 것은 토큰 낭비입니다.</p>
+
+<figure class="amd-fig" role="group" aria-labelledby="amd-fig2-cap">
+  <svg viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg" aria-label="좋은 AGENTS.md에 들어가는 여섯 가지 섹션을 카드로 나열한 그림. 프로젝트 한 줄 소개, 빌드와 테스트 명령, 코드 스타일, 테스트 방법, 보안과 금지 사항, 커밋과 PR 규칙. 각 카드에 무엇을 적는지 한 줄 설명이 붙어 있다.">
+    <g font-family="ui-sans-serif,system-ui,sans-serif">
+      <!-- row 1 -->
+      <rect x="30" y="24" width="222" height="94" rx="12" fill="var(--amd-teal)" opacity="0.14" stroke="var(--amd-teal)"/>
+      <text x="48" y="52" font-size="15" font-weight="800" fill="var(--amd-teal)">① 프로젝트 한 줄</text>
+      <text x="48" y="78" font-size="12.5" fill="var(--amd-slate)">무슨 앱인지, 언어·프레임워크</text>
+      <text x="48" y="98" font-size="12.5" fill="var(--amd-slate)">와 버전만 딱.</text>
+
+      <rect x="269" y="24" width="222" height="94" rx="12" fill="var(--amd-blue)" opacity="0.14" stroke="var(--amd-blue)"/>
+      <text x="287" y="52" font-size="15" font-weight="800" fill="var(--amd-blue)">② 빌드·테스트 명령</text>
+      <text x="287" y="78" font-size="12.5" fill="var(--amd-slate)">정확한 명령어 그대로.</text>
+      <text x="287" y="98" font-size="12.5" fill="var(--amd-slate)">“테스트 돌려” (X) → 명령 (O)</text>
+
+      <rect x="508" y="24" width="222" height="94" rx="12" fill="var(--amd-violet)" opacity="0.14" stroke="var(--amd-violet)"/>
+      <text x="526" y="52" font-size="15" font-weight="800" fill="var(--amd-violet)">③ 코드 스타일</text>
+      <text x="526" y="78" font-size="12.5" fill="var(--amd-slate)">기본값과 <tspan font-style="italic" fill="var(--amd-violet)">다른</tspan> 규칙만.</text>
+      <text x="526" y="98" font-size="12.5" fill="var(--amd-slate)">예: 세미콜론 금지, 4칸 들여쓰기</text>
+
+      <!-- row 2 -->
+      <rect x="30" y="134" width="222" height="94" rx="12" fill="var(--amd-green)" opacity="0.14" stroke="var(--amd-green)"/>
+      <text x="48" y="162" font-size="15" font-weight="800" fill="var(--amd-green)">④ 테스트 방법</text>
+      <text x="48" y="188" font-size="12.5" fill="var(--amd-slate)">전체·단일 실행, 무엇을</text>
+      <text x="48" y="208" font-size="12.5" fill="var(--amd-slate)">mock 하는지.</text>
+
+      <rect x="269" y="134" width="222" height="94" rx="12" fill="var(--amd-rose)" opacity="0.14" stroke="var(--amd-rose)"/>
+      <text x="287" y="162" font-size="15" font-weight="800" fill="var(--amd-rose)">⑤ 보안·금지</text>
+      <text x="287" y="188" font-size="12.5" fill="var(--amd-slate)">건드리면 안 되는 파일,</text>
+      <text x="287" y="208" font-size="12.5" fill="var(--amd-slate)">비밀키·생성물 취급.</text>
+
+      <rect x="508" y="134" width="222" height="94" rx="12" fill="var(--amd-amber)" opacity="0.14" stroke="var(--amd-amber)"/>
+      <text x="526" y="162" font-size="15" font-weight="800" fill="var(--amd-amber)">⑥ 커밋·PR</text>
+      <text x="526" y="188" font-size="12.5" fill="var(--amd-slate)">브랜치 이름, 커밋 형식,</text>
+      <text x="526" y="208" font-size="12.5" fill="var(--amd-slate)">머지 전략.</text>
+
+      <!-- golden rule -->
+      <rect x="30" y="256" width="700" height="76" rx="12" fill="var(--entry)" stroke="var(--amd-grid)"/>
+      <text x="380" y="286" text-anchor="middle" font-size="15" font-weight="800" fill="var(--amd-teal)">황금률</text>
+      <text x="380" y="312" text-anchor="middle" font-size="13.5" fill="var(--amd-slate)">설명 세 문단보다 <tspan font-family="ui-monospace,monospace" fill="var(--amd-blue)">진짜 명령어 한 줄</tspan>이 낫다 · 코드로 알 수 있는 건 적지 않는다 · 전체는 150줄 이내</text>
+    </g>
+  </svg>
+  <figcaption id="amd-fig2-cap">사실상 표준이 된 여섯 섹션. 전부 넣을 필요는 없고, “코드만 봐선 모를 것”을 정확한 명령어 중심으로 짧게 적는 게 핵심이다.</figcaption>
+</figure>
+
+<p>말보다 예시가 빠릅니다. 아래는 작지만 <em>쓸모 있는</em> AGENTS.md의 모습입니다.</p>
+
+{{< highlight markdown >}}
+# AGENTS.md
+
+## 프로젝트
+TypeScript(5.x) + React 18 웹 앱. 패키지 매니저는 pnpm.
+
+## 빌드 · 테스트
+- 설치: `pnpm install`
+- 개발 서버: `pnpm dev`
+- 전체 테스트: `pnpm test`
+- 단일 파일 테스트: `pnpm test src/cart/cart.test.ts`
+- 커밋 전 반드시: `pnpm lint && pnpm typecheck`   # 둘 다 통과해야 함
+
+## 코드 스타일
+- 포매팅은 Prettier가 담당 — 수동으로 정렬하지 말 것.
+- 컴포넌트는 함수형만. 클래스 컴포넌트 새로 만들지 말 것.
+- import는 절대경로(`@/...`) 사용.
+
+## 하지 말 것
+- `src/generated/`는 코드젠 결과물 — 절대 직접 수정하지 말 것.
+- `.env`, 비밀키를 코드나 커밋에 넣지 말 것.
+
+## 커밋
+- Conventional Commits 형식: `feat:`, `fix:`, `chore:` …
+- PR은 `main`으로, 테스트가 초록불일 때만.
+{{< /highlight >}}
+
+<p>보다시피 40줄도 안 됩니다. 그런데 이 짧은 파일이 에이전트의 흔한 실수 — 손으로 코드 정렬하기, 생성 파일 덮어쓰기, 테스트 명령 잘못 추측하기 — 를 대부분 막아 줍니다. <strong>“진짜 명령어 한 줄이 설명 세 문단을 이긴다”</strong>는 게 GitHub이 2,500개 저장소에서 뽑은 교훈입니다.</p>
+
+<h2 id="sec-5">5. 반전 — 연구가 밝힌 '독이 되는' 경우</h2>
+
+<p>여기서 이번 주 논쟁의 핵심입니다. AGENTS.md는 “있으면 무조건 좋다”가 아닙니다. 오히려 <strong>잘못 쓰면 성능을 떨어뜨립니다.</strong></p>
+
+<p>ETH Zürich 연구팀은 <em>‘Evaluating AGENTS.md’</em>(arXiv:2602.11988)에서 이걸 정면으로 측정했습니다. 실제로 개발자가 손으로 쓴 컨텍스트 파일이 들어 있는 저장소 12곳에서 약 5,700개 PR을 추려 138개 작업 벤치마크(AGENTBENCH)를 만들고, 파일이 <em>있을 때 / 없을 때</em> 에이전트의 작업 성공률을 비교했죠. 결과는 뜻밖이었습니다.</p>
+
+<ul>
+  <li>컨텍스트 파일을 넣어도 <strong>작업 성공률은 통계적으로 나아지지 않았다.</strong></li>
+  <li>대신 <strong>추론 비용(inference cost)은 평균 20% 넘게 늘었다.</strong> 매 호출마다 그 토큰을 다시 내니까요.</li>
+  <li>이 경향은 여러 LLM·여러 에이전트에서 공통으로 나타났고, <em>사람이 쓴 파일</em>과 <em>LLM이 자동 생성한 파일</em> 양쪽 모두에서 관찰됐다.</li>
+  <li>특히 <strong>LLM이 자동 생성한 파일은 살짝 <em>마이너스</em></strong>였고, 사람이 쓴 파일은 살짝 플러스에 그쳤다.</li>
+</ul>
+
+<p>GitHub의 2,500개 저장소 분석도 같은 방향을 가리킵니다 — 파일이 <strong>150줄을 넘어가면</strong> 효용은 정체되고, 추론 비용만 20~23% 더 붙습니다. 성능은 그대로인데 청구서만 커지는 거죠.</p>
+
+<figure class="amd-fig" role="group" aria-labelledby="amd-fig3-cap">
+  <svg viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg" aria-label="AGENTS.md의 길이에 따른 효과를 개념적으로 보여 주는 그림. 짧고 정확한 파일은 에이전트가 헤매지 않게 도와 작업 성공률을 조금 올린다. 하지만 150줄을 넘겨 길고 불필요한 요구가 쌓이면 성공률은 더 오르지 않고 오히려 살짝 떨어지며, 추론 비용은 계속 20퍼센트 넘게 늘어난다. 자동 생성한 파일은 특히 성능에 마이너스다.">
+    <g font-family="ui-sans-serif,system-ui,sans-serif">
+      <!-- axes -->
+      <line x1="90" y1="250" x2="710" y2="250" stroke="var(--amd-grid)" stroke-width="2"/>
+      <line x1="90" y1="40" x2="90" y2="250" stroke="var(--amd-grid)" stroke-width="2"/>
+      <text x="400" y="290" text-anchor="middle" font-size="13" fill="var(--amd-slate)">파일 길이 · 불필요한 요구 →</text>
+      <text x="64" y="150" text-anchor="middle" font-size="13" fill="var(--amd-slate)" transform="rotate(-90 64 150)">효과 →</text>
+
+      <!-- 150-line marker -->
+      <line x1="360" y1="40" x2="360" y2="250" stroke="var(--amd-amber)" stroke-width="1.5" stroke-dasharray="5 5"/>
+      <text x="360" y="34" text-anchor="middle" font-size="12" font-weight="700" fill="var(--amd-amber)">≈150줄</text>
+
+      <!-- success rate curve: rises then dips -->
+      <path d="M90,215 C170,150 280,120 360,120 C470,120 560,140 710,168" fill="none" stroke="var(--amd-teal)" stroke-width="3.5"/>
+      <text x="150" y="130" font-size="12.5" font-weight="700" fill="var(--amd-teal)">작업 성공률</text>
+      <circle cx="360" cy="120" r="5" fill="var(--amd-teal)"/>
+      <text x="470" y="118" font-size="11.5" fill="var(--amd-slate)">여기서부터 정체·하락</text>
+
+      <!-- cost line: keeps rising -->
+      <path d="M90,232 C260,205 460,150 710,70" fill="none" stroke="var(--amd-rose)" stroke-width="3.5" stroke-dasharray="2 0"/>
+      <text x="600" y="96" font-size="12.5" font-weight="700" fill="var(--amd-rose)">추론 비용 (+20%↑)</text>
+
+      <!-- zones -->
+      <text x="225" y="235" text-anchor="middle" font-size="12" font-weight="700" fill="var(--amd-teal)">✓ 짧고 정확</text>
+      <text x="540" y="235" text-anchor="middle" font-size="12" font-weight="700" fill="var(--amd-rose)">✗ 부풀린 파일 · 자동 생성</text>
+    </g>
+  </svg>
+  <figcaption id="amd-fig3-cap">개념도(출처: ETH·GitHub 연구의 정성적 요약). 짧고 정확한 파일은 성공률을 조금 올리지만, 길어질수록 성공률은 정체·하락하고 비용은 계속 오른다. 실제 수치는 저장소·모델마다 다르다.</figcaption>
+</figure>
+
+<p>왜 이런 일이 벌어질까요? 두 가지 이유입니다. 첫째, 컨텍스트가 길어지면 정작 중요한 지시가 <strong>묻힙니다</strong>(context rot). 둘째, 파일에 “이것도 확인해, 저것도 지켜”라는 <strong>불필요한 요구가 쌓이면 작업 자체가 더 어려워집니다.</strong> ETH 연구팀의 조언이 명쾌합니다 — <em>“사람이 쓴 컨텍스트 파일은 최소한의 요구만 적어야 한다.”</em></p>
+
+<div class="amd-note amd-warn"><strong>“AGENTS.md 만들어 줘”의 함정.</strong> 에이전트에게 시켜서 자동 생성한 AGENTS.md가 특히 위험합니다. 코드를 훑어 그럴듯한 문단을 잔뜩 뽑아내지만, 대부분 코드만 봐도 아는 내용이라 토큰만 먹고 성공률엔 마이너스입니다. 자동 생성은 <em>초안</em>으로만 쓰고, 반드시 사람이 잘라내 “진짜 필요한 것”만 남기세요.</p></div>
+
+<div class="amd-note amd-good"><strong>그럼 쓰지 말라는 건가요? 아닙니다.</strong> 연구가 반대하는 건 <em>길고 부정확한</em> 파일이지 AGENTS.md 자체가 아닙니다. 실제로 빌드·테스트 명령처럼 “코드로는 알 수 없는데 틀리면 작업이 통째로 막히는” 정보는, 짧게라도 있으면 에이전트가 헛수고와 재시도를 크게 줄입니다. 요점은 <strong>양이 아니라 밀도</strong>입니다.</p></div>
+
+<h2 id="sec-6">6. 실전 — 5분 만에 쓸모 있는 파일 만들기</h2>
+
+<p>연구 결과를 실천으로 옮기면 레시피는 단순합니다. <strong>비어 있는 파일에서 시작해, 에이전트가 실제로 틀린 것만 채워 넣으세요.</strong></p>
+
+<ol>
+  <li><strong>루트에 <code>AGENTS.md</code>를 만든다.</strong> 처음엔 “빌드·테스트 명령”과 “하지 말 것” 두 섹션이면 충분합니다.</li>
+  <li><strong>명령어는 추측 없이 복사한다.</strong> <code>package.json</code>/<code>Makefile</code>에서 실제 스크립트를 그대로 옮깁니다.</li>
+  <li><strong>에이전트를 한 번 굴려 본다.</strong> 그리고 <em>틀린 것</em>만 규칙으로 추가합니다. “손으로 정렬했네 → ‘Prettier가 담당’ 추가”, “생성 파일 고쳤네 → ‘generated/ 금지’ 추가”. 관찰 → 교정의 반복입니다.</li>
+  <li><strong>커밋해서 팀과 공유한다.</strong> AGENTS.md는 저장소에 들어가므로, 팀 전체와 CI의 에이전트가 같은 규칙을 씁니다.</li>
+</ol>
+
+<p>모노레포라면 루트에는 <em>공통</em> 규칙만 두고, 폴더마다 진짜 다른 부분만 하위 AGENTS.md로 뺍니다. 디렉터리는 이런 모습이 됩니다.</p>
+
+{{< highlight text >}}
+myrepo/
+├── AGENTS.md            # 공통: 커밋 규칙, 절대 금지 파일
+├── apps/
+│   └── web/
+│       └── AGENTS.md    # 프런트: pnpm, Prettier, 함수형 컴포넌트
+└── services/
+    └── api/
+        └── AGENTS.md    # 백엔드: go test ./..., gofmt, 마이그레이션 규칙
+{{< /highlight >}}
+
+<p>기존에 <code>CLAUDE.md</code>나 <code>.cursorrules</code>가 이미 있다면? 내용을 <code>AGENTS.md</code>로 옮기고, 도구가 옛 파일도 계속 찾는다면 얇은 포인터 하나만 남기는 방법이 흔합니다(예: <code>CLAUDE.md</code>에 “See AGENTS.md” 한 줄, 또는 심볼릭 링크). 이렇게 하면 규칙의 <em>단일 출처(single source of truth)</em>는 AGENTS.md 하나가 됩니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="amd-tblwrap">
+<table class="amd-tbl">
+  <thead><tr><th>실수</th><th>왜 문제인가</th><th>대신 이렇게</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>README를 그대로 복붙</td>
+      <td>배지·홍보·설치 안내는 에이전트에 무의미. 토큰만 먹음</td>
+      <td>실행 가능한 지시만. 소개는 한 줄</td>
+    </tr>
+    <tr>
+      <td>“AGENTS.md 만들어 줘”로 자동 생성 후 방치</td>
+      <td>코드로 아는 내용이 대부분 → 성공률 <em>마이너스</em>, 비용↑</td>
+      <td>초안만 받고 사람이 잘라 최소화</td>
+    </tr>
+    <tr>
+      <td>모든 걸 다 적기 (수백 줄)</td>
+      <td>중요한 지시가 묻히고(context rot) 비용 20%+↑</td>
+      <td>150줄 이내, “코드로 모를 것”만</td>
+    </tr>
+    <tr>
+      <td>명령을 애매하게 (“테스트 돌려”)</td>
+      <td>에이전트가 명령을 추측하다 실패·재시도</td>
+      <td>정확한 명령어와 플래그를 그대로</td>
+    </tr>
+    <tr>
+      <td>말로 코드 스타일 설명</td>
+      <td>장황하고 해석 여지가 큼</td>
+      <td>규칙은 포매터에 위임, 예시 코드 한 줄</td>
+    </tr>
+    <tr>
+      <td>비밀키·내부 URL을 파일에 적기</td>
+      <td>저장소에 커밋되어 유출 위험</td>
+      <td>“건드리지 말 것”만 적고 값은 절대 금지</td>
+    </tr>
+    <tr>
+      <td>중첩 지원을 가정</td>
+      <td>도구가 하위 폴더 파일을 안 읽을 수 있음</td>
+      <td>지원 여부 확인, 아니면 루트에 섹션으로</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="amd-note"><strong>팁 — AGENTS.md도 코드처럼 관리하세요.</strong> 규칙이 틀리거나 낡으면 에이전트를 잘못된 방향으로 이끕니다. 프로젝트 관례가 바뀌면(포매터 교체, 테스트 명령 변경) AGENTS.md도 같은 PR에서 함께 고치는 습관을 들이면, 파일이 항상 <em>진실</em>을 유지합니다.</p></div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>AGENTS.md는 코딩 에이전트를 위한 저장소 설명서</strong>입니다. 루트에 두는 Markdown 한 장을 Codex·Cursor·Copilot·Aider 등 대부분의 에이전트가 자동으로 읽습니다.</li>
+  <li>도구마다 다르던 <code>CLAUDE.md</code>·<code>.cursorrules</code>·<code>copilot-instructions.md</code>를 <strong>하나로 통합</strong>합니다. 지금은 6만+ 저장소가 쓰고, Linux Foundation의 AAIF가 표준으로 관리합니다.</li>
+  <li>발견 규칙은 하나 — <strong>가장 가까운 AGENTS.md가 이깁니다.</strong> 모노레포는 폴더별로 중첩하고, 사용자의 직접 지시는 어떤 파일보다 우선합니다.</li>
+  <li>넣을 것은 <strong>“코드로는 알 수 없는 것”</strong>뿐 — 정확한 빌드·테스트 명령, 다른 점만 적은 코드 스타일, 하지 말 것, 커밋 규칙. <em>진짜 명령어 한 줄이 설명 세 문단을 이깁니다.</em></li>
+  <li>반전: <strong>길고 자동 생성한 파일은 오히려 독</strong>입니다. ETH·GitHub 연구에서 성공률은 안 오르고 추론 비용만 20%+ 늘었으며, 자동 생성 파일은 성능에 마이너스였습니다. <strong>양이 아니라 밀도</strong> — 150줄 이내로, 관찰→교정하며 최소한만 채우세요.</li>
+</ul>
+
+<h2 id="sec-ref">9. 참고 자료</h2>
+
+<ul>
+  <li>AGENTS.md 공식 사이트 — <a href="https://agents.md/" target="_blank" rel="noopener">agents.md</a></li>
+  <li>Agentic AI Foundation의 AGENTS.md 프로젝트 페이지 — <a href="https://aaif.io/projects/agents-md" target="_blank" rel="noopener">aaif.io/projects/agents-md</a></li>
+  <li>Linux Foundation, Agentic AI Foundation(AAIF) 출범 발표(MCP·goose·AGENTS.md) — <a href="https://www.linuxfoundation.org/press/linux-foundation-announces-the-formation-of-the-agentic-ai-foundation" target="_blank" rel="noopener">linuxfoundation.org</a></li>
+  <li>GitHub Blog, “How to write a great agents.md: lessons from over 2,500 repositories” — <a href="https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-lessons-from-over-2500-repositories/" target="_blank" rel="noopener">github.blog</a></li>
+  <li>Gloaguen, Mündler 외, “Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?”, arXiv:2602.11988 (ETH Zürich SRI Lab) — <a href="https://arxiv.org/abs/2602.11988" target="_blank" rel="noopener">arxiv.org/abs/2602.11988</a> · <a href="https://www.sri.inf.ethz.ch/publications/gloaguen2026agentsmd" target="_blank" rel="noopener">SRI Lab</a></li>
+  <li>AGENTS.md Spec(2026): 권장 섹션과 CLAUDE.md·.cursorrules 비교 — <a href="https://www.morphllm.com/agents-md-guide" target="_blank" rel="noopener">morphllm.com</a></li>
+  <li>OpenAI, Agentic AI Foundation 공동 창립 — <a href="https://openai.com/index/agentic-ai-foundation/" target="_blank" rel="noopener">openai.com</a></li>
+</ul>

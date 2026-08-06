@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="AGENTS.md를 나타낸 그림. 왼쪽에는 CLAUDE.md, .cursorrules, copilot-instructions.md, .windsurfrules처럼 도구마다 따로 관리하던 지시 파일 더미가 '파일마다 따로'라고 적힌 채 쌓여 있다. 가운데에는 한 장의 AGENTS.md 파일이 있고, 오른쪽으로 Codex, Cursor, Copilot, Aider, Gemini CLI, Jules 등 여러 코딩 에이전트로 화살표가 뻗어 나간다. '한 파일, 모든 에이전트'라고 적혀 있다. 아래 띠에는 짧고 정확하게 쓰라는 경고와 함께, 150줄을 넘기면 비용만 20% 늘고 성공률은 나아지지 않는다는 연구 결과가 적혀 있다.">
+  <defs>
+    <linearGradient id="amg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#111c33"/>
+    </linearGradient>
+    <linearGradient id="am-file" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+    <marker id="am-arrow" markerWidth="14" markerHeight="14" refX="9" refY="7" orient="auto">
+      <path d="M0,1 L13,7 L0,13 Z" fill="#5eead4"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#amg)"/>
+
+  <!-- title -->
+  <text x="80" y="92" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="50" font-weight="800">AGENTS.md</text>
+  <text x="80" y="136" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="25" font-weight="600">코딩 에이전트에게 저장소를 설명하는 한 장의 파일 — 한 파일, 모든 에이전트</text>
+
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <!-- left: fragmented files -->
+    <text x="120" y="212" fill="#fca5a5" font-size="20" font-weight="700">전에는… 파일마다 따로 😵</text>
+    <g>
+      <rect x="90" y="238" width="250" height="40" rx="8" fill="#1e293b" stroke="#475569"/>
+      <text x="108" y="264" fill="#cbd5e1" font-size="18" font-family="ui-monospace,monospace">CLAUDE.md</text>
+      <rect x="104" y="286" width="250" height="40" rx="8" fill="#1e293b" stroke="#475569"/>
+      <text x="122" y="312" fill="#cbd5e1" font-size="18" font-family="ui-monospace,monospace">.cursorrules</text>
+      <rect x="90" y="334" width="290" height="40" rx="8" fill="#1e293b" stroke="#475569"/>
+      <text x="108" y="360" fill="#cbd5e1" font-size="17" font-family="ui-monospace,monospace">copilot-instructions.md</text>
+      <rect x="104" y="382" width="250" height="40" rx="8" fill="#1e293b" stroke="#475569"/>
+      <text x="122" y="408" fill="#cbd5e1" font-size="18" font-family="ui-monospace,monospace">.windsurfrules</text>
+    </g>
+
+    <!-- center: one AGENTS.md -->
+    <rect x="470" y="266" width="220" height="128" rx="14" fill="url(#am-file)"/>
+    <text x="580" y="322" fill="#06281f" font-size="26" font-weight="800" text-anchor="middle" font-family="ui-monospace,monospace">AGENTS.md</text>
+    <text x="580" y="356" fill="#06281f" font-size="17" font-weight="600" text-anchor="middle">그냥 Markdown 한 장</text>
+    <text x="580" y="430" fill="#5eead4" font-size="21" font-weight="700" text-anchor="middle">한 파일, 모든 에이전트</text>
+
+    <!-- arrow from pile to center -->
+    <path d="M392,330 L462,330" stroke="#5eead4" stroke-width="3" fill="none" marker-end="url(#am-arrow)"/>
+
+    <!-- right: agents fan-out -->
+    <g font-size="18" font-weight="600">
+      <path d="M700,300 L840,236" stroke="#38bdf8" stroke-width="2.5" fill="none" marker-end="url(#am-arrow)"/>
+      <path d="M700,318 L840,300" stroke="#38bdf8" stroke-width="2.5" fill="none" marker-end="url(#am-arrow)"/>
+      <path d="M700,330 L840,364" stroke="#38bdf8" stroke-width="2.5" fill="none" marker-end="url(#am-arrow)"/>
+      <path d="M700,348 L840,428" stroke="#38bdf8" stroke-width="2.5" fill="none" marker-end="url(#am-arrow)"/>
+      <g fill="#e2e8f0">
+        <rect x="856" y="216" width="150" height="38" rx="8" fill="#1e293b" stroke="#334155"/><text x="872" y="241">Codex</text>
+        <rect x="856" y="282" width="150" height="38" rx="8" fill="#1e293b" stroke="#334155"/><text x="872" y="307">Cursor</text>
+        <rect x="856" y="346" width="150" height="38" rx="8" fill="#1e293b" stroke="#334155"/><text x="872" y="371">Copilot</text>
+        <rect x="856" y="410" width="150" height="38" rx="8" fill="#1e293b" stroke="#334155"/><text x="872" y="435">Aider · …</text>
+      </g>
+      <text x="1020" y="336" fill="#64748b" font-size="34" font-weight="800">↺</text>
+    </g>
+  </g>
+
+  <!-- bottom caveat band -->
+  <rect x="0" y="520" width="1200" height="110" fill="#0b1424"/>
+  <rect x="0" y="520" width="1200" height="4" fill="#fbbf24"/>
+  <text x="80" y="566" fill="#fbbf24" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800">단, 짧고 정확하게</text>
+  <text x="80" y="600" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="500">150줄을 넘겨 부풀면 추론 비용만 20% 늘고 성공률은 나아지지 않는다 (ETH·GitHub 연구)</text>
+</svg>

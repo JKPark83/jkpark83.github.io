@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 470" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="오늘의 AI 변화 지도: 터미널 코딩 에이전트와 신뢰성을 축으로 Muse Code, Canary Tools, OneDayAgent, Codex, Claude Code 연결">
+  <rect width="820" height="470" fill="#0f172a"/>
+  <text x="410" y="34" text-anchor="middle" fill="#f1f5f9" font-size="20" font-weight="700">오늘의 AI 변화 지도</text>
+  <text x="410" y="56" text-anchor="middle" fill="#94a3b8" font-size="13">중심축 = "터미널 코딩 에이전트 × 신뢰성"</text>
+
+  <!-- edges -->
+  <g stroke="#334155" stroke-width="1.6">
+    <line x1="410" y1="235" x2="180" y2="140"/>
+    <line x1="410" y1="235" x2="640" y2="140"/>
+    <line x1="410" y1="235" x2="150" y2="330"/>
+    <line x1="410" y1="235" x2="410" y2="405"/>
+    <line x1="410" y1="235" x2="670" y2="330"/>
+  </g>
+
+  <!-- center -->
+  <circle cx="410" cy="235" r="66" fill="#1e293b" stroke="#f59e0b" stroke-width="2.2"/>
+  <text x="410" y="228" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">터미널 코딩</text>
+  <text x="410" y="248" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">에이전트</text>
+
+  <!-- Muse Code (model) -->
+  <rect x="70" y="104" width="220" height="72" rx="12" fill="#3b0764" stroke="#c084fc" stroke-width="1.6"/>
+  <text x="86" y="130" fill="#e9d5ff" font-size="13" font-weight="700">🆕 Meta Muse Code (beta)</text>
+  <text x="86" y="150" fill="#d8b4fe" font-size="11.5">Muse Spark 1.2 · 백그라운드 에이전트</text>
+  <text x="86" y="167" fill="#d8b4fe" font-size="11.5">이벤트 로그로 재시작-안전</text>
+
+  <!-- Codex -->
+  <rect x="530" y="104" width="220" height="72" rx="12" fill="#052e16" stroke="#4ade80" stroke-width="1.6"/>
+  <text x="546" y="130" fill="#bbf7d0" font-size="13" font-weight="700">🟩 Codex /review</text>
+  <text x="546" y="150" fill="#86efac" font-size="11.5">CLI 리뷰 + @codex review</text>
+  <text x="546" y="167" fill="#86efac" font-size="11.5">AGENTS.md ## Code Review Rules</text>
+
+  <!-- Canary Tools -->
+  <rect x="40" y="298" width="220" height="72" rx="12" fill="#0c2a4a" stroke="#38bdf8" stroke-width="1.6"/>
+  <text x="56" y="324" fill="#bae6fd" font-size="13" font-weight="700">📄 Canary Tools</text>
+  <text x="56" y="344" fill="#7dd3fc" font-size="11.5">툴 선택 실패 6종 진단</text>
+  <text x="56" y="361" fill="#7dd3fc" font-size="11.5">arXiv 2608.04719</text>
+
+  <!-- Claude Code (bottom) -->
+  <rect x="300" y="410" width="220" height="52" rx="12" fill="#172554" stroke="#60a5fa" stroke-width="1.6"/>
+  <text x="316" y="434" fill="#bfdbfe" font-size="13" font-weight="700">🟦 Claude Code /code-review</text>
+  <text x="316" y="453" fill="#93c5fd" font-size="11.5">v2.1.223 · effort 레벨 · ultra</text>
+
+  <!-- OneDayAgent -->
+  <rect x="560" y="298" width="220" height="72" rx="12" fill="#0c2a4a" stroke="#38bdf8" stroke-width="1.6"/>
+  <text x="576" y="324" fill="#bae6fd" font-size="13" font-weight="700">📄 OneDayAgent</text>
+  <text x="576" y="344" fill="#7dd3fc" font-size="11.5">장기 harness · 실행 메모리 · 검증/수정</text>
+  <text x="576" y="361" fill="#7dd3fc" font-size="11.5">arXiv 2608.05013</text>
+
+  <text x="410" y="462" text-anchor="middle" fill="#64748b" font-size="10.5">출처: 각 항목 원문 · 별점·수치는 본문 참조</text>
+</svg>

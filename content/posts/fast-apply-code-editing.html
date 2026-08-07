@@ -1,0 +1,353 @@
+---
+title: "코딩 에이전트는 파일을 어떻게 고칠까: 통째로 다시 쓰지 않고 '빠르게 갈아끼우는' Fast Apply"
+date: 2026-08-08T07:30:00+09:00
+draft: false
+tags: ["AI", "Fast Apply", "coding agent", "code editing", "speculative decoding", "Predicted Outputs", "Cursor", "Morph", "Relace", "Aider", "코딩 에이전트", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "코딩 에이전트가 코드를 '생성'하는 건 다들 이야기하지만, 정작 그 코드를 파일에 '적용(apply)'하는 단계는 조용히 무시됩니다. 그런데 실전에서 에이전트가 무너지는 지점은 대부분 여기입니다. 큰 모델에게 1000줄 파일을 통째로 다시 쓰게 하면 100초가 걸리고 0.18달러가 나가며, 그마저도 안 바뀐 코드를 '// ...'로 대충 남기고 도망갑니다(laziness). 그래서 요즘 에이전트는 큰 모델이 바뀐 조각만 적고, 작고 빠른 Apply 모델이 원본에 병합하는 2단계로 나눕니다. 이 글은 파일을 고치는 세 가지 방식(통째 재작성·search/replace·게으른 편집+Apply)을 비교하고, Apply 모델이 왜 speculative decoding으로 초당 1만 토큰까지 빨라지는지, OpenAI Predicted Outputs로 직접 체험하는 법과 흔한 함정까지 junior 개발자 눈높이로 정리합니다."
+ShowToc: false
+cover:
+  image: "fast-apply-code-editing-cover.svg"
+  alt: "코딩 에이전트가 파일을 고치는 Fast Apply 방식을 나타낸 그림. 왼쪽에는 크고 똑똑한 모델이 바뀐 부분만 적고 나머지는 '// ... existing code ...' 마커로 남긴 '게으른 편집'이 있다. 가운데의 작고 빠른 Apply 모델이 원본 파일과 이 게으른 편집을 받아 병합한다. 오른쪽에는 빈틈 없이 완성된 전체 파일이 나온다. 아래 띠에는 통째로 다시 쓰기는 100초·0.18달러인 반면 Apply 모델은 초당 4천~1만 토큰으로 병합한다고 적혀 있다."
+  caption: "코딩 에이전트는 파일을 통째로 다시 쓰지 않는다. 큰 모델이 바뀐 조각만 적고(게으른 편집), 작고 빠른 Apply 모델이 원본에 병합한다."
+  relative: false
+---
+
+<style>
+/* ── Fast Apply 포스트 전용 스타일 (fac- 접두사) ── */
+.fac-fig{
+  --fac-sky:#0284c7; --fac-amber:#d97706; --fac-green:#16a34a; --fac-rose:#e11d48;
+  --fac-slate:#64748b; --fac-violet:#7c3aed; --fac-teal:#0d9488; --fac-blue:#2563eb;
+  --fac-grid:#cbd5e1;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .fac-fig{
+  --fac-sky:#38bdf8; --fac-amber:#fbbf24; --fac-green:#4ade80; --fac-rose:#fb7185;
+  --fac-slate:#94a3b8; --fac-violet:#a78bfa; --fac-teal:#2dd4bf; --fac-blue:#60a5fa;
+  --fac-grid:#334155;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .fac-fig{
+    --fac-sky:#38bdf8; --fac-amber:#fbbf24; --fac-green:#4ade80; --fac-rose:#fb7185;
+    --fac-slate:#94a3b8; --fac-violet:#a78bfa; --fac-teal:#2dd4bf; --fac-blue:#60a5fa;
+    --fac-grid:#334155;
+  }
+}
+.fac-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.fac-fig text{font-family:inherit}
+.fac-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.fac-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.fac-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.fac-toc ol{margin:0;padding-left:1.25rem}
+.fac-toc li{margin:.22rem 0;font-size:.95rem}
+.fac-toc a{text-decoration:none}
+.fac-toc a:hover{text-decoration:underline}
+.fac-pull{font-size:1.12rem;line-height:1.72}
+.fac-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.fac-note{border-left:4px solid var(--fac-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.fac-note strong{color:var(--fac-blue,#2563eb)}
+.fac-warn{border-left:4px solid var(--fac-rose,#e11d48)}
+.fac-warn strong{color:var(--fac-rose,#e11d48)}
+.fac-good{border-left:4px solid var(--fac-teal,#0d9488)}
+.fac-good strong{color:var(--fac-teal,#0d9488)}
+.fac-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.fac-tbl th,.fac-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.fac-tbl th{background:var(--entry);font-weight:700}
+.fac-tbl code{font-size:.86em}
+.fac-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="fac-pull">
+  <p>브릴리언트한 제안이라도 파일에 붙이다가 코드를 망가뜨리면, 깔끔하게 들어가는 평범한 제안보다 못합니다.</p>
+  <footer>— 코딩 에이전트에서 “어떻게 <em>생성</em>하나”보다 “어떻게 <em>적용</em>하나”가 더 중요한 이유입니다.</footer>
+</blockquote>
+
+<nav class="fac-toc" aria-label="목차">
+  <div class="fac-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 'Apply'가 화제인가</a></li>
+    <li><a href="#sec-2">배경 — 에이전트가 파일을 고치는 세 가지 방식</a></li>
+    <li><a href="#sec-3">게으른 편집(lazy edit) — 큰 모델은 조각만 적는다</a></li>
+    <li><a href="#sec-4">Apply 모델 — 작은 7B가 큰 모델보다 잘 병합하는 이유</a></li>
+    <li><a href="#sec-5">왜 이렇게 빠른가 — 원본이 곧 초안(speculative decoding)</a></li>
+    <li><a href="#sec-6">실전 — Predicted Outputs로 직접 체험하기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 'Apply'가 화제인가</h2>
+
+<p>코딩 에이전트(coding agent) 이야기는 늘 “모델이 코드를 얼마나 잘 짜느냐”에 쏠립니다. 그런데 에이전트를 직접 굴려 본 사람들은 다른 곳에서 무너집니다. 모델이 멋진 수정안을 내놨는데, 그걸 <em>실제 파일에 반영하는</em> 마지막 단계에서 엉뚱한 줄을 지우거나, 중괄호가 안 맞거나, 아예 파일을 깨뜨립니다. 실제로 SWE-Agent는 아주 단순한 편집 하나를 문법 오류 때문에 <strong>일곱 번</strong> 시도하다 포기한 기록이 있습니다.</p>
+
+<p>이 “마지막 1cm”, 즉 생성된 수정안을 파일에 붙이는 단계를 <strong>Apply(적용)</strong>라고 부릅니다. 2026년 들어 이게 실무 talking point가 된 건 우연이 아닙니다. Cursor의 자체 편집 모델 Composer가 “빠른 에이전트 편집”에 초점을 맞춰 버전을 올렸고, Morph는 자사 Fast Apply가 <strong>초당 10,500 토큰</strong>에 도달했다는 글을 냈으며, Relace는 apply-3 모델로 <strong>초당 4,300 토큰</strong>·정확도 96%를 내세웠습니다. 8월 초 “2026 코딩 에이전트 리더보드” 논쟁이 달아오르면서, 실무자들의 결론은 한 문장으로 모였습니다 — <strong>“AI 도구가 코드를 어떻게 바꾸는지가, 어떻게 생성하는지보다 중요하다.”</strong></p>
+
+<div class="fac-note"><strong>한 줄 요약.</strong> 요즘 코딩 에이전트는 파일을 통째로 다시 쓰지 않습니다. 크고 똑똑한 모델이 <em>바뀐 조각만</em> 적고, 작고 빠른 <em>Apply 모델</em>이 그 조각을 원본에 병합합니다. 이 글은 왜 그렇게 나뉘었고, 어떻게 초당 1만 토큰까지 빨라지는지를 다룹니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 에이전트가 파일을 고치는 세 가지 방식</h2>
+
+<p>모델이 “이 함수에 빈 리스트 방어 코드를 넣어”라는 결정을 내렸다고 합시다. 이 결정을 <em>파일에 반영하는</em> 방법은 크게 세 갈래입니다. 각각의 장단점을 알면 나머지 글이 훨씬 쉽게 읽힙니다.</p>
+
+<figure class="fac-fig" role="group" aria-labelledby="fac-fig1-cap">
+  <svg viewBox="0 0 780 360" xmlns="http://www.w3.org/2000/svg" aria-label="에이전트가 파일을 고치는 세 가지 방식 비교. 첫째, 통째로 다시 쓰기: 모델이 파일 전체를 다시 출력한다. 정확하지만 느리고 비싸며, 안 바뀐 코드까지 다시 만들다 지쳐 '// ...'로 생략하는 게으름이 생긴다. 둘째, search/replace 블록: 바꿀 옛 코드와 새 코드를 짝지어 준다. 토큰이 적지만 옛 코드가 원본과 글자 하나라도 다르면 매칭에 실패한다. 셋째, 게으른 편집 더하기 Apply 모델: 큰 모델은 바뀐 부분만 마커와 함께 적고, 작고 빠른 Apply 모델이 원본에 병합한다. 큰 모델은 짧게, 병합은 전용 모델이 빠르고 안정적으로 처리한다.">
+    <!-- Col 1 -->
+    <rect x="16" y="20" width="240" height="300" rx="12" fill="none" stroke="var(--fac-grid)"/>
+    <text x="136" y="48" text-anchor="middle" font-size="15" font-weight="800" fill="var(--fac-rose)">① 통째로 다시 쓰기</text>
+    <rect x="40" y="66" width="192" height="150" rx="8" fill="var(--fac-rose)" opacity="0.12" stroke="var(--fac-rose)"/>
+    <g font-family="ui-monospace,monospace" font-size="12" fill="var(--fac-slate)">
+      <text x="54" y="90">import math</text>
+      <text x="54" y="110">def total(items):</text>
+      <text x="54" y="130" fill="var(--fac-green)">  if not items: ...</text>
+      <text x="54" y="150">  return sum(...)</text>
+      <text x="54" y="176" fill="var(--fac-rose)">// ... 나머지 생략 ...</text>
+      <text x="54" y="196" fill="var(--fac-rose)">(귀찮아서 도망)</text>
+    </g>
+    <text x="136" y="242" text-anchor="middle" font-size="12" fill="var(--fac-slate)">전체 출력 = 느림·비쌈</text>
+    <text x="136" y="262" text-anchor="middle" font-size="12" fill="var(--fac-slate)">1000줄 → 100초 · $0.18</text>
+    <text x="136" y="290" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--fac-rose)">문제: laziness(게으름)</text>
+
+    <!-- Col 2 -->
+    <rect x="270" y="20" width="240" height="300" rx="12" fill="none" stroke="var(--fac-grid)"/>
+    <text x="390" y="48" text-anchor="middle" font-size="15" font-weight="800" fill="var(--fac-amber)">② search / replace</text>
+    <rect x="294" y="66" width="192" height="150" rx="8" fill="var(--fac-amber)" opacity="0.12" stroke="var(--fac-amber)"/>
+    <g font-family="ui-monospace,monospace" font-size="11.5" fill="var(--fac-slate)">
+      <text x="306" y="88" fill="var(--fac-amber)">&lt;&lt;&lt; SEARCH</text>
+      <text x="306" y="106">  return sum(...)</text>
+      <text x="306" y="124" fill="var(--fac-amber)">=======</text>
+      <text x="306" y="142">  if not items:</text>
+      <text x="306" y="160">    return 0</text>
+      <text x="306" y="178">  return sum(...)</text>
+      <text x="306" y="196" fill="var(--fac-amber)">&gt;&gt;&gt; REPLACE</text>
+    </g>
+    <text x="390" y="242" text-anchor="middle" font-size="12" fill="var(--fac-slate)">토큰 적음 · 정밀 지정</text>
+    <text x="390" y="262" text-anchor="middle" font-size="12" fill="var(--fac-slate)">옛 코드를 그대로 옮겨야</text>
+    <text x="390" y="290" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--fac-amber)">문제: 글자 하나 틀리면 실패</text>
+
+    <!-- Col 3 -->
+    <rect x="524" y="20" width="240" height="300" rx="12" fill="var(--fac-teal)" opacity="0.06" stroke="var(--fac-teal)" stroke-width="2"/>
+    <text x="644" y="48" text-anchor="middle" font-size="15" font-weight="800" fill="var(--fac-teal)">③ 게으른 편집 + Apply</text>
+    <rect x="548" y="66" width="192" height="150" rx="8" fill="var(--fac-teal)" opacity="0.12" stroke="var(--fac-teal)"/>
+    <g font-family="ui-monospace,monospace" font-size="11.5" fill="var(--fac-slate)">
+      <text x="560" y="90" fill="var(--fac-teal)">// ... existing ...</text>
+      <text x="560" y="112">def total(items):</text>
+      <text x="560" y="132" fill="var(--fac-green)">  if not items:</text>
+      <text x="560" y="152" fill="var(--fac-green)">    return 0</text>
+      <text x="560" y="172">  return sum(...)</text>
+      <text x="560" y="194" fill="var(--fac-teal)">// ... existing ...</text>
+    </g>
+    <text x="644" y="238" text-anchor="middle" font-size="12" fill="var(--fac-slate)">큰 모델은 조각만 → 짧음</text>
+    <text x="644" y="258" text-anchor="middle" font-size="12" fill="var(--fac-slate)">작은 Apply 모델이 병합</text>
+    <text x="644" y="286" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--fac-teal)">요즘 에이전트의 표준</text>
+  </svg>
+  <figcaption id="fac-fig1-cap">파일을 고치는 세 가지 방식. ①은 정확하지만 느리고 게을러지고, ②는 토큰을 아끼지만 옛 코드가 원본과 글자 하나라도 다르면 병합에 실패한다. ③이 두 문제를 나눠서 푸는 요즘 방식이다.</figcaption>
+</figure>
+
+<p><strong>① 통째로 다시 쓰기(whole-file rewrite).</strong> 모델에게 “고친 파일 전체를 다시 내놔”라고 시킵니다. 개념은 가장 단순하고 결과도 정확한 편입니다. 하지만 두 가지가 아픕니다. 첫째, 느리고 비쌉니다 — Relace의 계산에 따르면 1000줄 파일을 Claude 4.5 Sonnet 같은 큰 모델로 다시 쓰면 <strong>100초 넘게 걸리고 최소 0.18달러</strong>가 나갑니다. 사람 없이 수백 개 파일을 고치는 에이전트에겐 감당이 안 되죠. 둘째, <strong>게으름(laziness)</strong>이 생깁니다. 안 바뀐 코드까지 수백 줄을 다시 뱉는 게 모델에게도 지루한 일이라, 중간을 <code>// ... (생략) ...</code>로 때우고 도망갑니다. 그 파일을 그대로 저장하면 코드가 통째로 사라집니다.</p>
+
+<p><strong>② search/replace 블록.</strong> Aider가 대중화한 방식입니다. “이 <em>옛 코드</em>를 이 <em>새 코드</em>로 바꿔”라고 짝을 지어 줍니다. 바뀐 부분만 오가니 토큰이 적고 빠릅니다. 함정은 <strong>옛 코드를 원본과 글자 하나까지 똑같이</strong> 옮겨야 한다는 점입니다. 공백 하나, 주석 하나만 어긋나도 “원본에서 이 블록을 못 찾음” 에러가 나고 편집이 실패합니다. Cursor 팀의 실측으로는 이런 결정론적 diff 적용이 <strong>최소 40% 확률로 실패</strong>했습니다.</p>
+
+<p><strong>③ 게으른 편집(lazy edit) + Apply 모델.</strong> 두 문제를 <em>역할 분리</em>로 풉니다. 큰 모델은 ②처럼 바뀐 부분만 짧게 적되, 옛 코드를 정확히 옮기라는 부담을 지지 않습니다. 대신 <code>// ... existing code ...</code> 같은 <em>마커</em>로 “여긴 그대로”라고만 표시합니다. 그리고 이 게으른 편집을 원본과 함께 <strong>작고 빠른 전용 Apply 모델</strong>에 넘겨 완성된 파일로 병합합니다. 지금부터 이 ③을 자세히 뜯어봅니다.</p>
+
+<h2 id="sec-3">3. 게으른 편집(lazy edit) — 큰 모델은 조각만 적는다</h2>
+
+<p>“게으른 편집”이라는 이름 때문에 나쁜 것처럼 들리지만, 여기서는 <em>의도된</em> 게으름입니다. 큰 모델에게 “바뀌는 부분만 써라, 나머지는 마커로 남겨라”라고 명시적으로 시킵니다. 예를 들어 아래가 큰 모델이 내놓는 <em>게으른 편집</em>입니다.</p>
+
+{{< highlight python >}}
+// ... existing code ...
+def total(items):
+    if not items:              # 새로 추가: 빈 리스트 방어
+        return 0
+    return sum(i.price for i in items)
+// ... existing code ...
+{{< /highlight >}}
+
+<p>파일이 500줄이든 5000줄이든, 큰 모델의 출력은 이 대여섯 줄이 전부입니다. 덕분에 두 가지를 동시에 얻습니다. <strong>비용·지연</strong>이 확 줄고(큰 모델이 짧게 말하니까), <strong>게으름 버그</strong>도 사라집니다(원래부터 생략이 정상이니까). 큰 모델은 “무엇을 바꿀지”라는 어려운 판단에만 집중하고, “어디에 어떻게 끼워 넣을지”라는 기계적인 일은 넘겨 버립니다.</p>
+
+<p>남은 문제는 하나입니다. 이 조각을 원본의 <em>정확히 맞는 자리</em>에 끼워 넣어야 합니다. <code>// ... existing code ...</code>가 각각 어느 구간을 가리키는지, 함수 안의 어느 위치에 새 줄이 들어가는지를 판단해야 하죠. 이걸 정규식이나 단순 문자열 매칭으로 하면 앞서 본 40% 실패율로 돌아갑니다. 그래서 <em>이 병합 자체를 학습한 모델</em>이 등장합니다.</p>
+
+<h2 id="sec-4">4. Apply 모델 — 작은 7B가 큰 모델보다 잘 병합하는 이유</h2>
+
+<p><strong>Apply 모델</strong>은 딱 한 가지 일만 하도록 훈련된 작은 모델입니다. 입력은 세 개 — ㉠원본 파일 전체, ㉡게으른 편집(마커 포함), ㉢(선택) 편집 지시. 출력은 하나 — <strong>병합이 끝난 완성 파일 전체</strong>입니다. 마커를 실제 원본 코드로 채우고, 새 줄을 올바른 자리에 끼운 결과죠.</p>
+
+<figure class="fac-fig" role="group" aria-labelledby="fac-fig2-cap">
+  <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" aria-label="Apply 모델의 입출력 구조. 왼쪽에서 원본 파일 전체와 게으른 편집(마커 포함) 두 가지가 화살표로 가운데의 Apply 모델(작은 7B 전용 모델)로 들어간다. 오른쪽으로는 병합이 끝난 완성 파일 하나가 나온다. 아래에는 큰 범용 모델보다 100배 빠르고, 이 작업에서는 정확도도 더 높다고 적혀 있다.">
+    <rect x="16" y="30" width="200" height="70" rx="10" fill="var(--fac-violet)" opacity="0.14" stroke="var(--fac-violet)"/>
+    <text x="116" y="60" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--fac-violet)">㉠ 원본 파일 전체</text>
+    <text x="116" y="82" text-anchor="middle" font-size="11.5" fill="var(--fac-slate)">(안 바뀐 코드까지 전부)</text>
+
+    <rect x="16" y="150" width="200" height="70" rx="10" fill="var(--fac-teal)" opacity="0.14" stroke="var(--fac-teal)"/>
+    <text x="116" y="180" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--fac-teal)">㉡ 게으른 편집</text>
+    <text x="116" y="202" text-anchor="middle" font-size="11.5" fill="var(--fac-slate)">// ... existing ... + 새 코드</text>
+
+    <line x1="220" y1="65" x2="288" y2="112" stroke="var(--fac-slate)" stroke-width="2"/>
+    <line x1="220" y1="185" x2="288" y2="138" stroke="var(--fac-slate)" stroke-width="2"/>
+
+    <rect x="292" y="88" width="150" height="74" rx="12" fill="var(--fac-sky)" opacity="0.2" stroke="var(--fac-sky)" stroke-width="2"/>
+    <text x="367" y="118" text-anchor="middle" font-size="15" font-weight="800" fill="var(--fac-sky)">Apply 모델</text>
+    <text x="367" y="140" text-anchor="middle" font-size="11.5" fill="var(--fac-slate)">작은 7B 전용</text>
+
+    <line x1="446" y1="125" x2="512" y2="125" stroke="var(--fac-amber)" stroke-width="2.5" marker-end="url(#fac-arr2)"/>
+    <defs><marker id="fac-arr2" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto"><path d="M1,1 L10,6 L1,11" fill="none" stroke="var(--fac-amber)" stroke-width="2" stroke-linecap="round"/></marker></defs>
+
+    <rect x="516" y="88" width="188" height="74" rx="10" fill="var(--fac-green)" opacity="0.14" stroke="var(--fac-green)"/>
+    <text x="610" y="118" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--fac-green)">완성 파일</text>
+    <text x="610" y="140" text-anchor="middle" font-size="11.5" fill="var(--fac-slate)">원본 100% + 새 코드</text>
+
+    <text x="360" y="210" text-anchor="middle" font-size="12.5" fill="var(--fac-slate)">범용 큰 모델보다 <tspan font-weight="700" fill="var(--fac-sky)">100배 빠르고</tspan>, 이 작업에선 <tspan font-weight="700" fill="var(--fac-sky)">정확도도 더 높다</tspan></text>
+  </svg>
+  <figcaption id="fac-fig2-cap">Apply 모델의 입출력. 원본 파일과 게으른 편집을 받아 완성 파일 하나를 낸다. 병합 한 가지만 학습했기에 작아도 이 일에선 큰 모델을 이긴다.</figcaption>
+</figure>
+
+<p>“병합쯤은 GPT-4o 같은 큰 모델에 맡기면 되지 않나?”라는 의문이 들 겁니다. 실제로는 반대입니다. Morph의 Fast Apply는 <strong>7B</strong> 모델인데, 코드 병합만 집중 학습해서 범용 대형 모델보다 <strong>100배 빠르고</strong> 이 작업에선 <strong>정확도도 더 높습니다</strong>(자체 지표 98%). Relace의 apply 모델도 “훨씬 크고 강한 모델보다 병합을 더 잘한다”고 밝히며 정확도 96%를 제시합니다. 이유는 두 가지입니다.</p>
+
+<ul>
+  <li><strong>범위가 좁아서 작아도 된다.</strong> Apply 모델은 새 알고리즘을 발명할 필요도, 세상 지식을 알 필요도 없습니다. “이 조각을 저 자리에 정확히 끼운다”만 잘하면 됩니다. 그래서 7B, 심지어 1.5B로도 충분하고, 안 쓰는 능력에 파라미터를 낭비하지 않으니 이 좁은 과제에선 더 정확합니다.</li>
+  <li><strong>에이전트에선 정확도가 복리로 무너진다.</strong> 사람이 지켜보지 않는 자율 에이전트는 편집을 수십 번 이어서 합니다. 한 번의 병합 오류가 다음 편집의 입력을 오염시키고, 오류가 <em>복리로</em> 쌓입니다. 그래서 “95%면 됐지”가 아니라 마지막 1~2%까지 짜내는 전용 모델이 값을 합니다.</li>
+</ul>
+
+<div class="fac-note fac-good"><strong>큰 모델 vs 작은 모델, 이렇게 나뉩니다.</strong> “무엇을 바꿀까”라는 <em>판단</em>은 크고 똑똑한 모델(Claude·GPT 등)이, “정확히 어디에 끼울까”라는 <em>병합</em>은 작고 빠른 Apply 모델이 맡습니다. 강점이 다른 두 모델에 각자 잘하는 일을 시키는, 전형적인 역할 분리입니다.</p></div>
+
+<h2 id="sec-5">5. 왜 이렇게 빠른가 — 원본이 곧 초안(speculative decoding)</h2>
+
+<p>Apply 모델이 초당 수천~1만 토큰을 뿜는 비결은 <strong>투기적 디코딩(speculative decoding)</strong>입니다. 원리를 한 문장으로 말하면 이렇습니다 — <strong>병합 결과는 원본 파일과 거의 똑같으므로, 원본 파일 자체가 거의 완벽한 “초안(draft)”이 된다.</strong></p>
+
+<p>보통 LLM은 토큰을 <em>한 개씩</em> 순서대로 생성합니다. 느린 근본 원인이죠(이 블로그의 <a href="/posts/speculative-decoding/" target="_blank" rel="noopener">투기적 디코딩 글</a>에서 자세히 다뤘습니다). 투기적 디코딩은 값싼 방법으로 여러 토큰을 미리 “찍어” 두고, 진짜 모델이 그 찍은 값을 <em>한 번에</em> 검증합니다. 맞은 만큼 건너뛰니 빨라집니다. 문제는 보통 초안이 잘 안 맞는다는 건데 — Apply에서는 초안이 <strong>믿기 힘들 만큼 잘 맞습니다.</strong> 함수 하나 고치는 편집에서 출력 토큰의 80~99%는 원본과 <em>글자 그대로 같기</em> 때문입니다.</p>
+
+<figure class="fac-fig" role="group" aria-labelledby="fac-fig3-cap">
+  <svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" aria-label="투기적 디코딩이 Apply에서 잘 통하는 이유를 나타낸 그림. 위 줄은 원본 파일을 초안으로 삼아 길게 이어진 토큰들이 대부분 초록색(일치)이고, 가운데 한 구간만 빨간색(불일치, 새 코드)이다. 모델은 일치하는 긴 구간을 한 번에 건너뛰고, 바뀐 구간에서만 실제로 토큰을 생성한다. 그래서 안 바뀐 코드가 많을수록 빨라진다.">
+    <text x="16" y="34" font-size="13.5" font-weight="700" fill="var(--fac-slate)">원본 파일 = 초안. 대부분 일치, 바뀐 곳만 새로 생성.</text>
+    <g>
+      <!-- matched run -->
+      <rect x="16" y="52" width="300" height="34" rx="6" fill="var(--fac-green)" opacity="0.22" stroke="var(--fac-green)"/>
+      <text x="166" y="74" text-anchor="middle" font-size="12.5" fill="var(--fac-green)">일치 구간 — 한 번에 건너뜀 ✓</text>
+      <!-- changed run -->
+      <rect x="320" y="52" width="120" height="34" rx="6" fill="var(--fac-rose)" opacity="0.22" stroke="var(--fac-rose)"/>
+      <text x="380" y="74" text-anchor="middle" font-size="12.5" fill="var(--fac-rose)">새 코드 — 실제 생성</text>
+      <!-- matched run -->
+      <rect x="444" y="52" width="260" height="34" rx="6" fill="var(--fac-green)" opacity="0.22" stroke="var(--fac-green)"/>
+      <text x="574" y="74" text-anchor="middle" font-size="12.5" fill="var(--fac-green)">다시 일치 — 건너뜀 ✓</text>
+    </g>
+    <text x="16" y="126" font-size="12.5" fill="var(--fac-slate)">Morph는 입력·출력 유사도에서 한 스텝에 <tspan font-weight="700" fill="var(--fac-sky)">64토큰</tspan>씩 찍어 검증합니다.</text>
+
+    <!-- throughput bars -->
+    <text x="16" y="162" font-size="12.5" font-weight="700" fill="var(--fac-slate)">공개된 병합 속도 (tok/s, 클수록 빠름)</text>
+    <g font-size="11.5" font-family="ui-monospace,monospace">
+      <rect x="150" y="172" width="40" height="14" rx="3" fill="var(--fac-slate)"/><text x="196" y="183" fill="var(--fac-slate)">Cursor 초기 ~1,000</text>
+      <rect x="150" y="190" width="150" height="14" rx="3" fill="var(--fac-sky)"/><text x="306" y="201" fill="var(--fac-slate)">Relace 4,300</text>
+    </g>
+    <g font-size="11.5" font-family="ui-monospace,monospace">
+      <rect x="470" y="172" width="230" height="32" rx="3" fill="var(--fac-teal)"/><text x="585" y="192" text-anchor="middle" fill="#04231d" font-weight="700">Morph 10,500</text>
+    </g>
+  </svg>
+  <figcaption id="fac-fig3-cap">출력이 입력과 거의 같기 때문에, 안 바뀐 긴 구간은 한 번에 건너뛰고 바뀐 곳에서만 실제로 토큰을 만든다. 그래서 파일이 클수록(안 바뀐 코드가 많을수록) 오히려 유리하다.</figcaption>
+</figure>
+
+<p>구체적인 숫자로 보면 감이 옵니다. Cursor는 이 아이디어를 “speculative edits”라 부르며 70B 모델로 <strong>초당 약 1,000 토큰</strong>, 평범한 추론 대비 <strong>약 9배</strong>를 냈습니다. Morph는 입력·출력 유사도를 이용해 한 스텝에 <strong>64토큰</strong>씩 찍는 방식으로 <strong>초당 10,500 토큰</strong>까지 끌어올렸고, Relace는 <strong>초당 4,300 토큰</strong>으로 Claude 4 Sonnet 대비 40배, GPT-4o-mini의 예측 편집 대비 14배 빠르다고 밝힙니다.</p>
+
+<p>재미있는 역설이 하나 있습니다. Cursor는 정밀한 diff를 결정론적으로 적용하는 대신 <strong>파일 전체를 다시 쓰는</strong> 쪽을 택했습니다. ②에서 diff 매칭이 40% 넘게 실패했기 때문이죠. “전체를 다시 쓰면 느리지 않나?” 싶지만, 투기적 디코딩 덕분에 <em>안 바뀐 부분은 사실상 공짜로 지나가므로</em> 전체 재작성이 오히려 안정적이면서 빠릅니다. 검증은 temperature=0으로 돌려 초안과 진짜 생성의 <em>가장 긴 일치 접두사</em>를 찾는 결정론적 방식이라, 속도를 위해 정확도를 희생하지도 않습니다.</p>
+
+<h2 id="sec-6">6. 실전 — Predicted Outputs로 직접 체험하기</h2>
+
+<p>Morph·Relace는 상용 API지만, 이 “원본을 초안으로 쓰는” 트릭은 <strong>OpenAI Predicted Outputs</strong>로 지금 바로 체험할 수 있습니다. Chat Completions에 <code>prediction</code> 파라미터로 “이런 출력이 나올 것 같다”는 참조 문자열(보통 원본 파일)을 함께 주면, 내부적으로 투기적 디코딩이 걸려 재작성·편집이 3~5배 빨라집니다. GPT-4o·GPT-4o-mini·GPT-4.1 계열에서 지원합니다.</p>
+
+{{< highlight python >}}
+from openai import OpenAI
+client = OpenAI()
+
+original = open("cart.py").read()   # 원본 파일 = 초안으로 재사용
+
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[
+        {"role": "user",
+         "content": "total() 함수에 빈 리스트면 0을 반환하는 방어 코드를 추가하고, "
+                    "파일 전체를 그대로 다시 출력해줘.\n\n" + original},
+    ],
+    # 핵심 한 줄: "출력은 원본과 거의 같을 것" 이라고 미리 알려 준다
+    prediction={"type": "content", "content": original},
+)
+print(resp.choices[0].message.content)
+
+# 얼마나 건너뛰었는지 확인 — rejected가 적을수록 이득이 크다
+usage = resp.usage.completion_tokens_details
+print("맞은 예측 토큰:", usage.accepted_prediction_tokens)
+print("빗나간 예측 토큰:", usage.rejected_prediction_tokens)   # 이건 그대로 과금됨!
+{{< /highlight >}}
+
+<p>출력의 대부분이 <code>original</code>과 같으니, 모델은 바뀐 함수 근처에서만 실제로 계산하고 나머지는 예측을 받아들여 건너뜁니다. 상용 Apply 모델을 붙이기 전, “왜 이게 빠른가”를 손으로 느껴 보기에 딱 좋습니다.</p>
+
+<p>전용 Apply 모델(Morph·Relace)을 쓸 때의 요청은 대개 이런 모양입니다 — 원본과 게으른 편집을 <strong>따로</strong> 넘깁니다.</p>
+
+{{< highlight text >}}
+POST /v1/apply
+{
+  "initial_code":  "<원본 파일 전체>",
+  "edit_snippet":  "// ... existing code ...\ndef total(items):\n    if not items:\n        return 0\n    return sum(i.price for i in items)\n// ... existing code ...",
+  "instruction":   "빈 리스트 방어 코드 추가"
+}
+→ 응답: 병합이 끝난 완성 파일 전체 (초당 수천 토큰)
+{{< /highlight >}}
+
+<p>오픈소스로 직접 만들어 보고 싶다면, Kortix의 <strong>FastApply</strong>가 Qwen2.5 Coder 1.5B·7B를 병합 과제로 파인튜닝한 공개 모델을 제공합니다. Cursor식 Instant Apply를 재현한 것으로, 게으른 편집을 원본에 병합하는 최소 파이프라인을 눈으로 확인하기 좋습니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="fac-tblwrap">
+<table class="fac-tbl">
+  <thead><tr><th>흔한 실수</th><th>무슨 일이 벌어지나</th><th>이렇게 하세요</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>큰 모델에 “파일 전체 다시 써”라고만 시킴</td>
+      <td>느리고 비싸며, 중간을 <code>// ...</code>로 생략(laziness)해 코드가 사라짐</td>
+      <td>“바뀐 부분만 마커와 함께”로 지시하고, 병합은 Apply 모델/Predicted Outputs에 위임</td>
+    </tr>
+    <tr>
+      <td>search/replace의 옛 코드를 대충 옮김</td>
+      <td>공백·주석 하나만 달라도 매칭 실패 → 편집 누락</td>
+      <td>정확 매칭이 부담되면 게으른 편집+Apply로 전환. 실패 시 재시도·검증 로직 필수</td>
+    </tr>
+    <tr>
+      <td>Predicted Outputs의 과금을 오해</td>
+      <td>빗나간 예측 토큰(<code>rejected_prediction_tokens</code>)도 <strong>완료 토큰 요금</strong>으로 과금됨</td>
+      <td>초안이 실제 출력과 많이 다르면 오히려 손해. 원본과 거의 같은 재작성/편집에만 사용</td>
+    </tr>
+    <tr>
+      <td>병합 결과를 검증 없이 저장</td>
+      <td>96~98%라도 자율 에이전트에선 오류가 복리로 누적</td>
+      <td>저장 전 파싱/린트/테스트로 검증하고, 실패하면 그 diff만 되돌리는 안전장치</td>
+    </tr>
+    <tr>
+      <td>마커 규칙을 프롬프트에 안 알려 줌</td>
+      <td>큰 모델이 제멋대로 생략해 Apply 모델이 자리를 못 찾음</td>
+      <td><code>// ... existing code ...</code> 같은 마커 형식을 명시하고 예시를 한 개 넣기</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="fac-note"><strong>팁 — “적용도 평가 대상”입니다.</strong> 에이전트 품질을 볼 때 보통 “정답 코드를 냈나”만 봅니다. 하지만 실전에선 <em>낸 코드가 파일에 온전히 들어갔나</em>가 절반입니다. 편집 성공률(적용 후 파싱·테스트 통과율)을 별도 지표로 뽑아 두면, 모델을 바꾸지 않고도 에이전트 신뢰도를 크게 끌어올릴 지점을 찾게 됩니다.</p></div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>코딩 에이전트의 진짜 병목은 생성이 아니라 적용(apply)입니다.</strong> 멋진 수정안도 파일에 잘못 붙으면 코드를 깨뜨립니다.</li>
+  <li>파일을 고치는 방식은 셋 — <strong>통째 재작성</strong>(느리고 게을러짐), <strong>search/replace</strong>(옛 코드 매칭 실패 40%+), <strong>게으른 편집 + Apply 모델</strong>(요즘 표준).</li>
+  <li>요즘 방식은 <strong>역할을 나눕니다.</strong> 크고 똑똑한 모델이 “무엇을 바꿀지”만 조각으로 적고(마커 사용), 작고 빠른 <strong>Apply 모델</strong>이 원본에 병합합니다.</li>
+  <li>Apply 모델은 <strong>7B로도 큰 모델보다 잘하고 빠릅니다.</strong> 병합 한 가지만 학습해 작아도 정확하고(96~98%), 에이전트에선 이 마지막 1~2%가 오류 복리를 막습니다.</li>
+  <li>초고속의 비결은 <strong>투기적 디코딩</strong>입니다. 출력이 입력과 80~99% 같으니 원본이 곧 초안 — 안 바뀐 구간은 건너뛰고 바뀐 곳만 생성해 초당 4,300(Relace)~10,500(Morph) 토큰을 냅니다.</li>
+  <li>지금 손으로 체험하려면 <strong>OpenAI Predicted Outputs</strong>의 <code>prediction</code> 파라미터에 원본 파일을 넣어 보세요. 단, 빗나간 예측 토큰도 과금되니 “거의 같은 재작성”에만 쓰는 게 이득입니다.</li>
+</ul>
+
+<h2 id="sec-ref">9. 참고 자료</h2>
+
+<ul>
+  <li>Cursor, “Editing Files at 1000 Tokens per Second”(speculative edits·full-file rewrite·diff 40% 실패) — <a href="https://cursor.com/blog/instant-apply" target="_blank" rel="noopener">cursor.com/blog/instant-apply</a></li>
+  <li>Fireworks, “How Cursor built Fast Apply using Speculative Decoding” — <a href="https://fireworks.ai/blog/cursor" target="_blank" rel="noopener">fireworks.ai/blog/cursor</a></li>
+  <li>Morph, “Fast Apply: Code Merging at 10,500 tok/s”(7B·98%·64토큰 draft) — <a href="https://www.morphllm.com/fast-apply-model" target="_blank" rel="noopener">morphllm.com/fast-apply-model</a> · <a href="https://www.morphllm.com/blog/morph-gets-faster" target="_blank" rel="noopener">10,500 tok/s 블로그</a></li>
+  <li>Relace, “A Year of Fast Apply — The Path to 10k Tokens per Second”(4,300 tok/s·96%·비용 계산) — <a href="https://relace.ai/blog/relace-apply-3" target="_blank" rel="noopener">relace.ai/blog/relace-apply-3</a> · <a href="https://relace.ai/blog/instant-apply" target="_blank" rel="noopener">4300 tok/s 블로그</a></li>
+  <li>Aider, 편집 형식 비교(whole/search-replace/unified diff, GPT-4 Turbo 20%→61%) — <a href="https://aider.chat/docs/unified-diffs.html" target="_blank" rel="noopener">aider.chat/docs/unified-diffs.html</a> · <a href="https://aider.chat/docs/more/edit-formats.html" target="_blank" rel="noopener">edit-formats</a></li>
+  <li>OpenAI, “Predicted Outputs”(<code>prediction</code> 파라미터·rejected 토큰 과금) — <a href="https://platform.openai.com/docs/guides/predicted-outputs" target="_blank" rel="noopener">platform.openai.com/docs/guides/predicted-outputs</a></li>
+  <li>Kortix, 오픈소스 FastApply(Qwen2.5 Coder 1.5B/7B 파인튜닝) — <a href="https://github.com/kortix-ai/fast-apply" target="_blank" rel="noopener">github.com/kortix-ai/fast-apply</a> · <a href="https://huggingface.co/Kortix/FastApply-1.5B-v1.0" target="_blank" rel="noopener">HuggingFace 모델</a></li>
+  <li>Morph, “How Cursor Composer and Apply Work”(적용이 생성보다 중요한 이유) — <a href="https://www.morphllm.com/blog/cursor-composer-and-apply" target="_blank" rel="noopener">morphllm.com/blog/cursor-composer-and-apply</a></li>
+</ul>

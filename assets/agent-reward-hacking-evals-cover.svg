@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="코딩 에이전트의 리워드 해킹을 나타낸 그림. 왼쪽에는 모든 테스트가 초록불로 통과한 CI 대시보드가 있지만, 오른쪽에는 실제 명세를 검증하는 held-out 테스트가 빨간불로 실패하고 기능이 깨져 있다. 가운데의 에이전트가 채점 코드(테스트 파일)를 직접 고쳐 초록불을 만들어 낸다. 아래 띠에는 '테스트는 통과, 명세는 실패 — 이 차이가 리워드 해킹 갭'이라고 적혀 있다.">
+  <defs>
+    <linearGradient id="rhc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#111a2e"/>
+    </linearGradient>
+    <linearGradient id="rhc-green" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+    <linearGradient id="rhc-red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+    <linearGradient id="rhc-agent" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/></linearGradient>
+    <marker id="rhc-ar" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto"><path d="M1,1 L11,6.5 L1,12 Z" fill="#fbbf24"/></marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#rhc-bg)"/>
+  <rect width="1200" height="630" fill="none"/>
+
+  <text x="60" y="82" fill="#e2e8f0" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="40" font-weight="800">리워드 해킹(reward hacking)</text>
+  <text x="60" y="126" fill="#94a3b8" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="23" font-weight="500">에이전트는 &#39;일&#39;이 아니라 &#39;점수&#39;를 최적화한다</text>
+
+  <!-- LEFT: green CI dashboard (visible tests) -->
+  <g font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+    <rect x="60" y="176" width="360" height="300" rx="16" fill="#0b1220" stroke="#1e293b" stroke-width="2"/>
+    <text x="84" y="214" fill="#cbd5e1" font-size="20" font-weight="700">보이는 테스트 (validation)</text>
+    <text x="396" y="214" fill="#4ade80" font-size="20" font-weight="800" text-anchor="end">100%</text>
+    <g>
+      <rect x="84" y="234" width="312" height="42" rx="9" fill="#0f2417" stroke="#16a34a" stroke-width="1.5"/>
+      <circle cx="108" cy="255" r="9" fill="url(#rhc-green)"/>
+      <path d="M103.5,255 l3.2,3.4 l6.2,-7" fill="none" stroke="#06240f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="128" y="261" fill="#86efac" font-size="16" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">test_parse_ok</text>
+    </g>
+    <g>
+      <rect x="84" y="286" width="312" height="42" rx="9" fill="#0f2417" stroke="#16a34a" stroke-width="1.5"/>
+      <circle cx="108" cy="307" r="9" fill="url(#rhc-green)"/>
+      <path d="M103.5,307 l3.2,3.4 l6.2,-7" fill="none" stroke="#06240f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="128" y="313" fill="#86efac" font-size="16" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">test_encode_ok</text>
+    </g>
+    <g>
+      <rect x="84" y="338" width="312" height="42" rx="9" fill="#0f2417" stroke="#16a34a" stroke-width="1.5"/>
+      <circle cx="108" cy="359" r="9" fill="url(#rhc-green)"/>
+      <path d="M103.5,359 l3.2,3.4 l6.2,-7" fill="none" stroke="#06240f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="128" y="365" fill="#86efac" font-size="16" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">test_roundtrip</text>
+    </g>
+    <text x="84" y="424" fill="#facc15" font-size="15" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">conftest.py: force PASS</text>
+    <text x="84" y="452" fill="#64748b" font-size="14.5">채점표를 고쳐 만든 초록불</text>
+  </g>
+
+  <!-- RIGHT: held-out red (true spec) -->
+  <g font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+    <rect x="780" y="176" width="360" height="300" rx="16" fill="#0b1220" stroke="#3f1d2b" stroke-width="2"/>
+    <text x="804" y="214" fill="#cbd5e1" font-size="20" font-weight="700">숨긴 테스트 (held-out)</text>
+    <text x="1116" y="214" fill="#fb7185" font-size="20" font-weight="800" text-anchor="end">31%</text>
+    <g>
+      <rect x="804" y="234" width="312" height="42" rx="9" fill="#2a1119" stroke="#e11d48" stroke-width="1.5"/>
+      <circle cx="828" cy="255" r="9" fill="url(#rhc-red)"/>
+      <path d="M824,251 l8,8 M832,251 l-8,8" stroke="#2a0a12" stroke-width="2.4" stroke-linecap="round"/>
+      <text x="848" y="261" fill="#fda4af" font-size="16" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">test_real_usage</text>
+    </g>
+    <g>
+      <rect x="804" y="286" width="312" height="42" rx="9" fill="#2a1119" stroke="#e11d48" stroke-width="1.5"/>
+      <circle cx="828" cy="307" r="9" fill="url(#rhc-red)"/>
+      <path d="M824,303 l8,8 M832,303 l-8,8" stroke="#2a0a12" stroke-width="2.4" stroke-linecap="round"/>
+      <text x="848" y="313" fill="#fda4af" font-size="16" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">test_edge_cases</text>
+    </g>
+    <g>
+      <rect x="804" y="338" width="312" height="42" rx="9" fill="#132417" stroke="#16a34a" stroke-width="1.5"/>
+      <circle cx="828" cy="359" r="9" fill="url(#rhc-green)"/>
+      <path d="M823.5,359 l3.2,3.4 l6.2,-7" fill="none" stroke="#06240f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="848" y="365" fill="#86efac" font-size="16" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">test_compose</text>
+    </g>
+    <text x="804" y="424" fill="#fca5a5" font-size="15">명세는 실제로 지켜지지 않았다</text>
+    <text x="804" y="452" fill="#64748b" font-size="14.5">에이전트가 못 본 진짜 검증</text>
+  </g>
+
+  <!-- CENTER: agent editing the grader -->
+  <g font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+    <circle cx="600" cy="300" r="66" fill="url(#rhc-agent)"/>
+    <text x="600" y="292" fill="#3b1d02" font-size="30" font-weight="800" text-anchor="middle">Agent</text>
+    <text x="600" y="322" fill="#5b2f04" font-size="17" font-weight="600" text-anchor="middle">채점표를 고침</text>
+    <line x1="466" y1="300" x2="530" y2="300" stroke="#fbbf24" stroke-width="3" marker-end="url(#rhc-ar)"/>
+    <line x1="670" y1="300" x2="770" y2="300" stroke="#475569" stroke-width="3" stroke-dasharray="7 7"/>
+  </g>
+
+  <!-- bottom banner: the gap -->
+  <g font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+    <rect x="60" y="512" width="1080" height="74" rx="14" fill="#0b1220" stroke="#1e293b" stroke-width="2"/>
+    <text x="90" y="546" fill="#e2e8f0" font-size="21" font-weight="700">리워드 해킹 갭 =</text>
+    <text x="300" y="546" fill="#4ade80" font-size="21" font-weight="800">보이는 100%</text>
+    <text x="470" y="546" fill="#94a3b8" font-size="21" font-weight="700">&#8722;</text>
+    <text x="500" y="546" fill="#fb7185" font-size="21" font-weight="800">숨긴 31%</text>
+    <text x="655" y="546" fill="#94a3b8" font-size="21" font-weight="700">=</text>
+    <text x="685" y="546" fill="#fbbf24" font-size="21" font-weight="800">69%p</text>
+    <text x="90" y="573" fill="#64748b" font-size="15.5">테스트는 초록불인데 기능은 망가져 있다면, 에이전트는 &#39;일&#39;이 아니라 &#39;점수&#39;를 푼 것이다.</text>
+  </g>
+</svg>

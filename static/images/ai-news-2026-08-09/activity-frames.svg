@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 430" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="Activity Frames: 화면 활동을 결정적으로 컴파일한 컨텍스트 블록은 하루 캡처를 86배 축소하고 98.4퍼센트 정확도, LLM 요약은 66에서 80퍼센트">
+  <rect width="820" height="430" fill="#0f172a"/>
+  <text x="410" y="34" text-anchor="middle" fill="#f1f5f9" font-size="19" font-weight="700">Activity Frames — 로그를 "요약"하지 말고 "컴파일"하라</text>
+  <text x="410" y="56" text-anchor="middle" fill="#94a3b8" font-size="12.5">모델 없는 결정적 파이프라인: 화면 캡처 → 타입드 activity frame → 프롬프트용 컨텍스트 블록</text>
+
+  <!-- pipeline -->
+  <rect x="40" y="80" width="150" height="56" rx="9" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="115" y="104" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">원시 캡처 스트림</text>
+  <text x="115" y="123" text-anchor="middle" fill="#94a3b8" font-size="11">128,756 프레임 / 51일</text>
+
+  <rect x="230" y="80" width="180" height="56" rx="9" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="320" y="100" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">결정적 컴파일</text>
+  <text x="320" y="118" text-anchor="middle" fill="#94a3b8" font-size="10.5">앱·사이트·타이밍·입력량</text>
+  <text x="320" y="132" text-anchor="middle" fill="#94a3b8" font-size="10.5">모델 0개 · 68ms · 바이트 동일</text>
+
+  <rect x="450" y="80" width="180" height="56" rx="9" fill="#052e16" stroke="#34d399" stroke-width="1.5"/>
+  <text x="540" y="104" text-anchor="middle" fill="#86efac" font-size="12" font-weight="700">컨텍스트 블록</text>
+  <text x="540" y="123" text-anchor="middle" fill="#86efac" font-size="11">하루치를 86배 축소</text>
+
+  <rect x="668" y="80" width="112" height="56" rx="9" fill="#1e293b" stroke="#fcd34d" stroke-width="1.5"/>
+  <text x="724" y="104" text-anchor="middle" fill="#fde68a" font-size="12" font-weight="700">에이전트</text>
+  <text x="724" y="123" text-anchor="middle" fill="#fcd34d" font-size="11">캐시·감사 가능</text>
+
+  <g stroke="#64748b" stroke-width="1.8" fill="none" marker-end="url(#a2)">
+    <line x1="190" y1="108" x2="228" y2="108"/>
+    <line x1="410" y1="108" x2="448" y2="108"/>
+    <line x1="630" y1="108" x2="666" y2="108"/>
+  </g>
+  <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#64748b"/></marker></defs>
+
+  <!-- accuracy chart -->
+  <text x="60" y="188" fill="#cbd5e1" font-size="13" font-weight="700">하루 일과 질의응답 정확도 (독립 오라클 대비)</text>
+
+  <!-- bar 1: compiled -->
+  <text x="60" y="228" fill="#e2e8f0" font-size="12">결정적 컴파일 블록</text>
+  <rect x="255" y="214" width="505" height="24" rx="5" fill="#1e293b"/>
+  <rect x="255" y="214" width="497" height="24" rx="5" fill="#34d399"/>
+  <text x="742" y="231" text-anchor="end" fill="#0f172a" font-size="12" font-weight="700">98.4%</text>
+
+  <!-- bar 2: LLM summary -->
+  <text x="60" y="266" fill="#e2e8f0" font-size="12">같은 캡처의 LLM 요약</text>
+  <rect x="255" y="252" width="505" height="24" rx="5" fill="#1e293b"/>
+  <rect x="255" y="252" width="404" height="24" rx="5" fill="#f59e0b"/>
+  <text x="649" y="269" text-anchor="end" fill="#0f172a" font-size="12" font-weight="700">66–80%</text>
+
+  <text x="255" y="298" fill="#94a3b8" font-size="10.5">Wilson 95% CI 91.7–99.7% · 중위 모델이 이 블록만 읽어도 프론티어 모델과 대등</text>
+
+  <rect x="60" y="318" width="700" height="46" rx="9" fill="#0c2a4a"/>
+  <text x="80" y="342" fill="#bfdbfe" font-size="12" font-weight="700">🛠 시사점: </text>
+  <text x="165" y="342" fill="#93c5fd" font-size="11.5">에이전트 로그/세션 히스토리를 매번 LLM으로 요약하지 말고, 결정적 규칙으로</text>
+  <text x="80" y="359" fill="#93c5fd" font-size="11.5">구조화·캐싱하면 토큰·비용↓, 정확도·재현성↑ (반복 루틴은 모델 없이 리플레이)</text>
+
+  <text x="410" y="400" text-anchor="middle" fill="#64748b" font-size="10.5">출처: arXiv:2608.05784 (2026-08-06, cs.AI, N. Iyamu) · 수치는 단일 사용자 코퍼스, 논문 초록 기준</text>
+</svg>

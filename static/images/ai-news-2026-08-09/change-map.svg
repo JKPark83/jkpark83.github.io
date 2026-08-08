@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 480" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="오늘의 AI 변화 지도: 에이전트 학습과 메모리를 축으로 EnvACE, Activity Frames, screenpipe, Codex Agent Plugins, Claude Code 워크스페이스 신뢰 연결">
+  <rect width="820" height="480" fill="#0f172a"/>
+  <text x="410" y="34" text-anchor="middle" fill="#f1f5f9" font-size="20" font-weight="700">오늘의 AI 변화 지도</text>
+  <text x="410" y="56" text-anchor="middle" fill="#94a3b8" font-size="13">중심축 = "에이전트 학습 × 메모리 · 결정적(deterministic) 컨텍스트"</text>
+
+  <g stroke="#334155" stroke-width="1.6">
+    <line x1="410" y1="245" x2="180" y2="150"/>
+    <line x1="410" y1="245" x2="640" y2="150"/>
+    <line x1="410" y1="245" x2="180" y2="345"/>
+    <line x1="410" y1="245" x2="640" y2="345"/>
+  </g>
+
+  <!-- center -->
+  <circle cx="410" cy="245" r="58" fill="#1e293b" stroke="#fcd34d" stroke-width="2"/>
+  <text x="410" y="240" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">에이전트</text>
+  <text x="410" y="258" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">학습·메모리</text>
+
+  <!-- papers (top-left, purple) -->
+  <rect x="60" y="92" width="240" height="98" rx="10" fill="#3b0764"/>
+  <text x="76" y="114" fill="#e9d5ff" font-size="13" font-weight="700">📚 논문</text>
+  <text x="76" y="134" fill="#d8b4fe" font-size="11.5">EnvACE · 월드 리허설로 환경 내재화</text>
+  <text x="76" y="152" fill="#d8b4fe" font-size="11.5">Activity Frames · 화면활동 결정적 컴파일</text>
+  <text x="76" y="172" fill="#c4b5fd" font-size="11">2608.06197 / 2608.05784 (cs.AI)</text>
+
+  <!-- tooling (top-right, green) -->
+  <rect x="520" y="92" width="240" height="98" rx="10" fill="#052e16"/>
+  <text x="536" y="114" fill="#bbf7d0" font-size="13" font-weight="700">🛠 툴링 릴리즈</text>
+  <text x="536" y="134" fill="#86efac" font-size="11.5">Codex 0.147 · Agent Plugins 카탈로그</text>
+  <text x="536" y="152" fill="#86efac" font-size="11.5">Claude Code 2.1.225 · 워크스페이스 신뢰</text>
+  <text x="536" y="172" fill="#6ee7b7" font-size="11">--approve-for-me · MCP 2026-07-28</text>
+
+  <!-- repos (bottom-left, blue) -->
+  <rect x="60" y="300" width="240" height="98" rx="10" fill="#0c2a4a"/>
+  <text x="76" y="322" fill="#bfdbfe" font-size="13" font-weight="700">🧩 오픈소스</text>
+  <text x="76" y="342" fill="#93c5fd" font-size="11.5">screenpipe · 화면→로컬 메모리(MCP)</text>
+  <text x="76" y="360" fill="#93c5fd" font-size="11.5">Within-yao/EnvACE · 논문 코드</text>
+  <text x="76" y="380" fill="#7dd3fc" font-size="11">캡처 계층 + 학습 계층</text>
+
+  <!-- models (bottom-right, amber) -->
+  <rect x="520" y="300" width="240" height="98" rx="10" fill="#422006"/>
+  <text x="536" y="322" fill="#fde68a" font-size="13" font-weight="700">🤖 모델 레이더</text>
+  <text x="536" y="342" fill="#fcd34d" font-size="11.5">신규 프론티어 모델 없음(조용)</text>
+  <text x="536" y="360" fill="#fcd34d" font-size="11.5">GPT-5.4 / 5.4-mini Codex 종료</text>
+  <text x="536" y="380" fill="#fbbf24" font-size="11">8/31 (ChatGPT 로그인 한정)</text>
+
+  <text x="410" y="440" text-anchor="middle" fill="#64748b" font-size="11">오늘의 관통 주제: 값비싼 추론 대신 "결정적·재사용 가능한" 환경/메모리를 에이전트에 내재화</text>
+  <text x="410" y="462" text-anchor="middle" fill="#475569" font-size="10">출처: arXiv · code.claude.com/changelog · github.com/openai/codex releases · github.com/screenpipe/screenpipe</text>
+</svg>

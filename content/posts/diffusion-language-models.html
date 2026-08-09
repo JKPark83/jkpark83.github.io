@@ -1,0 +1,378 @@
+---
+title: "한 글자씩 기다리지 마라: 문장을 통째로 그렸다 다듬는 디퓨전 LLM(diffusion LLM) 입문"
+date: 2026-08-10T07:30:00+09:00
+draft: false
+tags: ["AI", "diffusion LLM", "dLLM", "LLaDA", "Mercury", "Gemini Diffusion", "DiffusionGemma", "block diffusion", "parallel decoding", "vLLM", "inference", "디퓨전 언어 모델", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "우리가 쓰는 LLM은 대부분 왼쪽부터 토큰을 한 개씩 뱉습니다(자기회귀). 그래서 답이 길어질수록 지연이 그대로 쌓입니다. 디퓨전 LLM(diffusion LLM)은 접근이 다릅니다. 문장 전체를 [MASK]로 흐릿하게 채워 놓고, 자신 있는 칸부터 병렬로 또렷하게 만들어 나가는 '초안 → 다듬기' 방식입니다. 덕분에 초당 1,000 토큰을 넘기고, 코드 편집 같은 fill-in-the-middle 작업에 자연스럽게 강합니다. 2025년 LLaDA·Mercury·Gemini Diffusion으로 실용성이 증명됐고, 2026년 들어 vLLM이 디퓨전 모델(DiffusionGemma)을 정식 지원하면서 연구실을 나와 프로덕션 서빙으로 들어오고 있습니다. 이 글은 디퓨전 LLM이 '어떻게 생성하는지', '왜 빠른지', '서빙의 진짜 걸림돌이던 KV 캐시를 block diffusion으로 어떻게 푸는지', 그리고 '언제 쓰고 언제 피해야 하는지'를 junior 개발자 눈높이로 정리합니다."
+ShowToc: false
+cover:
+  image: "diffusion-language-models-cover.svg"
+  alt: "디퓨전 LLM(diffusion LLM)이 문장을 만드는 방식을 자기회귀 방식과 나란히 비교한 그림. 왼쪽 '자기회귀(AR)' 패널은 토큰을 왼쪽부터 한 개씩 순서대로 뱉는 모습이고, 오른쪽 '디퓨전' 패널은 문장 전체가 처음엔 [MASK]로 흐릿하게 차 있다가 여러 번의 denoising 라운드를 거치며 자신 있는 칸부터 또렷한 단어로 동시에 채워지는 모습이다. 아래 띠에는 디퓨전 LLM이 토큰을 병렬로 만들어 초당 1,000 토큰을 넘기고, 2026년 vLLM이 디퓨전 모델을 정식 지원하기 시작했다고 적혀 있다."
+  caption: "자기회귀 LLM은 토큰을 한 개씩 순서대로 뱉는다. 디퓨전 LLM은 문장 전체를 흐릿하게 그린 뒤 자신 있는 칸부터 병렬로 다듬는다."
+  relative: false
+---
+
+<style>
+/* ── Diffusion LLM 포스트 전용 스타일 (dlm- 접두사) ── */
+.dlm-fig{
+  --dlm-sky:#0284c7; --dlm-amber:#d97706; --dlm-green:#16a34a; --dlm-rose:#e11d48;
+  --dlm-slate:#64748b; --dlm-violet:#7c3aed; --dlm-teal:#0d9488; --dlm-blue:#2563eb;
+  --dlm-grid:#cbd5e1;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .dlm-fig{
+  --dlm-sky:#38bdf8; --dlm-amber:#fbbf24; --dlm-green:#4ade80; --dlm-rose:#fb7185;
+  --dlm-slate:#94a3b8; --dlm-violet:#a78bfa; --dlm-teal:#2dd4bf; --dlm-blue:#60a5fa;
+  --dlm-grid:#334155;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .dlm-fig{
+    --dlm-sky:#38bdf8; --dlm-amber:#fbbf24; --dlm-green:#4ade80; --dlm-rose:#fb7185;
+    --dlm-slate:#94a3b8; --dlm-violet:#a78bfa; --dlm-teal:#2dd4bf; --dlm-blue:#60a5fa;
+    --dlm-grid:#334155;
+  }
+}
+.dlm-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.dlm-fig text{font-family:inherit}
+.dlm-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.dlm-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.dlm-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.dlm-toc ol{margin:0;padding-left:1.25rem}
+.dlm-toc li{margin:.22rem 0;font-size:.95rem}
+.dlm-toc a{text-decoration:none}
+.dlm-toc a:hover{text-decoration:underline}
+.dlm-pull{font-size:1.12rem;line-height:1.72}
+.dlm-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.dlm-note{border-left:4px solid var(--dlm-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.dlm-note strong{color:var(--dlm-blue,#2563eb)}
+.dlm-warn{border-left:4px solid var(--dlm-rose,#e11d48)}
+.dlm-warn strong{color:var(--dlm-rose,#e11d48)}
+.dlm-good{border-left:4px solid var(--dlm-teal,#0d9488)}
+.dlm-good strong{color:var(--dlm-teal,#0d9488)}
+.dlm-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.dlm-tbl th,.dlm-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.dlm-tbl th{background:var(--entry);font-weight:700}
+.dlm-tbl code{font-size:.86em}
+.dlm-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="dlm-pull">
+  <p>사람이 글을 쓸 때는 첫 글자를 완벽히 확정한 다음에야 둘째 글자를 쓰지 않습니다. 문장의 얼개를 먼저 잡고, 애매한 부분을 나중에 채웁니다.</p>
+  <footer>— 디퓨전 LLM은 바로 이 방식을 흉내 냅니다. 왼쪽부터 한 개씩이 아니라, 통째로 그렸다 다듬습니다.</footer>
+</blockquote>
+
+<nav class="dlm-toc" aria-label="목차">
+  <div class="dlm-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 디퓨전 LLM이 화제인가</a></li>
+    <li><a href="#sec-2">배경 — 자기회귀(AR)의 한 글자씩 문제</a></li>
+    <li><a href="#sec-3">디퓨전 LLM은 어떻게 문장을 만드나</a></li>
+    <li><a href="#sec-4">왜 빠른가 — 그리고 속도·품질 손잡이</a></li>
+    <li><a href="#sec-5">서빙의 진짜 걸림돌: KV 캐시와 block diffusion</a></li>
+    <li><a href="#sec-6">실전 — 언제 쓰고, 어떻게 굴리나</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 디퓨전 LLM이 화제인가</h2>
+
+<p>요즘 LLM 이야기는 대부분 “모델이 얼마나 똑똑하냐”에 쏠려 있습니다. 그런데 에이전트를 실제로 굴려 보면, 답의 <em>품질</em>만큼이나 답이 <em>나오는 속도</em>가 서비스의 성패를 가릅니다. 툴을 열 번 호출하는 에이전트라면, 한 번의 생성이 느린 만큼 전체가 그대로 느려집니다. 지연(latency)과 토큰 비용이 곧 돈이자 사용자 이탈입니다.</p>
+
+<p>속도를 끌어올리는 방법은 여러 갈래로 연구돼 왔습니다. 더 빠른 GPU, 양자화, speculative decoding 같은 것들이죠. 그런데 이들은 대부분 “<strong>토큰을 왼쪽부터 한 개씩 뱉는다</strong>”는 오늘날 LLM의 근본 구조는 그대로 둡니다. <strong>디퓨전 LLM(diffusion LLM, 줄여서 dLLM)</strong>은 바로 그 근본을 바꿉니다. 문장을 통째로 흐릿하게 채워 놓고, 자신 있는 칸부터 <em>병렬로</em> 또렷하게 만들어 나갑니다.</p>
+
+<p>이게 2026년 들어 실무 talking point가 된 데는 이유가 있습니다. 아이디어 자체는 2025년에 실용성이 증명됐습니다. LLaDA가 8B 규모 디퓨전 모델로 LLaMA3 8B와 맞먹는 성능을 냈고, 스타트업 Inception이 상용 디퓨전 코드 모델 Mercury를, 구글이 Gemini Diffusion을 선보이며 <strong>초당 1,000 토큰이 넘는</strong> 생성 속도를 보여 줬습니다. 그리고 2026년, 결정적으로 <strong>서빙 인프라가 따라왔습니다</strong>. 대표 추론 엔진인 vLLM이 디퓨전 모델 DiffusionGemma를 정식 지원하기 시작했고(2026-06), 별도의 <code>dllm-plugin</code>까지 나왔습니다. “연구실 데모”였던 디퓨전 LLM이 “프로덕션에 올릴 수 있는 옵션”으로 넘어오는 중이라, 실무자들 사이에서 “<em>자기회귀 독점(autoregressive monopoly)의 끝인가</em>”라는 논의가 다시 뜨거워졌습니다.</p>
+
+<div class="dlm-note"><strong>한 줄 요약.</strong> 자기회귀 LLM은 토큰을 <em>순서대로 한 개씩</em> 만듭니다. 디퓨전 LLM은 문장 전체를 <em>동시에</em> 만들되, 여러 번 다듬어(denoising) 완성합니다. 순차 생성의 지연을 병렬로 눌러 속도를 벌고, 그 대가로 “몇 번 다듬을지”라는 품질·속도 손잡이가 새로 생깁니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 자기회귀(AR)의 한 글자씩 문제</h2>
+
+<p>디퓨전을 이해하려면 우리가 매일 쓰는 방식부터 짚어야 합니다. GPT·Claude·Llama 같은 모델은 <strong>자기회귀(autoregressive, AR)</strong> 방식입니다. 이름이 어렵지만 뜻은 단순합니다. “다음 토큰 하나를 앞의 모든 토큰을 보고 예측한다”를, 문장이 끝날 때까지 반복하는 겁니다.</p>
+
+<p>여기서 두 가지가 따라옵니다. 첫째, 생성은 본질적으로 <strong>순차적</strong>입니다. 3번째 토큰을 만들려면 2번째 토큰이 이미 확정돼 있어야 합니다. 그래서 300 토큰짜리 답이면 모델을 300번 순서대로 돌려야 하고(=300번의 forward pass), <em>답이 길수록 지연이 그대로 쌓입니다</em>. 둘째, 각 토큰은 <strong>앞쪽만</strong> 봅니다. 이걸 causal masking(인과 마스킹)이라 부르는데, 학습·생성 모두 “미래를 미리 보지 못하게” 가리는 장치입니다.</p>
+
+<p>이 구조는 튼튼하고 잘 작동하지만, 코드 편집처럼 “가운데를 채워 넣는(fill-in-the-middle)” 작업엔 어색합니다. 앞뒤 맥락을 다 보고 가운데만 고치고 싶은데, AR은 원래 왼쪽에서 오른쪽으로만 흐르기 때문입니다. 여기가 디퓨전이 파고드는 지점입니다.</p>
+
+<h2 id="sec-3">3. 디퓨전 LLM은 어떻게 문장을 만드나</h2>
+
+<p>디퓨전(diffusion)은 원래 이미지 생성에서 유명해진 아이디어입니다. 깨끗한 이미지에 노이즈를 조금씩 끼얹어 완전한 잡음으로 만드는 과정(forward)을 배워 두고, 거꾸로 잡음에서 노이즈를 조금씩 걷어내며(reverse) 이미지를 복원하는 방식이죠. 언어에서는 “노이즈”를 <strong>[MASK](마스크, 가려진 빈칸)</strong>로 바꿉니다. 그래서 텍스트용 디퓨전을 <strong>masked diffusion(마스크 디퓨전)</strong>이라고도 부릅니다.</p>
+
+<p>동작은 두 방향으로 나뉩니다.</p>
+
+<ul>
+  <li><strong>학습(forward)</strong>: 정답 문장에서 토큰 일부를 무작위로 [MASK]로 가린 뒤, 모델이 그 빈칸을 한 번에 맞히도록 훈련합니다. 가리는 비율을 0%에서 100%까지 다양하게 바꿔 가며 배웁니다. AR과 달리 causal mask가 없어서, 모델은 <strong>빈칸의 앞뒤를 모두</strong> 봅니다(양방향, bidirectional).</li>
+  <li><strong>생성(reverse)</strong>: 답을 만들 때는 정반대로 갑니다. 답 자리를 <em>전부 [MASK]로</em> 채운 흐릿한 상태에서 시작해, 여러 번의 라운드(denoising step)를 거치며 빈칸을 점점 채워 또렷하게 만듭니다.</li>
+</ul>
+
+<p>핵심은 “한 라운드에 전부 확정하지 않는다”는 점입니다. 모델은 매 라운드마다 <em>모든 빈칸</em>에 대해 후보 토큰과 그 <strong>자신감(confidence)</strong>을 함께 내놓습니다. 그중 자신 있는 칸만 확정하고, 애매한 칸은 다시 [MASK]로 되돌립니다. 이걸 <strong>저신뢰 리마스킹(low-confidence remasking)</strong>이라 하고, 결과적으로 “쉬운 곳 먼저, 어려운 곳 나중에” 채우는 <em>coarse-to-fine(거친→세밀)</em> 흐름이 됩니다. 사람이 초안을 잡고 애매한 표현을 나중에 다듬는 것과 똑같습니다.</p>
+
+<figure class="dlm-fig">
+<svg viewBox="0 0 860 420" role="img" aria-label="마스크 디퓨전이 답을 만드는 과정을 4단계로 보여 주는 그림. step 0에서는 다섯 칸이 모두 [MASK]다. step 1에서는 자신감이 높은 첫째·다섯째 칸이 '파이썬', '언어'로 확정되고 나머지는 다시 마스크로 남는다. step 2에서는 셋째 칸 '동적'이 추가로 확정된다. step T(마지막)에서는 다섯 칸이 모두 '파이썬 은 동적 타입 언어'로 채워진다. 오른쪽에는 자신감이 높은 칸부터 확정하고 애매한 칸은 다시 마스크로 되돌린다는 설명이 있다.">
+  <rect x="0" y="0" width="860" height="420" fill="none"/>
+  <text x="20" y="34" font-size="19" font-weight="800" fill="var(--dlm-sky)">reverse — 전부 [MASK]에서 시작해 라운드마다 또렷하게</text>
+
+  <!-- rows -->
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="15" font-weight="700" text-anchor="middle">
+    <!-- step 0 -->
+    <text x="20" y="88" font-family="inherit" font-size="14" font-weight="700" text-anchor="start" fill="var(--dlm-slate)">step 0</text>
+    <g fill="var(--dlm-grid)">
+      <rect x="120" y="66" width="120" height="34" rx="6"/><rect x="250" y="66" width="120" height="34" rx="6"/><rect x="380" y="66" width="120" height="34" rx="6"/><rect x="510" y="66" width="120" height="34" rx="6"/><rect x="640" y="66" width="120" height="34" rx="6"/>
+    </g>
+    <g fill="var(--dlm-slate)"><text x="180" y="88">[M]</text><text x="310" y="88">[M]</text><text x="440" y="88">[M]</text><text x="570" y="88">[M]</text><text x="700" y="88">[M]</text></g>
+
+    <!-- step 1 -->
+    <text x="20" y="160" font-family="inherit" font-size="14" font-weight="700" text-anchor="start" fill="var(--dlm-slate)">step 1</text>
+    <rect x="120" y="138" width="120" height="34" rx="6" fill="var(--dlm-teal)"/><text x="180" y="160" fill="#04201c">파이썬</text>
+    <rect x="250" y="138" width="120" height="34" rx="6" fill="var(--dlm-grid)"/><text x="310" y="160" fill="var(--dlm-slate)">[M]</text>
+    <rect x="380" y="138" width="120" height="34" rx="6" fill="var(--dlm-grid)"/><text x="440" y="160" fill="var(--dlm-slate)">[M]</text>
+    <rect x="510" y="138" width="120" height="34" rx="6" fill="var(--dlm-grid)"/><text x="570" y="160" fill="var(--dlm-slate)">[M]</text>
+    <rect x="640" y="138" width="120" height="34" rx="6" fill="var(--dlm-teal)"/><text x="700" y="160" fill="#04201c">언어</text>
+
+    <!-- step 2 -->
+    <text x="20" y="232" font-family="inherit" font-size="14" font-weight="700" text-anchor="start" fill="var(--dlm-slate)">step 2</text>
+    <rect x="120" y="210" width="120" height="34" rx="6" fill="var(--dlm-teal)"/><text x="180" y="232" fill="#04201c">파이썬</text>
+    <rect x="250" y="210" width="120" height="34" rx="6" fill="var(--dlm-grid)"/><text x="310" y="232" fill="var(--dlm-slate)">[M]</text>
+    <rect x="380" y="210" width="120" height="34" rx="6" fill="var(--dlm-teal)"/><text x="440" y="232" fill="#04201c">동적</text>
+    <rect x="510" y="210" width="120" height="34" rx="6" fill="var(--dlm-grid)"/><text x="570" y="232" fill="var(--dlm-slate)">[M]</text>
+    <rect x="640" y="210" width="120" height="34" rx="6" fill="var(--dlm-teal)"/><text x="700" y="232" fill="#04201c">언어</text>
+
+    <!-- step T -->
+    <text x="20" y="304" font-family="inherit" font-size="14" font-weight="700" text-anchor="start" fill="var(--dlm-slate)">step T</text>
+    <g fill="var(--dlm-green)">
+      <rect x="120" y="282" width="120" height="34" rx="6"/><rect x="250" y="282" width="120" height="34" rx="6"/><rect x="380" y="282" width="120" height="34" rx="6"/><rect x="510" y="282" width="120" height="34" rx="6"/><rect x="640" y="282" width="120" height="34" rx="6"/>
+    </g>
+    <g fill="#04210f"><text x="180" y="304">파이썬</text><text x="310" y="304">은</text><text x="440" y="304">동적</text><text x="570" y="304">타입</text><text x="700" y="304">언어</text></g>
+  </g>
+
+  <path d="M60,100 L60,290" fill="none" stroke="var(--dlm-sky)" stroke-width="2.5" marker-end="url(#dlm-a)"/>
+  <defs><marker id="dlm-a" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M1,1 L10,6 L1,11" fill="none" stroke="var(--dlm-sky)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+  <g font-size="14.5" fill="var(--dlm-slate)">
+    <rect x="120" y="346" width="640" height="56" rx="10" fill="var(--entry)" stroke="var(--dlm-grid)"/>
+    <text x="140" y="371" font-weight="700" fill="var(--dlm-teal)">저신뢰 리마스킹(low-confidence remasking)</text>
+    <text x="140" y="392">매 라운드: 모든 빈칸을 예측 → 자신 있는 칸만 확정, 애매한 칸은 다시 [MASK]로 되돌린다.</text>
+  </g>
+</svg>
+<figcaption>그림 1. 디퓨전 LLM의 생성(reverse) 과정. 전부 [MASK]에서 시작해 자신 있는 칸부터 병렬로 확정하고, 애매한 칸은 다음 라운드로 미룬다(coarse-to-fine).</figcaption>
+</figure>
+
+<p>여기서 AR과의 결정적 차이 두 가지가 나옵니다. ① 한 라운드에 <strong>여러 칸을 동시에</strong> 확정할 수 있습니다(병렬). ② 모든 칸이 <strong>앞뒤를 다 보고</strong> 정해집니다(양방향). 그래서 “가운데만 자연스럽게 채우기”가 구조적으로 편합니다 — 코드 편집이 디퓨전의 단골 활용처인 이유입니다.</p>
+
+<h2 id="sec-4">4. 왜 빠른가 — 그리고 속도·품질 손잡이</h2>
+
+<p>속도의 비밀은 단순합니다. AR이 <em>N개 토큰 = N번의 순차 forward</em>인 반면, 디퓨전은 <em>T번의 라운드</em>면 끝나고, 이 <strong>T가 N보다 훨씬 작을 수 있습니다</strong>. 한 라운드에 여러 칸을 병렬로 확정하기 때문입니다. GPU는 원래 “한 개씩 순서대로”보다 “여러 개를 한꺼번에”를 훨씬 잘합니다. 디퓨전은 그 특성에 딱 맞아떨어집니다.</p>
+
+<p>실제 수치로도 드러납니다(각 회사 발표 기준).</p>
+
+<div class="dlm-tblwrap">
+<table class="dlm-tbl">
+  <thead><tr><th>모델 (공개)</th><th>유형</th><th>보고된 속도</th><th>품질(참고)</th></tr></thead>
+  <tbody>
+    <tr><td>Mercury Coder (Inception, 2025)</td><td>상용 디퓨전 코드 dLLM</td><td>Mini ≈ 1,109 tok/s (H100), Small ≈ 737 tok/s — AR 대비 5~10배</td><td>7B 기준 HumanEval ≈ 82.3% (GPT-4o 86.6%)</td></tr>
+    <tr><td>Gemini Diffusion (Google, 2025)</td><td>실험용 텍스트 디퓨전</td><td>≈ 1,479 tok/s</td><td>HumanEval 89.6% vs AR판 90.2%, MBPP 76.0% vs 75.8% (거의 동급)</td></tr>
+    <tr><td>Mercury 2 (Inception, 2026-02)</td><td>최초의 reasoning 디퓨전 dLLM</td><td>&gt; 1,000 tok/s — 속도 특화 LLM 대비 ≈ 5배</td><td>reasoning 지원, 낮은 추론 비용 강조</td></tr>
+    <tr><td>LLaDA (2025) / LLaDA 2.0 (2025 말)</td><td>오픈 연구 dLLM</td><td>—</td><td>8B가 LLaMA3 8B와 대등 → 2.0은 100B급으로 확장</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>하지만 공짜는 없습니다. 여기서 디퓨전만의 <strong>손잡이(knob)</strong>가 하나 생깁니다 — <em>몇 번 다듬을 것인가(라운드 수, denoising step)</em>. 라운드를 많이 돌리면(한 번에 한 칸씩 확정에 가깝게) 품질은 올라가지만 느려지고, 라운드를 줄여 한 번에 여러 칸을 확정하면 빨라지지만 품질이 떨어질 수 있습니다.</p>
+
+<p>왜 품질이 떨어질까요? 같은 라운드에서 여러 칸을 동시에 확정한다는 건, 그 칸들이 <em>서로 독립적이라고 가정</em>하는 것과 같습니다. 하지만 “서울에 ___ ___”에서 두 빈칸은 사실 얽혀 있습니다. 한꺼번에 뽑으면 “서울에 부산 갔다” 같은 엇박이 날 수 있습니다. 그래서 최근 연구들은 “<strong>자신감이 충분히 높을 때만 병렬로 확정하면 순차 확정과 사실상 같아진다</strong>”는 점을 이용합니다(예: Fast-dLLM). 자신 있는 칸은 과감히 병렬로 처리해 속도를 벌고, 애매하면 라운드를 더 쓰는 식으로 손잡이를 자동 조절하는 것이죠.</p>
+
+<figure class="dlm-fig">
+<svg viewBox="0 0 820 300" role="img" aria-label="디퓨전 LLM의 denoising 라운드 수에 따른 속도와 품질의 관계를 보여 주는 그래프. 가로축은 라운드 수(적을수록 왼쪽), 세로축 왼쪽은 속도, 오른쪽은 품질이다. 라운드가 적으면 속도는 높지만 품질은 낮고, 라운드가 많으면 품질은 높지만 속도는 낮다. 두 곡선이 교차하는 가운데 영역이 '실전에서 노리는 균형점'으로 표시돼 있다. 자신감 기반 병렬 확정을 쓰면 같은 품질에서 더 적은 라운드로 갈 수 있어 균형점이 왼쪽으로 이동한다는 설명이 붙어 있다.">
+  <text x="20" y="30" font-size="18" font-weight="800" fill="var(--dlm-sky)">라운드 수(denoising step) — 하나뿐인 속도·품질 손잡이</text>
+  <!-- axes -->
+  <line x1="90" y1="70" x2="90" y2="240" stroke="var(--dlm-grid)" stroke-width="1.5"/>
+  <line x1="90" y1="240" x2="760" y2="240" stroke="var(--dlm-grid)" stroke-width="1.5"/>
+  <text x="70" y="66" font-size="12.5" fill="var(--dlm-slate)" text-anchor="end">높음</text>
+  <text x="415" y="270" font-size="13" fill="var(--dlm-slate)" text-anchor="middle">라운드 적음(빠름) ←——————→ 라운드 많음(느림)</text>
+  <!-- speed curve (down) -->
+  <path d="M110,88 C260,120 430,190 750,228" fill="none" stroke="var(--dlm-amber)" stroke-width="3.2"/>
+  <text x="150" y="108" font-size="13.5" font-weight="700" fill="var(--dlm-amber)">속도</text>
+  <!-- quality curve (up) -->
+  <path d="M110,232 C300,210 470,120 750,90" fill="none" stroke="var(--dlm-teal)" stroke-width="3.2"/>
+  <text x="700" y="82" font-size="13.5" font-weight="700" fill="var(--dlm-teal)">품질</text>
+  <!-- sweet spot -->
+  <rect x="360" y="70" width="120" height="170" fill="var(--dlm-sky)" opacity="0.12"/>
+  <text x="420" y="150" font-size="13" font-weight="800" fill="var(--dlm-sky)" text-anchor="middle">실전 균형점</text>
+  <!-- shift note -->
+  <path d="M360,255 L300,255" fill="none" stroke="var(--dlm-violet)" stroke-width="2.4" marker-end="url(#dlm-a2)"/>
+  <defs><marker id="dlm-a2" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M1,1 L10,6 L1,11" fill="none" stroke="var(--dlm-violet)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <text x="490" y="258" font-size="12.5" fill="var(--dlm-violet)">자신감 기반 병렬 확정 → 같은 품질을 더 적은 라운드로</text>
+</svg>
+<figcaption>그림 2. 디퓨전 LLM에서는 “몇 번 다듬을지”가 곧 속도·품질 손잡이다. 자신감이 높은 칸만 병렬 확정하면 균형점을 왼쪽(더 빠름)으로 옮길 수 있다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 서빙의 진짜 걸림돌: KV 캐시와 block diffusion</h2>
+
+<p>디퓨전이 이론적으로 빠르다는 건 2025년에 이미 알려졌습니다. 그런데도 한동안 프로덕션에 못 올린 진짜 이유는 <strong>KV 캐시(KV cache)</strong> 때문이었습니다. 조금만 짚고 갑시다.</p>
+
+<p>AR 서빙이 그나마 견딜 만한 건 KV 캐시 덕분입니다. 토큰을 왼쪽에서 오른쪽으로만 만들기 때문에, 이미 만든 토큰의 내부 계산 결과(Key·Value)를 저장해 두고 다음 토큰에서 재사용합니다. 새 토큰마다 처음부터 다시 계산하지 않아도 되죠. 그런데 순수 디퓨전은 <strong>양방향</strong>입니다. 라운드마다 빈칸이 앞뒤 전체를 다시 보므로, “앞쪽은 이미 확정됐으니 캐시해 두자”가 성립하지 않습니다. 캐시를 못 쓰면 라운드마다 문장 전체를 다시 계산해야 하고, 병렬로 번 속도를 여기서 도로 까먹습니다.</p>
+
+<p>이 딜레마를 푼 열쇠가 <strong>block diffusion(블록 디퓨전)</strong>, 다른 말로 <strong>semi-autoregressive(반자기회귀)</strong>입니다. 아이디어는 “두 방식의 좋은 점만 섞자”입니다.</p>
+
+<ul>
+  <li>문장을 <strong>블록(block)</strong>으로 나눕니다(예: 32토큰씩).</li>
+  <li><strong>블록 사이는 AR처럼</strong> 왼쪽→오른쪽으로 순서대로 갑니다. 앞 블록은 확정된 뒤 뒤 블록에게 <em>단방향</em>으로만 영향을 줍니다.</li>
+  <li><strong>블록 안에서는 디퓨전처럼</strong> 여러 토큰을 병렬로 다듬습니다.</li>
+</ul>
+
+<p>이렇게 하면 앞 블록은 다시 바뀌지 않으므로 <strong>KV 캐시를 그대로(손실 없이) 재사용</strong>할 수 있습니다(BD3-LM이 이 구조를 정리했습니다). 블록 내부 병렬성으로 속도는 벌고, 블록 간 단방향으로 캐시는 살리는, 실용적인 절충입니다. 길이도 블록 단위로 유연하게 늘릴 수 있어 “고정 길이” 제약도 완화됩니다.</p>
+
+<figure class="dlm-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="순수 디퓨전과 block diffusion을 비교하는 그림. 위쪽 '순수 디퓨전'은 모든 토큰이 서로 양방향 화살표로 연결돼 있어 라운드마다 전체를 다시 계산해야 하고 KV 캐시를 재사용할 수 없다고 X 표시로 나타나 있다. 아래쪽 'block diffusion'은 토큰들이 블록1, 블록2, 블록3으로 묶여 있고, 블록 사이는 왼쪽에서 오른쪽으로 향하는 단방향 화살표, 블록 안은 양방향으로 연결돼 있다. 이미 확정된 블록1과 블록2는 KV 캐시로 저장돼 재사용된다고 체크 표시로 나타나 있다.">
+  <!-- pure diffusion -->
+  <text x="20" y="30" font-size="17" font-weight="800" fill="var(--dlm-rose)">순수 디퓨전 — 양방향 ⇒ KV 캐시 재사용 불가</text>
+  <g font-family="ui-monospace,monospace" font-size="14" text-anchor="middle">
+    <g fill="var(--dlm-grid)">
+      <rect x="60" y="52" width="76" height="34" rx="6"/><rect x="156" y="52" width="76" height="34" rx="6"/><rect x="252" y="52" width="76" height="34" rx="6"/><rect x="348" y="52" width="76" height="34" rx="6"/><rect x="444" y="52" width="76" height="34" rx="6"/><rect x="540" y="52" width="76" height="34" rx="6"/>
+    </g>
+    <g fill="var(--dlm-slate)" font-weight="700"><text x="98" y="74">t1</text><text x="194" y="74">t2</text><text x="290" y="74">t3</text><text x="386" y="74">t4</text><text x="482" y="74">t5</text><text x="578" y="74">t6</text></g>
+  </g>
+  <path d="M98,100 C240,140 440,140 578,100" fill="none" stroke="var(--dlm-rose)" stroke-width="1.8" opacity="0.7"/>
+  <path d="M578,102 C440,142 240,142 98,102" fill="none" stroke="var(--dlm-rose)" stroke-width="1.8" opacity="0.7"/>
+  <text x="640" y="72" font-size="26" fill="var(--dlm-rose)" font-weight="800">✕</text>
+  <text x="670" y="74" font-size="13.5" fill="var(--dlm-slate)">캐시 못 씀</text>
+
+  <line x1="20" y1="160" x2="840" y2="160" stroke="var(--dlm-grid)" stroke-dasharray="4 4"/>
+
+  <!-- block diffusion -->
+  <text x="20" y="196" font-size="17" font-weight="800" fill="var(--dlm-teal)">block diffusion — 블록 사이는 단방향 ⇒ 앞 블록은 KV 캐시</text>
+  <!-- block frames -->
+  <rect x="52" y="214" width="184" height="58" rx="10" fill="none" stroke="var(--dlm-teal)" stroke-width="1.6"/>
+  <rect x="256" y="214" width="184" height="58" rx="10" fill="none" stroke="var(--dlm-teal)" stroke-width="1.6"/>
+  <rect x="460" y="214" width="184" height="58" rx="10" fill="none" stroke="var(--dlm-sky)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="144" y="292" font-size="12.5" fill="var(--dlm-teal)" text-anchor="middle" font-weight="700">블록 1 · 확정 → 캐시 ✓</text>
+  <text x="348" y="292" font-size="12.5" fill="var(--dlm-teal)" text-anchor="middle" font-weight="700">블록 2 · 확정 → 캐시 ✓</text>
+  <text x="552" y="292" font-size="12.5" fill="var(--dlm-sky)" text-anchor="middle" font-weight="700">블록 3 · 생성 중(병렬)</text>
+  <g font-family="ui-monospace,monospace" font-size="13" text-anchor="middle" font-weight="700">
+    <g fill="var(--dlm-teal)"><rect x="64" y="228" width="76" height="30" rx="6" opacity="0.25"/><rect x="148" y="228" width="76" height="30" rx="6" opacity="0.25"/><rect x="268" y="228" width="76" height="30" rx="6" opacity="0.25"/><rect x="352" y="228" width="76" height="30" rx="6" opacity="0.25"/></g>
+    <g fill="var(--dlm-grid)"><rect x="472" y="228" width="76" height="30" rx="6"/><rect x="556" y="228" width="76" height="30" rx="6"/></g>
+    <g fill="var(--dlm-slate)"><text x="102" y="248">파이썬</text><text x="186" y="248">은</text><text x="306" y="248">동적</text><text x="390" y="248">타입</text><text x="510" y="248">[M]</text><text x="594" y="248">[M]</text></g>
+  </g>
+  <path d="M236,243 L256,243" fill="none" stroke="var(--dlm-teal)" stroke-width="2.4" marker-end="url(#dlm-a3)"/>
+  <path d="M440,243 L460,243" fill="none" stroke="var(--dlm-teal)" stroke-width="2.4" marker-end="url(#dlm-a3)"/>
+  <defs><marker id="dlm-a3" markerWidth="11" markerHeight="11" refX="7" refY="5.5" orient="auto"><path d="M1,1 L9,5.5 L1,10" fill="none" stroke="var(--dlm-teal)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+</svg>
+<figcaption>그림 3. 순수 디퓨전은 양방향이라 KV 캐시를 재사용할 수 없다. block diffusion은 블록 사이를 단방향(AR)으로, 블록 안을 병렬(디퓨전)으로 처리해 앞 블록을 캐시한다.</figcaption>
+</figure>
+
+<p>2026년의 “프로덕션 진입”은 대부분 이 block diffusion 위에서 일어났습니다. vLLM은 <code>dllm-plugin</code>이라는 블록 기반 디퓨전 플러그인과 함께, 구글의 <strong>DiffusionGemma</strong>(Gemma4 백본, 26B급)를 <em>정식 지원하는 첫 dLLM</em>으로 통합했습니다(2026-06). 배치 서빙과 구조적 출력(structured output) 가드까지 얹혀, 이제 “AR 모델처럼” 올릴 수 있게 됐죠. 서빙 최적화 연구도 이어져, HERALD 같은 작업은 CPU·GPU가 KV 캐시를 나눠 들고 블록 디퓨전을 고속으로 서빙하는 방법을 다룹니다.</p>
+
+<h2 id="sec-6">6. 실전 — 언제 쓰고, 어떻게 굴리나</h2>
+
+<p>개념을 코드로 만져 봅시다. 먼저 디퓨전 생성 루프의 <em>뼈대</em>입니다. 실제 라이브러리 API는 아니고, 저신뢰 리마스킹이 어떻게 도는지 감을 잡는 의사코드에 가깝습니다.</p>
+
+{{< highlight python >}}
+# 디퓨전 LLM 생성 루프의 뼈대 (개념용 의사코드)
+# 핵심: 전부 [MASK]에서 시작 → 라운드마다 '자신 있는 칸'만 확정
+def diffusion_generate(model, length=64, steps=16):
+    MASK = "[MASK]"
+    seq = [MASK] * length          # 1) 답 자리를 전부 마스크로 채운다
+
+    for step in range(steps):      # 2) steps 번 다듬는다 (T ≪ N)
+        logits = model.forward(seq)          # 모든 위치를 '동시에' 예측 (양방향)
+        pred, conf = logits.argmax_and_confidence()  # 후보 토큰 + 자신감
+
+        # 3) 아직 마스크인 칸 중, 이번 라운드에 몇 개를 확정할지 정한다
+        #    (뒤로 갈수록 더 많이 확정 → 초반은 신중, 후반은 과감)
+        k = tokens_to_commit(step, steps, remaining=seq.count(MASK))
+
+        # 4) 마스크 칸을 '자신감 높은 순'으로 k개만 확정
+        for pos in top_k_masked_positions(seq, conf, k):
+            seq[pos] = pred[pos]
+
+        # 5) 나머지 마스크는 그대로 → 다음 라운드에서 앞뒤 맥락 보고 다시 시도
+        if MASK not in seq:
+            break
+    return seq
+{{< /highlight >}}
+
+<p>포인트는 4~5번입니다. 매 라운드 모든 칸을 예측하되, <em>자신 있는 칸부터 k개만</em> 확정하고 나머지는 다음으로 미룹니다. 이 <code>k</code>를 크게 잡으면 빠르지만 거칠고, 작게 잡으면 느리지만 촘촘합니다 — 그림 2의 손잡이가 바로 이 <code>k</code>입니다.</p>
+
+<p>이제 실제로 굴리는 쪽입니다. 다행히 대부분의 디퓨전 LLM은 <strong>기존 AR 모델과 똑같은 API 모양</strong>으로 감싸 제공합니다. 예를 들어 Inception의 Mercury는 OpenAI 호환 엔드포인트를 제공하므로, 클라이언트 코드는 거의 그대로 두고 <code>base_url</code>과 모델명만 바꾸면 됩니다.</p>
+
+{{< highlight python >}}
+from openai import OpenAI
+
+# OpenAI 호환 엔드포인트를 제공하는 디퓨전 LLM 예시 (Inception Mercury)
+client = OpenAI(
+    api_key="YOUR_KEY",
+    base_url="https://api.inceptionlabs.ai/v1",  # 공급자별 엔드포인트
+)
+
+resp = client.chat.completions.create(
+    model="mercury-coder",   # 디퓨전 코드 모델
+    messages=[{"role": "user",
+               "content": "이 파이썬 함수에 빈 리스트 방어 코드를 넣어 줘"}],
+)
+print(resp.choices[0].message.content)
+# 호출 방식은 AR 모델과 동일 — 내부에서 '병렬 denoising'으로 만들 뿐이다
+{{< /highlight >}}
+
+<p>오픈 모델을 직접 서빙하고 싶다면, 2026년부터는 vLLM이 디퓨전 모델을 지원합니다. 블록 기반 디퓨전 플러그인을 설치하고 DiffusionGemma를 올린 뒤, 역시 OpenAI 호환 서버로 노출하는 흐름입니다.</p>
+
+{{< highlight bash >}}
+# vLLM 블록 디퓨전 플러그인 설치 (오픈 dLLM 직접 서빙)
+pip install vllm dllm-plugin
+
+# DiffusionGemma를 OpenAI 호환 서버로 서빙 (실제 인자/모델명은 문서 확인)
+vllm serve google/diffusion-gemma --port 8000
+# → http://localhost:8000/v1 로 AR 모델과 동일하게 호출
+{{< /highlight >}}
+
+<p>그럼 <strong>언제</strong> 쓰면 좋을까요? 지금까지의 그림을 종합한 판단 기준입니다.</p>
+
+<div class="dlm-tblwrap">
+<table class="dlm-tbl">
+  <thead><tr><th>상황</th><th>디퓨전 LLM이 유리한가</th><th>이유</th></tr></thead>
+  <tbody>
+    <tr><td>코드 자동완성 · 인라인 편집(fill-in-the-middle)</td><td>✅ 잘 맞음</td><td>양방향 맥락 + 짧은 생성 → 속도 이점이 큼(단문 생성 시 비용 50~80%↓ 보고)</td></tr>
+    <tr><td>저지연이 중요한 에이전트 툴 응답</td><td>✅ 유리</td><td>초당 1,000+ 토큰으로 왕복 지연을 줄임</td></tr>
+    <tr><td>구조가 정해진 출력(JSON·양식 채우기)</td><td>🟡 상황에 따라</td><td>빈칸 채우기와 궁합이 좋지만, 문법 보장은 서빙 측 가드에 의존</td></tr>
+    <tr><td>아주 긴 문서 생성 · 복잡한 장문 추론</td><td>🟠 아직은 AR이 안전</td><td>블록 길이·품질 안정성·생태계 성숙도에서 AR이 앞섬</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="dlm-note dlm-good"><strong>실전 감각.</strong> 지금 단계의 현실적인 쓰임은 “<em>전면 교체</em>”가 아니라 “<em>골라 쓰기</em>”입니다. 지연에 민감하고 짧은 구간 — 코드 편집, 자동완성, 빠른 툴 응답 — 을 디퓨전 LLM으로 돌려 속도를 벌고, 복잡한 장문·추론은 여전히 검증된 AR 모델에 맡기는 하이브리드가 안전합니다.</p></div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>“빠르다니까 무조건 좋다”는 착각.</strong> 속도는 라운드 수를 줄여서 나온 값일 수 있습니다. 라운드를 지나치게 줄이면 서로 얽힌 토큰을 한꺼번에 뽑다가 어색한 문장이 나옵니다. <em>속도 수치는 항상 “어떤 품질에서?”와 함께</em> 봐야 합니다.</li>
+  <li><strong>벤치마크 점수를 곧이곧대로 믿기.</strong> 디퓨전 모델은 채점 방식(라운드 수·디코딩 설정)에 따라 점수가 출렁입니다. 실제로 “평가 착시(evaluation illusion)”를 지적하는 연구들이 나올 만큼, <em>내 태스크·내 설정으로 다시 재 보는</em> 게 안전합니다.</li>
+  <li><strong>KV 캐시를 AR처럼 당연히 여기기.</strong> 순수 디퓨전엔 그 캐시가 없습니다. 서빙 성능을 논할 땐 그 구현이 <em>block diffusion 기반인지</em>(=캐시를 쓰는지) 먼저 확인하세요. 여기서 처리량이 몇 배씩 갈립니다.</li>
+  <li><strong>고정 길이 함정.</strong> 일부 디퓨전 구현은 생성 길이를 미리 정해 [MASK] 칸을 잡습니다. 너무 짧게 잡으면 답이 잘리고, 너무 길게 잡으면 낭비가 생깁니다. block diffusion처럼 블록 단위로 늘릴 수 있는지 확인하세요.</li>
+  <li><strong>생태계 성숙도.</strong> 도구·파인튜닝 레시피·가드레일은 AR 쪽이 훨씬 두껍습니다. 프로덕션 도입 전 <em>구조적 출력·중단·스트리밍</em> 같은 실무 기능이 갖춰졌는지 점검하세요(vLLM의 dLLM 지원이 이 간극을 빠르게 메우는 중입니다).</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>자기회귀(AR)</strong>는 토큰을 왼쪽부터 <em>한 개씩 순차</em>로 만듭니다 → 길수록 지연이 쌓입니다.</li>
+  <li><strong>디퓨전 LLM(dLLM)</strong>은 답 자리를 전부 <em>[MASK]</em>로 채운 뒤, 여러 라운드에 걸쳐 <em>자신 있는 칸부터 병렬로</em> 또렷하게 만듭니다(masked diffusion, 저신뢰 리마스킹).</li>
+  <li>빠른 이유는 <em>N번의 순차 forward</em>가 <em>T번의 라운드(T ≪ N)</em>로 줄기 때문입니다. Mercury·Gemini Diffusion은 <em>초당 1,000+ 토큰</em>을 보고했습니다.</li>
+  <li>대가는 <strong>속도·품질 손잡이</strong>(라운드 수)입니다. 자신감이 높은 칸만 병렬 확정하면 같은 품질을 더 적은 라운드로 낼 수 있습니다(Fast-dLLM).</li>
+  <li>서빙의 진짜 걸림돌은 <strong>KV 캐시</strong>였고, <strong>block diffusion</strong>(블록 사이는 AR·블록 안은 디퓨전)이 이를 풀어 캐시를 살렸습니다.</li>
+  <li>2026년, vLLM이 <strong>DiffusionGemma</strong>를 정식 지원하며 dLLM이 연구실을 나와 프로덕션으로 들어오고 있습니다.</li>
+  <li>지금은 <em>전면 교체가 아니라 골라 쓰기</em>가 정답입니다. 코드 편집·저지연 툴 응답은 dLLM, 복잡한 장문·추론은 AR.</li>
+</ul>
+
+<h2 id="sec-ref">9. 참고 자료</h2>
+<ul>
+  <li>LLaDA: Large Language Diffusion Models — <a href="https://arxiv.org/abs/2502.09992" target="_blank" rel="noopener">arXiv:2502.09992</a> · <a href="https://github.com/ML-GSAI/LLaDA" target="_blank" rel="noopener">GitHub: ML-GSAI/LLaDA</a></li>
+  <li>Block Diffusion (BD3-LM): Interpolating Between Autoregressive and Diffusion LMs (ICLR 2025) — <a href="https://arxiv.org/abs/2503.09573" target="_blank" rel="noopener">arXiv:2503.09573</a></li>
+  <li>LLaDA 2.0: Scaling Up Diffusion Language Models to 100B — <a href="https://arxiv.org/abs/2512.15745" target="_blank" rel="noopener">arXiv:2512.15745</a></li>
+  <li>A Survey on Diffusion Language Models — <a href="https://arxiv.org/abs/2508.10875" target="_blank" rel="noopener">arXiv:2508.10875</a> · Discrete Diffusion in LLMs/MLLMs: A Survey — <a href="https://arxiv.org/abs/2506.13759" target="_blank" rel="noopener">arXiv:2506.13759</a></li>
+  <li>Beyond Autoregression: Diffusion LLMs for Code Generation — <a href="https://arxiv.org/abs/2509.11252" target="_blank" rel="noopener">arXiv:2509.11252</a></li>
+  <li>FlashDLM: Accelerating dLLM Inference via Efficient KV Caching — <a href="https://arxiv.org/abs/2505.21467" target="_blank" rel="noopener">arXiv:2505.21467</a> · HERALD: High-Throughput Block Diffusion Serving — <a href="https://arxiv.org/abs/2606.21633" target="_blank" rel="noopener">arXiv:2606.21633</a></li>
+  <li>Understanding Evaluation Illusion in Diffusion LLMs — <a href="https://arxiv.org/abs/2606.29228" target="_blank" rel="noopener">arXiv:2606.29228</a></li>
+  <li>DiffusionGemma: The First dLLM Natively Supported in vLLM — <a href="https://vllm-project.github.io/2026/06/10/diffusion-gemma.html" target="_blank" rel="noopener">vLLM Blog (2026-06-10)</a> · <a href="https://github.com/vllm-project/dllm-plugin" target="_blank" rel="noopener">GitHub: vllm-project/dllm-plugin</a></li>
+  <li>Introducing Mercury 2 (Inception Labs) — <a href="https://www.inceptionlabs.ai/blog/introducing-mercury-2" target="_blank" rel="noopener">공식 블로그</a> · <a href="https://www.businesswire.com/news/home/20260224034496/en/Inception-Launches-Mercury-2-the-Fastest-Reasoning-LLM-5x-Faster-Than-Leading-Speed-Optimized-LLMs-with-Dramatically-Lower-Inference-Cost" target="_blank" rel="noopener">BusinessWire</a></li>
+  <li>Deploy Diffusion Language Models (LLaDA 2·Mercury) on GPU Cloud (2026) — <a href="https://www.spheron.network/blog/deploy-diffusion-language-models-dllm-gpu-cloud-2026/" target="_blank" rel="noopener">Spheron</a></li>
+</ul>

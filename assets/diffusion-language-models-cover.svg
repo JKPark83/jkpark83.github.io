@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="디퓨전 LLM(diffusion LLM)이 문장을 만드는 방식을 자기회귀 방식과 나란히 비교한 그림. 왼쪽 '자기회귀(AR)' 패널은 토큰을 왼쪽부터 한 개씩 순서대로 뱉는 모습이고, 오른쪽 '디퓨전' 패널은 문장 전체가 처음엔 [MASK]로 흐릿하게 차 있다가 여러 번의 denoising 라운드를 거치며 자신 있는 칸부터 또렷한 단어로 동시에 채워지는 모습이다. 아래 띠에는 디퓨전 LLM이 토큰을 병렬로 만들어 초당 1,000 토큰을 넘기고, 2026년 vLLM이 디퓨전 모델을 정식 지원하기 시작했다고 적혀 있다.">
+  <defs>
+    <linearGradient id="dl-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#0d1526"/>
+    </linearGradient>
+    <linearGradient id="dl-ar" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/></linearGradient>
+    <linearGradient id="dl-df" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#818cf8"/></linearGradient>
+    <marker id="dl-arrow" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M1,1 L11,6.5 L1,12" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#dl-bg)"/>
+
+  <text x="70" y="84" fill="#e2e8f0" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="46" font-weight="800">Diffusion LLM — 한 글자씩이 아니라 통째로</text>
+  <text x="70" y="126" fill="#94a3b8" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="23" font-weight="600">문장 전체를 &#8220;흐릿하게 그린 뒤 또렷하게 다듬는&#8221; 병렬 생성</text>
+
+  <!-- Left: autoregressive -->
+  <text x="70" y="196" fill="#fbbf24" font-family="system-ui,sans-serif" font-size="22" font-weight="800">자기회귀(AR) · 왼쪽부터 한 개씩</text>
+  <rect x="70" y="214" width="470" height="286" rx="14" fill="#1c1a10" stroke="#d97706" stroke-width="2"/>
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="21" font-weight="700">
+    <rect x="94" y="250" width="86" height="44" rx="8" fill="#3f2d0a"/><text x="137" y="280" fill="#fbbf24" text-anchor="middle">파이썬</text>
+    <rect x="190" y="250" width="60" height="44" rx="8" fill="#3f2d0a"/><text x="220" y="280" fill="#fbbf24" text-anchor="middle">은</text>
+    <rect x="260" y="250" width="86" height="44" rx="8" fill="#241a06" stroke="#7c5410" stroke-dasharray="4 4"/><text x="303" y="280" fill="#8a6d2a" text-anchor="middle">?</text>
+    <rect x="356" y="250" width="86" height="44" rx="8" fill="#241a06" stroke="#7c5410" stroke-dasharray="4 4"/><text x="399" y="280" fill="#8a6d2a" text-anchor="middle">?</text>
+    <rect x="452" y="250" width="60" height="44" rx="8" fill="#241a06" stroke="#7c5410" stroke-dasharray="4 4"/><text x="482" y="280" fill="#8a6d2a" text-anchor="middle">?</text>
+  </g>
+  <path d="M180,340 L455,340" fill="none" stroke="url(#dl-ar)" stroke-width="3" marker-end="url(#dl-arrow)"/>
+  <text x="305" y="332" fill="#e2b866" font-family="system-ui,sans-serif" font-size="16.5" font-weight="700" text-anchor="middle">t1 → t2 → t3 → t4 → t5 (순차)</text>
+  <text x="94" y="392" fill="#cbb184" font-family="system-ui,sans-serif" font-size="17">앞 토큰이 끝나야 다음 토큰 시작</text>
+  <text x="94" y="420" fill="#cbb184" font-family="system-ui,sans-serif" font-size="17">→ 길이에 비례해 지연이 쌓인다</text>
+  <text x="94" y="466" fill="#f0b352" font-family="ui-monospace,monospace" font-size="19" font-weight="700">N토큰 = N번의 forward</text>
+
+  <!-- Right: diffusion -->
+  <text x="620" y="196" fill="#7dd3fc" font-family="system-ui,sans-serif" font-size="22" font-weight="800">디퓨전 · 전부 [MASK]에서 동시에 채운다</text>
+  <rect x="620" y="214" width="510" height="286" rx="14" fill="#0d1826" stroke="#38bdf8" stroke-width="2"/>
+  <g font-family="system-ui,sans-serif" font-size="15" font-weight="700" text-anchor="middle">
+    <!-- round 0: all mask -->
+    <text x="648" y="266" fill="#64748b" font-size="15" text-anchor="start">step 0</text>
+    <g fill="#334155">
+      <rect x="742" y="248" width="66" height="34" rx="6"/><rect x="814" y="248" width="66" height="34" rx="6"/><rect x="886" y="248" width="66" height="34" rx="6"/><rect x="958" y="248" width="66" height="34" rx="6"/><rect x="1030" y="248" width="66" height="34" rx="6"/>
+    </g>
+    <g fill="#94a3b8" font-family="ui-monospace,monospace" font-size="13">
+      <text x="775" y="270">[M]</text><text x="847" y="270">[M]</text><text x="919" y="270">[M]</text><text x="991" y="270">[M]</text><text x="1063" y="270">[M]</text>
+    </g>
+    <!-- round 1: some revealed -->
+    <text x="648" y="330" fill="#64748b" font-size="15" text-anchor="start">step k</text>
+    <rect x="742" y="312" width="66" height="34" rx="6" fill="#164e63"/><text x="775" y="334" fill="#a5f3fc">파이썬</text>
+    <rect x="814" y="312" width="66" height="34" rx="6" fill="#334155"/><text x="847" y="334" fill="#94a3b8" font-family="ui-monospace,monospace" font-size="13">[M]</text>
+    <rect x="886" y="312" width="66" height="34" rx="6" fill="#164e63"/><text x="919" y="334" fill="#a5f3fc">동적</text>
+    <rect x="958" y="312" width="66" height="34" rx="6" fill="#334155"/><text x="991" y="334" fill="#94a3b8" font-family="ui-monospace,monospace" font-size="13">[M]</text>
+    <rect x="1030" y="312" width="66" height="34" rx="6" fill="#164e63"/><text x="1063" y="334" fill="#a5f3fc">언어</text>
+    <!-- round final: all revealed -->
+    <text x="648" y="394" fill="#64748b" font-size="15" text-anchor="start">step T</text>
+    <g fill="#0e7490">
+      <rect x="742" y="376" width="66" height="34" rx="6"/><rect x="814" y="376" width="66" height="34" rx="6"/><rect x="886" y="376" width="66" height="34" rx="6"/><rect x="958" y="376" width="66" height="34" rx="6"/><rect x="1030" y="376" width="66" height="34" rx="6"/>
+    </g>
+    <g fill="#e0f2fe">
+      <text x="775" y="398">파이썬</text><text x="847" y="398">은</text><text x="919" y="398">동적</text><text x="991" y="398">타입</text><text x="1063" y="398">언어</text>
+    </g>
+  </g>
+  <path d="M694,290 L694,462" fill="none" stroke="url(#dl-df)" stroke-width="3" marker-end="url(#dl-arrow)"/>
+  <text x="875" y="446" fill="#7dd3fc" font-family="system-ui,sans-serif" font-size="16.5" font-weight="700" text-anchor="middle">자신 있는 칸부터 병렬로 확정 · 나머지는 다시 [MASK]</text>
+  <text x="875" y="474" fill="#38bdf8" font-family="ui-monospace,monospace" font-size="19" font-weight="700" text-anchor="middle">T번의 forward (T ≪ N) → 훨씬 빠름</text>
+
+  <!-- Bottom band -->
+  <rect x="70" y="528" width="1060" height="66" rx="12" fill="#0b1220" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="96" y="569" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="20" font-weight="600">병렬 생성으로 <tspan fill="#38bdf8" font-weight="800">초당 1,000+ 토큰</tspan> · 코드/편집(infilling)에 강점 · <tspan fill="#4ade80" font-weight="800">2026년 vLLM 정식 지원(DiffusionGemma)</tspan>으로 연구 → 프로덕션 진입</text>
+</svg>

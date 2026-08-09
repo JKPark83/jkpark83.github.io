@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 480" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="오늘의 AI 변화 지도: 에이전트 실패 디버깅과 하네스 최적화를 축으로 TrajDebug, HarnessOpt-Bench, AgentDebug, 실패 귀인 벤치, Claude Code 릴리스, Codex 연결">
+  <rect width="820" height="480" fill="#0f172a"/>
+  <text x="410" y="34" text-anchor="middle" fill="#f1f5f9" font-size="20" font-weight="700">오늘의 AI 변화 지도</text>
+  <text x="410" y="56" text-anchor="middle" fill="#94a3b8" font-size="13">중심축 = "에이전트 실패 디버깅 × 하네스(harness) 최적화"</text>
+
+  <g stroke="#334155" stroke-width="1.6">
+    <line x1="410" y1="245" x2="180" y2="150"/>
+    <line x1="410" y1="245" x2="640" y2="150"/>
+    <line x1="410" y1="245" x2="180" y2="350"/>
+    <line x1="410" y1="245" x2="640" y2="350"/>
+  </g>
+
+  <!-- center -->
+  <circle cx="410" cy="245" r="60" fill="#1e293b" stroke="#fcd34d" stroke-width="2"/>
+  <text x="410" y="240" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">에이전트</text>
+  <text x="410" y="258" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">실패 디버깅</text>
+
+  <!-- papers (top-left, purple) -->
+  <rect x="52" y="90" width="256" height="104" rx="10" fill="#3b0764"/>
+  <text x="68" y="112" fill="#e9d5ff" font-size="13" font-weight="700">📚 논문</text>
+  <text x="68" y="133" fill="#d8b4fe" font-size="12">TrajDebug — 오류 생애주기 추적</text>
+  <text x="68" y="151" fill="#d8b4fe" font-size="12">2608.06346 · TrajErrBench 486</text>
+  <text x="68" y="175" fill="#d8b4fe" font-size="12">HarnessOpt-Bench 2608.06301</text>
+
+  <!-- models/releases (top-right, blue) -->
+  <rect x="512" y="90" width="256" height="104" rx="10" fill="#0c4a6e"/>
+  <text x="528" y="112" fill="#bae6fd" font-size="13" font-weight="700">🤖 릴리스 레이더</text>
+  <text x="528" y="133" fill="#7dd3fc" font-size="12">Claude Code v2.1.224~226</text>
+  <text x="528" y="151" fill="#7dd3fc" font-size="12">셀프호스트 러너·크로스세션</text>
+  <text x="528" y="175" fill="#7dd3fc" font-size="12">Codex 0.148 alpha (0.147 stable)</text>
+
+  <!-- repos (bottom-left, green) -->
+  <rect x="52" y="300" width="256" height="104" rx="10" fill="#064e3b"/>
+  <text x="68" y="322" fill="#a7f3d0" font-size="13" font-weight="700">🛠 오픈소스</text>
+  <text x="68" y="343" fill="#6ee7b7" font-size="12">ulab-uiuc/AgentDebug</text>
+  <text x="68" y="361" fill="#6ee7b7" font-size="12">17 오류 타입 · 5 모듈 분류</text>
+  <text x="68" y="385" fill="#6ee7b7" font-size="12">ag2ai/Agents_Failure_Attribution</text>
+
+  <!-- tips (bottom-right, amber) -->
+  <rect x="512" y="300" width="256" height="104" rx="10" fill="#78350f"/>
+  <text x="528" y="322" fill="#fde68a" font-size="13" font-weight="700">🧑‍💻 실전 팁</text>
+  <text x="528" y="343" fill="#fcd34d" font-size="12">🟩 AGENTS.md = 하네스 튜닝</text>
+  <text x="528" y="361" fill="#fcd34d" font-size="12">🟦 서브에이전트로 실패 귀인</text>
+  <text x="528" y="385" fill="#fcd34d" font-size="12">🟪 17-오류 라벨을 eval에</text>
+
+  <text x="410" y="448" text-anchor="middle" fill="#64748b" font-size="12">공통 실무 신호: "왜 실패했나"를 자동으로 짚고, 그 주변 하네스를 반복 개선한다</text>
+  <text x="410" y="468" text-anchor="middle" fill="#475569" font-size="11">생성: 자체 제작 SVG · 값 출처는 본문 링크 참조</text>
+</svg>

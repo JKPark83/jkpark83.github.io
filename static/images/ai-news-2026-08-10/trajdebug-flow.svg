@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 430" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="TrajDebug 방법 다이어그램: 긴 실패 트래젝토리를 다중 그래뉼래러티로 압축하고 증거 기반으로 오류를 식별한 뒤 각 오류의 해소 상태와 최종 영향을 추적해 결정적 실패 단계와 실행 가능한 피드백을 산출">
+  <rect width="820" height="430" fill="#0f172a"/>
+  <text x="410" y="34" text-anchor="middle" fill="#f1f5f9" font-size="19" font-weight="700">TrajDebug — 오류 생애주기 추적(error-lifecycle tracing)</text>
+  <text x="410" y="56" text-anchor="middle" fill="#94a3b8" font-size="12">긴 실패 트래젝토리에서 "최종 실패를 책임지는 가장 이른 단계"를 찾는다 (arXiv 2608.06346)</text>
+
+  <!-- step 1 -->
+  <rect x="30" y="92" width="170" height="150" rx="10" fill="#1e293b" stroke="#475569"/>
+  <text x="115" y="118" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="700">① 긴 트래젝토리</text>
+  <text x="115" y="146" text-anchor="middle" fill="#cbd5e1" font-size="11">지시·관찰·이전</text>
+  <text x="115" y="163" text-anchor="middle" fill="#cbd5e1" font-size="11">컨텍스트가 흩어짐</text>
+  <text x="115" y="190" text-anchor="middle" fill="#94a3b8" font-size="11">국소 오류 여러 개,</text>
+  <text x="115" y="207" text-anchor="middle" fill="#94a3b8" font-size="11">일부만 최종 실패에</text>
+  <text x="115" y="224" text-anchor="middle" fill="#94a3b8" font-size="11">책임 있음</text>
+
+  <!-- step 2 -->
+  <rect x="230" y="92" width="170" height="150" rx="10" fill="#3b0764" stroke="#7c3aed"/>
+  <text x="315" y="118" text-anchor="middle" fill="#e9d5ff" font-size="13" font-weight="700">② 다중 그래뉼</text>
+  <text x="315" y="135" text-anchor="middle" fill="#e9d5ff" font-size="13" font-weight="700">히스토리 압축</text>
+  <text x="315" y="164" text-anchor="middle" fill="#d8b4fe" font-size="11">먼 단계의 증거를</text>
+  <text x="315" y="181" text-anchor="middle" fill="#d8b4fe" font-size="11">한 단계 판정에</text>
+  <text x="315" y="198" text-anchor="middle" fill="#d8b4fe" font-size="11">모아 잡음 제거</text>
+
+  <!-- step 3 -->
+  <rect x="430" y="92" width="170" height="150" rx="10" fill="#0c4a6e" stroke="#0ea5e9"/>
+  <text x="515" y="118" text-anchor="middle" fill="#bae6fd" font-size="13" font-weight="700">③ 증거 기반</text>
+  <text x="515" y="135" text-anchor="middle" fill="#bae6fd" font-size="13" font-weight="700">오류 식별</text>
+  <text x="515" y="164" text-anchor="middle" fill="#7dd3fc" font-size="11">각 단계가 오류인지</text>
+  <text x="515" y="181" text-anchor="middle" fill="#7dd3fc" font-size="11">근거를 붙여 판정</text>
+
+  <!-- step 4 -->
+  <rect x="630" y="92" width="170" height="150" rx="10" fill="#064e3b" stroke="#10b981"/>
+  <text x="715" y="118" text-anchor="middle" fill="#a7f3d0" font-size="13" font-weight="700">④ 생애주기 추적</text>
+  <text x="715" y="146" text-anchor="middle" fill="#6ee7b7" font-size="11">오류별 해소 상태</text>
+  <text x="715" y="163" text-anchor="middle" fill="#6ee7b7" font-size="11">(고쳐졌나?) +</text>
+  <text x="715" y="186" text-anchor="middle" fill="#6ee7b7" font-size="11">최종 영향(terminal</text>
+  <text x="715" y="203" text-anchor="middle" fill="#6ee7b7" font-size="11">impact) 귀인</text>
+
+  <!-- arrows -->
+  <g fill="#64748b">
+    <polygon points="200,167 224,159 224,175"/>
+    <polygon points="400,167 424,159 424,175"/>
+    <polygon points="600,167 624,159 624,175"/>
+  </g>
+
+  <!-- output -->
+  <rect x="150" y="288" width="520" height="66" rx="10" fill="#78350f" stroke="#f59e0b"/>
+  <text x="410" y="316" text-anchor="middle" fill="#fde68a" font-size="14" font-weight="700">🎯 산출: 결정적 실패 단계 + 실행 가능한 개선 피드백</text>
+  <text x="410" y="338" text-anchor="middle" fill="#fcd34d" font-size="11">벤치마크 TrajErrBench = Tau2Bench·SWE-Bench Pro의 수동 주석 실패 트래젝토리 486개</text>
+
+  <line x1="410" y1="242" x2="410" y2="286" stroke="#64748b" stroke-width="1.6"/>
+  <polygon points="410,288 402,266 418,266" fill="#64748b"/>
+
+  <text x="410" y="392" text-anchor="middle" fill="#94a3b8" font-size="11">실험: 다양한 에이전트 벤치에서 기존 베이스라인 대비 전체 성능 최고 — 진단이 다운스트림 성공률을 실제로 끌어올림</text>
+  <text x="410" y="416" text-anchor="middle" fill="#475569" font-size="11">생성: 자체 제작 SVG · 출처 arXiv 2608.06346 (2026-08-06)</text>
+</svg>

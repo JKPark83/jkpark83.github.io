@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 400" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="오픈소스 비교: AgentDebug는 오류 분류·근본원인 격리·교정 피드백에 강하고, Agents_Failure_Attribution은 멀티에이전트 자동 실패 귀인 벤치마크로 평가에 강함">
+  <rect width="820" height="400" fill="#0f172a"/>
+  <text x="410" y="34" text-anchor="middle" fill="#f1f5f9" font-size="19" font-weight="700">오픈소스 비교 — 에이전트 실패를 어떻게 다루나</text>
+  <text x="410" y="55" text-anchor="middle" fill="#94a3b8" font-size="12">둘 다 Python · GitHub star는 이번 세션에서 API로 검증 불가(egress 차단) → 정확 수치 생략</text>
+
+  <!-- card A -->
+  <rect x="40" y="78" width="350" height="272" rx="12" fill="#064e3b" stroke="#10b981" stroke-width="1.5"/>
+  <text x="60" y="106" fill="#a7f3d0" font-size="15" font-weight="700">ulab-uiuc/AgentDebug</text>
+  <text x="60" y="128" fill="#6ee7b7" font-size="12">진단 + 복구 프레임워크 (arXiv 2509.25370)</text>
+  <line x1="60" y1="140" x2="370" y2="140" stroke="#065f46"/>
+  <text x="60" y="164" fill="#d1fae5" font-size="12">• AgentErrorTaxonomy: 17개 오류 타입</text>
+  <text x="60" y="185" fill="#d1fae5" font-size="12">  / 5개 모듈(메모리·리플렉션·플래닝</text>
+  <text x="60" y="203" fill="#d1fae5" font-size="12">  ·액션·시스템)</text>
+  <text x="60" y="227" fill="#d1fae5" font-size="12">• 2단계 파이프라인: 근본원인 격리</text>
+  <text x="60" y="245" fill="#d1fae5" font-size="12">  → 교정 피드백 생성</text>
+  <text x="60" y="269" fill="#d1fae5" font-size="12">• all-correct +24%, step +17% (vs 최강</text>
+  <text x="60" y="287" fill="#d1fae5" font-size="12">  베이스라인), 복구로 성공률 최대 +26%</text>
+  <text x="60" y="315" fill="#6ee7b7" font-size="12" font-weight="700">쓸모: 실패 로그의 "어디서·왜"를 자동 진단</text>
+  <text x="60" y="333" fill="#6ee7b7" font-size="12">벤치: ALFWorld·GAIA·WebShop</text>
+
+  <!-- card B -->
+  <rect x="430" y="78" width="350" height="272" rx="12" fill="#3b0764" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="450" y="106" fill="#e9d5ff" font-size="15" font-weight="700">ag2ai/Agents_Failure_Attribution</text>
+  <text x="450" y="128" fill="#d8b4fe" font-size="12">ICML 2025 Spotlight 벤치마크</text>
+  <line x1="450" y1="140" x2="760" y2="140" stroke="#581c87"/>
+  <text x="450" y="164" fill="#f3e8ff" font-size="12">• 멀티에이전트 시스템의 "자동 실패</text>
+  <text x="450" y="182" fill="#f3e8ff" font-size="12">  귀인(failure attribution)" 태스크 정의</text>
+  <text x="450" y="206" fill="#f3e8ff" font-size="12">• 실패 트래젝토리에서 책임 에이전트·</text>
+  <text x="450" y="224" fill="#f3e8ff" font-size="12">  단계를 지목하는 방법 비교</text>
+  <text x="450" y="248" fill="#f3e8ff" font-size="12">• 초기·표준 벤치라 평가 기준선으로 적합</text>
+  <text x="450" y="315" fill="#d8b4fe" font-size="12" font-weight="700">쓸모: 내 귀인 로직을 표준 벤치로 채점</text>
+  <text x="450" y="333" fill="#d8b4fe" font-size="12">멀티에이전트 디버깅 연구의 출발점</text>
+
+  <text x="410" y="384" text-anchor="middle" fill="#475569" font-size="11">생성: 자체 제작 SVG · 설명 출처는 본문 링크 · star 수치는 미표기(검증 불가)</text>
+</svg>

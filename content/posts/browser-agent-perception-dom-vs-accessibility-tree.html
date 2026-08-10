@@ -1,0 +1,384 @@
+---
+title: "브라우저 에이전트는 화면을 어떻게 볼까: 스크린샷·DOM·접근성 트리, 무엇으로 읽어야 하나"
+date: 2026-08-11T07:30:00+09:00
+draft: false
+tags: ["AI", "browser agent", "computer use", "accessibility tree", "DOM", "Playwright CLI", "grounding", "OSWorld", "Project Mariner", "Operator", "브라우저 에이전트", "컴퓨터 유즈", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트에게 '항공권 예약해줘'라고 시키려면, 먼저 에이전트가 웹 페이지를 읽을 수 있어야 합니다. 그런데 '읽는' 방법이 셋이나 됩니다. 화면을 통째로 캡처하는 스크린샷, HTML을 다 넘기는 전체 DOM, 그리고 버튼·입력창의 역할·이름·상태만 추려주는 접근성 트리(accessibility tree)입니다. 이 선택 하나가 토큰 비용을 100배, 지연을 10배까지 벌려 놓고, 에이전트가 엉뚱한 곳을 클릭하는 사고의 대부분도 여기서 갈립니다. 2026년 8월 9일 OpenAI가 ChatGPT Atlas 브라우저를 접고 에이전트를 원격 클라우드 브라우저로 옮기면서, 그리고 Microsoft가 토큰을 4배 아끼는 Playwright CLI를 코딩 에이전트용으로 내놓으면서 '무엇으로 화면을 읽을 것인가'가 다시 뜨거운 실무 주제가 됐습니다. 이 글은 세 가지 눈의 원리와 비용, 스크린샷 에이전트가 무너지는 '그라운딩' 문제, 접근성 트리로 실제 클릭 루프를 돌리는 법, 그리고 하이브리드 설계와 흔한 함정까지 junior 개발자 눈높이로 정리합니다."
+ShowToc: false
+cover:
+  image: "browser-agent-perception-dom-vs-accessibility-tree-cover.svg"
+  alt: "브라우저 에이전트가 같은 웹 페이지를 읽는 세 가지 방식을 나란히 비교한 그림. 왼쪽 '① 스크린샷' 패널은 렌더링된 화면 이미지를 보고 버튼 좌표를 찍는 방식으로 이미지가 수천 토큰이 든다고 적혀 있다. 가운데 '② 전체 DOM' 패널은 광고와 스크립트까지 뒤섞인 원본 HTML을 통째로 넘겨 10만 토큰을 넘긴다. 오른쪽 '③ 접근성 트리' 패널은 button '로그인' [e21], textbox '이메일' [e22]처럼 역할·이름·상태만 추려 수백 토큰으로 줄인다. 아래에는 perceive→decide→act 루프에서 무엇으로 읽느냐가 비용과 신뢰성을 결정한다고 적혀 있다."
+  caption: "같은 페이지라도 스크린샷·전체 DOM·접근성 트리 중 무엇으로 읽느냐에 따라 토큰 비용이 100배까지 벌어진다."
+  relative: false
+---
+
+<style>
+/* ── 브라우저 에이전트 지각(perception) 포스트 전용 스타일 (bap- 접두사) ── */
+.bap-fig{
+  --bap-sky:#0284c7; --bap-amber:#d97706; --bap-green:#16a34a; --bap-rose:#e11d48;
+  --bap-slate:#64748b; --bap-violet:#7c3aed; --bap-teal:#0d9488; --bap-blue:#2563eb;
+  --bap-grid:#cbd5e1;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .bap-fig{
+  --bap-sky:#38bdf8; --bap-amber:#fbbf24; --bap-green:#4ade80; --bap-rose:#fb7185;
+  --bap-slate:#94a3b8; --bap-violet:#a78bfa; --bap-teal:#2dd4bf; --bap-blue:#60a5fa;
+  --bap-grid:#334155;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .bap-fig{
+    --bap-sky:#38bdf8; --bap-amber:#fbbf24; --bap-green:#4ade80; --bap-rose:#fb7185;
+    --bap-slate:#94a3b8; --bap-violet:#a78bfa; --bap-teal:#2dd4bf; --bap-blue:#60a5fa;
+    --bap-grid:#334155;
+  }
+}
+.bap-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.bap-fig text{font-family:inherit}
+.bap-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.bap-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.bap-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.bap-toc ol{margin:0;padding-left:1.25rem}
+.bap-toc li{margin:.22rem 0;font-size:.95rem}
+.bap-toc a{text-decoration:none}
+.bap-toc a:hover{text-decoration:underline}
+.bap-pull{font-size:1.12rem;line-height:1.72}
+.bap-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.bap-note{border-left:4px solid var(--bap-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.bap-note strong{color:var(--bap-blue,#2563eb)}
+.bap-warn{border-left:4px solid var(--bap-rose,#e11d48)}
+.bap-warn strong{color:var(--bap-rose,#e11d48)}
+.bap-good{border-left:4px solid var(--bap-teal,#0d9488)}
+.bap-good strong{color:var(--bap-teal,#0d9488)}
+.bap-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.bap-tbl th,.bap-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.bap-tbl th{background:var(--entry);font-weight:700}
+.bap-tbl code{font-size:.86em}
+.bap-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="bap-pull">
+  <p>사람은 웹사이트를 '눈'으로 봅니다. 버튼이 파랗고 오른쪽 위에 있으니 로그인이라고 알죠. 그런데 에이전트에게 화면을 '눈으로 보라'고 시키는 건, 생각보다 비싸고 자주 틀리는 선택입니다.</p>
+  <footer>— 브라우저 에이전트의 성패는 모델 실력보다 '무엇으로 페이지를 읽게 하느냐'에서 먼저 갈립니다.</footer>
+</blockquote>
+
+<nav class="bap-toc" aria-label="목차">
+  <div class="bap-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 '에이전트의 눈'이 다시 화제인가</a></li>
+    <li><a href="#sec-2">배경 — 브라우저 에이전트의 perceive→decide→act 루프</a></li>
+    <li><a href="#sec-3">세 가지 눈: 스크린샷 · 전체 DOM · 접근성 트리</a></li>
+    <li><a href="#sec-4">접근성 트리가 대체 뭔데</a></li>
+    <li><a href="#sec-5">스크린샷 에이전트가 무너지는 지점: 그라운딩</a></li>
+    <li><a href="#sec-6">실전 — 접근성 트리로 클릭 루프 돌리기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 '에이전트의 눈'이 다시 화제인가</h2>
+
+<p>이번 주 AI 엔지니어링 타임라인을 흔든 소식 하나. 2026년 8월 9일, OpenAI가 자체 AI 브라우저 <strong>ChatGPT Atlas</strong>를 출시 9개월 만에 접었습니다. 흥미로운 건 그 뒤 처리 방식입니다. 페이지 요약은 크롬 확장으로, 로그인·다운로드는 데스크톱 앱으로 흩어졌지만, <em>대신 일을 처리하는 에이전트는 OpenAI 서버의 '원격 클라우드 브라우저'로 옮겨</em> 갔습니다. "사용자에게 새 브라우저로 갈아타라고 하는 것보다, 이미 쓰는 도구에 AI 브라우징을 심는 게 낫다"는 결론이었죠.</p>
+
+<p>비슷한 시기 Microsoft는 코딩 에이전트(Claude Code, Cursor, Copilot 등) 전용으로 <strong>Playwright CLI</strong>(<code>@playwright/cli</code>)를 밀고 있습니다. 핵심 세일즈 포인트가 딱 하나입니다. 기존 Playwright MCP보다 같은 작업에 <strong>토큰을 약 4배 덜 쓴다</strong>는 것. 어떻게? 페이지를 통째로 넘기는 대신, 요소마다 <code>e21</code>·<code>e35</code> 같은 짧은 참조(reference)만 오가게 만들어서요.</p>
+
+<p>두 소식은 방향이 같습니다. 브라우저 에이전트 경쟁의 무게중심이 "어떤 모델이 똑똑한가"에서 <strong>"페이지를 무엇으로, 얼마나 싸게 읽고 정확히 누를 것인가"</strong>로 옮겨 가고 있다는 것. 이 글은 바로 그 지각(perception) 계층을 다룹니다. 결론부터 말하면, 같은 페이지라도 무엇으로 읽느냐에 따라 <strong>토큰이 100배, 지연이 10배</strong>까지 벌어지고, 에이전트가 엉뚱한 버튼을 누르는 사고의 상당수도 여기서 시작됩니다.</p>
+
+<div class="bap-note"><strong>용어 정리.</strong> 이 글의 '브라우저 에이전트(browser agent)'는 웹 페이지를 스스로 읽고 클릭·입력해 일을 끝내는 에이전트를, '컴퓨터 유즈(computer use)'는 브라우저를 넘어 운영체제 화면 전체를 조작하는 더 넓은 개념을 뜻합니다. 화면을 읽는 원리는 둘이 거의 같아서, 여기서는 웹을 예로 설명합니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 브라우저 에이전트의 perceive→decide→act 루프</h2>
+
+<p>브라우저 에이전트는 사실 단순한 반복문입니다. <strong>본다(perceive) → 정한다(decide) → 누른다(act)</strong>, 그리고 다시 봅니다. 목표를 이룰 때까지 이 루프를 돕니다.</p>
+
+<ul>
+  <li><strong>perceive</strong>: 지금 페이지 상태를 모델이 이해할 수 있는 형태로 만든다. ← 이 글의 주제</li>
+  <li><strong>decide</strong>: "로그인 버튼을 누르자" 같은 다음 행동을 LLM이 고른다.</li>
+  <li><strong>act</strong>: 실제로 클릭·타이핑·스크롤을 실행하고, 페이지가 바뀌면 다시 perceive로.</li>
+</ul>
+
+<p>여기서 초보가 놓치기 쉬운 사실. 이 루프는 <strong>매 스텝마다 페이지를 다시 읽습니다.</strong> 로그인 폼 하나 채우는 데도 대여섯 번은 돌죠. 그러니 perceive 한 번의 비용이 곧 전체 비용에 그 횟수만큼 곱해집니다. "한 번 읽는 데 얼마냐"가 사소해 보여도, 전체 작업에서는 결정적입니다.</p>
+
+<figure class="bap-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="브라우저 에이전트의 perceive, decide, act 루프를 나타낸 순환 다이어그램. 페이지를 지각하고, LLM이 다음 행동을 정하고, 클릭이나 입력을 실행한 뒤, 바뀐 페이지를 다시 지각하는 과정이 화살표로 이어지며 매 스텝마다 지각 비용이 반복해서 든다는 점을 강조한다.">
+  <rect x="0" y="0" width="760" height="300" fill="none"/>
+  <!-- perceive -->
+  <rect x="40" y="110" width="180" height="80" rx="14" fill="var(--bap-sky)" opacity="0.16" stroke="var(--bap-sky)" stroke-width="2"/>
+  <text x="130" y="145" text-anchor="middle" font-size="19" font-weight="800" fill="var(--bap-sky)">perceive</text>
+  <text x="130" y="170" text-anchor="middle" font-size="13" fill="var(--bap-slate)">페이지를 읽는다</text>
+  <!-- decide -->
+  <rect x="290" y="40" width="180" height="80" rx="14" fill="var(--bap-violet)" opacity="0.16" stroke="var(--bap-violet)" stroke-width="2"/>
+  <text x="380" y="75" text-anchor="middle" font-size="19" font-weight="800" fill="var(--bap-violet)">decide</text>
+  <text x="380" y="100" text-anchor="middle" font-size="13" fill="var(--bap-slate)">LLM이 다음 행동 선택</text>
+  <!-- act -->
+  <rect x="540" y="110" width="180" height="80" rx="14" fill="var(--bap-teal)" opacity="0.16" stroke="var(--bap-teal)" stroke-width="2"/>
+  <text x="630" y="145" text-anchor="middle" font-size="19" font-weight="800" fill="var(--bap-teal)">act</text>
+  <text x="630" y="170" text-anchor="middle" font-size="13" fill="var(--bap-slate)">클릭 · 입력 · 스크롤</text>
+  <!-- arrows -->
+  <defs><marker id="bap-arr" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--bap-slate)"/></marker></defs>
+  <path d="M215,130 Q270,90 300,90" fill="none" stroke="var(--bap-slate)" stroke-width="2.2" marker-end="url(#bap-arr)"/>
+  <path d="M460,90 Q520,90 545,130" fill="none" stroke="var(--bap-slate)" stroke-width="2.2" marker-end="url(#bap-arr)"/>
+  <path d="M540,175 Q380,265 220,175" fill="none" stroke="var(--bap-slate)" stroke-width="2.2" stroke-dasharray="6 5" marker-end="url(#bap-arr)"/>
+  <text x="380" y="255" text-anchor="middle" font-size="13" fill="var(--bap-rose)" font-weight="700">페이지가 바뀌면 다시 읽는다 (비용 × 반복 횟수)</text>
+</svg>
+<figcaption>루프는 매 스텝마다 다시 perceive한다. 그래서 '한 번 읽는 비용'이 전체 작업에서 반복 횟수만큼 곱해진다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 세 가지 눈: 스크린샷 · 전체 DOM · 접근성 트리</h2>
+
+<p>페이지를 모델에게 넘기는 방법은 크게 셋입니다. 각각 장단이 뚜렷합니다.</p>
+
+<h3>① 스크린샷(screenshot) — 픽셀을 본다</h3>
+<p>렌더링된 화면을 이미지로 캡처해 멀티모달 모델에게 넘깁니다. Anthropic Computer Use, OpenAI Operator(현재는 ChatGPT 에이전트 모드), Google Project Mariner 같은 소비자용 제품이 이 방식입니다. 사람이 보는 것과 똑같은 화면을 보니 <strong>범용성이 최고</strong>입니다. 캔버스로 그린 UI든, 게임 화면이든, 운영체제 창이든 가리지 않죠. 대신 이미지 한 장이 <strong>수천 토큰</strong>을 먹고, "저 버튼이 화면 어디 좌표에 있나"를 모델이 눈대중으로 맞혀야 합니다(뒤에서 다룰 그라운딩 문제).</p>
+
+<h3>② 전체 DOM(full DOM) — HTML을 통째로 넘긴다</h3>
+<p>브라우저가 들고 있는 원본 HTML 트리를 문자열로 직렬화해 넘깁니다. 정확한 구조가 다 담기지만, 광고·추적 스크립트·인라인 스타일·난독화된 클래스명까지 전부 딸려 옵니다. 콘텐츠가 많은 페이지는 필터를 안 하면 직렬화 결과가 <strong>10만 토큰을 넘기기</strong> 일쑤라, 실무에서 날것 그대로 쓰긴 어렵습니다. 신호 대 잡음비가 나쁩니다.</p>
+
+<h3>③ 접근성 트리(accessibility tree) — 의미만 추린다</h3>
+<p>브라우저가 스크린리더(시각장애인용 화면 읽기 도구)를 위해 원래부터 만들어 두는 <strong>의미 중심의 요약 트리</strong>입니다. 버튼·입력창·링크 같은 상호작용 요소의 <strong>역할(role)·이름(name)·상태(state)</strong>만 남기고 시각적 잡음은 버립니다. 그래서 같은 페이지가 보통 <strong>수백 토큰</strong>으로 줄고, "이건 로그인 버튼"이라는 의미가 이미 붙어 있어 모델이 좌표를 눈대중할 필요도 없습니다. 최근 업계가 브라우저 에이전트의 1차 인터페이스로 수렴하는 방식이 바로 이겁니다.</p>
+
+<figure class="bap-fig">
+<svg viewBox="0 0 760 320" role="img" aria-label="같은 로그인 페이지를 스크린샷, 전체 DOM, 접근성 트리로 읽었을 때의 대략적인 토큰 비용을 막대로 비교한 그래프. 스크린샷은 이미지로 수천 토큰, 전체 DOM은 10만 토큰 이상, 접근성 트리는 수백 토큰 규모로, 접근성 트리가 압도적으로 작다.">
+  <rect x="0" y="0" width="760" height="320" fill="none"/>
+  <text x="380" y="30" text-anchor="middle" font-size="16" font-weight="800" fill="var(--bap-slate)">같은 페이지, 지각 방식별 대략적 토큰 규모 (로그 스케일 느낌)</text>
+  <!-- baseline -->
+  <line x1="120" y1="250" x2="700" y2="250" stroke="var(--bap-grid)" stroke-width="1.5"/>
+  <!-- bars -->
+  <!-- screenshot -->
+  <rect x="160" y="150" width="120" height="100" rx="6" fill="var(--bap-rose)" opacity="0.85"/>
+  <text x="220" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="var(--bap-rose)">~수천</text>
+  <text x="220" y="272" text-anchor="middle" font-size="14" fill="var(--bap-slate)">① 스크린샷</text>
+  <text x="220" y="292" text-anchor="middle" font-size="11.5" fill="var(--bap-slate)">이미지 토큰</text>
+  <!-- dom -->
+  <rect x="340" y="70" width="120" height="180" rx="6" fill="var(--bap-amber)" opacity="0.85"/>
+  <text x="400" y="60" text-anchor="middle" font-size="15" font-weight="800" fill="var(--bap-amber)">10만+</text>
+  <text x="400" y="272" text-anchor="middle" font-size="14" fill="var(--bap-slate)">② 전체 DOM</text>
+  <text x="400" y="292" text-anchor="middle" font-size="11.5" fill="var(--bap-slate)">잡음 포함</text>
+  <!-- a11y -->
+  <rect x="520" y="222" width="120" height="28" rx="6" fill="var(--bap-green)"/>
+  <text x="580" y="212" text-anchor="middle" font-size="15" font-weight="800" fill="var(--bap-green)">~수백</text>
+  <text x="580" y="272" text-anchor="middle" font-size="14" fill="var(--bap-slate)">③ 접근성 트리</text>
+  <text x="580" y="292" text-anchor="middle" font-size="11.5" fill="var(--bap-slate)">의미만 추림</text>
+</svg>
+<figcaption>수치는 페이지·필터에 따라 크게 달라지는 대략치다. 방향은 뚜렷하다 — 접근성 트리가 압도적으로 작고, 매 스텝 반복되므로 격차는 더 벌어진다.</figcaption>
+</figure>
+
+<div class="bap-tblwrap">
+<table class="bap-tbl">
+  <thead><tr><th>방식</th><th>토큰(대략)</th><th>강점</th><th>약점</th><th>대표 사례</th></tr></thead>
+  <tbody>
+    <tr><td><strong>스크린샷</strong></td><td>이미지=수천</td><td>어떤 화면이든 범용(캔버스·게임·OS)</td><td>비싸고, 좌표 그라운딩이 자주 틀림</td><td>Claude Computer Use, Operator, Project Mariner</td></tr>
+    <tr><td><strong>전체 DOM</strong></td><td>10만+</td><td>구조가 정확히 다 담김</td><td>잡음 폭발, 컨텍스트 초과</td><td>초창기 스크립트형 자동화</td></tr>
+    <tr><td><strong>접근성 트리</strong></td><td>수백</td><td>싸고, 의미(역할·이름)가 이미 붙음</td><td>canvas·비시맨틱 UI엔 안 보임</td><td>Playwright CLI, 접근성-우선 프레임워크</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="bap-note"><strong>왜 셋 다 안 죽고 공존할까?</strong> 스크린샷은 접근성 트리에 안 잡히는 화면(캔버스로 그린 차트, 이미지 버튼)까지 볼 수 있어 최후의 보루입니다. 그래서 요즘 잘 만든 에이전트는 하나만 고르지 않고 <strong>기본은 접근성 트리, 막히면 스크린샷 폴백</strong>으로 섞습니다(6절 하이브리드).</p></div>
+
+<h2 id="sec-4">4. 접근성 트리가 대체 뭔데</h2>
+
+<p>접근성 트리는 새로 만드는 게 아닙니다. 브라우저가 이미 <strong>스크린리더를 위해</strong> DOM에서 뽑아 두는 병렬 구조입니다. 원리는 이렇습니다. DOM을 훑으면서 "사람이 상호작용할 의미가 있는" 노드만 남기고, 각 노드에 세 가지를 붙입니다.</p>
+
+<ul>
+  <li><strong>role(역할)</strong>: button, textbox, link, checkbox, dialog… "이게 무엇인가"</li>
+  <li><strong>name(이름)</strong>: "로그인", "이메일 주소"… 보이는 라벨이나 <code>aria-label</code>에서 온다</li>
+  <li><strong>state(상태)</strong>: checked, disabled, expanded, hidden… "지금 어떤 상태인가"</li>
+</ul>
+
+<p>그래서 어지러운 <code>&lt;div class="x9f2"&gt;</code> 더미가 <code>button "로그인"</code> 한 줄로 정리됩니다. 아래는 같은 로그인 폼을 전체 DOM과 접근성 트리로 봤을 때의 차이입니다.</p>
+
+<p><strong>전체 DOM (잡음 포함, 일부):</strong></p>
+
+{{< highlight html >}}
+<div class="_9fx2 c-wrap" data-testid="q1">
+  <div class="c-field"><span class="lbl-i18n">이메일</span>
+    <input type="email" class="in _kk3" autocomplete="username" name="u"/>
+  </div>
+  <svg viewBox="0 0 24 24"><path d="M4 4h16..."/></svg>
+  <div class="ad-slot" id="gpt-ad-3"></div>
+  <button class="btn _pri _lg" data-evt="submit">로그인</button>
+  <script>window.__CFG={a:1,b:2}</script>
+</div>
+{{< /highlight >}}
+
+<p><strong>접근성 트리 (의미만, 요소 참조 부여):</strong></p>
+
+{{< highlight text >}}
+textbox "이메일"   [ref=e22]  autocomplete=username
+button  "로그인"   [ref=e21]
+# 광고 슬롯·svg 아이콘·script는 상호작용 의미가 없어 빠짐
+{{< /highlight >}}
+
+<p>차이가 보이시나요? 잡음이 사라졌을 뿐 아니라, 각 요소에 <code>e21</code> 같은 <strong>안정적인 참조(ref)</strong>가 붙습니다. 이게 Playwright CLI가 토큰을 아끼는 비결입니다. 페이지 전체를 매번 다시 넘기는 대신, "그 폼의 <code>e21</code>을 눌러"처럼 <strong>짧은 참조만</strong> 주고받으면 되니까요. 브라우저 상태는 바깥(CLI 프로세스)에 두고, 모델 컨텍스트로는 최소한의 구조화된 정보만 오갑니다.</p>
+
+<figure class="bap-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="브라우저가 DOM에서 접근성 트리를 뽑아내는 과정을 나타낸 그림. 왼쪽의 잡음 많은 DOM 노드들 중 상호작용 의미가 있는 요소만 걸러져 오른쪽 접근성 트리로 가고, 각 요소에 역할·이름·상태와 e21 같은 참조가 붙는다.">
+  <rect x="0" y="0" width="760" height="300" fill="none"/>
+  <!-- DOM box -->
+  <rect x="30" y="50" width="250" height="210" rx="12" fill="var(--bap-amber)" opacity="0.12" stroke="var(--bap-amber)" stroke-width="2"/>
+  <text x="155" y="78" text-anchor="middle" font-size="15" font-weight="800" fill="var(--bap-amber)">원본 DOM</text>
+  <g font-family="ui-monospace,monospace" font-size="12" fill="var(--bap-slate)">
+    <text x="50" y="110">div.c-wrap</text>
+    <text x="65" y="132">input[email] ✔</text>
+    <text x="65" y="154">svg.icon ✕</text>
+    <text x="65" y="176">div.ad-slot ✕</text>
+    <text x="65" y="198">button "로그인" ✔</text>
+    <text x="65" y="220">script ✕</text>
+  </g>
+  <!-- filter -->
+  <path d="M280,155 L360,155" fill="none" stroke="var(--bap-slate)" stroke-width="2.2" marker-end="url(#bap-arr)"/>
+  <text x="320" y="145" text-anchor="middle" font-size="12" fill="var(--bap-green)" font-weight="700">의미 필터</text>
+  <text x="320" y="178" text-anchor="middle" font-size="11" fill="var(--bap-slate)">role·name·state</text>
+  <!-- a11y box -->
+  <rect x="375" y="50" width="355" height="210" rx="12" fill="var(--bap-green)" opacity="0.12" stroke="var(--bap-green)" stroke-width="2.5"/>
+  <text x="552" y="78" text-anchor="middle" font-size="15" font-weight="800" fill="var(--bap-green)">접근성 트리</text>
+  <g font-family="ui-monospace,monospace" font-size="13">
+    <text x="395" y="120" fill="var(--bap-slate)">textbox <tspan fill="var(--bap-teal)">"이메일"</tspan> <tspan fill="var(--bap-green)" font-weight="700">[e22]</tspan></text>
+    <text x="395" y="152" fill="var(--bap-slate)">button  <tspan fill="var(--bap-teal)">"로그인"</tspan> <tspan fill="var(--bap-green)" font-weight="700">[e21]</tspan></text>
+    <text x="395" y="196" fill="var(--bap-slate)" font-size="11.5">역할(role) · 이름(name) · 상태(state)</text>
+    <text x="395" y="216" fill="var(--bap-slate)" font-size="11.5">가 이미 붙어 있어 좌표 추측 불필요</text>
+  </g>
+</svg>
+<figcaption>브라우저가 DOM에서 상호작용 의미가 있는 요소만 걸러 접근성 트리를 만든다. 각 요소엔 역할·이름·상태와 안정적 참조가 붙는다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 스크린샷 에이전트가 무너지는 지점: 그라운딩</h2>
+
+<p>스크린샷 방식의 진짜 난관은 "화면을 이해하는 것"이 아니라 <strong>"이해한 걸 정확한 좌표로 옮기는 것"</strong>입니다. 이걸 <strong>그라운딩(grounding, 시각적 지시-대상 연결)</strong>이라고 부릅니다. 모델이 "로그인 버튼을 눌러야지"까지는 알아도, 그 버튼이 화면의 <code>(x=612, y=289)</code>에 있다는 걸 픽셀만 보고 정확히 찍어야 합니다. 몇 픽셀만 빗나가도 옆 링크를 누르거나 허공을 클릭합니다.</p>
+
+<p>이게 왜 어렵냐면, 실제 웹은 밀도가 높고(작은 아이콘이 다닥다닥), 스크롤·확대·반응형 레이아웃 때문에 같은 버튼도 좌표가 계속 바뀌기 때문입니다. 그래서 컴퓨터 유즈 에이전트의 표준 벤치마크인 <strong>OSWorld</strong>(실제 데스크톱 앱 작업을 시키는 테스트) 초기 점수는 처참했습니다. 최신 프런티어 모델과 2026년 나온 더 어려운 후속 벤치마크에서 성적이 올라오고는 있지만, 여전히 사람과의 격차가 큽니다. 이 격차의 큰 부분이 바로 그라운딩입니다.</p>
+
+<div class="bap-warn bap-note"><strong>그라운딩이 왜 실무에서 무서운가.</strong> 좌표가 5px 빗나가 '삭제' 대신 '보관'을 누르는 실수는, 텍스트 오답과 달리 <em>돌이킬 수 없는 부작용</em>을 냅니다. 그래서 스크린샷 에이전트는 반드시 실행 전 확인 단계나 되돌리기 안전장치를 함께 설계해야 합니다.</p></div>
+
+<p>접근성 트리 방식엔 이 문제가 아예 없습니다. "이거 로그인 버튼"이라는 <strong>의미와 참조가 이미 붙어</strong> 있으니, 좌표를 눈대중할 필요 없이 <code>click e21</code>이면 끝입니다. Playwright 같은 도구가 그 참조를 실제 DOM 요소로 정확히 되짚어 클릭해 줍니다. 스크린샷 대비 지연이 초 단위에서 <strong>밀리초 단위</strong>로 떨어지는 이유도 여기 있습니다 — 매번 이미지를 만들고 추론할 필요가 없으니까요.</p>
+
+<h2 id="sec-6">6. 실전 — 접근성 트리로 클릭 루프 돌리기</h2>
+
+<p>개념은 충분히 봤으니, 실제 루프가 어떻게 생겼는지 봅시다. Playwright의 접근성 스냅샷을 써서 "스냅샷 → 참조 고르기 → 클릭 → 다시 스냅샷"을 도는 최소 예제입니다(Node.js).</p>
+
+{{< highlight javascript >}}
+import { chromium } from "playwright";
+
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto("https://example.com/login");
+
+// 1) perceive: 접근성 트리 스냅샷 — 전체 HTML이 아니라 의미만 담긴 트리
+const tree = await page.accessibility.snapshot();
+// tree는 { role, name, children[...] } 형태. 이걸 LLM에 넘길 땐
+// 아래처럼 한 줄짜리 텍스트로 평탄화해 토큰을 더 줄인다.
+const lines = [];
+(function walk(node, depth = 0) {
+  if (!node) return;
+  if (node.role !== "generic" && node.name)          // 잡음 role은 건너뛴다
+    lines.push(`${"  ".repeat(depth)}${node.role} "${node.name}"`);
+  (node.children ?? []).forEach((c) => walk(c, depth + 1));
+})(tree);
+
+const observation = lines.join("\n");   // ← 이 짧은 문자열이 모델의 '눈'
+// 예: textbox "이메일" / textbox "비밀번호" / button "로그인"
+{{< /highlight >}}
+
+<p>이 <code>observation</code>을 프롬프트에 넣고 "다음에 어떤 요소를 어떻게 조작할지" 한 스텝만 고르게 합니다. 모델은 좌표가 아니라 <strong>역할+이름</strong>으로 대상을 지목하고, 우리는 Playwright의 <em>역할 기반 로케이터</em>로 그걸 실제 클릭으로 바꿉니다.</p>
+
+{{< highlight javascript >}}
+// 2) decide: LLM이 { role, name, action, text } 형태로 다음 행동을 반환한다고 하자
+const step = await askLLM(observation, goal);
+// 예: { role: "textbox", name: "이메일", action: "fill", text: "me@x.com" }
+
+// 3) act: 좌표가 아니라 '역할+이름'으로 요소를 집는다 — 그라운딩 문제가 없다
+const target = page.getByRole(step.role, { name: step.name });
+if (step.action === "fill") await target.fill(step.text);
+else if (step.action === "click") await target.click();
+
+// 4) 페이지가 안정될 때까지 기다린 뒤 루프를 다시 돈다
+await page.waitForLoadState("networkidle");
+// → 다시 accessibility.snapshot() 부터 반복
+{{< /highlight >}}
+
+<p>Playwright CLI를 쓰면 이 흐름이 셸 명령으로 더 얇아집니다. 코딩 에이전트가 <code>playwright-cli snapshot</code>으로 참조가 달린 트리를 받고, <code>playwright-cli click e21</code>로 누릅니다. 브라우저 세션은 CLI가 들고 있으니 에이전트 컨텍스트엔 <strong>짧은 참조만</strong> 남습니다 — MCP 대비 토큰을 크게 아끼는 지점입니다.</p>
+
+{{< highlight bash >}}
+# 접근성 트리 스냅샷 — 요소마다 [ref] 부여
+$ playwright-cli snapshot
+  textbox "이메일"   [ref=e22]
+  textbox "비밀번호" [ref=e23]
+  button  "로그인"   [ref=e21]
+
+# 참조로 조작 — 페이지 전체를 다시 넘기지 않는다
+$ playwright-cli type e22 "me@x.com"
+$ playwright-cli type e23 "••••••"
+$ playwright-cli click e21
+{{< /highlight >}}
+
+<h3>현실은 하이브리드</h3>
+<p>가장 신뢰성 높은 브라우저 에이전트는 한 방식만 고집하지 않습니다. 실무의 정석은 이렇게 계층을 둡니다.</p>
+
+<figure class="bap-fig">
+<svg viewBox="0 0 760 280" role="img" aria-label="하이브리드 브라우저 에이전트의 의사결정 흐름도. 먼저 접근성 트리로 요소를 찾고, 있으면 참조로 바로 클릭한다. 접근성 트리에 안 잡히면 스크린샷으로 폴백해 시각적으로 좌표를 찾고, 성공한 동작은 결정론적 스크립트로 저장해 다음엔 재생한다.">
+  <rect x="0" y="0" width="760" height="280" fill="none"/>
+  <!-- step 1 -->
+  <rect x="30" y="40" width="200" height="70" rx="12" fill="var(--bap-green)" opacity="0.16" stroke="var(--bap-green)" stroke-width="2"/>
+  <text x="130" y="70" text-anchor="middle" font-size="14" font-weight="800" fill="var(--bap-green)">① 접근성 트리로 탐색</text>
+  <text x="130" y="92" text-anchor="middle" font-size="12" fill="var(--bap-slate)">역할+이름으로 요소 찾기</text>
+  <!-- decision -->
+  <path d="M230,75 L290,75" fill="none" stroke="var(--bap-slate)" stroke-width="2" marker-end="url(#bap-arr)"/>
+  <text x="360" y="60" text-anchor="middle" font-size="13" fill="var(--bap-slate)" font-weight="700">요소가 트리에 있나?</text>
+  <!-- yes -->
+  <rect x="300" y="30" width="200" height="40" rx="10" fill="var(--bap-teal)" opacity="0.16" stroke="var(--bap-teal)" stroke-width="2"/>
+  <text x="400" y="55" text-anchor="middle" font-size="13" font-weight="700" fill="var(--bap-teal)">예 → 참조로 즉시 클릭 (싸고 빠름)</text>
+  <!-- no -->
+  <rect x="300" y="90" width="200" height="60" rx="10" fill="var(--bap-rose)" opacity="0.14" stroke="var(--bap-rose)" stroke-width="2"/>
+  <text x="400" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="var(--bap-rose)">아니오 → 스크린샷 폴백</text>
+  <text x="400" y="134" text-anchor="middle" font-size="11.5" fill="var(--bap-slate)">canvas·비시맨틱 UI를 시각적으로</text>
+  <path d="M400,150 L400,185" fill="none" stroke="var(--bap-slate)" stroke-width="2" marker-end="url(#bap-arr)"/>
+  <!-- replay -->
+  <rect x="230" y="195" width="330" height="55" rx="12" fill="var(--bap-violet)" opacity="0.14" stroke="var(--bap-violet)" stroke-width="2"/>
+  <text x="395" y="220" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--bap-violet)">③ 성공한 동작은 결정론적 스크립트로 저장</text>
+  <text x="395" y="240" text-anchor="middle" font-size="11.5" fill="var(--bap-slate)">다음엔 LLM 없이 재생(replay) — 검증·안정성</text>
+</svg>
+<figcaption>정석은 계층형이다. 싼 접근성 트리를 먼저, 안 잡히면 스크린샷 폴백, 성공한 경로는 결정론적으로 재생한다.</figcaption>
+</figure>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="bap-warn bap-note"><strong>함정 1 — 오래된 참조(stale ref).</strong> <code>e21</code>은 그 스냅샷 시점의 페이지에서만 유효합니다. 클릭 뒤 페이지가 바뀌면 참조가 무효화됩니다. <strong>행동 한 번 → 스냅샷 다시</strong>를 원칙으로 하세요. 오래된 참조를 재사용하면 엉뚱한 요소를 누릅니다.</p></div>
+
+<div class="bap-warn bap-note"><strong>함정 2 — 동적 DOM과 늦게 뜨는 요소.</strong> SPA는 클릭 직후 요소가 아직 안 붙어 있을 수 있습니다. <code>waitForLoadState</code>나 요소 대기 없이 바로 스냅샷을 뜨면 '텅 빈 화면'을 보고 헤맵니다. 항상 <strong>안정될 때까지 기다린 뒤</strong> 읽으세요.</p></div>
+
+<div class="bap-warn bap-note"><strong>함정 3 — 접근성 트리에 안 보이는 UI.</strong> <code>&lt;div onclick&gt;</code>로 만든 가짜 버튼, canvas로 그린 차트, 라벨 없는 아이콘 버튼은 트리에서 이름이 비거나 아예 안 잡힙니다. 이럴 때만 스크린샷 폴백으로 넘기세요. 접근성 트리는 <strong>시맨틱 HTML을 잘 지킨 사이트에서 가장 강력</strong>합니다.</p></div>
+
+<div class="bap-good bap-note"><strong>팁 1 — iframe·shadow DOM을 잊지 마세요.</strong> 결제창·로그인 위젯은 iframe 안에 있는 경우가 많습니다. 트리를 뜰 때 프레임을 함께 훑지 않으면 "버튼이 없다"고 착각합니다.</p></div>
+
+<div class="bap-good bap-note"><strong>팁 2 — 성공 경로는 결정론적으로 굳히세요.</strong> 매번 LLM으로 같은 로그인을 반복하는 건 낭비이자 불안정의 원천입니다. 한 번 성공한 경로는 참조/로케이터 스크립트로 저장해 다음엔 <strong>LLM 없이 재생</strong>하고, 실패할 때만 다시 에이전트를 부르세요. 비용·속도·재현성이 한꺼번에 좋아집니다.</p></div>
+
+<div class="bap-good bap-note"><strong>팁 3 — 되돌릴 수 없는 행동엔 확인 게이트를.</strong> 결제·삭제·전송처럼 부작용이 큰 클릭 앞에는 사람 확인이나 드라이런을 두세요. 특히 스크린샷 그라운딩이 개입하는 경로일수록 필수입니다.</p></div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>브라우저 에이전트의 성패는 지각 계층에서 먼저 갈린다.</strong> perceive→decide→act 루프는 매 스텝 다시 읽으므로, '한 번 읽는 비용'이 반복 횟수만큼 곱해진다.</li>
+  <li><strong>읽는 방법은 셋.</strong> 스크린샷(범용·비쌈·좌표 그라운딩 취약), 전체 DOM(정확하지만 10만+ 토큰 잡음), 접근성 트리(역할·이름·상태만 추려 수백 토큰).</li>
+  <li><strong>업계는 접근성 트리로 수렴 중.</strong> 의미와 참조가 이미 붙어 있어 좌표 추측이 필요 없고, 지연이 초 단위에서 밀리초로 떨어진다.</li>
+  <li><strong>이번 주 신호.</strong> OpenAI가 ChatGPT Atlas를 접고 에이전트를 원격 클라우드 브라우저로 옮겼고(8/9), Microsoft의 Playwright CLI는 참조 기반으로 MCP 대비 토큰을 약 4배 아낀다.</li>
+  <li><strong>스크린샷의 아킬레스건은 그라운딩.</strong> "무엇을 누를지"가 아니라 "정확한 좌표"가 문제다. OSWorld류 벤치마크의 낮은 점수 상당수가 여기서 나온다.</li>
+  <li><strong>정석은 하이브리드.</strong> 싼 접근성 트리 우선 → 안 잡히면 스크린샷 폴백 → 성공 경로는 결정론적으로 재생.</li>
+  <li><strong>초보가 밟는 지뢰:</strong> 오래된 참조 재사용, 동적 DOM 대기 누락, iframe/shadow DOM 누락, 되돌릴 수 없는 행동에 확인 게이트 부재.</li>
+</ul>
+
+<h2 id="sec-ref">9. 참고 자료</h2>
+<ul>
+  <li><a href="https://9to5mac.com/2026/08/04/openai-explains-what-will-happen-when-chatgpt-atlas-shuts-down-this-weekend/" target="_blank" rel="noopener">9to5Mac — OpenAI explains what will happen when ChatGPT Atlas shuts down this weekend (2026-08-04)</a></li>
+  <li><a href="https://techcrunch.com/2026/07/09/openai-is-shutting-down-atlas-but-its-ai-browser-ambitions-are-still-growing/" target="_blank" rel="noopener">TechCrunch — OpenAI is shutting down Atlas, but its AI browser ambitions are still growing</a></li>
+  <li><a href="https://playwright.dev/agent-cli/introduction" target="_blank" rel="noopener">Playwright CLI 공식 문서 — Introduction (snapshot/ref, 코딩 에이전트용)</a></li>
+  <li><a href="https://testcollab.com/blog/playwright-cli" target="_blank" rel="noopener">TestCollab — Playwright CLI: The Token-Efficient Alternative to Playwright MCP</a></li>
+  <li><a href="https://www.infoworld.com/article/4193332/accessibility-is-the-first-class-interface-for-ai-agents.html" target="_blank" rel="noopener">InfoWorld — Accessibility is the first-class interface for AI agents</a></li>
+  <li><a href="https://www.searchenginejournal.com/the-accessibility-tree-is-how-ai-agents-read-your-site-its-breaking/578171/" target="_blank" rel="noopener">Search Engine Journal — The Accessibility Tree Is How AI Agents Read Your Site</a></li>
+  <li><a href="https://fazm.ai/blog/how-ai-agents-see-your-screen-dom-vs-screenshots" target="_blank" rel="noopener">Fazm — How AI Agents Actually See Your Screen: DOM Control vs Screenshots</a></li>
+  <li><a href="https://web.dev/articles/ai-agent-site-ux" target="_blank" rel="noopener">web.dev (Google) — Build agent-friendly websites</a></li>
+  <li><a href="https://os-world.github.io/" target="_blank" rel="noopener">OSWorld — 실제 컴퓨터 환경 에이전트 벤치마크 (xlang-ai)</a></li>
+  <li><a href="https://benchmarkingagents.com/best-benchmarks-for-browser-agents/" target="_blank" rel="noopener">Browser-Agent Benchmarks 2026: WebArena, OSWorld, Visual WebArena 비교</a></li>
+  <li><a href="https://www.allaboutai.com/ai-agents/project-mariner/" target="_blank" rel="noopener">Google Project Mariner — 스크린샷+DOM 하이브리드, 클라우드 VM 구조 정리</a></li>
+  <li><a href="https://playwright.dev/docs/api/class-accessibility" target="_blank" rel="noopener">Playwright 문서 — Accessibility snapshot API</a></li>
+</ul>

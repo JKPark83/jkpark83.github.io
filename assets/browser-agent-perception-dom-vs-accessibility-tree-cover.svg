@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="브라우저 에이전트가 웹 페이지를 읽는 세 가지 방식(스크린샷, 전체 DOM, 접근성 트리)을 토큰 비용과 함께 비교한 표지 그림">
+  <defs>
+    <linearGradient id="bapc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="bapc-accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bapc-bg)"/>
+
+  <text x="70" y="92" fill="#e2e8f0" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="46" font-weight="800">브라우저 에이전트는 화면을 어떻게 볼까</text>
+  <text x="70" y="140" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="26" font-weight="500">같은 페이지, 완전히 다른 '눈' — 토큰과 신뢰성이 갈린다</text>
+
+  <!-- three panels -->
+  <!-- panel 1: screenshot -->
+  <g>
+    <rect x="70" y="190" width="330" height="330" rx="18" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="235" y="232" text-anchor="middle" fill="#fb7185" font-family="system-ui,sans-serif" font-size="24" font-weight="800">① 스크린샷</text>
+    <rect x="110" y="256" width="250" height="150" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1.5"/>
+    <rect x="128" y="276" width="120" height="16" rx="4" fill="#475569"/>
+    <rect x="128" y="304" width="214" height="10" rx="3" fill="#334155"/>
+    <rect x="128" y="322" width="190" height="10" rx="3" fill="#334155"/>
+    <rect x="128" y="356" width="86" height="30" rx="6" fill="#fb7185" opacity="0.85"/>
+    <circle cx="300" cy="371" r="9" fill="none" stroke="#fbbf24" stroke-width="3"/>
+    <line x1="300" y1="371" x2="316" y2="387" stroke="#fbbf24" stroke-width="3"/>
+    <text x="235" y="446" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="18">픽셀을 보고 좌표를 찍는다</text>
+    <text x="235" y="486" text-anchor="middle" fill="#fb7185" font-family="ui-monospace,monospace" font-size="21" font-weight="700">이미지 = 수천 토큰</text>
+  </g>
+
+  <!-- panel 2: full DOM -->
+  <g>
+    <rect x="435" y="190" width="330" height="330" rx="18" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="600" y="232" text-anchor="middle" fill="#fbbf24" font-family="system-ui,sans-serif" font-size="24" font-weight="800">② 전체 DOM</text>
+    <g font-family="ui-monospace,monospace" font-size="13" fill="#64748b">
+      <text x="460" y="272">&lt;div class="x9f2 wrap"&gt;</text>
+      <text x="470" y="292">&lt;div class="q1"&gt;&lt;span&gt;</text>
+      <text x="480" y="312">&lt;button aria-lbl=…&gt;</text>
+      <text x="470" y="332">&lt;/span&gt;&lt;svg&gt;&lt;path…</text>
+      <text x="460" y="352">&lt;div class="ad slot"&gt;</text>
+      <text x="470" y="372">&lt;script&gt;window.__=</text>
+      <text x="460" y="392">&lt;/div&gt;&lt;/div&gt;&lt;div…</text>
+    </g>
+    <text x="600" y="446" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="18">전부 넘긴다 — 노이즈까지</text>
+    <text x="600" y="486" text-anchor="middle" fill="#fbbf24" font-family="ui-monospace,monospace" font-size="21" font-weight="700">10만+ 토큰</text>
+  </g>
+
+  <!-- panel 3: accessibility tree -->
+  <g>
+    <rect x="800" y="190" width="330" height="330" rx="18" fill="#1e293b" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="965" y="232" text-anchor="middle" fill="#4ade80" font-family="system-ui,sans-serif" font-size="24" font-weight="800">③ 접근성 트리</text>
+    <g font-family="ui-monospace,monospace" font-size="14" fill="#cbd5e1">
+      <text x="828" y="278">button "로그인"  <tspan fill="#4ade80">[e21]</tspan></text>
+      <text x="828" y="306">textbox "이메일" <tspan fill="#4ade80">[e22]</tspan></text>
+      <text x="828" y="334">link "비밀번호"  <tspan fill="#4ade80">[e23]</tspan></text>
+      <text x="828" y="362">checkbox "기억"  <tspan fill="#4ade80">[e24]</tspan></text>
+    </g>
+    <text x="965" y="446" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="18">역할·이름·상태만 추린다</text>
+    <text x="965" y="486" text-anchor="middle" fill="#4ade80" font-family="ui-monospace,monospace" font-size="21" font-weight="700">수백 토큰</text>
+  </g>
+
+  <rect x="70" y="556" width="1060" height="4" rx="2" fill="url(#bapc-accent)"/>
+  <text x="70" y="600" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="19">perceive → decide → act 루프에서 '무엇으로 읽느냐'가 비용과 신뢰성을 결정한다</text>
+</svg>

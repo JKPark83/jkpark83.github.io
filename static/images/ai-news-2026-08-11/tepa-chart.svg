@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 460" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="820" height="460" rx="16" fill="#0f172a"/>
+  <text x="32" y="42" fill="#e2e8f0" font-size="21" font-weight="700">TEPA: 완전 역전 드리프트에서의 검색 품질</text>
+  <text x="32" y="66" fill="#94a3b8" font-size="13">controlled drift · 50 seeds · 세계가 뒤바뀐 뒤 검색 집합의 정답성 (0~1, 높을수록 좋음)</text>
+
+  <!-- baseline gridlines -->
+  <g stroke="#1e293b" stroke-width="1">
+    <line x1="250" y1="110" x2="250" y2="360"/>
+    <line x1="392" y1="110" x2="392" y2="360"/>
+    <line x1="534" y1="110" x2="534" y2="360"/>
+    <line x1="676" y1="110" x2="676" y2="360"/>
+    <line x1="108" y1="110" x2="108" y2="360"/>
+  </g>
+  <line x1="108" y1="360" x2="788" y2="360" stroke="#475569" stroke-width="2"/>
+  <text x="104" y="376" fill="#64748b" font-size="11" text-anchor="middle">0.0</text>
+  <text x="392" y="376" fill="#64748b" font-size="11" text-anchor="middle">0.5</text>
+  <text x="676" y="376" fill="#64748b" font-size="11" text-anchor="middle">1.0</text>
+
+  <!-- bars: x scale 108..676 == 0..1.0 (568px per 1.0) -->
+  <!-- No memory 0.309 -->
+  <rect x="108" y="122" width="176" height="42" rx="6" fill="#475569"/>
+  <text x="118" y="149" fill="#e2e8f0" font-size="14" font-weight="600">No memory</text>
+  <text x="298" y="149" fill="#cbd5e1" font-size="14" font-weight="700">0.309</text>
+
+  <!-- Append-only 0.210 -->
+  <rect x="108" y="176" width="119" height="42" rx="6" fill="#f97316"/>
+  <text x="118" y="203" fill="#fff7ed" font-size="14" font-weight="600">Append-only</text>
+  <text x="241" y="203" fill="#cbd5e1" font-size="14" font-weight="700">0.210</text>
+
+  <!-- Last-write-wins 0.210 -->
+  <rect x="108" y="230" width="119" height="42" rx="6" fill="#eab308"/>
+  <text x="118" y="257" fill="#422006" font-size="14" font-weight="600">Last-write-wins</text>
+  <text x="241" y="257" fill="#cbd5e1" font-size="14" font-weight="700">0.210</text>
+
+  <!-- TEPA 0.950 -->
+  <rect x="108" y="284" width="540" height="42" rx="6" fill="#22c55e"/>
+  <text x="118" y="311" fill="#052e16" font-size="14" font-weight="700">TEPA (revoke)</text>
+  <text x="662" y="311" fill="#86efac" font-size="15" font-weight="700">0.950</text>
+
+  <text x="32" y="410" fill="#94a3b8" font-size="13">핵심: append-only·last-write-wins는 역전 시 'no memory'보다도 낮게 떨어진다.</text>
+  <text x="32" y="432" fill="#64748b" font-size="12">출처: TEPA, arXiv:2608.07429 (검증된 수치) · 자체 제작 SVG</text>
+</svg>

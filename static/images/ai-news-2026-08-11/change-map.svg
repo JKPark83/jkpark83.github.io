@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 500" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="820" height="500" rx="16" fill="#0f172a"/>
+  <text x="32" y="44" fill="#e2e8f0" font-size="22" font-weight="700">오늘의 AI 변화 지도 · 2026-08-11</text>
+  <text x="32" y="70" fill="#94a3b8" font-size="14">축: 에이전트의 절차지식·메모리를 어떻게 쌓고 폐기하나</text>
+
+  <!-- center -->
+  <ellipse cx="410" cy="285" rx="128" ry="58" fill="#1e293b" stroke="#38bdf8" stroke-width="2.5"/>
+  <text x="410" y="278" fill="#e2e8f0" font-size="17" font-weight="700" text-anchor="middle">절차지식·메모리</text>
+  <text x="410" y="300" fill="#7dd3fc" font-size="14" text-anchor="middle">쌓기 → 감사 → 폐기/복원</text>
+
+  <!-- edges -->
+  <g stroke="#475569" stroke-width="2">
+    <line x1="300" y1="255" x2="170" y2="150"/>
+    <line x1="520" y1="255" x2="650" y2="150"/>
+    <line x1="300" y1="315" x2="170" y2="420"/>
+    <line x1="520" y1="315" x2="650" y2="420"/>
+  </g>
+
+  <!-- SkillProx -->
+  <rect x="40" y="112" width="252" height="80" rx="12" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
+  <text x="56" y="140" fill="#bfdbfe" font-size="15" font-weight="700">📚 SkillProx (2608.07449)</text>
+  <text x="56" y="162" fill="#cbd5e1" font-size="13">스킬을 진단→롤백→가지치기로 진화</text>
+  <text x="56" y="181" fill="#93c5fd" font-size="13">최강 baseline 대비 +3.0pp</text>
+
+  <!-- TEPA -->
+  <rect x="528" y="112" width="252" height="80" rx="12" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
+  <text x="544" y="140" fill="#bfdbfe" font-size="15" font-weight="700">📚 TEPA (2608.07429)</text>
+  <text x="544" y="162" fill="#cbd5e1" font-size="13">낡은 메모리 '폐기(revoke)'로 오염 차단</text>
+  <text x="544" y="181" fill="#93c5fd" font-size="13">역전 드리프트 0.95 vs 0.21</text>
+
+  <!-- Claude Code Skills -->
+  <rect x="40" y="384" width="252" height="80" rx="12" fill="#052e2b" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="56" y="412" fill="#99f6e4" font-size="15" font-weight="700">🟦 Claude Code · Skills</text>
+  <text x="56" y="434" fill="#cbd5e1" font-size="13">SKILL.md는 쓸 때만 컨텍스트 로드</text>
+  <text x="56" y="453" fill="#5eead4" font-size="13">CLAUDE.md 비대화 → 스킬로 분리</text>
+
+  <!-- Releases -->
+  <rect x="528" y="384" width="252" height="80" rx="12" fill="#052e2b" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="544" y="412" fill="#99f6e4" font-size="15" font-weight="700">🚢 릴리스 레이더</text>
+  <text x="544" y="434" fill="#cbd5e1" font-size="13">Claude Code v2.1.226 (8/8)</text>
+  <text x="544" y="453" fill="#5eead4" font-size="13">workspace trust · 크로스세션 메시지</text>
+
+  <text x="32" y="490" fill="#64748b" font-size="12">자체 제작 SVG · 수치는 arXiv/공식 changelog 검증분</text>
+</svg>

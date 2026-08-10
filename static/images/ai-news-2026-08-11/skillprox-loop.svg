@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 430" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="820" height="430" rx="16" fill="#0f172a"/>
+  <text x="32" y="42" fill="#e2e8f0" font-size="21" font-weight="700">SkillProx: 스킬을 '진화'시키는 forward–backward 루프</text>
+  <text x="32" y="66" fill="#94a3b8" font-size="13">가중치 업데이트 없이, 텍스트 스킬을 진단·감사·정리 — Agent Builder가 바로 흉내낼 패턴</text>
+
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <!-- FORWARD -->
+  <text x="60" y="112" fill="#7dd3fc" font-size="15" font-weight="700">▶ FORWARD (진단 기반 편집)</text>
+  <g>
+    <rect x="60" y="126" width="150" height="66" rx="10" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
+    <text x="135" y="154" fill="#e2e8f0" font-size="13" text-anchor="middle">배치 재실행</text>
+    <text x="135" y="174" fill="#93c5fd" font-size="12" text-anchor="middle">diagnosis 편집 적용</text>
+
+    <rect x="250" y="126" width="150" height="66" rx="10" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
+    <text x="325" y="154" fill="#e2e8f0" font-size="13" text-anchor="middle">회귀 롤백</text>
+    <text x="325" y="174" fill="#93c5fd" font-size="12" text-anchor="middle">나빠진 편집 되돌림</text>
+
+    <rect x="440" y="126" width="150" height="66" rx="10" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
+    <text x="515" y="150" fill="#e2e8f0" font-size="13" text-anchor="middle">측정 결과를</text>
+    <text x="515" y="170" fill="#93c5fd" font-size="12" text-anchor="middle">다음 진단에 피드백</text>
+  </g>
+  <g stroke="#38bdf8" stroke-width="2" marker-end="url(#ar)" fill="none">
+    <line x1="210" y1="159" x2="248" y2="159"/>
+    <line x1="400" y1="159" x2="438" y2="159"/>
+  </g>
+
+  <!-- BACKWARD -->
+  <text x="60" y="252" fill="#5eead4" font-size="15" font-weight="700">◀ BACKWARD (유틸리티 감사)</text>
+  <g>
+    <rect x="60" y="266" width="150" height="66" rx="10" fill="#052e2b" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="135" y="294" fill="#e2e8f0" font-size="13" text-anchor="middle">지식 단위로 분해</text>
+    <text x="135" y="314" fill="#5eead4" font-size="12" text-anchor="middle">auditable units</text>
+
+    <rect x="250" y="266" width="150" height="66" rx="10" fill="#052e2b" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="325" y="294" fill="#e2e8f0" font-size="13" text-anchor="middle">leave-one-out</text>
+    <text x="325" y="314" fill="#5eead4" font-size="12" text-anchor="middle">기여도 측정</text>
+
+    <rect x="440" y="266" width="290" height="66" rx="10" fill="#052e2b" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="585" y="294" fill="#e2e8f0" font-size="13" text-anchor="middle">검증 게이트: 통합 · 강등 · 제거</text>
+    <text x="585" y="314" fill="#5eead4" font-size="12" text-anchor="middle">consolidate / demote / remove</text>
+  </g>
+  <g stroke="#2dd4bf" stroke-width="2" marker-end="url(#ar)" fill="none">
+    <line x1="210" y1="299" x2="248" y2="299"/>
+    <line x1="400" y1="299" x2="438" y2="299"/>
+  </g>
+
+  <text x="620" y="180" fill="#facc15" font-size="13" font-weight="700">목표식:</text>
+  <text x="620" y="200" fill="#cbd5e1" font-size="12">task loss + 스킬 복잡도</text>
+
+  <text x="32" y="392" fill="#94a3b8" font-size="13">시사점: '삭제'를 일반 편집이 아니라 지식 통합의 전용 연산으로 분리하라.</text>
+  <text x="32" y="414" fill="#64748b" font-size="12">출처: SkillProx, arXiv:2608.07449 · 자체 제작 SVG</text>
+</svg>

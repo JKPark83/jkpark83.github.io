@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트에 도구를 많이 붙이면 도구 정의가 컨텍스트 창을 가득 채워 작업 공간이 남지 않는 '전' 상태와, Tool Search로 검색 툴 하나만 올리고 필요한 3~5개만 불러와 공간을 되찾는 '후' 상태를 대비한 표지 그림">
+  <defs>
+    <linearGradient id="tsdc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="tsdc-accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#4ade80"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#tsdc-bg)"/>
+
+  <text x="70" y="92" fill="#e2e8f0" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="45" font-weight="800">도구가 많을수록 에이전트가 멍청해진다</text>
+  <text x="70" y="140" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="26" font-weight="500">'도구 세금'과 Tool Search — 필요할 때만 불러오는 지연 로딩</text>
+
+  <!-- BEFORE panel -->
+  <g>
+    <rect x="70" y="195" width="480" height="330" rx="18" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="310" y="240" text-anchor="middle" fill="#fb7185" font-family="system-ui,sans-serif" font-size="24" font-weight="800">전 — 도구를 전부 미리 올림</text>
+    <!-- context window bar -->
+    <rect x="110" y="270" width="400" height="200" rx="10" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+    <!-- tool defs filling most -->
+    <rect x="118" y="278" width="384" height="150" rx="6" fill="#fb7185" opacity="0.32"/>
+    <text x="310" y="345" text-anchor="middle" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="20" font-weight="700">도구 정의 ~55k 토큰</text>
+    <text x="310" y="372" text-anchor="middle" fill="#fca5a5" font-family="system-ui,sans-serif" font-size="15">GitHub·Slack·Sentry·Grafana·Splunk</text>
+    <rect x="118" y="434" width="384" height="28" rx="6" fill="#334155"/>
+    <text x="310" y="453" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="14">남은 작업 공간</text>
+    <text x="310" y="502" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="15">일 시작 전부터 컨텍스트가 꽉 참</text>
+  </g>
+
+  <!-- arrow -->
+  <text x="600" y="360" text-anchor="middle" fill="#38bdf8" font-family="system-ui,sans-serif" font-size="40" font-weight="800">&#8594;</text>
+
+  <!-- AFTER panel -->
+  <g>
+    <rect x="650" y="195" width="480" height="330" rx="18" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="890" y="240" text-anchor="middle" fill="#4ade80" font-family="system-ui,sans-serif" font-size="24" font-weight="800">후 — 필요할 때만 검색해 로딩</text>
+    <rect x="690" y="270" width="400" height="200" rx="10" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+    <!-- small search tool -->
+    <rect x="698" y="278" width="384" height="30" rx="6" fill="#38bdf8" opacity="0.4"/>
+    <text x="890" y="299" text-anchor="middle" fill="#7dd3fc" font-family="system-ui,sans-serif" font-size="14" font-weight="700">tool_search + 자주 쓰는 3~5개</text>
+    <!-- large free space -->
+    <rect x="698" y="314" width="384" height="148" rx="6" fill="#4ade80" opacity="0.14"/>
+    <text x="890" y="384" text-anchor="middle" fill="#86efac" font-family="system-ui,sans-serif" font-size="20" font-weight="700">작업 공간 되찾음</text>
+    <text x="890" y="411" text-anchor="middle" fill="#86efac" font-family="system-ui,sans-serif" font-size="15">정의 토큰 85%+ 절감</text>
+    <text x="890" y="502" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="15">필요한 도구는 검색해서 그때 불러온다</text>
+  </g>
+
+  <rect x="70" y="560" width="1060" height="4" rx="2" fill="url(#tsdc-accent)"/>
+  <text x="70" y="600" fill="#64748b" font-family="system-ui,sans-serif" font-size="18">AI 엔지니어링 · just-in-time tool loading · defer_loading · Tool RAG</text>
+</svg>

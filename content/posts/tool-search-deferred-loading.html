@@ -1,0 +1,358 @@
+---
+title: "도구를 많이 붙일수록 에이전트가 멍청해진다: 컨텍스트를 갉아먹는 '도구 세금'과 Tool Search(지연 로딩)"
+date: 2026-08-12T07:30:00+09:00
+draft: false
+tags: ["AI", "tool search", "deferred loading", "defer_loading", "MCP", "tool calling", "context engineering", "Tool RAG", "RAG-MCP", "just-in-time", "agent", "도구 세금", "지연 로딩", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트에 MCP 서버를 하나둘 붙이다 보면 어느 순간 느려지고, 이상하게 도구도 잘못 고르기 시작합니다. 범인은 '도구 세금(tool tax)'입니다. 모델은 매 요청마다 모든 도구의 정의(이름·설명·인자 스키마)를 시스템 프롬프트에 통째로 받는데, GitHub·Slack·Sentry·Grafana·Splunk 다섯 서버만 붙여도 일을 시작하기 전부터 도구 설명만으로 5만 5천 토큰이 날아갑니다. 게다가 도구가 30~50개를 넘어가면 올바른 도구를 고르는 정확도까지 떨어집니다. 해법의 핵심은 하나입니다 — 미리 다 올리지 말고, 필요할 때 찾아서 그때 불러오기(just-in-time). 이 글은 도구 세금이 왜 생기는지, Anthropic의 Tool Search와 defer_loading이 어떻게 도구 정의를 85% 넘게 줄이는지, 임베딩으로 직접 검색을 굴리는 Tool RAG(RAG-MCP)는 무엇인지, 그리고 언제 켜고 언제 끄면 안 되는지를 junior 개발자 눈높이로 정리합니다."
+ShowToc: false
+cover:
+  image: "tool-search-deferred-loading-cover.svg"
+  alt: "왼쪽 '전' 패널은 컨텍스트 창의 대부분이 GitHub·Slack·Sentry·Grafana·Splunk 도구 정의(약 5만 5천 토큰)로 채워져 작업 공간이 거의 남지 않은 모습을 막대로 보여 준다. 오른쪽 '후' 패널은 Tool Search 툴과 자주 쓰는 3~5개만 위에 얇게 올리고, 나머지 공간은 작업용으로 되찾아 도구 정의 토큰을 85% 넘게 줄인 모습을 보여 준다. 아래에는 필요한 도구는 검색해서 그때 불러온다고 적혀 있다."
+  caption: "도구를 전부 미리 올리면 일 시작 전부터 컨텍스트가 꽉 찬다. 필요할 때만 검색해 불러오면(지연 로딩) 정의 토큰을 85% 넘게 줄일 수 있다."
+  relative: false
+---
+
+<style>
+/* ── 도구 세금 · Tool Search(지연 로딩) 포스트 전용 스타일 (tsd- 접두사) ── */
+.tsd-fig{
+  --tsd-sky:#0284c7; --tsd-amber:#d97706; --tsd-green:#16a34a; --tsd-rose:#e11d48;
+  --tsd-slate:#64748b; --tsd-violet:#7c3aed; --tsd-teal:#0d9488; --tsd-blue:#2563eb;
+  --tsd-grid:#cbd5e1;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .tsd-fig{
+  --tsd-sky:#38bdf8; --tsd-amber:#fbbf24; --tsd-green:#4ade80; --tsd-rose:#fb7185;
+  --tsd-slate:#94a3b8; --tsd-violet:#a78bfa; --tsd-teal:#2dd4bf; --tsd-blue:#60a5fa;
+  --tsd-grid:#334155;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .tsd-fig{
+    --tsd-sky:#38bdf8; --tsd-amber:#fbbf24; --tsd-green:#4ade80; --tsd-rose:#fb7185;
+    --tsd-slate:#94a3b8; --tsd-violet:#a78bfa; --tsd-teal:#2dd4bf; --tsd-blue:#60a5fa;
+    --tsd-grid:#334155;
+  }
+}
+.tsd-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.tsd-fig text{font-family:inherit}
+.tsd-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.tsd-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.tsd-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.tsd-toc ol{margin:0;padding-left:1.25rem}
+.tsd-toc li{margin:.22rem 0;font-size:.95rem}
+.tsd-toc a{text-decoration:none}
+.tsd-toc a:hover{text-decoration:underline}
+.tsd-pull{font-size:1.12rem;line-height:1.72}
+.tsd-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.tsd-note{border-left:4px solid var(--tsd-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.tsd-note strong{color:var(--tsd-blue,#2563eb)}
+.tsd-warn{border-left:4px solid var(--tsd-rose,#e11d48)}
+.tsd-warn strong{color:var(--tsd-rose,#e11d48)}
+.tsd-good{border-left:4px solid var(--tsd-teal,#0d9488)}
+.tsd-good strong{color:var(--tsd-teal,#0d9488)}
+.tsd-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.tsd-tbl th,.tsd-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.tsd-tbl th{background:var(--entry);font-weight:700}
+.tsd-tbl code{font-size:.86em}
+.tsd-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="tsd-pull">
+“도구를 더 붙였는데 왜 에이전트가 더 못하지?” — 2026년 실무자들이 MCP 서버를 하나둘 늘리다 반드시 부딪히는 벽입니다.
+<footer>모델은 매 요청마다 <em>모든</em> 도구 설명을 통째로 읽습니다. 그게 공짜가 아닙니다.</footer>
+</blockquote>
+
+<nav class="tsd-toc">
+  <div class="tsd-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 '도구가 너무 많다'가 화제인가</a></li>
+    <li><a href="#sec-2">배경 — 도구 정의(tool definition)와 tool calling 복습</a></li>
+    <li><a href="#sec-3">도구 세금의 두 얼굴: 컨텍스트 잠식 + 선택 정확도 붕괴</a></li>
+    <li><a href="#sec-4">해법의 핵심: 미리 다 올리지 말고 필요할 때 찾아 쓴다</a></li>
+    <li><a href="#sec-5">Anthropic Tool Search 뜯어보기 (defer_loading)</a></li>
+    <li><a href="#sec-6">직접 검색 굴리기: Tool RAG(RAG-MCP)와 '결과 세금'</a></li>
+    <li><a href="#sec-7">언제 켜고, 언제 끄면 안 되나</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 '도구가 너무 많다'가 화제인가</h2>
+
+<p>2026년 에이전트 개발의 기본기는 <strong>MCP(Model Context Protocol) 서버를 붙여 도구를 늘리는 것</strong>입니다. GitHub, Slack, Sentry, 사내 API… 붙일수록 에이전트가 할 수 있는 일이 늘어나니 당연히 좋아 보이죠. 그런데 어느 순간부터 이상해집니다. 응답이 느려지고, 토큰 청구서가 커지고, 무엇보다 <strong>멀쩡하던 에이전트가 엉뚱한 도구를 고르기</strong> 시작합니다.</p>
+
+<p>이건 개별 버그가 아니라 구조적인 문제입니다. 그래서 올 한 해 내내 "도구를 늘릴수록 에이전트가 나빠진다(more tools make your agent worse)"라는 제목의 글이 실무 커뮤니티에 반복해서 올라왔습니다. 최근에는 처방까지 표준으로 자리잡는 분위기입니다. Anthropic이 <strong>Tool Search</strong>와 <strong>지연 로딩(deferred loading)</strong>을 API·Claude Code에 정식 기능으로 올렸고, 이제는 다른 프레임워크들도 같은 기능을 따라 붙이려고 이슈를 여는 중입니다(예: Google <code>python-genai</code> #2185, Pydantic AI harness #40). Red Hat은 <strong>Tool RAG</strong> 라이브러리 ToolScope를 오픈소스로 냈고, 2026년 7월 28일 확정된 MCP 최신 스펙도 도구 목록을 캐시 가능하게 만드는 등 "많은 도구를 어떻게 싸게 다룰까"를 정면으로 건드립니다.</p>
+
+<p>결론부터 말하면 처방은 하나로 수렴합니다. <strong>도구를 전부 미리 올리지 말고, 필요할 때 찾아서 그때 불러오기.</strong> 검색으로 말이죠. 왜 이게 필요한지부터 차근차근 봅시다.</p>
+
+<div class="tsd-note"><strong>용어 정리.</strong> 이 글의 '도구(tool)'는 모델이 호출할 수 있는 함수 하나를 뜻합니다(예: <code>get_weather</code>). 'MCP'는 도구를 표준 방식으로 에이전트에 꽂아 주는 프로토콜이고요. 'Tool Search'는 도구를 미리 다 올리지 않고 <em>검색해서</em> 쓰는 기법, 'defer_loading(지연 로딩)'은 그걸 켜는 실제 설정값입니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 도구 정의(tool definition)와 tool calling 복습</h2>
+
+<p>모델이 도구를 쓰려면, 먼저 그 도구가 <strong>무엇이고 어떻게 부르는지</strong>를 알아야 합니다. 그 설명서가 <strong>도구 정의(tool definition)</strong>입니다. 이름, 한 줄 설명, 그리고 인자 스키마(어떤 파라미터를 어떤 타입으로 받는지)로 이뤄집니다. 아래가 도구 하나의 정의입니다.</p>
+
+{{< highlight json >}}
+{
+  "name": "get_weather",
+  "description": "특정 위치의 현재 날씨를 조회한다",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "location": { "type": "string" },
+      "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
+    },
+    "required": ["location"]
+  }
+}
+{{< /highlight >}}
+
+<p>핵심은 이겁니다. 이 정의는 <strong>매 요청마다 시스템 프롬프트 앞부분에 통째로</strong> 들어갑니다. 모델은 매번 "내가 쓸 수 있는 도구는 이것들이고, 각각 이렇게 생겼다"를 처음부터 다시 읽는 셈이죠. 대화가 이어져도 마찬가지입니다 — 도구 목록은 상태를 기억하지 않으니 요청마다 다시 실립니다.</p>
+
+<p>도구가 3~5개일 땐 아무 문제가 없습니다. 정의 몇 개는 수백 토큰이면 끝이니까요. 문제는 MCP 서버를 여럿 붙여 도구가 <strong>수십~수백 개</strong>로 불어날 때 시작됩니다. 뷔페에 비유하면 이렇습니다. 요리 3개짜리 식당이면 메뉴판을 통째로 봐도 됩니다. 그런데 요리가 500개라면? 주문할 때마다 500쪽짜리 메뉴판 전체를 다시 펼쳐 드는 건 낭비이고, 그 두께 앞에서 정작 뭘 시킬지 헷갈리기 시작합니다.</p>
+
+<h2 id="sec-3">3. 도구 세금의 두 얼굴: 컨텍스트 잠식 + 선택 정확도 붕괴</h2>
+
+<p>도구를 다 미리 올릴 때 내는 비용을 <strong>도구 세금(tool tax)</strong>이라고 부릅니다. 이 세금은 두 가지 방식으로 청구됩니다.</p>
+
+<p><strong>① 컨텍스트 예산 잠식.</strong> 도구 정의가 컨텍스트 창을 차지하는 만큼, 정작 대화·검색 결과·추론에 쓸 공간이 줄어듭니다. Anthropic 문서의 예시를 볼까요. GitHub·Slack·Sentry·Grafana·Splunk 다섯 서버를 붙이면, <strong>모델이 일을 하기도 전에 도구 정의만으로 약 5만 5천(55k) 토큰</strong>이 소비됩니다. 심한 경우 서버 세 개(도구 40개 남짓)만으로 컨텍스트의 70% 이상을 도구 설명이 차지했다는 실무 사례도 보고됐습니다. 게다가 이 비용은 <strong>매 요청마다</strong> 반복됩니다.</p>
+
+<p><strong>② 선택 정확도 붕괴.</strong> 더 무서운 쪽입니다. 도구가 많아지면 서로 비슷한 도구가 뒤섞이고, 모델이 "이 상황엔 어떤 도구가 맞지?"를 헷갈립니다. Anthropic 문서는 <strong>도구가 30~50개를 넘어가면 올바른 도구를 고르는 정확도가 떨어지기 시작한다</strong>고 못 박습니다. 토큰만 낭비하는 게 아니라 <em>실제로 일을 더 못하게</em> 되는 겁니다.</p>
+
+<figure class="tsd-fig">
+<svg viewBox="0 0 760 340" role="img" aria-label="도구 세금의 두 가지 비용을 나란히 보여 주는 그림. 왼쪽은 컨텍스트 창 막대에서 도구 정의가 약 5만 5천 토큰을 차지해 작업 공간을 좁히는 모습이고, 오른쪽은 사용 가능한 도구 개수가 늘수록 도구 선택 정확도가 30~50개 지점부터 떨어지는 곡선이다.">
+  <rect x="0" y="0" width="760" height="340" fill="none"/>
+  <text x="380" y="28" text-anchor="middle" font-size="16" font-weight="800" fill="var(--tsd-slate)">도구 세금의 두 얼굴</text>
+
+  <!-- LEFT: context budget -->
+  <text x="185" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="var(--tsd-rose)">① 컨텍스트 잠식</text>
+  <rect x="70" y="80" width="230" height="210" rx="10" fill="none" stroke="var(--tsd-grid)" stroke-width="2"/>
+  <!-- tool defs -->
+  <rect x="70" y="80" width="230" height="140" rx="10" fill="var(--tsd-rose)" opacity="0.28"/>
+  <text x="185" y="140" text-anchor="middle" font-size="15" font-weight="800" fill="var(--tsd-rose)">도구 정의</text>
+  <text x="185" y="163" text-anchor="middle" font-size="13" fill="var(--tsd-slate)">~55k 토큰</text>
+  <text x="185" y="182" text-anchor="middle" font-size="11" fill="var(--tsd-slate)">(서버 5개, 일 시작 전)</text>
+  <!-- work space -->
+  <text x="185" y="258" text-anchor="middle" font-size="13" fill="var(--tsd-slate)">남은 작업 공간</text>
+  <text x="185" y="308" text-anchor="middle" font-size="11.5" fill="var(--tsd-slate)">매 요청마다 이만큼이 반복</text>
+
+  <!-- RIGHT: accuracy curve -->
+  <text x="575" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="var(--tsd-violet)">② 선택 정확도 붕괴</text>
+  <line x1="440" y1="270" x2="700" y2="270" stroke="var(--tsd-grid)" stroke-width="1.5"/>
+  <line x1="460" y1="90" x2="460" y2="270" stroke="var(--tsd-grid)" stroke-width="1.5"/>
+  <text x="575" y="292" text-anchor="middle" font-size="11.5" fill="var(--tsd-slate)">사용 가능한 도구 수 →</text>
+  <text x="447" y="100" text-anchor="end" font-size="11" fill="var(--tsd-slate)" transform="rotate(-90 447 180)">정확도 →</text>
+  <path d="M470,120 Q540,120 570,140 Q620,175 690,235" fill="none" stroke="var(--tsd-violet)" stroke-width="3"/>
+  <line x1="565" y1="90" x2="565" y2="270" stroke="var(--tsd-amber)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="565" y="84" text-anchor="middle" font-size="11.5" fill="var(--tsd-amber)" font-weight="700">30~50개</text>
+  <text x="628" y="220" text-anchor="middle" font-size="11" fill="var(--tsd-violet)">여기서부터 급락</text>
+</svg>
+<figcaption>수치는 구성에 따라 달라지는 대략치다. 방향은 뚜렷하다 — 도구를 다 올리면 공간을 잃고(왼쪽), 30~50개를 넘으면 고르는 정확도까지 잃는다(오른쪽).</figcaption>
+</figure>
+
+<p>실제로 Anthropic 자체 평가에서, 대규모 도구 라이브러리를 다룰 때 Tool Search를 켜자 정확도가 <strong>Opus 4는 49%→74%, Opus 4.5는 79.5%→88.1%</strong>로 올라갔습니다. 도구를 '줄여서'가 아니라 '필요한 것만 보여 줘서' 더 잘하게 된 겁니다.</p>
+
+<h2 id="sec-4">4. 해법의 핵심: 미리 다 올리지 말고 필요할 때 찾아 쓴다</h2>
+
+<p>처방의 아이디어는 놀랄 만큼 단순합니다. 500쪽 메뉴판을 손님 테이블에 통째로 올려 두는 대신, <strong>웨이터 한 명(검색 도구)</strong>을 둡니다. 손님이 "매운 국물 요리 뭐 있어요?"라고 물으면, 웨이터가 주방 카탈로그를 뒤져 관련 요리 서너 개만 들고 옵니다. 테이블(컨텍스트)은 깨끗하게 비어 있고, 손님은 딱 필요한 선택지만 보게 되죠.</p>
+
+<p>이걸 <strong>just-in-time(필요한 순간에) 도구 로딩</strong>이라고 부릅니다. 컨텍스트에 처음 올라오는 건 '검색 도구' 하나(와 자주 쓰는 핵심 도구 몇 개)뿐입니다. 나머지 수백 개의 정의는 <strong>대기 상태로 숨겨</strong> 둡니다. 모델이 특정 도구가 필요해지면 그때 검색을 날리고, 매칭된 3~5개만 컨텍스트로 <em>펼쳐집니다</em>.</p>
+
+<figure class="tsd-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="도구를 전부 미리 올리는 방식과 필요할 때 검색해 불러오는 방식을 비교한 흐름도. 위쪽 '전'은 도구 수백 개가 한꺼번에 컨텍스트로 들어가 꽉 차는 모습이고, 아래쪽 '후'는 검색 도구 하나만 올린 뒤 사용자 요청에 맞는 도구 3~5개만 검색으로 불러오는 모습이다.">
+  <rect x="0" y="0" width="760" height="330" fill="none"/>
+  <defs><marker id="tsd-arr" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--tsd-slate)"/></marker></defs>
+
+  <!-- BEFORE -->
+  <text x="70" y="45" font-size="14" font-weight="800" fill="var(--tsd-rose)">전 — 전부 미리 로딩</text>
+  <g font-size="11" fill="var(--tsd-slate)">
+    <rect x="70" y="60" width="150" height="70" rx="8" fill="var(--tsd-rose)" opacity="0.14" stroke="var(--tsd-rose)" stroke-width="1.5"/>
+    <text x="145" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tsd-rose)">도구 정의 수백 개</text>
+    <text x="145" y="110" text-anchor="middle">names + schemas 전부</text>
+  </g>
+  <path d="M225,95 L300,95" fill="none" stroke="var(--tsd-slate)" stroke-width="2.2" marker-end="url(#tsd-arr)"/>
+  <rect x="305" y="60" width="220" height="70" rx="8" fill="var(--tsd-rose)" opacity="0.22" stroke="var(--tsd-rose)" stroke-width="2"/>
+  <text x="415" y="90" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--tsd-rose)">컨텍스트 창 — 꽉 참</text>
+  <text x="415" y="110" text-anchor="middle" font-size="11" fill="var(--tsd-slate)">작업 공간 거의 없음 · 정확도↓</text>
+
+  <line x1="70" y1="160" x2="690" y2="160" stroke="var(--tsd-grid)" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <!-- AFTER -->
+  <text x="70" y="195" font-size="14" font-weight="800" fill="var(--tsd-green)">후 — Tool Search로 지연 로딩</text>
+  <rect x="70" y="212" width="150" height="62" rx="8" fill="var(--tsd-sky)" opacity="0.16" stroke="var(--tsd-sky)" stroke-width="1.8"/>
+  <text x="145" y="238" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tsd-sky)">검색 도구 1개</text>
+  <text x="145" y="257" text-anchor="middle" font-size="10.5" fill="var(--tsd-slate)">+ 핵심 3~5개만</text>
+  <path d="M225,243 L285,243" fill="none" stroke="var(--tsd-slate)" stroke-width="2.2" marker-end="url(#tsd-arr)"/>
+  <rect x="290" y="205" width="175" height="76" rx="8" fill="var(--tsd-violet)" opacity="0.14" stroke="var(--tsd-violet)" stroke-width="1.8"/>
+  <text x="377" y="230" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tsd-violet)">"이슈 열어줘"</text>
+  <text x="377" y="250" text-anchor="middle" font-size="10.5" fill="var(--tsd-slate)">→ 검색: "github.*issue"</text>
+  <text x="377" y="268" text-anchor="middle" font-size="10.5" fill="var(--tsd-slate)">매칭 3~5개만 로딩</text>
+  <path d="M470,243 L530,243" fill="none" stroke="var(--tsd-slate)" stroke-width="2.2" marker-end="url(#tsd-arr)"/>
+  <rect x="535" y="205" width="155" height="76" rx="8" fill="var(--tsd-green)" opacity="0.16" stroke="var(--tsd-green)" stroke-width="2"/>
+  <text x="612" y="234" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--tsd-green)">공간 넉넉</text>
+  <text x="612" y="256" text-anchor="middle" font-size="10.5" fill="var(--tsd-slate)">정의 토큰 85%+ 절감</text>
+  <text x="612" y="272" text-anchor="middle" font-size="10.5" fill="var(--tsd-slate)">필요한 도구만 등장</text>
+</svg>
+<figcaption>같은 도구 카탈로그라도, 전부 미리 올리면 컨텍스트가 꽉 차고 정확도가 떨어진다. 검색 도구 하나만 올리고 필요할 때 불러오면 정의 토큰이 85% 넘게 줄어든다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. Anthropic Tool Search 뜯어보기 (defer_loading)</h2>
+
+<p>이제 실제 구현을 봅시다. Anthropic API에서 Tool Search를 켜는 방법은 딱 두 가지 재료로 이뤄집니다.</p>
+
+<ul>
+  <li><strong>검색 도구</strong>를 <code>tools</code> 배열에 추가한다. 두 종류가 있습니다.
+    <ul>
+      <li><code>tool_search_tool_regex_20251119</code> — 모델이 <strong>정규식(Python <code>re.search</code>)</strong> 패턴으로 검색(예: <code>"github.*issue"</code>). 패턴 최대 200자.</li>
+      <li><code>tool_search_tool_bm25_20251119</code> — 모델이 <strong>자연어 질의</strong>로 검색(예: "깃허브 이슈 만들기"). 최대 500자.</li>
+    </ul>
+  </li>
+  <li>평소에 숨길 도구엔 <code>"defer_loading": true</code>를 붙인다.</li>
+</ul>
+
+{{< highlight python >}}
+import anthropic
+client = anthropic.Anthropic()
+
+tools = [
+    # ① 검색 도구 자체는 절대 defer하지 않는다 (숨기면 아무것도 못 찾는다)
+    {"type": "tool_search_tool_regex_20251119", "name": "tool_search"},
+
+    # ② 매 요청 쓰는 핵심 도구 3~5개는 그냥 올려 둔다 (검색 없이 바로 호출)
+    {"name": "get_weather", "description": "특정 위치의 날씨를 조회",
+     "input_schema": {"type": "object",
+                      "properties": {"location": {"type": "string"}},
+                      "required": ["location"]}},
+
+    # ③ 나머지 수백 개는 defer_loading: True — 필요할 때 검색으로 불러온다
+    {"name": "github_create_issue", "description": "GitHub 저장소에 이슈를 생성",
+     "input_schema": {"type": "object",
+                      "properties": {"repo": {"type": "string"},
+                                     "title": {"type": "string"}},
+                      "required": ["repo", "title"]},
+     "defer_loading": True},          # ← 이 한 줄이 핵심
+    # ... github_*, slack_*, sentry_* 도구 수백 개 더 (전부 defer_loading: True)
+]
+
+resp = client.messages.create(
+    model="claude-opus-4-5-20251101",
+    max_tokens=2048,
+    messages=[{"role": "user", "content": "이 레포에 버그 이슈 하나 열어줘"}],
+    tools=tools,
+)
+{{< /highlight >}}
+
+<p>흐름은 이렇게 흘러갑니다. 처음 모델의 컨텍스트에는 검색 도구와 핵심 도구 몇 개만 보입니다. 사용자가 "이슈 열어줘"라고 하면, 모델은 <code>github.*issue</code> 같은 패턴으로 검색을 날립니다. API가 서버에서 카탈로그를 뒤져 매칭 도구를 <code>tool_reference</code> 블록으로 돌려주고(<strong>기본 최대 5개</strong>), 그걸 자동으로 전체 정의로 펼쳐 모델에게 보여 줍니다. 그제서야 모델이 <code>github_create_issue</code>를 실제로 호출하죠.</p>
+
+<div class="tsd-warn tsd-note"><strong>가장 헷갈리는 지점.</strong> <code>defer_loading</code>은 <em>요청 페이로드</em>가 아니라 <em>모델의 컨텍스트</em>를 제어합니다. 즉 <strong>모든 도구의 전체 정의는 매 요청마다 그대로 <code>tools</code> 배열에 담아 보내야</strong> 합니다(서버가 검색·확장할 때 필요하니까요). <code>defer_loading: true</code>가 하는 일은 "이건 <strong>모델 눈에는</strong> 검색으로 찾기 전까지 숨겨 둬"입니다. 네트워크로 보내는 양이 아니라, 모델이 읽는 양이 줄어드는 겁니다.</p></div>
+
+<p>절감 효과는 큽니다. Anthropic 문서 기준 <strong>도구 정의 토큰을 보통 85% 이상 줄이고</strong>, 요청당 실제로 필요한 3~5개만 올라옵니다. 보도된 내부 테스트에서는 약 134k 토큰이 약 5k로 떨어진 사례도 있습니다. 중요한 건 <strong>prompt caching이 깨지지 않는다</strong>는 점입니다 — 숨긴 도구는 시스템 프롬프트 앞부분(prefix)에서 빠지고, 검색으로 찾은 도구는 대화 흐름 안쪽에 <code>tool_reference</code>로 덧붙기 때문에 캐시된 prefix는 그대로 유지됩니다.</p>
+
+<div class="tsd-note"><strong>MCP를 쓴다면.</strong> 도구를 MCP 서버에서 가져오는 경우엔 개별 도구마다 <code>defer_loading</code>을 달지 않습니다. <code>mcp_toolset</code>의 <code>default_config</code>에 한 번 걸어 서버 전체를 지연 로딩으로 돌리거나, 필요한 도구만 개별 <code>configs</code>로 지정합니다. 서버 단위로 켜고 끈다고 기억하세요.</p></div>
+
+<h2 id="sec-6">6. 직접 검색 굴리기: Tool RAG(RAG-MCP)와 '결과 세금'</h2>
+
+<p>정규식·BM25 검색이 아쉬울 때가 있습니다. "환불 처리"라고 물었는데 도구 이름은 <code>issue_credit_note</code>라면, 키워드가 안 겹쳐 못 찾을 수 있죠. 이럴 땐 <strong>의미 기반 검색</strong>이 낫습니다. 도구 설명을 임베딩(embedding, 의미를 담은 벡터)으로 인덱싱해 두고, 사용자 요청과 <em>의미가</em> 가까운 도구를 뽑는 방식입니다. 이걸 <strong>Tool RAG</strong>라고 부릅니다 — 지식 조각 대신 <em>도구</em>를 검색하는 RAG인 셈이죠.</p>
+
+<p>이 아이디어는 학계에서도 같은 처방으로 나왔습니다. <strong>RAG-MCP</strong> 논문(arXiv:2505.03275)은 도구 설명을 외부 인덱스에 넣어 질문마다 관련 도구만 검색해 프롬프트에 넣었더니, <strong>프롬프트 토큰을 50% 넘게 줄이면서 도구 선택 정확도가 13.62%→43.13%로 3배 넘게</strong> 뛰었다고 보고합니다. Anthropic API에서도 이런 커스텀 검색을 꽂을 수 있습니다. 직접 만든 검색 도구가 결과로 <code>tool_reference</code>만 돌려주면, 나머지(전체 정의로 펼치기)는 API가 알아서 해 줍니다.</p>
+
+{{< highlight python >}}
+# Tool RAG: 검색을 정규식 대신 '임베딩 유사도'로 직접 굴린다.
+def my_tool_search(query: str) -> list[str]:
+    q = embed(query)                      # 사용자 요청을 벡터로
+    hits = vector_db.search(q, top_k=5)   # 도구 설명 임베딩과 유사도 검색
+    return [h.tool_name for h in hits]    # 상위 5개 '도구 이름'만
+
+# 모델이 내 커스텀 검색 도구를 호출하면, tool_result에 tool_reference로 응답한다.
+tool_result = {
+    "type": "tool_result",
+    "tool_use_id": call_id,
+    "content": [
+        {"type": "tool_reference", "tool_name": name}   # ← 전체 정의로 자동 확장
+        for name in my_tool_search(user_query)
+    ],
+}
+# 주의: 참조된 도구는 top-level tools 배열에 (보통 defer_loading: True로) 반드시 존재해야 한다.
+{{< /highlight >}}
+
+<p>여기까지는 <strong>'정의 세금'</strong>(도구 스키마가 컨텍스트를 먹는 문제)을 줄이는 이야기였습니다. 그런데 세금이 하나 더 있습니다 — <strong>'결과 세금'</strong>입니다. 도구를 20번 호출하면 그 20번의 <em>중간 결과</em>가 전부 컨텍스트로 쏟아져 들어옵니다. 이걸 줄이는 게 <strong>programmatic tool calling</strong>입니다. 모델이 도구를 한 번씩 부르는 대신, 코드 실행 샌드박스 안에서 <strong>코드를 짜서 도구들을 프로그램처럼 호출</strong>하고, 필터링까지 끝낸 <em>최종 결과만</em> 컨텍스트로 돌려보냅니다. Anthropic 평가에서 웹 리서치 벤치마크(BrowseComp·DeepSearchQA) 기준 <strong>성능은 평균 11% 오르고 입력 토큰은 24% 줄었습니다</strong>. 정리하면 — Tool Search는 정의 세금을, programmatic tool calling은 결과 세금을 줄입니다. 둘은 함께 쓸 수 있습니다.</p>
+
+<h2 id="sec-7">7. 언제 켜고, 언제 끄면 안 되나</h2>
+
+<p>좋은 기술도 상황을 가립니다. Tool Search는 <strong>도구가 많을 때</strong> 빛나고, 적을 땐 오히려 군더더기입니다.</p>
+
+<figure class="tsd-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="Tool Search를 켤지 말지 정하는 결정 가이드. 도구가 10개 미만이거나 매 요청 모든 도구를 쓰거나 정의가 아주 작으면 그냥 표준 tool calling을 쓰고, 도구가 10개 이상이거나 정의가 1만 토큰을 넘거나 도구가 늘수록 정확도가 떨어지거나 MCP 서버를 여러 개 합치면 Tool Search를 켜라고 안내한다.">
+  <rect x="0" y="0" width="760" height="300" fill="none"/>
+  <rect x="270" y="20" width="220" height="52" rx="12" fill="var(--tsd-blue)" opacity="0.14" stroke="var(--tsd-blue)" stroke-width="2"/>
+  <text x="380" y="42" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--tsd-blue)">도구 정의가 컨텍스트를</text>
+  <text x="380" y="61" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--tsd-blue)">얼마나 먹는가?</text>
+  <defs><marker id="tsd-arr2" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--tsd-slate)"/></marker></defs>
+  <path d="M330,74 L200,120" fill="none" stroke="var(--tsd-slate)" stroke-width="2" marker-end="url(#tsd-arr2)"/>
+  <path d="M430,74 L560,120" fill="none" stroke="var(--tsd-slate)" stroke-width="2" marker-end="url(#tsd-arr2)"/>
+
+  <!-- left: standard -->
+  <rect x="40" y="125" width="300" height="150" rx="12" fill="var(--tsd-teal)" opacity="0.1" stroke="var(--tsd-teal)" stroke-width="2"/>
+  <text x="190" y="150" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--tsd-teal)">그냥 표준 tool calling</text>
+  <g font-size="11.5" fill="var(--tsd-slate)">
+    <text x="60" y="178">· 도구 10개 미만</text>
+    <text x="60" y="202">· 매 요청 모든 도구를 다 씀</text>
+    <text x="60" y="226">· 정의가 아주 작음(합쳐서 &lt;100 토큰대)</text>
+    <text x="60" y="252">→ 검색은 오히려 왕복만 늘린다</text>
+  </g>
+
+  <!-- right: tool search -->
+  <rect x="420" y="125" width="300" height="150" rx="12" fill="var(--tsd-green)" opacity="0.12" stroke="var(--tsd-green)" stroke-width="2.5"/>
+  <text x="570" y="150" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--tsd-green)">Tool Search를 켜라</text>
+  <g font-size="11.5" fill="var(--tsd-slate)">
+    <text x="440" y="178">· 도구 10개 이상</text>
+    <text x="440" y="202">· 정의가 10k 토큰 초과</text>
+    <text x="440" y="226">· 도구 늘수록 선택 정확도 하락</text>
+    <text x="440" y="252">· MCP 서버 여러 개(200+개) 합침</text>
+  </g>
+</svg>
+<figcaption>도구가 적고 매번 다 쓰면 표준 방식이 낫다. 도구가 10개를 넘고 정의가 무거워지면 Tool Search가 이긴다. (기준: Anthropic 문서)</figcaption>
+</figure>
+
+<p>Anthropic 문서가 제시하는 기준을 그대로 옮기면 이렇습니다. <strong>켜라</strong> — 도구가 10개 이상이거나, 정의가 10k 토큰을 넘거나, 도구가 늘수록 정확도가 떨어지거나, MCP 서버를 여러 개(200개 이상) 합칠 때. <strong>끄는 게 낫다</strong> — 도구가 10개 미만이거나, 매 요청 모든 도구를 다 쓰거나, 정의가 아주 작을 때. 참고로 <code>defer_loading</code>이 붙는 도구는 최대 <strong>1만 개</strong>까지 지원합니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<div class="tsd-warn tsd-note"><strong>함정 1 — 검색 도구까지 defer해 버리기.</strong> 모든 도구에 <code>defer_loading: true</code>를 걸면 검색 도구마저 숨겨져, "적어도 하나는 defer가 아니어야 한다"는 400 에러가 납니다. <strong>검색 도구는 항상 열어 두세요.</strong></p></div>
+
+<div class="tsd-warn tsd-note"><strong>함정 2 — 검색에 안 걸리는 이름·설명.</strong> 검색은 도구의 <em>이름·설명·인자 이름·인자 설명</em>을 훑습니다. 이름이 <code>do_thing_42</code>처럼 의미가 없으면 아무 패턴에도 안 걸립니다. 서비스별로 <code>github_</code>, <code>slack_</code>처럼 <strong>일관된 접두사</strong>를 붙이고, 설명에 사용자가 쓸 법한 키워드(예: "환불", "청구")를 넣어 <strong>검색 가능성(discoverability)</strong>을 높이세요.</p></div>
+
+<div class="tsd-warn tsd-note"><strong>함정 3 — 자주 쓰는 도구까지 숨기기.</strong> 매 턴 쓰는 도구를 defer하면, 쓸 때마다 검색 왕복이 한 번씩 더 들어가 되레 느려집니다. <strong>핵심 3~5개는 열어 두고</strong> 나머지를 숨기세요.</p></div>
+
+<div class="tsd-good tsd-note"><strong>팁 1 — 캐시 breakpoint는 열린 도구에.</strong> <code>defer_loading: true</code>인 도구엔 <code>cache_control</code>을 같이 걸 수 없습니다(400). 캐시 지점은 defer하지 않은 도구에 두세요. 앞서 봤듯 지연 로딩 자체는 prefix를 안 건드리므로 prompt caching과 잘 어울립니다.</p></div>
+
+<div class="tsd-good tsd-note"><strong>팁 2 — 시스템 프롬프트에 '카테고리 지도'를 주기.</strong> "Slack·GitHub·Jira 관련 도구를 검색할 수 있다"처럼 어떤 부류가 있는지 한 줄 알려 주면, 모델이 검색을 더 정확히 시작합니다. 모델이 실제로 무엇을 검색해 찾는지 로그로 지켜보며 설명을 다듬는 것도 좋습니다.</p></div>
+
+<div class="tsd-good tsd-note"><strong>팁 3 — 매칭 0개는 에러가 아니다.</strong> 검색이 아무것도 못 찾으면 빈 결과가 돌아올 뿐(예외 아님)입니다. 이때 모델이 다른 패턴으로 다시 검색하도록 설계하고, 정말 없는 기능이면 "그 도구는 없다"고 답하게 하세요.</p></div>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>도구를 많이 붙일수록 에이전트가 나빠질 수 있다.</strong> 모델은 매 요청마다 모든 도구 정의를 통째로 읽기 때문이다 — 이게 '도구 세금'이다.</li>
+  <li><strong>세금은 두 갈래로 청구된다.</strong> ① 컨텍스트 잠식(서버 5개면 일 시작 전부터 ~55k 토큰), ② 선택 정확도 붕괴(도구 30~50개 초과 시 급락).</li>
+  <li><strong>처방은 하나로 수렴한다 — just-in-time 로딩.</strong> 전부 미리 올리지 말고, 검색 도구 하나만 두고 필요할 때 3~5개만 불러온다.</li>
+  <li><strong>Anthropic Tool Search = <code>defer_loading: true</code> + 검색 도구(regex/BM25).</strong> 정의 토큰을 보통 85%+ 절감하고, 전체 정의는 여전히 요청에 담아 보내되 <em>모델 눈</em>에서만 숨긴다. prompt caching도 유지된다.</li>
+  <li><strong>키워드가 안 맞으면 Tool RAG.</strong> 임베딩으로 의미 검색해 <code>tool_reference</code>로 돌려주면 된다. RAG-MCP 논문은 토큰 50%↓·선택 정확도 13.62%→43.13%를 보고했다.</li>
+  <li><strong>'정의 세금'과 '결과 세금'은 다르다.</strong> Tool Search는 정의를, programmatic tool calling은 도구 실행의 중간 결과를 줄인다. 함께 쓸 수 있다.</li>
+  <li><strong>다만 도구가 10개 미만이면 켜지 마라.</strong> 검색 왕복만 늘 뿐이다. 켜는 기준: 10개+, 정의 10k 토큰+, MCP 서버 다수.</li>
+</ul>
+
+<h2 id="sec-ref">10. 참고 자료</h2>
+<ul>
+  <li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool" target="_blank" rel="noopener">Claude Platform 공식 문서 — Tool search tool (defer_loading, regex/BM25, 55k→85%↓, 30~50개 정확도, 한도)</a></li>
+  <li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling" target="_blank" rel="noopener">Claude Platform 공식 문서 — Programmatic tool calling (BrowseComp·DeepSearchQA +11%·입력 토큰 24%↓)</a></li>
+  <li><a href="https://www.anthropic.com/engineering/advanced-tool-use" target="_blank" rel="noopener">Anthropic Engineering — Advanced tool use (Tool Search·정확도 개선 자체 평가)</a></li>
+  <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic Engineering — Effective context engineering (just-in-time retrieval 원리)</a></li>
+  <li><a href="https://arxiv.org/abs/2505.03275" target="_blank" rel="noopener">RAG-MCP: Mitigating Prompt Bloat in LLM Tool Selection via Retrieval-Augmented Generation (arXiv:2505.03275, 토큰 50%↓·정확도 13.62%→43.13%)</a></li>
+  <li><a href="https://venturebeat.com/orchestration/claude-code-just-got-updated-with-one-of-the-most-requested-user-features" target="_blank" rel="noopener">VentureBeat — Claude Code adds MCP tool search / lazy loading (134k→5k 내부 테스트 보도)</a></li>
+  <li><a href="https://next.redhat.com/2025/11/26/tool-rag-the-next-breakthrough-in-scalable-ai-agents/" target="_blank" rel="noopener">Red Hat Emerging Technologies — Tool RAG: The Next Breakthrough in Scalable AI Agents (ToolScope)</a></li>
+  <li><a href="https://writer.com/engineering/rag-mcp/" target="_blank" rel="noopener">WRITER Engineering — When too many tools become too much context (RAG-MCP)</a></li>
+  <li><a href="https://eclipsesource.com/blogs/2026/01/22/mcp-context-overload/" target="_blank" rel="noopener">EclipseSource — MCP and Context Overload: Why More Tools Make Your AI Agent Worse</a></li>
+  <li><a href="https://github.com/googleapis/python-genai/issues/2185" target="_blank" rel="noopener">google/python-genai #2185 — defer_loading·tool_search 지원 요청(프레임워크 parity)</a></li>
+  <li><a href="https://modelcontextprotocol.io/specification/2026-07-28/changelog" target="_blank" rel="noopener">Model Context Protocol — 2026-07-28 스펙 변경점(cacheable list results 등)</a></li>
+</ul>

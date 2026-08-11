@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 470" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="820" height="470" rx="16" fill="#0f172a"/>
+  <text x="32" y="42" fill="#e2e8f0" font-size="21" font-weight="700">오늘의 AI 변화 지도 — 에이전트 스킬 공급망 보안</text>
+  <text x="32" y="66" fill="#94a3b8" font-size="13">축: "스킬을 설치하기 전에 무엇을 스캔하느냐" · 공격(빨강) ↔ 방어(초록)</text>
+
+  <!-- edges -->
+  <g stroke="#334155" stroke-width="2" fill="none">
+    <line x1="410" y1="250" x2="200" y2="150"/>
+    <line x1="410" y1="250" x2="620" y2="150"/>
+    <line x1="410" y1="250" x2="180" y2="340"/>
+    <line x1="410" y1="250" x2="410" y2="400"/>
+    <line x1="410" y1="250" x2="640" y2="340"/>
+  </g>
+
+  <!-- center -->
+  <rect x="300" y="218" width="220" height="66" rx="12" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+  <text x="410" y="248" fill="#f1f5f9" font-size="16" font-weight="700" text-anchor="middle">스킬 = 공격 표면</text>
+  <text x="410" y="270" fill="#94a3b8" font-size="12" text-anchor="middle">단일 스킬 검사만으론 부족</text>
+
+  <!-- ColluSkill attack -->
+  <rect x="90" y="118" width="220" height="64" rx="12" fill="#3f1d24" stroke="#f87171" stroke-width="2"/>
+  <text x="200" y="145" fill="#fecaca" font-size="14" font-weight="700" text-anchor="middle">ColluSkill (공격)</text>
+  <text x="200" y="166" fill="#fca5a5" font-size="11.5" text-anchor="middle">스킬 체인 조합으로 ASR 96.0%</text>
+
+  <!-- ChainGuard defense -->
+  <rect x="510" y="118" width="230" height="64" rx="12" fill="#14342a" stroke="#34d399" stroke-width="2"/>
+  <text x="625" y="145" fill="#a7f3d0" font-size="14" font-weight="700" text-anchor="middle">ChainGuard (방어)</text>
+  <text x="625" y="166" fill="#6ee7b7" font-size="11.5" text-anchor="middle">체인 단위 분석 → 22.5%로 억제</text>
+
+  <!-- SkillSpector tool -->
+  <rect x="70" y="312" width="220" height="64" rx="12" fill="#14342a" stroke="#34d399" stroke-width="2"/>
+  <text x="180" y="339" fill="#a7f3d0" font-size="14" font-weight="700" text-anchor="middle">SkillSpector (툴)</text>
+  <text x="180" y="360" fill="#6ee7b7" font-size="11.5" text-anchor="middle">MCP 스캐너 · 설치 게이트</text>
+
+  <!-- reasoning trace leak -->
+  <rect x="300" y="404" width="220" height="52" rx="12" fill="#3f1d24" stroke="#f87171" stroke-width="2"/>
+  <text x="410" y="427" fill="#fecaca" font-size="13.5" font-weight="700" text-anchor="middle">암호화 추론 블록 유출</text>
+  <text x="410" y="446" fill="#fca5a5" font-size="11" text-anchor="middle">공개 로그서 PII 367 · 크리덴셜 182</text>
+
+  <!-- releases -->
+  <rect x="530" y="312" width="220" height="64" rx="12" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+  <text x="640" y="335" fill="#e2e8f0" font-size="13" font-weight="700" text-anchor="middle">릴리스 레이더</text>
+  <text x="640" y="354" fill="#94a3b8" font-size="11" text-anchor="middle">Claude Code v2.1.227</text>
+  <text x="640" y="370" fill="#94a3b8" font-size="11" text-anchor="middle">Codex: gpt-5.4 8/31 종료</text>
+</svg>

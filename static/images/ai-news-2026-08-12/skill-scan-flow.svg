@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 400" font-family="'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="820" height="400" rx="16" fill="#0f172a"/>
+  <text x="32" y="42" fill="#e2e8f0" font-size="21" font-weight="700">Agent Builder 시사점 — 설치 전 스캔을 게이트로</text>
+  <text x="32" y="66" fill="#94a3b8" font-size="13">스킬/MCP를 에이전트가 쓰기 전에, 스캔 결과로 설치 여부를 강제한다</text>
+
+  <!-- step 1 -->
+  <rect x="40" y="120" width="180" height="90" rx="12" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+  <text x="130" y="152" fill="#f1f5f9" font-size="14" font-weight="700" text-anchor="middle">① 설치 요청</text>
+  <text x="130" y="176" fill="#94a3b8" font-size="11.5" text-anchor="middle">외부 SKILL.md /</text>
+  <text x="130" y="192" fill="#94a3b8" font-size="11.5" text-anchor="middle">MCP 서버 번들</text>
+
+  <!-- arrow -->
+  <path d="M224 165 L268 165" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- step 2 -->
+  <rect x="272" y="108" width="230" height="114" rx="12" fill="#14342a" stroke="#34d399" stroke-width="2"/>
+  <text x="387" y="138" fill="#a7f3d0" font-size="14" font-weight="700" text-anchor="middle">② SkillSpector MCP 스캔</text>
+  <text x="387" y="162" fill="#6ee7b7" font-size="11.5" text-anchor="middle">정적 분석 + (옵션) LLM 의미 평가</text>
+  <text x="387" y="181" fill="#6ee7b7" font-size="11.5" text-anchor="middle">프롬프트 주입 · 유출 · 공급망</text>
+  <text x="387" y="200" fill="#6ee7b7" font-size="11.5" text-anchor="middle">체인 단위: 이미 깔린 스킬과 함께</text>
+
+  <!-- arrow -->
+  <path d="M506 165 L550 165" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- gate -->
+  <rect x="554" y="120" width="226" height="90" rx="12" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+  <text x="667" y="150" fill="#f1f5f9" font-size="14" font-weight="700" text-anchor="middle">③ 정책 게이트</text>
+  <text x="600" y="182" fill="#a7f3d0" font-size="12" text-anchor="middle">통과 → 설치</text>
+  <text x="735" y="182" fill="#fca5a5" font-size="12" text-anchor="middle">위험 → 차단</text>
+  <line x1="667" y1="166" x2="667" y2="200" stroke="#475569" stroke-width="1.5"/>
+
+  <!-- caption row -->
+  <rect x="40" y="252" width="740" height="112" rx="12" fill="#111827" stroke="#334155" stroke-width="1.5"/>
+  <text x="60" y="282" fill="#e2e8f0" font-size="13.5" font-weight="700">왜 게이트로 강제하나</text>
+  <text x="60" y="308" fill="#cbd5e1" font-size="12.5">· 스캔을 감사(audit)가 아니라 설치 조건으로: 사람이 잊어도 파이프라인이 막는다.</text>
+  <text x="60" y="330" fill="#cbd5e1" font-size="12.5">· MCP 서버로 띄우면 Claude Code · Codex · Gemini CLI가 도구처럼 호출 가능.</text>
+  <text x="60" y="352" fill="#f87171" font-size="12.5">· 단, 정적 검사는 ColluSkill류 체인 공격을 놓칠 수 있음 → 체인 단위 분석 필수.</text>
+
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0 0 L9 4.5 L0 9 z" fill="#475569"/>
+    </marker>
+  </defs>
+</svg>

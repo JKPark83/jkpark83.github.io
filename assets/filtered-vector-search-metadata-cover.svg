@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="벡터 검색에 메타데이터 필터를 더할 때 생기는 문제를 나타낸 그림. 왼쪽 '그냥 필터'에서는 HNSW 그래프에서 필터 조건에 안 맞는 노드가 회색으로 빠지면서 그래프가 여러 조각으로 끊겨, 탐색이 중간에 갇히고 LIMIT 10을 요청했는데 결과가 3개만 돌아온다. 오른쪽 '필터 인지 검색'에서는 필터로 빠진 회색 노드를 두 칸씩 건너뛰어 살아있는 노드끼리 연결을 유지하며 탐색해, 결과 10개를 온전히 채운다.">
+  <defs>
+    <linearGradient id="fvg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#0b2333"/>
+    </linearGradient>
+    <marker id="fv-arrow" markerWidth="14" markerHeight="14" refX="10" refY="7" orient="auto">
+      <path d="M0,1 L13,7 L0,13 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#fvg)"/>
+
+  <text x="80" y="84" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">벡터 검색 + 필터링</text>
+  <text x="80" y="126" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="600">WHERE 한 줄이 HNSW 그래프를 조각내는 이유, 그리고 해법</text>
+
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <!-- LEFT: naive filter -->
+    <text x="80" y="188" fill="#fb7185" font-size="23" font-weight="800">그냥 필터 → 그래프 단절</text>
+    <text x="80" y="216" fill="#94a3b8" font-size="16">필터로 빠진 회색 노드가 길을 끊는다</text>
+    <!-- graph left: nodes, some gray (filtered) -->
+    <g stroke="#334155" stroke-width="2">
+      <line x1="150" y1="300" x2="250" y2="270"/>
+      <line x1="250" y1="270" x2="340" y2="330"/>
+      <line x1="340" y1="330" x2="250" y2="400"/>
+      <line x1="150" y1="300" x2="250" y2="400"/>
+      <line x1="340" y1="330" x2="440" y2="290"/>
+      <line x1="440" y1="290" x2="470" y2="380"/>
+    </g>
+    <!-- filtered (gray) nodes break path -->
+    <g>
+      <circle cx="150" cy="300" r="17" fill="#38bdf8"/>
+      <circle cx="250" cy="270" r="17" fill="#475569"/>
+      <circle cx="340" cy="330" r="17" fill="#475569"/>
+      <circle cx="250" cy="400" r="17" fill="#38bdf8"/>
+      <circle cx="440" cy="290" r="17" fill="#475569"/>
+      <circle cx="470" cy="380" r="17" fill="#38bdf8"/>
+    </g>
+    <text x="150" y="470" fill="#fecdd3" font-size="19" font-weight="700">요청 LIMIT 10 →</text>
+    <text x="150" y="498" fill="#fb7185" font-size="30" font-weight="800">결과 3개 😵</text>
+
+    <!-- divider -->
+    <line x1="600" y1="170" x2="600" y2="520" stroke="#334155" stroke-width="2" stroke-dasharray="6 8"/>
+
+    <!-- RIGHT: filter-aware -->
+    <text x="648" y="188" fill="#4ade80" font-size="23" font-weight="800">필터 인지 검색 → 우회</text>
+    <text x="648" y="216" fill="#94a3b8" font-size="16">회색 노드를 두 칸씩 건너뛰어 연결 유지</text>
+    <g stroke="#334155" stroke-width="2">
+      <line x1="720" y1="300" x2="820" y2="270"/>
+      <line x1="820" y1="270" x2="910" y2="330"/>
+      <line x1="910" y1="330" x2="820" y2="400"/>
+      <line x1="720" y1="300" x2="820" y2="400"/>
+      <line x1="910" y1="330" x2="1010" y2="290"/>
+      <line x1="1010" y1="290" x2="1040" y2="380"/>
+    </g>
+    <!-- two-hop jump edges (green dashed) skipping gray -->
+    <g stroke="#4ade80" stroke-width="2.6" stroke-dasharray="6 5" fill="none" marker-end="url(#fv-arrow)">
+      <path d="M720 300 Q790 220 900 322"/>
+      <path d="M910 335 Q980 430 1030 378"/>
+    </g>
+    <g>
+      <circle cx="720" cy="300" r="17" fill="#4ade80"/>
+      <circle cx="820" cy="270" r="17" fill="#475569"/>
+      <circle cx="910" cy="330" r="17" fill="#4ade80"/>
+      <circle cx="820" cy="400" r="17" fill="#4ade80"/>
+      <circle cx="1010" cy="290" r="17" fill="#475569"/>
+      <circle cx="1040" cy="380" r="17" fill="#4ade80"/>
+    </g>
+    <text x="648" y="470" fill="#bbf7d0" font-size="19" font-weight="700">요청 LIMIT 10 →</text>
+    <text x="648" y="498" fill="#4ade80" font-size="30" font-weight="800">결과 10개 ✅</text>
+  </g>
+
+  <!-- bottom band -->
+  <rect x="80" y="540" width="1040" height="60" rx="12" fill="#0b1120" stroke="#1e293b" stroke-width="1.5"/>
+  <text x="105" y="578" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19" font-weight="700">파란/초록 = 필터 통과 노드 · 회색 = 필터로 빠진 노드 &#160;|&#160; pgvector · Qdrant · Weaviate ACORN</text>
+</svg>

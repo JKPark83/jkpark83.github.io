@@ -1,0 +1,317 @@
+---
+title: "필터를 걸었더니 결과가 텅 비었다: 벡터 검색에 WHERE를 더할 때 생기는 일"
+date: 2026-08-13T07:30:00+09:00
+draft: false
+tags: ["AI", "벡터 검색", "vector search", "메타데이터 필터링", "metadata filtering", "HNSW", "ANN", "RAG", "pgvector", "Qdrant", "Weaviate", "ACORN", "pre-filter", "post-filter", "iterative scan", "검색", "임베딩", "LLM"]
+categories: ["AI 엔지니어링"]
+summary: "RAG에 '2024년 이후 문서만' 같은 메타데이터 필터를 붙이는 건 한 줄이면 될 것 같지만, 막상 걸어 보면 검색 결과가 요청한 개수보다 적게 나오거나(혹은 갑자기 느려지거나) 이상한 게 올라옵니다. 범인은 벡터 검색의 심장인 HNSW가 '그래프'라는 사실입니다. 필터로 노드를 지우면 그래프 길이 끊겨 탐색이 중간에 갇히죠. 이 글은 왜 WHERE 한 줄이 벡터 검색을 무너뜨리는지(post-filter의 과소반환, pre-filter의 브루트포스, 그래프 단절)를 바닥부터 풀고, pgvector의 iterative scan, Qdrant의 filterable HNSW, Weaviate의 ACORN이 각각 이 문제를 어떻게 푸는지 비교합니다. 직접 재현할 수 있는 SQL·코드와, junior가 자주 밟는 함정(selectivity·payload 인덱스 순서·상관관계)까지 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "filtered-vector-search-metadata-cover.svg"
+  alt: "왼쪽 '그냥 필터'에서는 HNSW 그래프에서 필터 조건에 안 맞는 노드가 회색으로 빠지며 그래프가 여러 조각으로 끊겨, 탐색이 중간에 갇히고 LIMIT 10을 요청했는데 결과가 3개만 돌아온다. 오른쪽 '필터 인지 검색'에서는 필터로 빠진 회색 노드를 두 칸씩 건너뛰어 살아있는 노드끼리 연결을 유지하며 탐색해 결과 10개를 온전히 채운다."
+  caption: "메타데이터 필터는 HNSW 그래프에서 노드를 지우는 일이라, 잘못 다루면 길이 끊겨 결과가 텅 빈다. 필터를 '의식하는' 검색(iterative scan·filterable HNSW·ACORN)이 해법이다."
+  relative: false
+---
+
+<style>
+/* ── 필터드 벡터 검색 포스트 전용 스타일 (fvs- 접두사) ── */
+.fvs-fig{
+  --fvs-sky:#0284c7; --fvs-amber:#d97706; --fvs-green:#16a34a; --fvs-rose:#e11d48;
+  --fvs-slate:#64748b; --fvs-violet:#7c3aed; --fvs-teal:#0d9488; --fvs-blue:#2563eb;
+  --fvs-grid:#cbd5e1; --fvs-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .fvs-fig{
+  --fvs-sky:#38bdf8; --fvs-amber:#fbbf24; --fvs-green:#4ade80; --fvs-rose:#fb7185;
+  --fvs-slate:#94a3b8; --fvs-violet:#a78bfa; --fvs-teal:#2dd4bf; --fvs-blue:#60a5fa;
+  --fvs-grid:#334155; --fvs-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .fvs-fig{
+    --fvs-sky:#38bdf8; --fvs-amber:#fbbf24; --fvs-green:#4ade80; --fvs-rose:#fb7185;
+    --fvs-slate:#94a3b8; --fvs-violet:#a78bfa; --fvs-teal:#2dd4bf; --fvs-blue:#60a5fa;
+    --fvs-grid:#334155; --fvs-gray:#64748b;
+  }
+}
+.fvs-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.fvs-fig text{font-family:inherit}
+.fvs-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.fvs-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.fvs-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.fvs-toc ol{margin:0;padding-left:1.25rem}
+.fvs-toc li{margin:.22rem 0;font-size:.95rem}
+.fvs-toc a{text-decoration:none}
+.fvs-toc a:hover{text-decoration:underline}
+.fvs-pull{font-size:1.12rem;line-height:1.72}
+.fvs-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.fvs-note{border-left:4px solid var(--fvs-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.fvs-note strong{color:var(--fvs-blue,#2563eb)}
+.fvs-warn{border-left:4px solid var(--fvs-rose,#e11d48)}
+.fvs-warn strong{color:var(--fvs-rose,#e11d48)}
+.fvs-good{border-left:4px solid var(--fvs-teal,#0d9488)}
+.fvs-good strong{color:var(--fvs-teal,#0d9488)}
+.fvs-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.fvs-tbl th,.fvs-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.fvs-tbl th{background:var(--entry);font-weight:700}
+.fvs-tbl code{font-size:.86em}
+.fvs-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="fvs-pull">
+  <p>RAG는 잘 돌아가고 있었습니다. 그런데 &#8220;<em>2024년 이후 문서만</em> 찾아 줘&#8221;라는 요구가 들어와 <code>WHERE created_at &gt; '2024-01-01'</code> 한 줄을 얹었더니 &#8212; 10개를 달라고 했는데 <strong>3개</strong>만 돌아옵니다. 그마저도 관련 없는 것들이죠.</p>
+  <footer>&#8212; 버그가 아닙니다. 벡터 검색의 심장인 <strong>HNSW가 &#8216;그래프&#8217;</strong>라는 사실이 드러난 것뿐입니다.</footer>
+</blockquote>
+
+<nav class="fvs-toc" aria-label="목차">
+  <div class="fvs-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">필터 한 줄에 결과가 비는 이유</a></li>
+    <li><a href="#sec-2">배경 &#8212; HNSW는 &#8216;그래프&#8217;다 (한 문단 정리)</a></li>
+    <li><a href="#sec-3">두 가지 순진한 방법과 각각의 실패</a></li>
+    <li><a href="#sec-4">해법 &#8212; 필터를 &#8216;의식하는&#8217; 검색</a></li>
+    <li><a href="#sec-5">엔진별 접근 (pgvector·Qdrant·Weaviate)</a></li>
+    <li><a href="#sec-6">실전 &#8212; 재현하고 고쳐 보기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 필터 한 줄에 결과가 비는 이유</h2>
+
+<p>실무 RAG에는 순수한 의미 검색만 있는 경우가 거의 없습니다. 거의 항상 <strong>메타데이터 필터(metadata filter)</strong>가 붙습니다 &#8212; &#8220;이 사용자의 문서만&#8221;, &#8220;2024년 이후만&#8221;, &#8220;공개 등급만&#8221;, &#8220;한국어만&#8221;처럼요. 벡터로 &#8216;의미가 비슷한 것&#8217;을 찾되, 그중 <em>조건에 맞는 것</em>만 골라야 하죠.</p>
+
+<p>SQL 감각으로 보면 그냥 <code>WHERE</code> 한 줄입니다. 그런데 벡터 검색에서는 이게 생각보다 훨씬 까다롭습니다. 증상은 대개 셋 중 하나입니다.</p>
+
+<ul>
+  <li><strong>과소반환</strong> &#8212; 10개를 요청했는데 3개만 돌아온다.</li>
+  <li><strong>정확도 저하</strong> &#8212; 필터는 맞지만 <em>정말 가까운</em> 문서를 놓치고 애매한 게 올라온다.</li>
+  <li><strong>지연 폭발</strong> &#8212; 필터를 걸었더니 오히려 검색이 몇 배 느려진다.</li>
+</ul>
+
+<p>왜 이럴까요? 답은 검색 엔진이 벡터를 저장하는 방식에 있습니다. 수백만 개 벡터에서 &#8216;가장 가까운 것&#8217;을 매번 전부 비교해 찾으면(브루트포스) 너무 느리므로, 실무는 대부분 <strong>근사 최근접 이웃(ANN, approximate nearest neighbor)</strong> 인덱스를 씁니다. 그리고 가장 널리 쓰이는 ANN 인덱스가 바로 <strong>HNSW</strong>입니다. HNSW는 &#8220;그래프&#8221;라, 필터로 노드를 지우면 <em>길이 끊깁니다</em>. 이게 문제의 핵심입니다.</p>
+
+<div class="fvs-note"><strong>왜 요즘 화제인가.</strong> 2026년 들어 &#8220;filtered vector search&#8221;는 벡터 DB 진영의 단골 주제가 됐습니다. Weaviate가 필터드 검색을 가속하는 <code>ACORN</code> 전략을 정식 릴리스에 넣었고, Qdrant는 <em>filterable HNSW</em>를 다룬 상세 가이드를 냈으며, pgvector는 0.8.0에서 &#8216;과소반환&#8217;을 잡는 <em>iterative index scan</em>을 추가했습니다. 필터드 ANN을 제대로 평가하려는 벤치마크 논문도 잇달아 나왔죠. RAG가 멀티테넌시·권한·기간 필터를 달고 프로덕션으로 넘어가면서, &#8220;필터와 벡터 검색을 어떻게 함께 태우나&#8221;가 실무 talking point가 된 겁니다.</p></div>
+
+<h2 id="sec-2">2. 배경 &#8212; HNSW는 &#8216;그래프&#8217;다 (한 문단 정리)</h2>
+
+<p><strong>HNSW</strong>(Hierarchical Navigable Small World, 계층적 탐색 가능 소세계)는 이름은 거창하지만 발상은 단순합니다. 벡터 하나하나를 <em>노드</em>로 두고, 서로 가까운 벡터끼리 <em>엣지(간선)</em>로 이어 그래프를 만듭니다. 검색은 아무 노드에서 출발해 &#8220;질의와 더 가까워지는 이웃&#8221;으로 계속 걸어가는 <strong>그래프 탐색</strong>입니다. 지도에서 목적지에 가까워지는 길로만 이동하는 것과 같죠.</p>
+
+<p>기억할 파라미터는 둘입니다. <code>m</code>은 노드마다 몇 개의 엣지를 둘지(보통 16). <code>ef_search</code>는 탐색 중 후보를 몇 개나 유지할지(보통 40 안팎)입니다. 여기서 이미 함정이 보입니다. 그래프 탐색이 제대로 되려면 <strong>노드들이 엣지로 촘촘히 연결돼 있어야</strong> 하는데, 필터는 바로 그 노드들을 없애 버립니다.</p>
+
+<div class="fvs-note"><strong>비유 하나.</strong> HNSW 그래프를 &#8220;징검다리&#8221;라고 생각해 보세요. 돌에서 돌로 건너 목적지에 갑니다. 필터를 건다는 건 조건에 안 맞는 돌들을 <em>물에 잠기게</em> 하는 것과 같습니다. 잠긴 돌이 몇 개면 돌아가면 되지만, <strong>대부분이 잠기면</strong> 다음 돌까지 닿지 못하고 강 한복판에 갇힙니다. 필터드 벡터 검색의 어려움이 정확히 이겁니다.</p></div>
+
+<h2 id="sec-3">3. 두 가지 순진한 방법과 각각의 실패</h2>
+
+<p>&#8220;벡터 검색 + 필터&#8221;를 처음 붙일 때 떠오르는 방법은 딱 둘입니다. <strong>검색부터 하고 거르기</strong>(post-filter)와 <strong>거르고 나서 검색하기</strong>(pre-filter). 그런데 둘 다 순진하게 하면 앞의 증상들이 그대로 터집니다.</p>
+
+<h3>3-1. Post-filter (검색 후 필터) &#8212; 과소반환</h3>
+
+<p>먼저 HNSW로 상위 <code>k</code>개를 뽑고, 그다음 <code>WHERE</code>로 조건에 맞는 것만 남기는 방식입니다. 문제는 <em>필터를 인덱스가 모른 채</em> 검색이 끝난다는 겁니다. 예를 들어 <code>ef_search=40</code>으로 40개 후보를 봤는데, 그중 필터 통과율이 10%라면 평균 <strong>4개</strong>만 남습니다. 사용자는 10개를 원했는데 말이죠. 이게 pgvector 0.8.0 이전에 흔히 겪던 &#8220;결과가 LIMIT보다 적게 나오는&#8221; 대표적 상황입니다.</p>
+
+<h3>3-2. Pre-filter (필터 후 검색) &#8212; 브루트포스로 붕괴</h3>
+
+<p>반대로 <code>WHERE</code>로 먼저 후보 집합을 정하고, 그 안에서만 벡터 검색을 하는 방식입니다. 정확도는 보장되지만, <em>그 부분집합만을 위한 그래프 인덱스가 없다는</em> 게 함정입니다. 결국 조건에 맞는 벡터를 하나하나 다 비교하는 <strong>브루트포스</strong>로 주저앉기 쉽습니다. 부분집합이 작으면 오히려 이게 빠르지만, 수십만 개면 검색이 몇 배로 느려집니다.</p>
+
+<div class="fvs-warn fvs-note"><strong>그래프 단절.</strong> 더 깊은 원인은 연결성입니다. <code>m=16</code>인 그래프에서 필터가 노드의 96%를 지우면, 살아남은 노드는 평균 <em>엣지가 1개도 안 남습니다</em>. 탐색은 몇 발짝 못 가 고립된 노드에 갇히고, 진짜 가까운 문서 근처엔 닿지도 못합니다. &#8220;정확도 저하&#8221;의 정체가 이겁니다.</p></div>
+
+<figure class="fvs-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="post-filter와 pre-filter를 비교하는 그림. 위쪽 post-filter는 HNSW로 40개 후보를 먼저 뽑고 그다음 필터를 적용해, 통과율 10%면 4개만 남아 요청한 10개에 못 미친다. 아래쪽 pre-filter는 먼저 필터로 후보를 좁힌 뒤 그 안에서 검색하지만, 그 부분집합용 인덱스가 없어 하나하나 다 비교하는 브루트포스로 느려진다.">
+  <text x="20" y="24" fill="var(--fvs-slate)" font-size="14" font-weight="700">순진한 두 방법 &#8212; 둘 다 실패한다</text>
+
+  <!-- post-filter -->
+  <text x="20" y="60" fill="var(--fvs-rose)" font-size="13" font-weight="800">post-filter · 검색 후 필터</text>
+  <g font-size="11" font-weight="700" text-anchor="middle">
+    <rect x="20" y="72" width="150" height="40" rx="7" fill="var(--fvs-sky)"/><text x="95" y="90" fill="#fff">HNSW 검색</text><text x="95" y="105" fill="#fff" opacity=".9">후보 40개</text>
+    <rect x="205" y="72" width="150" height="40" rx="7" fill="var(--fvs-slate)"/><text x="280" y="90" fill="#fff">필터 적용</text><text x="280" y="105" fill="#fff" opacity=".9">통과율 10%</text>
+    <rect x="390" y="72" width="150" height="40" rx="7" fill="var(--fvs-rose)"/><text x="465" y="90" fill="#fff">결과 4개</text><text x="465" y="105" fill="#fff" opacity=".9">(원한 건 10개)</text>
+  </g>
+  <line x1="170" y1="92" x2="203" y2="92" stroke="var(--fvs-grid)" stroke-width="2"/>
+  <line x1="355" y1="92" x2="388" y2="92" stroke="var(--fvs-grid)" stroke-width="2"/>
+  <text x="560" y="96" fill="var(--fvs-rose)" font-size="12" font-weight="800">→ 과소반환</text>
+
+  <!-- pre-filter -->
+  <text x="20" y="176" fill="var(--fvs-amber)" font-size="13" font-weight="800">pre-filter · 필터 후 검색</text>
+  <g font-size="11" font-weight="700" text-anchor="middle">
+    <rect x="20" y="188" width="150" height="40" rx="7" fill="var(--fvs-slate)"/><text x="95" y="206" fill="#fff">필터로 후보 좁힘</text><text x="95" y="221" fill="#fff" opacity=".9">부분집합</text>
+    <rect x="205" y="188" width="150" height="40" rx="7" fill="var(--fvs-amber)"/><text x="280" y="205" fill="#3a2400">인덱스 없음 →</text><text x="280" y="221" fill="#3a2400">하나씩 다 비교</text>
+    <rect x="390" y="188" width="150" height="40" rx="7" fill="var(--fvs-rose)"/><text x="465" y="206" fill="#fff">브루트포스</text><text x="465" y="221" fill="#fff" opacity=".9">몇 배 느림</text>
+  </g>
+  <line x1="170" y1="208" x2="203" y2="208" stroke="var(--fvs-grid)" stroke-width="2"/>
+  <line x1="355" y1="208" x2="388" y2="208" stroke="var(--fvs-grid)" stroke-width="2"/>
+  <text x="560" y="212" fill="var(--fvs-rose)" font-size="12" font-weight="800">→ 지연 폭발</text>
+
+  <text x="20" y="268" fill="var(--fvs-slate)" font-size="11.5">핵심: 인덱스가 &#8216;필터를 모른 채&#8217; 동작하면 둘 중 하나는 반드시 깨진다.</text>
+</svg>
+<figcaption>post-filter는 필터 통과율이 낮을수록 결과가 모자라고, pre-filter는 후보가 클수록 브루트포스로 느려진다. 둘의 공통 원인은 &#8220;인덱스가 필터를 의식하지 못한다&#8221;는 것이다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 해법 &#8212; 필터를 &#8216;의식하는&#8217; 검색</h2>
+
+<p>해법의 방향은 하나로 모입니다. <strong>인덱스가 필터를 &#8216;알면서&#8217; 탐색하게 만들자.</strong> 검색과 필터를 따로 떼지 말고, 그래프를 걷는 <em>도중에</em> 필터를 함께 반영하는 거죠. 요즘 벡터 DB들이 쓰는 방법은 크게 셋입니다.</p>
+
+<ul>
+  <li><strong>계속 더 뽑기(iterative)</strong> &#8212; 필터 통과분이 목표 개수를 채울 때까지 인덱스에서 후보를 <em>더</em> 끌어온다. 과소반환을 직접 해결.</li>
+  <li><strong>그래프 걷다가 건너뛰기(in-graph / two-hop)</strong> &#8212; 필터에 걸린 노드는 결과에서 빼되, 연결이 끊기지 않도록 <em>그 노드를 건너뛰어(두 칸 점프)</em> 옆으로 이어 간다.</li>
+  <li><strong>작으면 그냥 전부 비교(flat)</strong> &#8212; 필터 통과 후보가 아주 적으면, 그래프를 걷는 것보다 그 몇 개를 <em>정확히 다</em> 비교하는 게 더 빠르고 정확하다.</li>
+</ul>
+
+<p>여기서 판단의 기준이 되는 개념이 <strong>선택도(selectivity)</strong>입니다 &#8212; 필터가 전체에서 얼마나 많이 &#8216;통과&#8217;시키는지를 뜻합니다. 통과분이 아주 적으면(선택도 낮음) flat이 유리하고, 많이 통과하면(선택도 높음) 그래프 탐색 + 인라인 필터가 유리합니다. 좋은 엔진은 이 선택도를 보고 전략을 <em>자동으로</em> 고릅니다.</p>
+
+<figure class="fvs-fig">
+<svg viewBox="0 0 760 260" role="img" aria-label="필터 통과 노드를 건너뛰는 two-hop 우회를 나타낸 그림. 왼쪽은 필터에 걸린 회색 노드를 거치지 못해 탐색이 끊긴 상태이고, 오른쪽은 같은 회색 노드를 두 칸 건너뛰어 살아있는 노드끼리 연결을 유지하며 목적지까지 이어 가는 모습이다.">
+  <text x="20" y="24" fill="var(--fvs-slate)" font-size="14" font-weight="700">필터로 빠진 노드를 &#8216;두 칸 건너뛰기(two-hop)&#8217;로 우회</text>
+
+  <!-- broken (left) -->
+  <text x="60" y="58" fill="var(--fvs-rose)" font-size="12" font-weight="800">끊김</text>
+  <g stroke="var(--fvs-grid)" stroke-width="2">
+    <line x1="60" y1="120" x2="150" y2="100"/><line x1="150" y1="100" x2="240" y2="140"/>
+  </g>
+  <circle cx="60" cy="120" r="15" fill="var(--fvs-sky)"/>
+  <circle cx="150" cy="100" r="15" fill="var(--fvs-gray)"/>
+  <circle cx="240" cy="140" r="15" fill="var(--fvs-sky)"/>
+  <text x="150" y="104" fill="#fff" font-size="14" text-anchor="middle" font-weight="800">✕</text>
+  <text x="150" y="180" fill="var(--fvs-slate)" font-size="11" text-anchor="middle">회색(필터 제외)에서 막힘</text>
+
+  <!-- two-hop (right) -->
+  <text x="470" y="58" fill="var(--fvs-green)" font-size="12" font-weight="800">우회 성공</text>
+  <g stroke="var(--fvs-grid)" stroke-width="2">
+    <line x1="470" y1="120" x2="560" y2="100"/><line x1="560" y1="100" x2="650" y2="140"/>
+  </g>
+  <!-- two-hop jump -->
+  <path d="M470 118 Q560 40 648 136" fill="none" stroke="var(--fvs-green)" stroke-width="3" stroke-dasharray="6 5"/>
+  <circle cx="470" cy="120" r="15" fill="var(--fvs-green)"/>
+  <circle cx="560" cy="100" r="15" fill="var(--fvs-gray)"/>
+  <circle cx="650" cy="140" r="15" fill="var(--fvs-green)"/>
+  <text x="560" y="104" fill="#fff" font-size="14" text-anchor="middle" font-weight="800">✕</text>
+  <text x="560" y="52" fill="var(--fvs-green)" font-size="11" text-anchor="middle" font-weight="700">two-hop 점프</text>
+  <text x="560" y="180" fill="var(--fvs-slate)" font-size="11" text-anchor="middle">회색을 건너뛰어 연결 유지</text>
+
+  <line x1="360" y1="70" x2="360" y2="200" stroke="var(--fvs-grid)" stroke-width="1.5" stroke-dasharray="4 6"/>
+  <text x="20" y="232" fill="var(--fvs-slate)" font-size="11.5">Weaviate의 ACORN이 쓰는 발상 &#8212; 엣지를 미리 쳐내지 않고 남겨 둔 뒤, 걸린 노드는 건너뛴다.</text>
+</svg>
+<figcaption>필터에 걸린 노드(회색)를 그냥 만나면 탐색이 끊기지만, 그 노드의 이웃의 이웃으로 &#8216;두 칸&#8217; 건너뛰면 살아있는 노드끼리 연결이 유지된다. ACORN의 핵심 아이디어다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 엔진별 접근 (pgvector·Qdrant·Weaviate)</h2>
+
+<p>같은 문제를 세 엔진이 조금씩 다르게 풉니다. 쓰는 스택에 맞춰 골라 보세요.</p>
+
+<div class="fvs-tblwrap">
+<table class="fvs-tbl">
+  <thead><tr><th>엔진</th><th>핵심 기법</th><th>한 줄 요약</th></tr></thead>
+  <tbody>
+    <tr><td><strong>pgvector</strong> (Postgres)</td><td>iterative index scan (0.8.0+)</td><td>목표 개수를 채울 때까지 인덱스에서 후보를 <em>계속 더</em> 끌어와 과소반환을 없앤다.</td></tr>
+    <tr><td><strong>Qdrant</strong></td><td>filterable HNSW + payload index</td><td>payload 값별로 <em>연결된 서브그래프</em>를 미리 만들어 두고, 선택도에 따라 플래너가 전략을 고른다.</td></tr>
+    <tr><td><strong>Weaviate</strong></td><td>ACORN + 적응 전략</td><td>엣지를 안 쳐내고 남겨 <em>two-hop</em>으로 건너뛰며, 후보 크기에 따라 flat/ACORN/sweeping 자동 선택.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>pgvector</strong>는 가장 익숙한 선택입니다. 0.8.0의 iterative scan은 &#8220;한 번 뽑고 끝&#8221; 대신, 필터를 통과한 결과가 부족하면 인덱스에서 후보를 더 당겨옵니다. 모드는 셋 &#8212; <code>off</code>(옛 동작), <code>strict_order</code>(거리 순서 정확히 보존, 선택도 낮으면 느림), <code>relaxed_order</code>(개수는 맞추되 결과 안에서 순서는 근사). 실무 권장은 대개 <code>relaxed_order</code>입니다.</p>
+
+<p><strong>Qdrant</strong>는 좀 더 근본적으로 접근합니다. 자주 필터링하는 필드에 <em>payload 인덱스</em>를 만들면, Qdrant가 그 값별로 &#8220;연결이 보장된 서브그래프&#8221;를 그래프에 겹쳐 놓습니다. 그래서 <code>brand = Apple</code> 같은 필터를 걸어도 Apple 노드끼리 이미 이어져 있어 탐색이 안 끊깁니다. 질의 시엔 플래너가 필터 <em>선택도(cardinality)</em>를 보고 &#8212; 통과분이 적으면 payload 인덱스로 뽑고, 많으면 그래프를 걸으며 안 맞는 노드를 건너뛰는 <em>in-place 필터</em>를 씁니다.</p>
+
+<p><strong>Weaviate</strong>의 ACORN은 &#8220;두 칸 건너뛰기&#8221; 그 자체입니다. 보통 HNSW는 엣지를 가지치기(prune)하는데, ACORN은 엣지를 <em>남겨 두고</em> 필터에 걸린 노드를 two-hop으로 우회합니다. 게다가 후보 크기에 따라 세 전략을 자동으로 바꿉니다 &#8212; 아주 작으면 <strong>flat</strong>(그냥 전부 비교), 중간이면 <strong>ACORN</strong>, 크면 걸으며 검사하는 <strong>sweeping</strong>. 설정 없이 질의마다 알아서 고릅니다.</p>
+
+<h2 id="sec-6">6. 실전 &#8212; 재현하고 고쳐 보기</h2>
+
+<p>말보다 코드가 빠릅니다. pgvector로 &#8220;과소반환&#8221;을 <em>직접 재현</em>하고 고쳐 봅시다. 먼저 문제 상황입니다.</p>
+
+{{< highlight sql >}}
+-- docs(embedding vector(768), created_at date, ...) 에 HNSW 인덱스가 있다고 하자
+CREATE INDEX ON docs USING hnsw (embedding vector_cosine_ops);
+
+-- "2024년 이후 문서 중 질의와 가까운 10개"를 원한다
+SELECT id, created_at
+FROM docs
+WHERE created_at > '2024-01-01'          -- 메타데이터 필터
+ORDER BY embedding <=> :query_embedding   -- 벡터 거리순
+LIMIT 10;
+-- 문제: 0.8.0 이전엔 인덱스가 top-k를 먼저 뽑고 필터를 나중에 적용 →
+--       필터 통과분이 적으면 10개를 못 채우고 3~4개만 나온다.
+{{< /highlight >}}
+
+<p>pgvector 0.8.0 이상이라면 iterative scan 한 줄이면 해결됩니다. 세션에서 모드만 켜 주면, 부족할 때 인덱스가 후보를 더 당겨 목표 개수를 채웁니다.</p>
+
+{{< highlight sql >}}
+-- 개수를 맞추되 결과 안 순서는 근사 (대부분의 프로덕션 권장값)
+SET hnsw.iterative_scan = relaxed_order;
+
+-- 필요하면 얼마나 더 뽑을지 상한도 조절 (기본값을 늘리면 재현율↑, 속도↓)
+SET hnsw.max_scan_tuples = 20000;
+
+-- 같은 쿼리를 다시 실행 → 이제 10개가 채워진다
+SELECT id FROM docs
+WHERE created_at > '2024-01-01'
+ORDER BY embedding <=> :query_embedding
+LIMIT 10;
+{{< /highlight >}}
+
+<p>Qdrant라면 &#8220;필터 필드에 payload 인덱스를 <em>먼저</em> 만든다&#8221;가 핵심입니다. 그래야 filterable HNSW의 필터 인지 엣지가 생깁니다.</p>
+
+{{< highlight python >}}
+from qdrant_client import QdrantClient, models
+
+client = QdrantClient(url="http://localhost:6333")
+
+# 1) 자주 거는 필터 필드에 payload 인덱스를 먼저 생성 (순서 중요!)
+client.create_payload_index(
+    collection_name="docs",
+    field_name="created_at",
+    field_schema=models.PayloadSchemaType.DATETIME,
+)
+
+# 2) 검색 시 filter를 그대로 넘기면, 플래너가 선택도를 보고 전략을 고른다
+hits = client.query_points(
+    collection_name="docs",
+    query=query_vector,
+    query_filter=models.Filter(must=[
+        models.FieldCondition(
+            key="created_at",
+            range=models.DatetimeRange(gt="2024-01-01T00:00:00Z"),
+        )
+    ]),
+    limit=10,
+).points
+{{< /highlight >}}
+
+<p>세 경우 모두 공통점이 있습니다. &#8220;벡터 검색 따로, 필터 따로&#8221;를 애플리케이션에서 손으로 붙이지 말고, <strong>엔진에게 필터를 그대로 넘겨</strong> 인덱스가 필터를 의식하게 만드는 것입니다. 직접 top-k를 뽑아 파이썬에서 <code>if</code>로 거르는 순간, 3장의 함정으로 되돌아갑니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="fvs-warn fvs-note"><strong>실수 1 &#8212; 애플리케이션에서 손으로 post-filter.</strong> &#8220;top 50 뽑아서 파이썬에서 걸러야지&#8221;가 가장 흔한 함정입니다. 선택도가 낮으면 50개로도 모자라고, 높이면 느려집니다. 필터는 <strong>엔진에 넘기세요</strong>. 그게 이 모든 최적화가 동작하는 전제입니다.</p></div>
+
+<div class="fvs-warn fvs-note"><strong>실수 2 &#8212; 선택도를 모르고 튜닝.</strong> 필터가 전체의 0.1%만 통과시키는지, 90%를 통과시키는지에 따라 최적 전략이 정반대입니다. 낮은 선택도(예: 특정 사용자 문서)면 브루트포스/flat이 오히려 정답일 수 있습니다. <strong>필터 통과율부터 재 보세요.</strong></p></div>
+
+<div class="fvs-warn fvs-note"><strong>실수 3 (Qdrant) &#8212; payload 인덱스를 나중에.</strong> filterable HNSW의 필터 인지 엣지는 payload 인덱스가 <em>있는 상태에서</em> 만들어질 때 생깁니다. 데이터를 다 넣고 나서 인덱스를 붙이면 이점을 못 누립니다. <strong>필터 필드 인덱스를 먼저</strong> 잡으세요.</p></div>
+
+<div class="fvs-warn fvs-note"><strong>실수 4 &#8212; 필터·질의 상관관계 간과.</strong> 필터가 &#8220;질의와 가까운 영역&#8221;을 통째로 도려내는 경우(예: 질의는 최신 이슈인데 필터는 &#8216;2020년 이전&#8217;)엔, 어떤 기법도 관련 문서를 못 만들어 냅니다. 통과분은 많아도 <em>정작 가까운 게 다 걸러진</em> 상황이죠. 이건 검색이 아니라 <strong>데이터·질의 설계</strong> 문제입니다.</p></div>
+
+<div class="fvs-good fvs-note"><strong>팁 &#8212; 재현율은 반드시 측정.</strong> iterative scan이나 in-place 필터는 모두 &#8216;근사&#8217;라, 설정에 따라 진짜 최근접을 놓칠 수 있습니다. 브루트포스 결과를 정답으로 두고 <strong>recall@10</strong>을 주기적으로 재서, 속도를 위해 정확도를 얼마나 내주고 있는지 눈으로 확인하세요.</p></div>
+
+<div class="fvs-good fvs-note"><strong>팁 &#8212; 필터가 늘 강하면 파티셔닝도 고려.</strong> 테넌트별처럼 항상 강한 필터가 걸린다면, 아예 컬렉션/테이블을 <em>테넌트 단위로 나눠</em> 각자 작은 인덱스를 두는 편이 단순하고 빠를 때가 많습니다. 필터를 &#8216;검색 안&#8217;이 아니라 &#8216;검색 밖&#8217;에서 푸는 방법입니다.</p></div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>증상:</strong> 벡터 검색에 메타데이터 필터를 붙이면 결과가 <em>모자라거나</em>, <em>부정확</em>하거나, <em>느려집니다</em>.</li>
+  <li><strong>원인:</strong> HNSW는 그래프라, 필터로 노드를 지우면 길이 끊깁니다. post-filter는 과소반환, 순진한 pre-filter는 브루트포스로 붕괴합니다.</li>
+  <li><strong>해법:</strong> 인덱스가 필터를 <em>의식하게</em> 만드세요 &#8212; 부족하면 더 뽑기(iterative), 걸린 노드는 건너뛰기(two-hop), 작으면 전부 비교(flat).</li>
+  <li><strong>엔진별:</strong> pgvector = iterative scan(<code>relaxed_order</code>), Qdrant = payload 인덱스 + filterable HNSW, Weaviate = ACORN 자동 전략.</li>
+  <li><strong>철칙:</strong> 필터를 애플리케이션에서 손으로 걸지 말고 <strong>엔진에 넘기고</strong>, 선택도를 측정하고, recall을 눈으로 확인하세요.</li>
+</ul>
+
+<p>벡터 검색은 &#8220;가까운 것 찾기&#8221;라 단순해 보이지만, 거기에 현실의 <code>WHERE</code> 한 줄이 더해지는 순간 완전히 다른 문제가 됩니다. 다행히 2026년의 벡터 DB들은 이 문제를 정면으로 풀고 있으니, 우리가 할 일은 하나입니다 &#8212; <strong>필터를 엔진에게 맡기고, 결과 개수와 recall을 의심하는 습관</strong>. 다음에 RAG에 필터를 얹을 때, 결과가 LIMIT을 채우는지부터 확인해 보세요.</p>
+
+<h2 id="sec-ref">9. 참고 자료</h2>
+
+<ul>
+  <li>Qdrant, “A Complete Guide to Filtering in Vector Search”(filterable HNSW·payload 인덱스·플래너) — <a href="https://qdrant.tech/articles/vector-search-filtering/" target="_blank" rel="noopener">qdrant.tech/articles/vector-search-filtering</a> · <a href="https://qdrant.tech/course/essentials/day-2/filterable-hnsw/" target="_blank" rel="noopener">Filterable HNSW 코스</a></li>
+  <li>Weaviate, “How we speed up filtered vector search with ACORN”(unpruned edges·two-hop·flat/ACORN/sweeping) — <a href="https://weaviate.io/blog/speed-up-filtered-vector-search" target="_blank" rel="noopener">weaviate.io/blog/speed-up-filtered-vector-search</a> · <a href="https://docs.weaviate.io/weaviate/concepts/filtering" target="_blank" rel="noopener">Filtering 문서</a></li>
+  <li>Nile, “Announcing: pgvector 0.8.0 released”(iterative index scan·off/strict/relaxed) — <a href="https://www.thenile.dev/blog/pgvector-080" target="_blank" rel="noopener">thenile.dev/blog/pgvector-080</a></li>
+  <li>pgvector 이슈 #721, “HNSW index bypassed when LIMIT or filter selectivity exceeds threshold”(과소반환 재현) — <a href="https://github.com/pgvector/pgvector/issues/721" target="_blank" rel="noopener">github.com/pgvector/pgvector/issues/721</a></li>
+  <li>ClickHouse, “How to scale vector search in Postgres (pgvector) for RAG”(ef_search·필터 선택도·과소반환 수치) — <a href="https://clickhouse.com/resources/engineering/scale-vector-search-postgres" target="_blank" rel="noopener">clickhouse.com/resources/engineering/scale-vector-search-postgres</a></li>
+  <li>Yudhiesh Ravindranath, “The Achilles Heel of Vector Search: Filters”(그래프 단절·m=16·96% 제거) — <a href="https://yudhiesh.github.io/2025/05/09/the-achilles-heel-of-vector-search-filters/" target="_blank" rel="noopener">yudhiesh.github.io/…/the-achilles-heel-of-vector-search-filters</a></li>
+  <li>Qdrant, “Filtered Vector Search: What ACORN Fixes, and What Fixes ACORN”(pre/post-filter 실패 모드 비교) — <a href="https://qdrant.tech/blog/filtered-vector-search-acorn/" target="_blank" rel="noopener">qdrant.tech/blog/filtered-vector-search-acorn</a></li>
+</ul>

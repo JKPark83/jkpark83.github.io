@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="720" height="400" fill="#ffffff"/>
+  <text x="24" y="32" font-size="18" font-weight="700" fill="#0f172a">Agent Builder 시사점: 도구 응답 컨텍스트 파이프라인</text>
+  <text x="24" y="53" font-size="12.5" fill="#64748b">긴 MCP/툴 응답을 그대로 쌓지 말고 — 최근 N쌍만 유지 + 나머지는 압축 요약</text>
+
+  <!-- defs arrow -->
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Step 1: tool calls -->
+  <rect x="24" y="90" width="150" height="90" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="99" y="118" font-size="13" font-weight="700" fill="#1d4ed8" text-anchor="middle">① 도구 호출 루프</text>
+  <text x="99" y="140" font-size="11" fill="#475569" text-anchor="middle">MCP 툴 · API 응답</text>
+  <text x="99" y="158" font-size="11" fill="#475569" text-anchor="middle">(수천~수만 토큰)</text>
+
+  <line x1="174" y1="135" x2="214" y2="135" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- Step 2: keep recent N -->
+  <rect x="216" y="70" width="160" height="60" rx="10" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="296" y="95" font-size="12.5" font-weight="700" fill="#4338ca" text-anchor="middle">② 최근 5쌍 유지</text>
+  <text x="296" y="115" font-size="11" fill="#475569" text-anchor="middle">호출/응답 원문 보존</text>
+
+  <!-- Step 3: summarize older -->
+  <rect x="216" y="145" width="160" height="60" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="296" y="170" font-size="12.5" font-weight="700" fill="#15803d" text-anchor="middle">③ 이전 응답 요약</text>
+  <text x="296" y="190" font-size="11" fill="#475569" text-anchor="middle">상태·금액만 압축</text>
+
+  <line x1="376" y1="100" x2="416" y2="130" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="376" y1="175" x2="416" y2="145" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- Step 4: compact context -->
+  <rect x="418" y="105" width="150" height="60" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="493" y="130" font-size="12.5" font-weight="700" fill="#b45309" text-anchor="middle">④ 컴팩트 컨텍스트</text>
+  <text x="493" y="150" font-size="11" fill="#475569" text-anchor="middle">모델에 전달</text>
+
+  <line x1="568" y1="135" x2="608" y2="135" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- Step 5: result -->
+  <rect x="610" y="95" width="90" height="80" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="655" y="128" font-size="14" font-weight="700" fill="#15803d" text-anchor="middle">91.6%</text>
+  <text x="655" y="147" font-size="10.5" fill="#475569" text-anchor="middle">완성률</text>
+  <text x="655" y="162" font-size="10.5" fill="#475569" text-anchor="middle">토큰 2.7배↓</text>
+
+  <!-- loop back -->
+  <path d="M493 165 L493 230 L99 230 L99 180" fill="none" stroke="#cbd5e1" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#ar)"/>
+  <text x="300" y="248" font-size="10.5" fill="#94a3b8" text-anchor="middle">다음 스텝에서 반복 — 컨텍스트가 절대 넘치지 않음</text>
+
+  <!-- footer mapping -->
+  <rect x="24" y="282" width="676" height="96" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="40" y="306" font-size="12.5" font-weight="700" fill="#0f172a">실전 매핑</text>
+  <text x="40" y="330" font-size="11.5" fill="#334155">🟦 Claude Code: 서브에이전트로 장황한 툴 출력 격리 + `/compact`로 오래된 히스토리 압축</text>
+  <text x="40" y="350" font-size="11.5" fill="#334155">🟩 Codex: `auto_compact_limit` 초과 시 자동 compaction · 커스텀 요약 프롬프트 지정 가능</text>
+  <text x="40" y="370" font-size="11.5" fill="#334155">🟪 공통: "최근 N쌍 원문 + 나머지 요약"을 기본 컨텍스트 정책으로 채택</text>
+</svg>

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="720" height="420" fill="#ffffff"/>
+  <text x="24" y="32" font-size="18" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 — 2026-08-14</text>
+  <text x="24" y="53" font-size="12.5" fill="#64748b">중심 주제: 긴 도구 응답 시대의 컨텍스트 엔지니어링</text>
+
+  <defs>
+    <marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#cbd5e1"/>
+    </marker>
+  </defs>
+
+  <!-- center -->
+  <circle cx="360" cy="230" r="66" fill="#0f172a"/>
+  <text x="360" y="222" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">컨텍스트</text>
+  <text x="360" y="240" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">엔지니어링</text>
+  <text x="360" y="258" font-size="10.5" fill="#94a3b8" text-anchor="middle">prune + summarize</text>
+
+  <!-- edges -->
+  <line x1="300" y1="200" x2="190" y2="120" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#a2)"/>
+  <line x1="420" y1="200" x2="540" y2="120" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#a2)"/>
+  <line x1="300" y1="262" x2="185" y2="330" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#a2)"/>
+  <line x1="420" y1="262" x2="545" y2="330" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#a2)"/>
+
+  <!-- node 1: paper -->
+  <rect x="40" y="70" width="200" height="72" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="56" y="94" font-size="12.5" font-weight="700" fill="#15803d">📚 논문 · arXiv:2606.10209</text>
+  <text x="56" y="113" font-size="11" fill="#475569">최근 5쌍 프루닝+요약</text>
+  <text x="56" y="130" font-size="11" fill="#475569">완성률 8%→91.6%, 토큰 2.7배↓</text>
+
+  <!-- node 2: model -->
+  <rect x="480" y="70" width="210" height="72" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="496" y="94" font-size="12.5" font-weight="700" fill="#1d4ed8">🤖 모델 레이더</text>
+  <text x="496" y="113" font-size="11" fill="#475569">Sonnet 5 도입가 $2/$10</text>
+  <text x="496" y="130" font-size="11" fill="#475569">→ 8/31 이후 $3/$15</text>
+
+  <!-- node 3: claude code -->
+  <rect x="30" y="308" width="210" height="72" rx="10" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="46" y="332" font-size="12.5" font-weight="700" fill="#4338ca">🟦 Claude Code v2.1.231</text>
+  <text x="46" y="351" font-size="11" fill="#475569">OAuth/Slack 로그인 픽스</text>
+  <text x="46" y="368" font-size="11" fill="#475569">v2.1.229 SSE keepalive</text>
+
+  <!-- node 4: codex -->
+  <rect x="480" y="308" width="210" height="72" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="496" y="332" font-size="12.5" font-weight="700" fill="#b45309">🟩 Codex CLI</text>
+  <text x="496" y="351" font-size="11" fill="#475569">auto_compact_limit 자동 압축</text>
+  <text x="496" y="368" font-size="11" fill="#475569">커스텀 요약 프롬프트</text>
+
+  <text x="360" y="410" font-size="10.5" fill="#94a3b8" text-anchor="middle">화살표 = "이 논문의 교훈이 오늘 도구/모델 선택에 그대로 적용된다"</text>
+</svg>

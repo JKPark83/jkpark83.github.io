@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="720" height="440" fill="#ffffff"/>
+  <text x="24" y="34" font-size="19" font-weight="700" fill="#0f172a">컨텍스트 전략별 완성률 vs 토큰 비용</text>
+  <text x="24" y="56" font-size="12.5" fill="#64748b">호텔 경비 항목화 50태스크 · GPT-5 · 5회 평균 (arXiv:2606.10209)</text>
+
+  <!-- axes -->
+  <line x1="70" y1="90" x2="70" y2="360" stroke="#cbd5e1" stroke-width="1.5"/>
+  <line x1="70" y1="360" x2="700" y2="360" stroke="#cbd5e1" stroke-width="1.5"/>
+  <!-- gridlines -->
+  <g font-size="11" fill="#94a3b8">
+    <line x1="70" y1="360" x2="700" y2="360" stroke="#e2e8f0"/>
+    <line x1="70" y1="292" x2="700" y2="292" stroke="#eef2f7"/><text x="40" y="296">25%</text>
+    <line x1="70" y1="225" x2="700" y2="225" stroke="#eef2f7"/><text x="40" y="229">50%</text>
+    <line x1="70" y1="157" x2="700" y2="157" stroke="#eef2f7"/><text x="40" y="161">75%</text>
+    <line x1="70" y1="90"  x2="700" y2="90"  stroke="#eef2f7"/><text x="40" y="94">100%</text>
+    <text x="46" y="364">0</text>
+  </g>
+
+  <!-- bars: 4 configs. y for value v% = 360 - v*2.7 -->
+  <!-- 1: no user model 8.0 -> h=21.6 -->
+  <rect x="110" y="338.4" width="90" height="21.6" rx="3" fill="#94a3b8"/>
+  <text x="155" y="330" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">8.0%</text>
+  <!-- 2: full context 71.0 -> h=191.7, y=168.3 -->
+  <rect x="255" y="168.3" width="90" height="191.7" rx="3" fill="#f59e0b"/>
+  <text x="300" y="160" font-size="13" font-weight="700" fill="#b45309" text-anchor="middle">71.0%</text>
+  <!-- 3: prune last-5 79.0 -> h=213.3, y=146.7 -->
+  <rect x="400" y="146.7" width="90" height="213.3" rx="3" fill="#3b82f6"/>
+  <text x="445" y="138" font-size="13" font-weight="700" fill="#1d4ed8" text-anchor="middle">79.0%</text>
+  <!-- 4: prune+summary 91.6 -> h=247.3, y=112.7 -->
+  <rect x="545" y="112.7" width="90" height="247.3" rx="3" fill="#16a34a"/>
+  <text x="590" y="104" font-size="13" font-weight="700" fill="#15803d" text-anchor="middle">91.6%</text>
+
+  <!-- x labels -->
+  <g font-size="11.5" fill="#334155" text-anchor="middle">
+    <text x="155" y="378">유저모델 없음</text>
+    <text x="300" y="378">전체 히스토리</text>
+    <text x="445" y="378">최근 5쌍 프루닝</text>
+    <text x="590" y="378">프루닝+요약</text>
+  </g>
+  <!-- token cost row -->
+  <g font-size="11" text-anchor="middle">
+    <text x="155" y="400" fill="#94a3b8">—</text>
+    <text x="300" y="400" fill="#dc2626" font-weight="700">1.48M 토큰</text>
+    <text x="445" y="400" fill="#2563eb" font-weight="700">535K 토큰</text>
+    <text x="590" y="400" fill="#15803d" font-weight="700">553K 토큰</text>
+  </g>
+  <g font-size="10.5" text-anchor="middle" fill="#94a3b8">
+    <text x="300" y="416">14.56시간</text>
+    <text x="445" y="416">5.39시간</text>
+    <text x="590" y="416">5.79시간</text>
+  </g>
+  <text x="24" y="434" font-size="11" fill="#64748b">핵심: 최근 도구호출 5쌍만 남기고 요약을 더하면 완성률 ↑, 토큰 2.7배 ↓, 시간 2.5배 ↓</text>
+</svg>

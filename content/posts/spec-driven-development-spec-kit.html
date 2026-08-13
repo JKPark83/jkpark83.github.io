@@ -1,0 +1,352 @@
+---
+title: "코드는 에이전트가 쓴다면, 사람이 쓸 가장 값진 건 명세다: 명세 주도 개발(SDD) 제대로 하기"
+date: 2026-08-14T07:30:00+09:00
+draft: false
+tags: ["AI", "명세 주도 개발", "spec-driven development", "SDD", "Spec Kit", "coding agent", "코딩 에이전트", "vibe coding", "바이브 코딩", "specify", "context engineering", "컨텍스트 엔지니어링", "AGENTS.md", "constitution", "LLM", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "코딩 에이전트에게 '대충 이런 거 만들어줘'라고 던지면, 짧은 작업은 잘하지만 조금만 길어지면 의도가 표류하고, 결과를 리뷰하기도 어렵습니다. 명세 주도 개발(spec-driven development, SDD)은 순서를 뒤집습니다 — 코드보다 먼저 '무엇을 만들지'를 실행 가능한 명세로 못박고, 그 명세를 계획·태스크·구현으로 단계적으로 펼칩니다. 이 글은 왜 SDD가 2026년 코딩 에이전트 시대의 핵심 discipline이 됐는지, GitHub Spec Kit(★127k)의 constitution → specify → plan → tasks → implement 파이프라인이 각 단계에서 무엇을 만들고 컨텍스트를 어떻게 좁히는지, 직접 따라 할 수 있는 명령과 함께 junior가 밟는 함정(과잉 명세·spec drift·토큰 비용)까지 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "spec-driven-development-spec-kit-cover.svg"
+  alt: "왼쪽 '바이브 코딩'은 두루뭉술한 프롬프트 하나가 곧장 코드로 이어지고 의도가 표류해 재작업이 빙빙 돈다. 오른쪽 '명세 주도(SDD)'는 constitution → specify → plan → tasks → implement 다섯 단계 파이프라인이 각각 spec.md·plan.md·tasks.md 파일 산출물을 남기며 마지막에 명세대로 구현된 리뷰 가능한 코드로 수렴한다."
+  caption: "바이브 코딩은 의도를 프롬프트에 흘려보내지만, 명세 주도 개발은 의도를 파일로 못박아 단계마다 좁혀 나간다. 명세가 single source of truth다."
+  relative: false
+---
+
+<style>
+/* ── 명세 주도 개발 포스트 전용 스타일 (sdd- 접두사) ── */
+.sdd-fig{
+  --sdd-sky:#0284c7; --sdd-amber:#d97706; --sdd-green:#16a34a; --sdd-rose:#e11d48;
+  --sdd-slate:#64748b; --sdd-violet:#7c3aed; --sdd-teal:#0d9488; --sdd-blue:#2563eb;
+  --sdd-grid:#cbd5e1; --sdd-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .sdd-fig{
+  --sdd-sky:#38bdf8; --sdd-amber:#fbbf24; --sdd-green:#4ade80; --sdd-rose:#fb7185;
+  --sdd-slate:#94a3b8; --sdd-violet:#a78bfa; --sdd-teal:#2dd4bf; --sdd-blue:#60a5fa;
+  --sdd-grid:#334155; --sdd-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .sdd-fig{
+    --sdd-sky:#38bdf8; --sdd-amber:#fbbf24; --sdd-green:#4ade80; --sdd-rose:#fb7185;
+    --sdd-slate:#94a3b8; --sdd-violet:#a78bfa; --sdd-teal:#2dd4bf; --sdd-blue:#60a5fa;
+    --sdd-grid:#334155; --sdd-gray:#64748b;
+  }
+}
+.sdd-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.sdd-fig text{font-family:inherit}
+.sdd-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.sdd-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.sdd-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.sdd-toc ol{margin:0;padding-left:1.25rem}
+.sdd-toc li{margin:.22rem 0;font-size:.95rem}
+.sdd-toc a{text-decoration:none}
+.sdd-toc a:hover{text-decoration:underline}
+.sdd-pull{font-size:1.12rem;line-height:1.72}
+.sdd-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.sdd-note{border-left:4px solid var(--sdd-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.sdd-note strong{color:var(--sdd-blue,#2563eb)}
+.sdd-warn{border-left:4px solid var(--sdd-rose,#e11d48)}
+.sdd-warn strong{color:var(--sdd-rose,#e11d48)}
+.sdd-good{border-left:4px solid var(--sdd-teal,#0d9488)}
+.sdd-good strong{color:var(--sdd-teal,#0d9488)}
+.sdd-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.sdd-tbl th,.sdd-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.sdd-tbl th{background:var(--entry);font-weight:700}
+.sdd-tbl code{font-size:.86em}
+.sdd-tblwrap{overflow-x:auto}
+.sdd-steps{counter-reset:sdd-step;list-style:none;padding-left:0;margin:1.5rem 0}
+.sdd-steps li{position:relative;padding-left:2.6rem;margin:.9rem 0;line-height:1.65}
+.sdd-steps li::before{counter-increment:sdd-step;content:counter(sdd-step);position:absolute;left:0;top:.05rem;width:1.8rem;height:1.8rem;border-radius:50%;background:var(--sdd-blue,#2563eb);color:#fff;font-weight:700;font-size:.9rem;display:flex;align-items:center;justify-content:center}
+</style>
+
+<blockquote class="sdd-pull">
+  <p>“로그인에 이메일 인증 붙여줘.” 에이전트가 뚝딱 만들어 줍니다. 그런데 만료 시간은요? 재발송 제한은요? 이미 가입한 이메일이면요? 에이전트는 <em>추측</em>해서 채우고, 리뷰어인 당신은 diff 200줄을 보며 “이게 내가 원한 거였나?”를 거꾸로 되짚습니다.</p>
+  <footer>— 문제는 코드가 아니라, 코드를 짜기 <strong>전에</strong> 아무도 “무엇을 만들지”를 적어 두지 않았다는 데 있습니다.</footer>
+</blockquote>
+
+<nav class="sdd-toc" aria-label="목차">
+  <div class="sdd-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 '명세 주도 개발'이 화제인가</a></li>
+    <li><a href="#sec-2">배경 — 바이브 코딩이 무너지는 지점</a></li>
+    <li><a href="#sec-3">핵심 아이디어 — 명세를 single source of truth로</a></li>
+    <li><a href="#sec-4">파이프라인 해부 — constitution → implement</a></li>
+    <li><a href="#sec-5">왜 이게 컨텍스트 엔지니어링인가</a></li>
+    <li><a href="#sec-6">실전 — Spec Kit으로 5단계 직접 돌리기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 '명세 주도 개발'이 화제인가</h2>
+
+<p>2026년의 코딩은 예전과 다릅니다. 이제 코드의 상당 부분을 <strong>코딩 에이전트(coding agent)</strong>가 씁니다. Claude Code, Cursor, GitHub Copilot, Codex 같은 도구에 “이런 기능 만들어줘”라고 던지면 파일을 여러 개 만들고 테스트까지 붙여 줍니다. 짧고 명확한 작업은 정말 잘합니다.</p>
+
+<p>그런데 실무자들이 입을 모아 말하는 벽이 있습니다. 작업이 조금만 길고 애매해지면 에이전트가 <em>의도를 표류</em>시킨다는 겁니다. 처음엔 A를 만들려다 중간에 B로 흘러가고, 채워야 할 빈칸(만료 시간·에러 처리·엣지 케이스)을 제멋대로 추측합니다. 이걸 두고 흔히 <strong>바이브 코딩(vibe coding)</strong>이라 부릅니다 — 느낌으로 던지고 나오는 대로 받는 방식이죠.</p>
+
+<p>여기에 대한 반작용으로 떠오른 규율이 <strong>명세 주도 개발(spec-driven development, 줄여서 SDD)</strong>입니다. 발상은 한 문장으로 요약됩니다 — <em>“코드를 짜기 전에, 무엇을 만들지를 먼저 실행 가능한 명세(spec)로 못박는다.”</em> 그리고 그 명세를 사람이 검토한 뒤에야 에이전트에게 코드를 맡깁니다.</p>
+
+<p>왜 <em>이번 주</em>에도 계속 talking point일까요? 2025년 9월 GitHub이 공개한 오픈소스 툴킷 <strong>Spec Kit</strong>이 방아쇠였습니다. 2026년 8월 현재 GitHub 스타 <strong>12만 개</strong>를 넘겼고(MIT 라이선스), Copilot·Claude Code·Cursor·Gemini CLI·Codex 등 <strong>30종이 넘는</strong> 에이전트를 지원합니다. AWS Kiro, OpenSpec, BMAD 같은 경쟁 도구도 쏟아지면서, SDD는 “특정 제품”이 아니라 <em>“에이전트가 코드를 쓰는 시대에 사람이 갖춰야 할 규율”</em>이라는 인식이 자리 잡았습니다. 동시에 “프롬프트가 길어지고 토큰이 더 든다”는 회의론도 함께 커지며, <strong>SDD가 정말 값을 하는가</strong>가 실무 논쟁의 한복판에 있습니다.</p>
+
+<div class="sdd-note"><strong>한 줄 요약.</strong> 명세 주도 개발은 “코드 먼저”가 아니라 “명세 먼저”로 순서를 뒤집는 방법입니다. 에이전트가 코드를 쓰는 시대에, 사람이 만들 수 있는 가장 레버리지 큰 산출물은 코드가 아니라 <em>정확한 명세</em>라는 발상이 핵심입니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 바이브 코딩이 무너지는 지점</h2>
+
+<p>바이브 코딩이 왜 길어지면 무너지는지 이해하면 SDD의 필요성이 자연스럽게 보입니다. 두 가지 성질 때문입니다.</p>
+
+<p><strong>첫째, LLM은 컨텍스트가 길어질수록 흐릿해집니다.</strong> 초반에 “JWT 만료는 15분”이라고 말해도, 대화가 수천 토큰 이어지면 그 지시가 뒤쪽 토큰에 묻혀 사실상 잊힙니다(관련 현상을 <em>context rot</em>이라 부릅니다). 의도가 대화 속에만 있으면, 대화가 길어질수록 의도는 옅어집니다.</p>
+
+<p><strong>둘째, 대화에 흘려보낸 의도는 재현도 리뷰도 안 됩니다.</strong> 어제 채팅으로 합의한 “재발송은 60초에 한 번”이라는 규칙은 오늘 새 세션에는 존재하지 않습니다. 팀원은 그 결정을 볼 방법이 없고, 코드 리뷰에서도 “원래 뭘 만들려고 했는지”가 없으니 diff만 보고 판단해야 합니다. 즉 <strong>의도가 버전 관리되지 않는</strong> 게 근본 문제입니다.</p>
+
+<figure class="sdd-fig" role="group" aria-labelledby="sdd-fig1-cap">
+  <svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" aria-label="바이브 코딩과 명세 주도 개발의 정보 흐름 비교. 위쪽 바이브 코딩은 머릿속 의도가 프롬프트로 흘러 곧장 코드가 되고, 의도는 대화창에만 남아 세션이 끝나면 사라진다. 아래쪽 명세 주도는 머릿속 의도가 먼저 spec.md라는 파일로 고정되고, 그 파일에서 plan과 tasks를 거쳐 코드가 나오며, 명세 파일은 저장소에 남아 버전 관리되고 리뷰된다.">
+    <!-- top: vibe -->
+    <text x="30" y="42" font-size="15" font-weight="700" fill="var(--sdd-rose)">바이브 코딩</text>
+    <rect x="30" y="56" width="120" height="46" rx="9" fill="var(--sdd-rose)" opacity="0.14" stroke="var(--sdd-rose)"/>
+    <text x="90" y="84" text-anchor="middle" font-size="13" fill="var(--sdd-slate)">머릿속 의도</text>
+    <path d="M150,79 L206,79" stroke="var(--sdd-grid)" stroke-width="2" marker-end="url(#sdd-a1)"/>
+    <rect x="208" y="56" width="120" height="46" rx="9" fill="var(--entry)" stroke="var(--sdd-grid)"/>
+    <text x="268" y="84" text-anchor="middle" font-size="13" fill="var(--sdd-slate)">프롬프트(대화)</text>
+    <path d="M328,79 L384,79" stroke="var(--sdd-grid)" stroke-width="2" marker-end="url(#sdd-a1)"/>
+    <rect x="386" y="56" width="120" height="46" rx="9" fill="var(--sdd-rose)" opacity="0.14" stroke="var(--sdd-rose)"/>
+    <text x="446" y="84" text-anchor="middle" font-size="13" fill="var(--sdd-slate)">코드</text>
+    <text x="560" y="76" font-size="12.5" fill="var(--sdd-rose)">의도는 대화창에만…</text>
+    <text x="560" y="94" font-size="12.5" fill="var(--sdd-rose)">세션 끝나면 증발</text>
+    <defs>
+      <marker id="sdd-a1" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 Z" fill="var(--sdd-slate)"/></marker>
+      <marker id="sdd-a2" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 Z" fill="var(--sdd-teal)"/></marker>
+    </defs>
+
+    <line x1="30" y1="132" x2="730" y2="132" stroke="var(--sdd-grid)" stroke-width="1" stroke-dasharray="4 6"/>
+
+    <!-- bottom: SDD -->
+    <text x="30" y="176" font-size="15" font-weight="700" fill="var(--sdd-teal)">명세 주도(SDD)</text>
+    <rect x="30" y="190" width="110" height="46" rx="9" fill="var(--sdd-teal)" opacity="0.14" stroke="var(--sdd-teal)"/>
+    <text x="85" y="218" text-anchor="middle" font-size="13" fill="var(--sdd-slate)">머릿속 의도</text>
+    <path d="M140,213 L188,213" stroke="var(--sdd-teal)" stroke-width="2" marker-end="url(#sdd-a2)"/>
+    <rect x="190" y="188" width="120" height="50" rx="9" fill="var(--sdd-blue)" opacity="0.16" stroke="var(--sdd-blue)"/>
+    <text x="250" y="211" text-anchor="middle" font-size="13" font-weight="700" fill="var(--sdd-blue)">spec.md</text>
+    <text x="250" y="228" text-anchor="middle" font-size="11.5" fill="var(--sdd-slate)" font-family="ui-monospace,monospace">명세 = 파일</text>
+    <path d="M310,213 L358,213" stroke="var(--sdd-teal)" stroke-width="2" marker-end="url(#sdd-a2)"/>
+    <rect x="360" y="190" width="90" height="46" rx="9" fill="var(--entry)" stroke="var(--sdd-grid)"/>
+    <text x="405" y="218" text-anchor="middle" font-size="12.5" fill="var(--sdd-slate)">plan·tasks</text>
+    <path d="M450,213 L498,213" stroke="var(--sdd-teal)" stroke-width="2" marker-end="url(#sdd-a2)"/>
+    <rect x="500" y="190" width="90" height="46" rx="9" fill="var(--sdd-teal)" opacity="0.14" stroke="var(--sdd-teal)"/>
+    <text x="545" y="218" text-anchor="middle" font-size="13" fill="var(--sdd-slate)">코드</text>
+    <text x="610" y="206" font-size="12.5" fill="var(--sdd-teal)">명세는 저장소에 남아</text>
+    <text x="610" y="224" font-size="12.5" fill="var(--sdd-teal)">버전 관리·리뷰됨</text>
+  </svg>
+  <figcaption id="sdd-fig1-cap">바이브 코딩은 의도를 대화에 흘려보내 세션이 끝나면 사라진다. 명세 주도는 의도를 <code>spec.md</code>라는 파일로 먼저 고정해, 계획·태스크·코드가 모두 그 명세에서 파생된다.</figcaption>
+</figure>
+
+<div class="sdd-note sdd-good"><strong>TDD랑 뭐가 다른가요?</strong> 닮았습니다. 테스트 주도 개발(TDD)이 “구현 전에 <em>테스트</em>를 먼저”라면, SDD는 “구현 전에 <em>명세</em>를 먼저”입니다. 다만 대상이 다릅니다. TDD의 테스트는 사람이 짜고, SDD의 코드는 에이전트가 짭니다. 그래서 SDD에서 사람의 일은 “좋은 테스트”가 아니라 <em>“좋은 명세”</em>를 쓰는 쪽으로 옮겨 갑니다.</p></div>
+
+<h2 id="sec-3">3. 핵심 아이디어 — 명세를 single source of truth로</h2>
+
+<p>SDD를 한 단어로 요약하면 <strong>“intent-driven”</strong>, 즉 의도 주도입니다. 공식 문서의 표현을 빌리면 <em>“무엇을(the what)을 어떻게(the how)보다 먼저 정의한다”</em>는 것이죠. 그리고 그 “무엇을”을 머릿속이나 채팅이 아니라 <strong>버전 관리되는 파일</strong>에 적습니다.</p>
+
+<p>이 발상의 힘은 두 가지입니다.</p>
+
+<ul>
+  <li><strong>명세가 single source of truth가 된다.</strong> 코드가 명세를 따르므로, 무언가 어긋나면 “코드가 틀렸나, 명세가 틀렸나”를 명확히 물을 수 있습니다. 의도가 파일로 존재하니 리뷰·토론·재현이 됩니다.</li>
+  <li><strong>한 번에 다 생성하지 않는다(multi-step refinement).</strong> 두루뭉술한 아이디어를 곧장 코드로 바꾸는 대신, <em>명세 → 계획 → 태스크 → 구현</em>으로 단계를 나눠 각 단계에서 사람이 검토하고 방향을 잡습니다. 각 단계의 산출물이 다음 단계의 입력이 됩니다.</li>
+</ul>
+
+<p>핵심 전환은 이겁니다 — 에이전트가 코드를 값싸게 대량으로 뽑아내는 세상에서, <strong>병목이자 자산은 코드가 아니라 “정확히 무엇을 만들지”</strong>가 됩니다. 그러니 사람의 시간을 코드 타이핑이 아니라 명세를 벼리는 데 씁니다.</p>
+
+<h2 id="sec-4">4. 파이프라인 해부 — constitution → implement</h2>
+
+<p>추상적으로 들리니 실제 도구로 내려가 봅시다. GitHub <strong>Spec Kit</strong>은 SDD를 슬래시 명령 몇 개의 파이프라인으로 구현합니다. 에이전트(예: Claude Code, Copilot) 안에서 이 명령들을 순서대로 부르면, 각 단계가 저장소에 <em>파일 산출물</em>을 남깁니다.</p>
+
+<figure class="sdd-fig" role="group" aria-labelledby="sdd-fig2-cap">
+  <svg viewBox="0 0 760 430" xmlns="http://www.w3.org/2000/svg" aria-label="Spec Kit의 명세 주도 개발 파이프라인 세로 흐름도. 위에서부터 constitution(원칙 정하기, memory/constitution.md 생성), specify(무엇을·왜 명세, specs 폴더의 spec.md 생성), plan(기술 스택·아키텍처 결정, plan.md 생성), tasks(작게 쪼갠 태스크 목록, tasks.md 생성), implement(태스크대로 코드 생성) 순서로 화살표가 이어진다. 오른쪽에는 각 단계에서 사람이 검토·수정한다는 점과, 앞 단계 파일이 다음 단계의 입력이 된다는 점이 표시된다.">
+    <defs>
+      <marker id="sdd-a3" markerWidth="13" markerHeight="13" refX="8" refY="6.5" orient="auto"><path d="M0,1 L12,6.5 L0,12 Z" fill="var(--sdd-blue)"/></marker>
+    </defs>
+    <!-- stages -->
+    <g font-family="ui-monospace,monospace">
+      <rect x="60" y="24" width="360" height="52" rx="10" fill="var(--sdd-violet)" opacity="0.16" stroke="var(--sdd-violet)"/>
+      <text x="80" y="49" font-size="15" font-weight="700" fill="var(--sdd-violet)">/speckit.constitution</text>
+      <text x="80" y="68" font-size="12.5" fill="var(--sdd-slate)" font-family="inherit">프로젝트 원칙·가드레일 정하기</text>
+
+      <rect x="60" y="100" width="360" height="52" rx="10" fill="var(--sdd-blue)" opacity="0.16" stroke="var(--sdd-blue)"/>
+      <text x="80" y="125" font-size="15" font-weight="700" fill="var(--sdd-blue)">/speckit.specify</text>
+      <text x="80" y="144" font-size="12.5" fill="var(--sdd-slate)" font-family="inherit">무엇을·왜 (사용자 스토리, 성공 기준)</text>
+
+      <rect x="60" y="176" width="360" height="52" rx="10" fill="var(--sdd-sky)" opacity="0.16" stroke="var(--sdd-sky)"/>
+      <text x="80" y="201" font-size="15" font-weight="700" fill="var(--sdd-sky)">/speckit.plan</text>
+      <text x="80" y="220" font-size="12.5" fill="var(--sdd-slate)" font-family="inherit">어떻게 (스택·아키텍처·제약)</text>
+
+      <rect x="60" y="252" width="360" height="52" rx="10" fill="var(--sdd-teal)" opacity="0.16" stroke="var(--sdd-teal)"/>
+      <text x="80" y="277" font-size="15" font-weight="700" fill="var(--sdd-teal)">/speckit.tasks</text>
+      <text x="80" y="296" font-size="12.5" fill="var(--sdd-slate)" font-family="inherit">작게 쪼갠 태스크 목록</text>
+
+      <rect x="60" y="328" width="360" height="52" rx="10" fill="var(--sdd-green)" opacity="0.16" stroke="var(--sdd-green)"/>
+      <text x="80" y="353" font-size="15" font-weight="700" fill="var(--sdd-green)">/speckit.implement</text>
+      <text x="80" y="372" font-size="12.5" fill="var(--sdd-slate)" font-family="inherit">태스크대로 코드 생성</text>
+    </g>
+    <!-- arrows -->
+    <path d="M240,76 L240,98" stroke="var(--sdd-blue)" stroke-width="2.5" marker-end="url(#sdd-a3)"/>
+    <path d="M240,152 L240,174" stroke="var(--sdd-blue)" stroke-width="2.5" marker-end="url(#sdd-a3)"/>
+    <path d="M240,228 L240,250" stroke="var(--sdd-blue)" stroke-width="2.5" marker-end="url(#sdd-a3)"/>
+    <path d="M240,304 L240,326" stroke="var(--sdd-blue)" stroke-width="2.5" marker-end="url(#sdd-a3)"/>
+    <!-- artifacts -->
+    <g font-family="ui-monospace,monospace" font-size="12">
+      <rect x="450" y="30" width="250" height="40" rx="7" fill="var(--entry)" stroke="var(--sdd-grid)"/>
+      <text x="465" y="55" fill="var(--sdd-slate)">→ memory/constitution.md</text>
+      <rect x="450" y="106" width="250" height="40" rx="7" fill="var(--entry)" stroke="var(--sdd-grid)"/>
+      <text x="465" y="131" fill="var(--sdd-slate)">→ specs/…/spec.md</text>
+      <rect x="450" y="182" width="250" height="40" rx="7" fill="var(--entry)" stroke="var(--sdd-grid)"/>
+      <text x="465" y="207" fill="var(--sdd-slate)">→ specs/…/plan.md</text>
+      <rect x="450" y="258" width="250" height="40" rx="7" fill="var(--entry)" stroke="var(--sdd-grid)"/>
+      <text x="465" y="283" fill="var(--sdd-slate)">→ specs/…/tasks.md</text>
+      <rect x="450" y="334" width="250" height="40" rx="7" fill="var(--sdd-green)" opacity="0.12" stroke="var(--sdd-green)"/>
+      <text x="465" y="359" fill="var(--sdd-slate)">→ 소스 코드 + 테스트</text>
+    </g>
+    <text x="575" y="410" text-anchor="middle" font-size="12.5" fill="var(--sdd-rose)">각 단계마다 사람이 검토·수정 → 다음 단계 입력</text>
+  </svg>
+  <figcaption id="sdd-fig2-cap">Spec Kit 파이프라인. 왼쪽이 슬래시 명령, 오른쪽이 각 단계가 남기는 파일. 앞 단계 파일이 뒤 단계의 입력이 되고, 단계 사이마다 사람이 개입한다.</figcaption>
+</figure>
+
+<p>각 단계가 무슨 일을 하는지 하나씩 봅시다.</p>
+
+<div class="sdd-tblwrap">
+<table class="sdd-tbl">
+  <thead><tr><th>단계</th><th>하는 일</th><th>남기는 파일</th></tr></thead>
+  <tbody>
+    <tr><td><code>/speckit.constitution</code></td><td>프로젝트의 <strong>변하지 않는 원칙</strong>을 정한다. 코드 품질, 테스트 기준, 성능 요구 같은 “집안 헌법”.</td><td><code>memory/constitution.md</code></td></tr>
+    <tr><td><code>/speckit.specify</code></td><td><strong>무엇을·왜</strong>를 쓴다. 사용자 스토리와 성공 기준. <em>기술 얘기는 아직 금지.</em></td><td><code>specs/&lt;이름&gt;/spec.md</code></td></tr>
+    <tr><td><code>/speckit.plan</code></td><td><strong>어떻게</strong>를 정한다. 언어·프레임워크·아키텍처·제약을 명세에 붙인다.</td><td><code>specs/&lt;이름&gt;/plan.md</code></td></tr>
+    <tr><td><code>/speckit.tasks</code></td><td>계획을 <strong>검증 가능한 작은 태스크</strong>로 쪼갠다.</td><td><code>specs/&lt;이름&gt;/tasks.md</code></td></tr>
+    <tr><td><code>/speckit.implement</code></td><td>태스크 목록을 하나씩 실행해 <strong>코드를 생성</strong>한다.</td><td>소스 코드·테스트</td></tr>
+    <tr><td><code>/speckit.converge</code> <span style="opacity:.6">(선택)</span></td><td>이미 짠 코드를 명세와 대조해 <strong>남은 일을 찾아</strong> 태스크에 덧붙인다.</td><td><code>tasks.md</code> 갱신</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>포인트는 <strong>specify와 plan을 갈라놓은 것</strong>입니다. specify에서는 “무엇을”만 다루고 기술 선택은 일부러 미룹니다. 요구사항과 구현을 섞으면 “왜 이 기능이 필요한가”가 “React냐 Vue냐” 같은 논의에 파묻히기 때문입니다. 관심사를 분리(separation of concerns)하는 거죠.</p>
+
+<h2 id="sec-5">5. 왜 이게 '컨텍스트 엔지니어링'인가</h2>
+
+<p>SDD가 단순한 문서 작성 습관이 아니라 <strong>컨텍스트 엔지니어링(context engineering)</strong>인 이유가 여기 있습니다. 컨텍스트 엔지니어링이란 “매 단계에서 에이전트의 제한된 컨텍스트 창에 <em>어떤 토큰을 넣을지</em> 설계하는 일”입니다. SDD의 파이프라인은 바로 그 설계를 단계별로 수행합니다.</p>
+
+<p>구현 단계에서 에이전트가 실제로 받는 컨텍스트를 생각해 보세요. 바이브 코딩이라면 “로그인에 이메일 인증 붙여줘”라는 한 줄과 방대한 코드베이스가 전부입니다. 나머지는 전부 추측이죠. 반면 SDD라면 에이전트는 <code>constitution.md</code>(지켜야 할 원칙) + <code>spec.md</code>(무엇을) + <code>plan.md</code>(어떻게) + <em>지금 이 태스크 하나</em>를 받습니다. 필요한 의도가 <strong>파일로 컨텍스트에 실려</strong> 들어오니 추측할 여지가 줄어듭니다.</p>
+
+<figure class="sdd-fig" role="group" aria-labelledby="sdd-fig3-cap">
+  <svg viewBox="0 0 760 260" xmlns="http://www.w3.org/2000/svg" aria-label="구현 단계에서 에이전트의 컨텍스트 창에 무엇이 들어가는지 비교. 왼쪽 바이브 코딩은 컨텍스트 창에 짧은 프롬프트 한 줄과 코드베이스만 있고, 나머지 넓은 공간은 '추측'으로 채워진다. 오른쪽 명세 주도는 같은 컨텍스트 창에 constitution, spec, plan, 현재 태스크가 파일로 차곡차곡 실려 추측 영역이 거의 사라진다.">
+    <!-- left window -->
+    <text x="40" y="34" font-size="14" font-weight="700" fill="var(--sdd-rose)">바이브 코딩의 컨텍스트</text>
+    <rect x="40" y="46" width="290" height="180" rx="12" fill="none" stroke="var(--sdd-grid)" stroke-width="2"/>
+    <rect x="54" y="60" width="262" height="30" rx="6" fill="var(--sdd-blue)" opacity="0.16"/>
+    <text x="64" y="80" font-size="12.5" fill="var(--sdd-slate)">"이메일 인증 붙여줘" (한 줄)</text>
+    <rect x="54" y="96" width="262" height="30" rx="6" fill="var(--sdd-slate)" opacity="0.14"/>
+    <text x="64" y="116" font-size="12.5" fill="var(--sdd-slate)">코드베이스</text>
+    <rect x="54" y="132" width="262" height="80" rx="6" fill="var(--sdd-rose)" opacity="0.12" stroke="var(--sdd-rose)" stroke-dasharray="5 5"/>
+    <text x="185" y="177" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sdd-rose)">추측</text>
+
+    <!-- right window -->
+    <text x="430" y="34" font-size="14" font-weight="700" fill="var(--sdd-teal)">명세 주도의 컨텍스트</text>
+    <rect x="430" y="46" width="290" height="180" rx="12" fill="none" stroke="var(--sdd-grid)" stroke-width="2"/>
+    <rect x="444" y="60" width="262" height="26" rx="6" fill="var(--sdd-violet)" opacity="0.18"/>
+    <text x="454" y="78" font-size="12" fill="var(--sdd-slate)" font-family="ui-monospace,monospace">constitution.md — 원칙</text>
+    <rect x="444" y="90" width="262" height="26" rx="6" fill="var(--sdd-blue)" opacity="0.18"/>
+    <text x="454" y="108" font-size="12" fill="var(--sdd-slate)" font-family="ui-monospace,monospace">spec.md — 무엇을</text>
+    <rect x="444" y="120" width="262" height="26" rx="6" fill="var(--sdd-sky)" opacity="0.18"/>
+    <text x="454" y="138" font-size="12" fill="var(--sdd-slate)" font-family="ui-monospace,monospace">plan.md — 어떻게</text>
+    <rect x="444" y="150" width="262" height="26" rx="6" fill="var(--sdd-teal)" opacity="0.18"/>
+    <text x="454" y="168" font-size="12" fill="var(--sdd-slate)" font-family="ui-monospace,monospace">현재 태스크 1개</text>
+    <rect x="444" y="180" width="262" height="30" rx="6" fill="var(--sdd-rose)" opacity="0.10" stroke="var(--sdd-rose)" stroke-dasharray="5 5"/>
+    <text x="575" y="200" text-anchor="middle" font-size="12" fill="var(--sdd-rose)">추측 영역 최소화</text>
+  </svg>
+  <figcaption id="sdd-fig3-cap">같은 컨텍스트 창이라도 무엇을 채우느냐가 결과를 가른다. SDD는 의도를 파일로 실어 “추측” 영역을 좁힌다.</figcaption>
+</figure>
+
+<p>같은 이유로, SDD는 <strong>AGENTS.md</strong> 같은 저장소 지시 파일과 잘 어울립니다. AGENTS.md가 “이 저장소의 상시 규칙”이라면, spec/plan은 “지금 이 기능의 일회성 의도”입니다. 상시 규칙 위에 이번 작업의 명세를 얹는 구조죠.</p>
+
+<h2 id="sec-6">6. 실전 — Spec Kit으로 5단계 직접 돌리기</h2>
+
+<p>직접 손에 익혀 봅시다. Spec Kit은 파이썬 CLI <code>specify-cli</code>로 시작합니다. <code>uv</code>(파이썬 패키지·툴 매니저)가 있으면 한 줄로 설치됩니다. 버전은 빠르게 오르니 최신 릴리스 태그로 바꿔 쓰세요.</p>
+
+{{< highlight bash >}}
+# specify-cli 설치 — vX.Y.Z 는 최신 릴리스 태그로 교체 (예: v0.12.11)
+uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@vX.Y.Z
+
+# 새 프로젝트 초기화 — 사용할 에이전트를 --integration 으로 지정 (copilot, claude, cursor …)
+specify init my-photo-app --integration copilot
+cd my-photo-app
+{{< /highlight >}}
+
+<p>초기화하면 <code>.specify/</code> 디렉터리와 슬래시 명령 정의가 깔립니다. 이제부터는 <em>에이전트 안에서</em> 명령을 부릅니다. 순서대로 따라가 봅시다.</p>
+
+<ol class="sdd-steps">
+  <li><strong>원칙 정하기.</strong> 이 프로젝트가 항상 지킬 규칙을 헌법으로 박아 둡니다.</li>
+  <li><strong>명세 쓰기.</strong> 무엇을·왜만 씁니다. 기술 얘기는 아직 하지 않습니다.</li>
+  <li><strong>계획 세우기.</strong> 이제 스택·아키텍처를 정합니다.</li>
+  <li><strong>태스크로 쪼개기.</strong> 계획을 작은 단위로 나눕니다.</li>
+  <li><strong>구현.</strong> 태스크대로 코드를 생성하고, 사람이 리뷰합니다.</li>
+</ol>
+
+<p>에이전트에 실제로 입력하는 명령은 이런 모양입니다(공식 예시를 각색).</p>
+
+{{< highlight text >}}
+# 1) 원칙 — 무엇을 타협하지 않을지
+/speckit.constitution 코드 품질, 테스트 기준, 접근성, 성능을 중시하는
+  원칙을 세워줘. 모든 기능에는 테스트가 있어야 하고, 라이브러리는 최소로.
+
+# 2) 명세 — 무엇을·왜 (기술 얘기 금지)
+/speckit.specify 사진을 앨범별로 정리하는 웹앱을 만들고 싶어.
+  앨범은 날짜별 그룹으로 묶고, 드래그로 사진을 옮길 수 있어야 해.
+  (성공 기준: 100장을 3초 안에 렌더, 앨범 간 이동은 되돌리기 지원)
+
+# 3) 계획 — 어떻게
+/speckit.plan Vite 기반에 라이브러리는 최소로. 상태는 로컬 스토리지에
+  저장하고, 백엔드는 아직 없이 프런트만.
+
+# 4) 태스크 — 작게 쪼개기
+/speckit.tasks
+
+# 5) 구현 — 태스크대로 코드 생성
+/speckit.implement
+{{< /highlight >}}
+
+<p>중요한 건 명령 사이사이에 <strong>사람이 파일을 열어 읽고 고치는</strong> 것입니다. <code>specify</code> 뒤에는 <code>spec.md</code>를 열어 “아, 삭제는 어떻게 하지?” 같은 빈칸을 채우고, <code>tasks</code> 뒤에는 태스크가 너무 크지 않은지 봅니다. 이 검토가 SDD의 핵심 가치입니다 — 값싼 명세 단계에서 오류를 잡으면, 비싼 구현·리뷰 단계에서 잡는 것보다 훨씬 저렴합니다.</p>
+
+<div class="sdd-note sdd-good"><strong>왜 파일로 남기는 게 이득일까요?</strong> <code>spec.md</code>·<code>plan.md</code>·<code>tasks.md</code>가 전부 저장소에 커밋되기 때문입니다. PR에 코드와 <em>함께</em> 명세가 올라오니, 리뷰어는 “무엇을 만들려 했는가”를 보고 “그대로 됐는가”를 판단할 수 있습니다. 나중에 요구가 바뀌면 <code>spec.md</code>를 고치고 다시 흘려보내면 됩니다.</p></div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<p>SDD는 만능이 아닙니다. junior가 자주 밟는 함정을 정리합니다.</p>
+
+<div class="sdd-note sdd-warn"><strong>함정 1 — 작은 일에도 5단계를 다 돌린다.</strong> 오타 수정이나 버튼 색 바꾸기에 constitution부터 돌리는 건 배보다 배꼽입니다. SDD는 <em>여러 파일에 걸친, 애매하고, 오래 걸리는</em> 기능에서 값을 합니다. 5분짜리 작업은 그냥 시키세요.</p></div>
+
+<div class="sdd-note sdd-warn"><strong>함정 2 — 명세가 곧 프롬프트가 길어진다 = 토큰이 는다.</strong> 실제로 SDD 회의론의 핵심이 이겁니다. constitution·spec·plan을 매 구현 단계에 실으면 토큰 비용과 지연이 늘어납니다. 그러니 명세는 <em>정확하되 짧게</em> 쓰고, 관련 없는 배경은 빼세요. 명세는 소설이 아니라 계약서입니다.</p></div>
+
+<div class="sdd-note sdd-warn"><strong>함정 3 — spec drift(명세 표류).</strong> 구현 도중 요구가 바뀌었는데 코드만 고치고 <code>spec.md</code>는 안 고치는 경우입니다. 그러면 명세가 거짓말이 되고, single source of truth라는 전제가 무너집니다. <em>규칙: 코드를 바꾸기 전에 명세를 먼저 바꾼다.</em> Spec Kit의 <code>/speckit.converge</code>는 코드와 명세의 간극을 다시 맞추는 데 쓰입니다.</p></div>
+
+<div class="sdd-note sdd-warn"><strong>함정 4 — 명세를 안 읽고 승인한다.</strong> 에이전트가 뽑은 <code>spec.md</code>를 훑지도 않고 바로 <code>plan</code>으로 넘어가면, 결국 바이브 코딩과 같아집니다. 오류는 파이프라인 <em>앞쪽</em>에서 잡을수록 싸다는 걸 기억하세요. 명세 한 줄을 고치는 비용 &lt; 코드 200줄을 되돌리는 비용.</p></div>
+
+<div class="sdd-note sdd-good"><strong>팁 — 성공 기준을 숫자로.</strong> “빨라야 한다”가 아니라 “100장을 3초 안에”처럼 검증 가능한 성공 기준을 명세에 넣으세요. 에이전트가 추측할 여지가 줄고, 나중에 “됐는지”를 객관적으로 확인할 수 있습니다.</p></div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>명세 주도 개발(SDD)</strong>은 “코드 먼저”를 “명세 먼저”로 뒤집는 규율입니다. 에이전트가 코드를 쓰는 시대에, 사람이 만들 가장 값진 산출물은 <em>정확한 명세</em>라는 발상이 핵심입니다.</li>
+  <li>바이브 코딩은 의도를 대화에 흘려보내 <strong>표류·비재현·리뷰 불가</strong>에 빠집니다. SDD는 의도를 <code>spec.md</code> 같은 <strong>버전 관리되는 파일</strong>로 못박아 single source of truth로 삼습니다.</li>
+  <li>GitHub <strong>Spec Kit</strong>(★127k, MIT)은 이를 <code>constitution → specify → plan → tasks → implement</code> 파이프라인으로 구현합니다. 각 단계가 파일을 남기고, 앞 파일이 뒤 단계의 입력이 됩니다.</li>
+  <li>본질은 <strong>컨텍스트 엔지니어링</strong>입니다. 구현 단계 컨텍스트에 원칙·명세·계획·현재 태스크를 실어 에이전트의 “추측” 영역을 좁힙니다.</li>
+  <li>함정: 작은 일엔 오버킬, 토큰 비용 증가, spec drift, 명세 안 읽고 승인. <em>명세는 정확하되 짧게, 코드보다 먼저 고치고, 성공 기준은 숫자로.</em></li>
+</ul>
+
+<h2 id="sec-ref">9. 참고 자료</h2>
+
+<ul>
+  <li>GitHub Spec Kit 저장소(★127k · MIT · <code>specify-cli</code>) — <a href="https://github.com/github/spec-kit" target="_blank" rel="noopener">github.com/github/spec-kit</a></li>
+  <li>Spec Kit README — 설치·<code>specify init</code>·전체 워크플로와 산출물 구조 — <a href="https://github.com/github/spec-kit/blob/main/README.md" target="_blank" rel="noopener">github.com/github/spec-kit/README</a></li>
+  <li>MarkTechPost, “Meet GitHub Spec-Kit: An Open Source Toolkit for Spec-Driven Development with AI Coding Agents” — <a href="https://www.marktechpost.com/2026/05/08/meet-github-spec-kit-an-open-source-toolkit-for-spec-driven-development-with-ai-coding-agents/" target="_blank" rel="noopener">marktechpost.com</a></li>
+  <li>Visual Studio Magazine, “GitHub Spec Kit Takes Off as Antidote to Piecemeal ‘Vibe Coding’” — <a href="https://visualstudiomagazine.com/articles/2026/05/12/github-spec-kit-takes-off-as-antidote-to-piecemeal-vibe-coding.aspx" target="_blank" rel="noopener">visualstudiomagazine.com</a></li>
+  <li>Augment Code, “What Is Spec-Driven Development? A Complete Guide” — <a href="https://www.augmentcode.com/guides/what-is-spec-driven-development" target="_blank" rel="noopener">augmentcode.com</a></li>
+  <li>DEV Community, “Spec-Driven Development in 2026: What It Is, the Tooling, and How Teams Actually Use It” — <a href="https://dev.to/krlz/spec-driven-development-in-2026-what-it-is-the-tooling-and-how-teams-actually-use-it-2fk2" target="_blank" rel="noopener">dev.to</a></li>
+  <li>Anthropic Engineering, “Effective Context Engineering for AI Agents”(컨텍스트 엔지니어링 배경) — <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">anthropic.com</a></li>
+</ul>

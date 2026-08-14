@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="720" height="430" fill="#ffffff"/>
+  <text x="24" y="34" font-size="19" font-weight="700" fill="#0f172a">GLM-5.2 → GLM-5.3: 베이스 모델 동일, 포스트트레이닝만으로</text>
+  <text x="24" y="56" font-size="12.5" fill="#64748b">z.ai 자체 보고 수치 (2026-08-14 발표) · 독립 리더보드 검증 전</text>
+
+  <!-- axes -->
+  <line x1="80" y1="92" x2="80" y2="340" stroke="#cbd5e1" stroke-width="1.5"/>
+  <line x1="80" y1="340" x2="700" y2="340" stroke="#cbd5e1" stroke-width="1.5"/>
+  <g font-size="11" fill="#94a3b8">
+    <line x1="80" y1="278" x2="700" y2="278" stroke="#eef2f7"/><text x="50" y="282">20</text>
+    <line x1="80" y1="216" x2="700" y2="216" stroke="#eef2f7"/><text x="50" y="220">40</text>
+    <line x1="80" y1="154" x2="700" y2="154" stroke="#eef2f7"/><text x="50" y="158">60</text>
+    <line x1="80" y1="92"  x2="700" y2="92"  stroke="#eef2f7"/><text x="50" y="96">80</text>
+    <text x="58" y="344">0</text>
+  </g>
+
+  <!-- scale: y = 340 - v*3.1 -->
+  <!-- Group 1: Terminal-Bench 3.0  4.6 -> 28.3 -->
+  <rect x="120" y="325.7" width="52" height="14.3" rx="3" fill="#cbd5e1"/>
+  <text x="146" y="318" font-size="12.5" font-weight="700" fill="#64748b" text-anchor="middle">4.6</text>
+  <rect x="180" y="252.3" width="52" height="87.7" rx="3" fill="#2563eb"/>
+  <text x="206" y="244" font-size="13.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">28.3</text>
+  <text x="176" y="362" font-size="12.5" font-weight="600" fill="#334155" text-anchor="middle">Terminal-Bench 3.0</text>
+  <text x="176" y="379" font-size="12" font-weight="700" fill="#059669" text-anchor="middle">+23.7p (6.2배)</text>
+
+  <!-- Group 2: DeepSWE v1.1  46.2 -> 66.9 -->
+  <rect x="320" y="196.8" width="52" height="143.2" rx="3" fill="#cbd5e1"/>
+  <text x="346" y="189" font-size="12.5" font-weight="700" fill="#64748b" text-anchor="middle">46.2</text>
+  <rect x="380" y="132.6" width="52" height="207.4" rx="3" fill="#2563eb"/>
+  <text x="406" y="124" font-size="13.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">66.9</text>
+  <text x="376" y="362" font-size="12.5" font-weight="600" fill="#334155" text-anchor="middle">DeepSWE v1.1</text>
+  <text x="376" y="379" font-size="12" font-weight="700" fill="#059669" text-anchor="middle">+20.7p</text>
+
+  <!-- Group 3: Agents' Last Exam CLI 23.8 -> 28.5 -->
+  <rect x="520" y="266.2" width="52" height="73.8" rx="3" fill="#cbd5e1"/>
+  <text x="546" y="258" font-size="12.5" font-weight="700" fill="#64748b" text-anchor="middle">23.8</text>
+  <rect x="580" y="251.7" width="52" height="88.3" rx="3" fill="#2563eb"/>
+  <text x="606" y="243" font-size="13.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">28.5</text>
+  <text x="576" y="362" font-size="12.5" font-weight="600" fill="#334155" text-anchor="middle">Agents' Last Exam (CLI)</text>
+  <text x="576" y="379" font-size="12" font-weight="700" fill="#059669" text-anchor="middle">+4.7p</text>
+
+  <!-- legend -->
+  <rect x="80" y="398" width="14" height="14" rx="3" fill="#cbd5e1"/>
+  <text x="102" y="410" font-size="12.5" fill="#475569">GLM-5.2</text>
+  <rect x="180" y="398" width="14" height="14" rx="3" fill="#2563eb"/>
+  <text x="202" y="410" font-size="12.5" fill="#475569">GLM-5.3 (동일 베이스 · RL/환경 설계만 강화)</text>
+</svg>

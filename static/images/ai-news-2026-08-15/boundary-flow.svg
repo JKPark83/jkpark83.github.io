@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="470" fill="#ffffff"/>
+  <text x="24" y="32" font-size="19" font-weight="700" fill="#0f172a">에이전트의 두 경계: 실패 경계와 커밋 경계</text>
+  <text x="24" y="54" font-size="12.5" fill="#64748b">arXiv:2608.11977 (재시도/전환/중단) + arXiv:2608.12654 (SteerBench-Work) 기반 재구성</text>
+
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#dc2626"/>
+    </marker>
+  </defs>
+
+  <!-- Lane A: 실패 경계 -->
+  <rect x="24" y="76" width="712" height="152" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="40" y="100" font-size="14" font-weight="700" fill="#0f172a">① 실패 경계 — 도구 호출이 실패했을 때</text>
+
+  <rect x="40" y="116" width="112" height="52" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="96" y="139" font-size="12.5" font-weight="600" fill="#334155" text-anchor="middle">도구 호출</text>
+  <text x="96" y="156" font-size="11.5" fill="#64748b" text-anchor="middle">실패/무응답</text>
+
+  <line x1="152" y1="142" x2="196" y2="142" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="200" y="112" width="130" height="60" rx="7" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="265" y="134" font-size="12.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">Bayesian Tool</text>
+  <text x="265" y="150" font-size="12.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">Memory (BTM)</text>
+  <text x="265" y="165" font-size="11" fill="#3b82f6" text-anchor="middle">도구별 성공률 누적</text>
+
+  <line x1="330" y1="142" x2="374" y2="142" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="378" y="112" width="106" height="60" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="431" y="138" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">Retry</text>
+  <text x="431" y="156" font-size="11" fill="#64748b" text-anchor="middle">일시적 오류</text>
+
+  <rect x="492" y="112" width="106" height="60" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="545" y="138" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">Switch</text>
+  <text x="545" y="156" font-size="11" fill="#64748b" text-anchor="middle">대체 경로 존재</text>
+
+  <rect x="606" y="112" width="114" height="60" rx="7" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="663" y="138" font-size="13" font-weight="700" fill="#c2410c" text-anchor="middle">Abstain</text>
+  <text x="663" y="156" font-size="11" fill="#ea580c" text-anchor="middle">경로 소진 → 중단</text>
+
+  <text x="40" y="200" font-size="12" fill="#475569">핵심: 무한 재시도는 정책이 아니다. "전환"과 "중단"이 없으면 실패 주입 환경에서 전 모델이 무너진다.</text>
+  <text x="40" y="218" font-size="12" font-weight="700" fill="#059669">BTM만 추가 (재학습 없음) → 견고성 최대 +16.8p · RL 병행 시 주입 환경에서 40.8~45.5%</text>
+
+  <!-- Lane B: 커밋 경계 -->
+  <rect x="24" y="244" width="712" height="204" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="40" y="268" font-size="14" font-weight="700" fill="#0f172a">② 커밋 경계 — 되돌릴 수 없는 액션 직전</text>
+
+  <rect x="40" y="286" width="140" height="56" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="110" y="309" font-size="12.5" font-weight="600" fill="#334155" text-anchor="middle">제안된 액션</text>
+  <text x="110" y="326" font-size="11" fill="#64748b" text-anchor="middle">메일 발송 · PR 머지 · 송금</text>
+
+  <line x1="180" y1="314" x2="224" y2="314" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="228" y="282" width="150" height="64" rx="7" fill="#eef2ff" stroke="#a5b4fc"/>
+  <text x="303" y="306" font-size="13" font-weight="700" fill="#4338ca" text-anchor="middle">게이트 판단</text>
+  <text x="303" y="324" font-size="11.5" fill="#6366f1" text-anchor="middle">증거 확인 → proceed / hold</text>
+
+  <line x1="378" y1="300" x2="428" y2="300" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="378" y1="330" x2="428" y2="330" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="432" y="278" width="128" height="44" rx="7" fill="#ecfdf5" stroke="#6ee7b7"/>
+  <text x="496" y="305" font-size="12.5" font-weight="700" fill="#047857" text-anchor="middle">proceed (실행)</text>
+
+  <rect x="432" y="310" width="128" height="44" rx="7" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="496" y="337" font-size="12.5" font-weight="700" fill="#b91c1c" text-anchor="middle">hold (사람 검토)</text>
+
+  <!-- error asymmetry callout -->
+  <rect x="580" y="278" width="140" height="76" rx="7" fill="#ffffff" stroke="#fca5a5" stroke-dasharray="4 3"/>
+  <text x="650" y="298" font-size="11.5" font-weight="700" fill="#b91c1c" text-anchor="middle">실측 오류 비대칭</text>
+  <text x="650" y="317" font-size="15" font-weight="700" fill="#dc2626" text-anchor="middle">28.1% : 1.0%</text>
+  <text x="650" y="334" font-size="10.5" fill="#7f1d1d" text-anchor="middle">정당한 작업을 잘못 보류</text>
+  <text x="650" y="347" font-size="10.5" fill="#7f1d1d" text-anchor="middle">: 위험 작업을 잘못 허용</text>
+  <line x1="560" y1="316" x2="576" y2="316" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <text x="40" y="378" font-size="12" fill="#475569">유명 사건 시나리오에서는 98.5%로 잘 막지만, 증거를 뒤집은 미러 케이스에서는 63.8%로 급락.</text>
+  <text x="40" y="398" font-size="12" fill="#475569">"위험 트리거가 이미 해소된 커밋"이 가장 어렵다 — 모델 성능이 높다고 게이트 캘리브레이션이 좋아지지 않는다.</text>
+  <text x="40" y="424" font-size="12" font-weight="700" fill="#0f172a">👉 빌더 액션: 승인 게이트 평가는 오탐(false hold)과 미탐(false allow)을 반드시 분리해 측정할 것.</text>
+</svg>

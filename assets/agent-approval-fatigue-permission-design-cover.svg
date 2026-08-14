@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트 승인 설계를 나타낸 그림. 왼쪽에는 '허용하시겠습니까?'라는 권한 승인 창이 여러 장 쌓여 있고, 손가락이 반사적으로 허용 버튼을 누르는 모습과 함께 세션이 길어질수록 사람의 위험 명령 차단율이 17퍼센트에서 5퍼센트로 떨어지는 꺾은선이 그려져 있다. 오른쪽에는 세 겹의 문이 있는데, 바깥부터 샌드박스와 네트워크 허용 목록으로 이루어진 컨테인먼트, 그 안쪽에 모든 툴 호출을 검사하는 자동 분류기, 가장 안쪽에 되돌릴 수 없는 일만 사람에게 묻는 사람 게이트가 배치돼 있다. 아래 띠에는 사람은 위험 명령의 13.6퍼센트만 잡았고 분류기는 89퍼센트를 잡았으며 승인 요청의 97퍼센트가 그대로 통과됐다는 수치가 적혀 있다.">
+  <defs>
+    <linearGradient id="apg-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#141c30"/>
+    </linearGradient>
+    <linearGradient id="apg-gate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <marker id="apg-ar" markerWidth="14" markerHeight="14" refX="9" refY="7" orient="auto">
+      <path d="M0,1 L13,7 L0,13 Z" fill="#7dd3fc"/>
+    </marker>
+    <marker id="apg-ar-r" markerWidth="14" markerHeight="14" refX="9" refY="7" orient="auto">
+      <path d="M0,1 L13,7 L0,13 Z" fill="#fb7185"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#apg-bg)"/>
+
+  <!-- title -->
+  <text x="60" y="72" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="34" font-weight="700" fill="#e2e8f0">에이전트 승인 설계</text>
+  <text x="60" y="106" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="19" fill="#94a3b8">매번 물으면 아무도 안 봅니다 — 무엇을 묻고, 무엇을 가둘 것인가</text>
+
+  <!-- divider -->
+  <line x1="600" y1="140" x2="600" y2="500" stroke="#334155" stroke-width="1.5" stroke-dasharray="6 8"/>
+
+  <!-- LEFT: approval fatigue -->
+  <text x="60" y="168" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="17" font-weight="700" fill="#fb7185">① 매번 묻기 — 승인 피로</text>
+
+  <!-- stacked dialogs -->
+  <g>
+    <rect x="80" y="196" width="300" height="76" rx="12" fill="#1e293b" stroke="#475569"/>
+    <rect x="68" y="210" width="300" height="76" rx="12" fill="#1e293b" stroke="#475569"/>
+    <rect x="56" y="224" width="300" height="76" rx="12" fill="#172033" stroke="#fb7185"/>
+    <text x="76" y="252" font-family="ui-monospace, monospace" font-size="14" fill="#cbd5e1">rm -rf ./build 실행할까요?</text>
+    <rect x="76" y="264" width="86" height="26" rx="6" fill="#fb7185" opacity="0.85"/>
+    <text x="119" y="282" text-anchor="middle" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="13" font-weight="700" fill="#0f172a">허용</text>
+    <rect x="172" y="264" width="86" height="26" rx="6" fill="none" stroke="#64748b"/>
+    <text x="215" y="282" text-anchor="middle" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="13" fill="#94a3b8">거부</text>
+    <!-- cursor -->
+    <path d="M126,286 L126,314 L134,306 L140,320 L147,317 L141,303 L152,302 Z" fill="#f8fafc" stroke="#0f172a" stroke-width="1.5"/>
+    <text x="286" y="284" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="14" font-weight="700" fill="#fb7185">97% 통과</text>
+  </g>
+
+  <!-- decay chart -->
+  <g>
+    <text x="60" y="360" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="14" fill="#94a3b8">세션이 길어질수록 사람의 위험 명령 차단율</text>
+    <line x1="72" y1="470" x2="500" y2="470" stroke="#334155" stroke-width="1.5"/>
+    <line x1="72" y1="376" x2="72" y2="470" stroke="#334155" stroke-width="1.5"/>
+    <!-- human decay -->
+    <path d="M92,400 C180,420 280,448 476,458" stroke="#fb7185" stroke-width="3.5" fill="none" marker-end="url(#apg-ar-r)"/>
+    <circle cx="92" cy="400" r="5" fill="#fb7185"/>
+    <text x="100" y="392" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="14" font-weight="700" fill="#fb7185">17%</text>
+    <text x="430" y="446" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="14" font-weight="700" fill="#fb7185">5%</text>
+    <!-- classifier flat -->
+    <path d="M92,388 L488,388" stroke="#4ade80" stroke-width="3" stroke-dasharray="8 6" fill="none"/>
+    <text x="352" y="380" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="13.5" font-weight="700" fill="#4ade80">분류기: 평평</text>
+    <text x="80" y="492" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="13" fill="#64748b">세션 초반</text>
+    <text x="404" y="492" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="13" fill="#64748b">프롬프트 50회 이후</text>
+  </g>
+
+  <!-- RIGHT: three gates -->
+  <text x="648" y="168" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="17" font-weight="700" fill="#38bdf8">② 세 겹으로 나누기</text>
+
+  <g>
+    <!-- outer ring: containment -->
+    <rect x="648" y="192" width="490" height="256" rx="18" fill="#0ea5e9" opacity="0.10"/>
+    <rect x="648" y="192" width="490" height="256" rx="18" fill="none" stroke="#0ea5e9" stroke-width="2"/>
+    <text x="668" y="220" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="15.5" font-weight="700" fill="#38bdf8">컨테인먼트 — 샌드박스 · 네트워크 허용 목록</text>
+
+    <!-- middle: classifier -->
+    <rect x="674" y="238" width="438" height="188" rx="14" fill="#a78bfa" opacity="0.12"/>
+    <rect x="674" y="238" width="438" height="188" rx="14" fill="none" stroke="#a78bfa" stroke-width="2"/>
+    <text x="694" y="266" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="15.5" font-weight="700" fill="#a78bfa">자동 판정 — 규칙 + 분류기가 모든 툴 호출 검사</text>
+
+    <!-- inner: human gate -->
+    <rect x="700" y="284" width="386" height="122" rx="12" fill="#fbbf24" opacity="0.14"/>
+    <rect x="700" y="284" width="386" height="122" rx="12" fill="none" stroke="#fbbf24" stroke-width="2"/>
+    <text x="720" y="312" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="15.5" font-weight="700" fill="#fbbf24">사람 게이트</text>
+    <text x="720" y="340" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="14.5" fill="#e2e8f0">되돌릴 수 없는 일만</text>
+    <text x="720" y="366" font-family="ui-monospace, monospace" font-size="13.5" fill="#cbd5e1">배포 · 마이그레이션 · force push</text>
+    <text x="720" y="390" font-family="ui-monospace, monospace" font-size="13.5" fill="#cbd5e1">권한 부여 · 대량 삭제 · 결제</text>
+  </g>
+
+  <!-- flow arrow -->
+  <path d="M520,318 L636,318" stroke="#7dd3fc" stroke-width="3" marker-end="url(#apg-ar)"/>
+
+  <!-- bottom band -->
+  <rect x="0" y="524" width="1200" height="106" fill="#0b1220"/>
+  <text x="60" y="566" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="19" fill="#cbd5e1">같은 위험 명령을 두고 — 사람은 <tspan fill="#fb7185" font-weight="700">13.6%</tspan> 차단, 자동 분류기는 <tspan fill="#4ade80" font-weight="700">89%</tspan> 차단</text>
+  <text x="60" y="600" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="16" fill="#64748b">Anthropic 통제 실험(유료 테스터 1,053명) · Claude Code auto mode 기본 전환 2026-08-14</text>
+</svg>

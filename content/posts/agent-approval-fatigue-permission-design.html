@@ -1,0 +1,504 @@
+---
+title: "'허용'을 100번 누르면 101번째도 누릅니다: 에이전트 승인 설계, 사람에게 무엇을 물어야 하나"
+date: 2026-08-15T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "agent", "승인 피로", "approval fatigue", "human-in-the-loop", "HITL", "permission", "권한 설계", "guardrails", "가드레일", "sandbox", "샌드박스", "blast radius", "Claude Code", "auto mode", "prompt injection", "LLM", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트에 툴을 붙이면 누구나 같은 안전장치를 답니다 — '위험한 일을 하기 전에 사람에게 묻자.' 그런데 2026년 8월 Anthropic이 공개한 데이터는 그 안전장치가 사실상 작동하지 않았다고 말합니다. 사용자는 권한 요청의 97%를 그냥 승인했고, 워크플로에 몰래 섞어 넣은 위험 명령을 사람은 13.6%만 잡아낸 반면 자동 분류기는 89%를 잡았습니다. 세션이 길어지면 사람의 차단율은 17%에서 5%로 떨어졌고요. 이 글은 왜 '매번 묻기'가 구조적으로 무너지는지, 그 대안인 컨테인먼트·자동 판정·사람 게이트 세 겹 설계가 각각 무엇을 맡는지, 되돌림 등급(reversibility)과 영향 범위로 '물어야 할 것'을 고르는 기준은 무엇인지, 그리고 직접 붙일 수 있는 승인 계층 코드까지 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-approval-fatigue-permission-design-cover.svg"
+  alt: "왼쪽에는 '허용하시겠습니까?' 승인 창이 여러 장 쌓여 있고 손가락이 반사적으로 허용을 누르며, 세션이 길어질수록 사람의 위험 명령 차단율이 17%에서 5%로 떨어지는 꺾은선이 있다. 오른쪽에는 바깥부터 샌드박스·네트워크 허용 목록의 컨테인먼트, 모든 툴 호출을 검사하는 자동 분류기, 되돌릴 수 없는 일만 묻는 사람 게이트가 세 겹으로 배치돼 있다."
+  caption: "매번 묻는 승인은 안전장치가 아니라 근육 기억이 됩니다. 승인은 '얼마나 자주 묻느냐'가 아니라 '무엇을 묻느냐'의 문제입니다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 승인 설계 포스트 전용 스타일 (apg- 접두사) ── */
+.apg-fig{
+  --apg-sky:#0284c7; --apg-amber:#d97706; --apg-green:#16a34a; --apg-rose:#e11d48;
+  --apg-slate:#64748b; --apg-violet:#7c3aed; --apg-teal:#0d9488; --apg-blue:#2563eb;
+  --apg-grid:#cbd5e1; --apg-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .apg-fig{
+  --apg-sky:#38bdf8; --apg-amber:#fbbf24; --apg-green:#4ade80; --apg-rose:#fb7185;
+  --apg-slate:#94a3b8; --apg-violet:#a78bfa; --apg-teal:#2dd4bf; --apg-blue:#60a5fa;
+  --apg-grid:#334155; --apg-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .apg-fig{
+    --apg-sky:#38bdf8; --apg-amber:#fbbf24; --apg-green:#4ade80; --apg-rose:#fb7185;
+    --apg-slate:#94a3b8; --apg-violet:#a78bfa; --apg-teal:#2dd4bf; --apg-blue:#60a5fa;
+    --apg-grid:#334155; --apg-gray:#64748b;
+  }
+}
+.apg-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.apg-fig text{font-family:inherit}
+.apg-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.apg-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.apg-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.apg-toc ol{margin:0;padding-left:1.25rem}
+.apg-toc li{margin:.22rem 0;font-size:.95rem}
+.apg-toc a{text-decoration:none}
+.apg-toc a:hover{text-decoration:underline}
+.apg-pull{font-size:1.12rem;line-height:1.72}
+.apg-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.apg-note{border-left:4px solid var(--apg-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.apg-note strong{color:var(--apg-blue,#2563eb)}
+.apg-warn{border-left:4px solid var(--apg-rose,#e11d48)}
+.apg-warn strong{color:var(--apg-rose,#e11d48)}
+.apg-good{border-left:4px solid var(--apg-teal,#0d9488)}
+.apg-good strong{color:var(--apg-teal,#0d9488)}
+.apg-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.apg-tbl th,.apg-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.apg-tbl th{background:var(--entry);font-weight:700}
+.apg-tbl code{font-size:.86em}
+.apg-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="apg-pull">
+  <p>에이전트에 툴을 붙일 때 우리는 거의 반사적으로 같은 안전장치를 답니다. <em>“위험한 일을 하기 전에 사람에게 물어보자.”</em> 그리고 한 시간쯤 지나면, 그 사람은 창이 뜨는 위치를 외워서 그냥 클릭하고 있습니다.</p>
+  <footer>— 안전장치가 근육 기억이 되는 순간, 그건 더 이상 안전장치가 아닙니다.</footer>
+</blockquote>
+
+<nav class="apg-toc" aria-label="목차">
+  <div class="apg-toc-title">이 글에서 다루는 것</div>
+  <ol>
+    <li><a href="#sec-1">왜 지금 '승인'이 화제인가</a></li>
+    <li><a href="#sec-2">배경 — 승인 프롬프트는 원래 무엇을 하려던 장치인가</a></li>
+    <li><a href="#sec-3">데이터가 말하는 것 — 승인 피로는 취향이 아니라 구조</a></li>
+    <li><a href="#sec-4">대안은 '덜 묻기'가 아니라 '세 겹으로 나누기'</a></li>
+    <li><a href="#sec-5">무엇을 물을지 고르는 기준 — 되돌림 등급 × 영향 범위</a></li>
+    <li><a href="#sec-6">실전 — 내 에이전트에 승인 계층 붙이기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</nav>
+
+<h2 id="sec-1">1. 왜 지금 '승인'이 화제인가</h2>
+
+<p>2026년 8월 14일, Anthropic이 코딩 에이전트 Claude Code의 기본 동작을 바꿨습니다. 그동안은 파일을 고치거나 명령을 실행할 때마다 사용자에게 “허용할까요?”를 묻는 방식이 기본이었는데, 이제 Pro·Max·Team 플랜에서는 <strong>auto mode</strong>가 기본값입니다. 사람 대신 별도의 <strong>분류기(classifier)</strong> 모델이 툴 호출 하나하나를 실행 직전에 검사하고, 위험해 보이는 것만 막습니다.</p>
+
+<p>업계가 술렁인 건 “기능이 하나 바뀌었다” 때문이 아닙니다. 그 변경을 뒷받침하려고 공개된 숫자들이 <em>우리가 지난 2년간 당연하게 달아 온 안전장치</em>를 정면으로 반박했기 때문입니다. 핵심만 추리면 이렇습니다.</p>
+
+<ul>
+  <li>사용자는 Claude Code 권한 요청의 <strong>97%를 승인</strong>했습니다. 거부는 3%뿐이었습니다.</li>
+  <li>반면 에이전트가 제안한 <strong>계획(plan)</strong>은 <strong>39%나 거부</strong>했습니다. 같은 사람이 계획은 따져 보고, 개별 명령은 그냥 통과시킨 겁니다.</li>
+  <li>유료 전문 테스터 <strong>1,053명</strong>을 대상으로 한 통제 실험에서, 작업 흐름에 몰래 섞어 넣은 위험 명령을 사람은 <strong>13.6%(143건)</strong>만 잡아냈습니다. 같은 명령을 auto mode의 분류기는 <strong>89%(937건)</strong> 막았습니다.</li>
+  <li>정면 대결로 보면 더 극적입니다. <strong>사람이 승인했지만 분류기가 막은 명령이 800건</strong>, 그 반대는 <strong>6건</strong>이었습니다.</li>
+</ul>
+
+<p>여기서 오해하면 안 되는 게 있습니다. 이 글은 “Claude Code 설정을 이렇게 바꾸세요”라는 안내가 아닙니다. 우리가 볼 건 그 아래 깔린 <strong>설계 문제</strong>입니다 — 에이전트를 직접 만드는 사람 입장에서, <em>사람에게 무엇을 묻고 무엇을 묻지 말아야 하는가</em>. 이 질문에 답하는 계층을 흔히 <strong>승인 계층(approval layer)</strong> 혹은 권한 계층이라고 부릅니다.</p>
+
+<div class="apg-note"><strong>한 줄 요약.</strong> “매번 묻기”는 안전해 보이지만, 사람의 주의력이 반복 앞에서 무너지기 때문에 실제로는 거의 아무것도 막지 못합니다. 답은 덜 묻는 것도, 더 묻는 것도 아니라 <em>묻는 대상을 바꾸는</em> 것입니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — 승인 프롬프트는 원래 무엇을 하려던 장치인가</h2>
+
+<p>먼저 용어를 정리합니다. 에이전트가 셸을 치고 파일을 지우고 API를 부르는 구조에서, 툴 호출을 실행 직전에 가로채 “실행할지 말지”를 정하는 지점을 <strong>권한 게이트(permission gate)</strong>라고 합니다. 여기서 사람에게 판단을 넘기는 방식이 <strong>human-in-the-loop</strong>(사람을 루프 안에 두기, 줄여서 HITL)입니다.</p>
+
+<p>이 설계는 두 가지를 기대하고 만들어졌습니다.</p>
+
+<ul>
+  <li><strong>판단의 이양.</strong> 모델은 사용자의 진짜 의도나 조직의 규칙을 다 모릅니다. 그러니 애매한 순간엔 사람이 결정하게 하자.</li>
+  <li><strong>책임의 소재.</strong> 사고가 나도 “사람이 승인했다”는 기록이 남습니다. 감사(audit) 관점에서 편합니다.</li>
+</ul>
+
+<p>둘 다 합리적입니다. 문제는 <strong>빈도</strong>입니다. 코딩 에이전트 한 세션은 툴 호출을 수십에서 수백 번 합니다. 파일 읽기, <code>grep</code>, 테스트 실행, 파일 쓰기, <code>git diff</code>… 이 중 압도적 다수는 지루할 만큼 안전합니다. 그런데 게이트는 그 지루한 호출들 사이에 위험한 것 하나를 섞어 넣고 사람에게 매번 같은 모양의 창을 보여 줍니다.</p>
+
+<p>인간 요소(human factors) 연구에서는 이 상황의 결말이 오래전에 정리돼 있습니다. Parasuraman과 Manzey가 2010년에 정리한 <strong>자동화 안주(automation complacency)</strong>와 <strong>자동화 편향(automation bias)</strong>이 그것입니다. 요지는 이렇습니다 — 자동 시스템이 대체로 잘 맞으면 사람은 감시에 쓰던 주의를 다른 일로 재배분합니다. 이건 게으름이나 훈련 부족이 아니라 <em>주의 자원이 유한한 데서 오는 구조적 결과</em>여서, 초보든 전문가든 똑같이 나타나고 “주의하세요”라는 교육으로 없어지지 않습니다.</p>
+
+<div class="apg-note apg-good"><strong>비유로.</strong> 자동차 경보음이 온 동네에 하루 열 번 울리면, 어느 순간 아무도 창밖을 보지 않습니다. 경보가 고장 난 게 아니라 <em>경보의 정보량이 0에 수렴</em>한 겁니다. 승인 프롬프트도 똑같습니다. 100번 중 99번이 “안전한데 그냥 묻는 것”이면, 101번째의 진짜 경고는 앞선 100번에 묻혀 버립니다.</p></div>
+
+<h2 id="sec-3">3. 데이터가 말하는 것 — 승인 피로는 취향이 아니라 구조</h2>
+
+<p>이론은 그렇다 치고, 실제 숫자는 어떨까요. 앞서 소개한 실험 결과를 조금 더 뜯어보면 <strong>승인 피로(approval fatigue)</strong>의 모양이 뚜렷하게 보입니다.</p>
+
+<figure class="apg-fig" role="group" aria-labelledby="apg-fig1-cap">
+  <svg viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg" aria-label="승인 피로를 보여 주는 두 개의 도표. 왼쪽 막대 그래프는 같은 위험 명령을 두고 사람은 13.6퍼센트만 차단한 반면 자동 분류기는 89퍼센트를 차단했음을 보여 준다. 오른쪽 꺾은선 그래프는 세션 초반에 약 17퍼센트였던 사람의 차단율이 프롬프트 50회 이후 약 5퍼센트까지 떨어지는 반면, 분류기의 차단율은 세션 길이와 무관하게 평평하게 유지됨을 보여 준다. 아래에는 사람이 승인했지만 분류기가 막은 명령이 800건, 그 반대는 6건이라는 정면 대결 수치가 적혀 있다.">
+    <defs>
+      <marker id="apg-a1" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 Z" fill="var(--apg-rose)"/></marker>
+    </defs>
+
+    <!-- LEFT: bars -->
+    <text x="24" y="26" font-size="14" font-weight="700" fill="var(--apg-slate)">같은 위험 명령, 누가 더 잡았나</text>
+    <line x1="40" y1="230" x2="330" y2="230" stroke="var(--apg-grid)" stroke-width="1.5"/>
+
+    <rect x="76" y="204" width="70" height="26" rx="4" fill="var(--apg-rose)" opacity="0.85"/>
+    <text x="111" y="252" text-anchor="middle" font-size="12.5" fill="var(--apg-slate)">사람 검토</text>
+    <text x="111" y="196" text-anchor="middle" font-size="15" font-weight="700" fill="var(--apg-rose)">13.6%</text>
+
+    <rect x="226" y="60" width="70" height="170" rx="4" fill="var(--apg-green)" opacity="0.85"/>
+    <text x="261" y="252" text-anchor="middle" font-size="12.5" fill="var(--apg-slate)">자동 분류기</text>
+    <text x="261" y="52" text-anchor="middle" font-size="15" font-weight="700" fill="var(--apg-green)">89%</text>
+
+    <text x="40" y="286" font-size="12" fill="var(--apg-gray)">유료 전문 테스터 1,053명 대상 통제 실험</text>
+    <text x="40" y="306" font-size="12" fill="var(--apg-gray)">사람이 승인 → 분류기가 차단: 800건</text>
+    <text x="40" y="324" font-size="12" fill="var(--apg-gray)">분류기가 허용 → 사람이 차단: 6건</text>
+
+    <line x1="378" y1="20" x2="378" y2="330" stroke="var(--apg-grid)" stroke-width="1" stroke-dasharray="4 6"/>
+
+    <!-- RIGHT: decay -->
+    <text x="410" y="26" font-size="14" font-weight="700" fill="var(--apg-slate)">세션이 길어지면</text>
+    <line x1="426" y1="230" x2="730" y2="230" stroke="var(--apg-grid)" stroke-width="1.5"/>
+    <line x1="426" y1="60" x2="426" y2="230" stroke="var(--apg-grid)" stroke-width="1.5"/>
+
+    <path d="M446,144 C520,168 590,196 706,212" stroke="var(--apg-rose)" stroke-width="3" fill="none" marker-end="url(#apg-a1)"/>
+    <circle cx="446" cy="144" r="4.5" fill="var(--apg-rose)"/>
+    <text x="454" y="134" font-size="13.5" font-weight="700" fill="var(--apg-rose)">약 17%</text>
+    <text x="646" y="200" font-size="13.5" font-weight="700" fill="var(--apg-rose)">약 5%</text>
+
+    <path d="M446,96 L716,96" stroke="var(--apg-green)" stroke-width="2.5" stroke-dasharray="8 6" fill="none"/>
+    <text x="560" y="86" font-size="12.5" font-weight="700" fill="var(--apg-green)">분류기 — 변화 없음</text>
+
+    <text x="430" y="252" font-size="12" fill="var(--apg-gray)">세션 초반</text>
+    <text x="622" y="252" font-size="12" fill="var(--apg-gray)">프롬프트 50회 이후</text>
+    <text x="426" y="290" font-size="12.5" fill="var(--apg-slate)">사람의 주의력은 세션 길이에 반비례합니다.</text>
+    <text x="426" y="310" font-size="12.5" fill="var(--apg-slate)">그런데 에이전트 세션은 점점 길어집니다.</text>
+  </svg>
+  <figcaption id="apg-fig1-cap">사람은 “가끔 틀리는” 게 아니라 <strong>시간이 갈수록 일관되게 나빠집니다</strong>. 반대로 자동 판정은 지치지 않습니다 — 대신 놓치는 방식이 사람과 다릅니다.</figcaption>
+</figure>
+
+<p>여기서 가장 중요한 한 줄은 <strong>“계획은 39% 거부, 개별 명령은 3% 거부”</strong>입니다. 같은 사람의 주의력이 어디로 갔는지 정확히 보여 주기 때문입니다. 사람은 <em>맥락이 있고, 한 번뿐이고, 결정처럼 느껴지는</em> 질문에는 답을 합니다. 반대로 <em>맥락 없고, 반복되고, 진행을 가로막는</em> 질문에는 반사적으로 “예”를 누릅니다.</p>
+
+<p>그러니 설계 원칙이 하나 나옵니다.</p>
+
+<div class="apg-note"><strong>원칙 1.</strong> 사람에게 묻는 횟수는 <strong>예산(budget)</strong>입니다. 한 세션에 사람이 진지하게 판단할 수 있는 횟수는 많아야 손에 꼽습니다. 그 예산을 <code>ls</code>나 테스트 실행에 써 버리면, 정작 프로덕션 DB 마이그레이션 차례에는 남는 게 없습니다.</p></div>
+
+<h2 id="sec-4">4. 대안은 '덜 묻기'가 아니라 '세 겹으로 나누기'</h2>
+
+<p>“그럼 그냥 다 자동으로 돌리면 되나요?”라고 물으면 답은 당연히 아니오입니다. 실제로 auto mode의 분류기도 실험에서 11%는 놓쳤습니다. 자동 판정 하나에 전부를 맡기는 건 사람 하나에 전부를 맡기는 것만큼이나 순진한 설계입니다.</p>
+
+<p>제대로 된 답은 <strong>역할을 세 겹으로 쪼개는</strong> 겁니다. 각 층이 다른 방식으로 실패하기 때문에, 겹쳐 놓으면 서로의 구멍을 메웁니다.</p>
+
+<figure class="apg-fig" role="group" aria-labelledby="apg-fig2-cap">
+  <svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" aria-label="에이전트의 툴 호출이 지나가는 세 겹 파이프라인 그림. 모델이 툴 호출을 제안하면 먼저 컨테인먼트 층인 샌드박스와 네트워크 허용 목록이 물리적 경계를 정하고, 다음으로 결정론적 규칙인 deny와 allow 목록이 판정하고, 그다음 분류기가 남은 애매한 호출을 판단하며, 마지막으로 되돌릴 수 없는 행동만 사람 게이트로 올라간다. 차단된 호출은 모델에게 되돌아가 다른 방법을 찾게 하고, 차단이 반복되면 전체가 수동 승인 모드로 되돌아간다. 모든 단계는 감사 로그에 기록된다.">
+    <defs>
+      <marker id="apg-a2" markerWidth="13" markerHeight="13" refX="8" refY="6.5" orient="auto"><path d="M0,1 L12,6.5 L0,12 Z" fill="var(--apg-blue)"/></marker>
+      <marker id="apg-a3" markerWidth="13" markerHeight="13" refX="8" refY="6.5" orient="auto"><path d="M0,1 L12,6.5 L0,12 Z" fill="var(--apg-rose)"/></marker>
+    </defs>
+
+    <rect x="24" y="24" width="132" height="52" rx="10" fill="var(--apg-violet)" opacity="0.16" stroke="var(--apg-violet)"/>
+    <text x="90" y="46" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--apg-violet)">모델</text>
+    <text x="90" y="64" text-anchor="middle" font-size="11.5" fill="var(--apg-slate)">툴 호출 제안</text>
+
+    <path d="M156,50 L206,50" stroke="var(--apg-blue)" stroke-width="2.5" marker-end="url(#apg-a2)"/>
+
+    <!-- layer 1 -->
+    <rect x="208" y="24" width="300" height="52" rx="10" fill="var(--apg-sky)" opacity="0.16" stroke="var(--apg-sky)"/>
+    <text x="226" y="46" font-size="13.5" font-weight="700" fill="var(--apg-sky)">① 컨테인먼트</text>
+    <text x="226" y="64" font-size="11.5" fill="var(--apg-slate)">샌드박스 · 네트워크 허용 목록 · 최소 권한 토큰</text>
+    <text x="524" y="46" font-size="11.5" fill="var(--apg-gray)">“할 수 있는 일”</text>
+    <text x="524" y="63" font-size="11.5" fill="var(--apg-gray)">자체를 줄인다</text>
+
+    <path d="M358,76 L358,110" stroke="var(--apg-blue)" stroke-width="2.5" marker-end="url(#apg-a2)"/>
+
+    <!-- layer 2a -->
+    <rect x="208" y="112" width="300" height="52" rx="10" fill="var(--apg-teal)" opacity="0.16" stroke="var(--apg-teal)"/>
+    <text x="226" y="134" font-size="13.5" font-weight="700" fill="var(--apg-teal)">② 결정론적 규칙</text>
+    <text x="226" y="152" font-size="11.5" fill="var(--apg-slate)">deny / allow 목록 · 경로 · 도메인 · 툴 이름</text>
+    <text x="524" y="134" font-size="11.5" fill="var(--apg-gray)">빠르고 예측 가능</text>
+    <text x="524" y="151" font-size="11.5" fill="var(--apg-gray)">우회에 약함</text>
+
+    <path d="M358,164 L358,198" stroke="var(--apg-blue)" stroke-width="2.5" marker-end="url(#apg-a2)"/>
+
+    <!-- layer 2b -->
+    <rect x="208" y="200" width="300" height="52" rx="10" fill="var(--apg-blue)" opacity="0.16" stroke="var(--apg-blue)"/>
+    <text x="226" y="222" font-size="13.5" font-weight="700" fill="var(--apg-blue)">③ 분류기 판정</text>
+    <text x="226" y="240" font-size="11.5" fill="var(--apg-slate)">의도·부작용·인젝션 흔적을 문맥으로 판단</text>
+    <text x="524" y="222" font-size="11.5" fill="var(--apg-gray)">지치지 않음</text>
+    <text x="524" y="239" font-size="11.5" fill="var(--apg-gray)">확률적 · 오탐/미탐</text>
+
+    <path d="M358,252 L358,286" stroke="var(--apg-blue)" stroke-width="2.5" marker-end="url(#apg-a2)"/>
+
+    <!-- layer 3 -->
+    <rect x="208" y="288" width="300" height="56" rx="10" fill="var(--apg-amber)" opacity="0.18" stroke="var(--apg-amber)"/>
+    <text x="226" y="310" font-size="13.5" font-weight="700" fill="var(--apg-amber)">④ 사람 게이트</text>
+    <text x="226" y="328" font-size="11.5" fill="var(--apg-slate)">되돌릴 수 없는 행동만 · 계획 단위로 묶어서</text>
+    <text x="524" y="310" font-size="11.5" fill="var(--apg-gray)">가장 비싼 자원</text>
+    <text x="524" y="327" font-size="11.5" fill="var(--apg-gray)">아껴 쓸 것</text>
+
+    <!-- deny loop -->
+    <path d="M208,226 L120,226 L120,110" stroke="var(--apg-rose)" stroke-width="2" fill="none" marker-end="url(#apg-a3)"/>
+    <text x="34" y="200" font-size="11.5" fill="var(--apg-rose)">차단 → 모델에게</text>
+    <text x="34" y="216" font-size="11.5" fill="var(--apg-rose)">다른 방법 찾게</text>
+    <text x="34" y="244" font-size="11.5" fill="var(--apg-rose)">반복 차단 시</text>
+    <text x="34" y="260" font-size="11.5" fill="var(--apg-rose)">전체 수동 전환</text>
+
+    <!-- audit -->
+    <rect x="560" y="288" width="176" height="56" rx="10" fill="var(--entry)" stroke="var(--apg-grid)"/>
+    <text x="648" y="312" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--apg-slate)">감사 로그</text>
+    <text x="648" y="330" text-anchor="middle" font-size="11.5" fill="var(--apg-gray)">모든 판정을 기록</text>
+    <path d="M508,316 L556,316" stroke="var(--apg-grid)" stroke-width="2" stroke-dasharray="5 4"/>
+  </svg>
+  <figcaption id="apg-fig2-cap">툴 호출 하나가 지나가는 길. <strong>컨테인먼트가 가능 범위를 줄이고, 규칙이 확실한 것을 처리하고, 분류기가 애매한 것을 걸러 낸 뒤, 사람에게는 되돌릴 수 없는 것만 남깁니다.</strong></figcaption>
+</figure>
+
+<p>층별로 무엇을 맡는지 한 문장씩 정리합니다.</p>
+
+<div class="apg-tblwrap">
+<table class="apg-tbl">
+  <thead>
+    <tr><th>층</th><th>하는 일</th><th>강점</th><th>실패하는 방식</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>① 컨테인먼트</strong></td>
+      <td>샌드박스·파일시스템 경계·네트워크 허용 목록·최소 권한 토큰으로 <em>애초에 할 수 있는 일</em>을 줄임</td>
+      <td>모델이 무엇을 하든 경계 밖으로 못 나감. 판단이 필요 없음</td>
+      <td>경계 안에서 벌어지는 사고는 못 막음(예: 저장소 안 파일 날리기)</td>
+    </tr>
+    <tr>
+      <td><strong>② 결정론적 규칙</strong></td>
+      <td><code>deny</code>/<code>allow</code> 목록으로 확실한 것을 즉시 판정</td>
+      <td>빠르고, 로그가 명확하고, 테스트가 됨</td>
+      <td>문자열 매칭은 우회에 약함. 예상 못 한 조합엔 무력</td>
+    </tr>
+    <tr>
+      <td><strong>③ 분류기 판정</strong></td>
+      <td>남은 애매한 호출을 문맥과 함께 판단(부작용·되돌림 가능성·인젝션 흔적)</td>
+      <td>지치지 않고, 세션 길이와 무관하게 일정</td>
+      <td>확률적. 오탐으로 진행을 막고, 미탐으로 통과시킴</td>
+    </tr>
+    <tr>
+      <td><strong>④ 사람 게이트</strong></td>
+      <td>되돌릴 수 없는 행동, 조직 정책·의도 판단이 필요한 결정</td>
+      <td>맥락과 책임을 가진 유일한 층</td>
+      <td>반복되면 무너짐(승인 피로). 그래서 <em>드물어야</em> 함</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>Claude Code의 auto mode도 딱 이 모양입니다. 분류기가 배포·마이그레이션·권한 부여·대량 삭제·force push 같은 행동을 잡아내고, 막힌 호출은 모델에게 돌려보내 다른 방법을 찾게 하거나 사람에게 물어봅니다. 그리고 <strong>차단이 연속 3회 또는 세션 누적 20회</strong>에 이르면 아예 수동 승인 모드로 되돌립니다. 자동 판정이 이상해졌을 때를 대비한 <em>회로 차단기</em>인 셈이죠.</p>
+
+<div class="apg-note apg-good"><strong>왜 이게 프롬프트 인젝션에도 먹히나요?</strong> 분류기는 “이 툴 호출이 사용자가 시킨 일과 이어지는가”를 함께 봅니다. 에이전트가 방금 읽은 웹페이지나 이슈 코멘트에 숨은 지시를 따라 갑자기 크레덴셜을 외부로 보내려 하면, 그 호출은 문맥과 어긋나 보입니다. 실제로 Trajectory Labs가 수행한 독립 평가에서 간접 프롬프트 인젝션 시나리오 72종을 각 10회씩, 총 720회 시도했지만 auto mode는 모두 막았다고 보고됐습니다. 물론 “현재 알려진 시나리오에서”라는 단서가 붙습니다.</p></div>
+
+<h2 id="sec-5">5. 무엇을 물을지 고르는 기준 — 되돌림 등급 × 영향 범위</h2>
+
+<p>이제 실제 설계로 내려갑니다. 툴 호출 하나를 앞에 두고 “이건 물어야 하나?”를 판단하는 기준이 필요합니다. 가장 쓸 만한 축은 두 개입니다.</p>
+
+<ol>
+  <li><strong>되돌림 등급(reversibility)</strong> — 잘못됐을 때 되돌릴 수 있나, 얼마나 싸게?</li>
+  <li><strong>영향 범위(blast radius)</strong> — 잘못되면 어디까지 번지나? 내 작업 디렉터리? 팀 저장소? 프로덕션? 고객?</li>
+</ol>
+
+<figure class="apg-fig" role="group" aria-labelledby="apg-fig3-cap">
+  <svg viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg" aria-label="되돌림 등급과 영향 범위로 나눈 판정 매트릭스. 가로축은 되돌림 등급으로 왼쪽부터 읽기 전용, 되돌릴 수 있음, 되돌릴 수 없음 순이고 세로축은 영향 범위로 아래가 로컬 작업 공간, 위가 공유 또는 프로덕션이다. 읽기 전용이나 로컬에서 되돌릴 수 있는 행동은 자동 실행하고, 되돌릴 수 있지만 공유 자원을 건드리는 행동은 자동 실행하되 사후에 알리고 되돌리기 버튼을 제공하며, 되돌릴 수 없는 행동은 사람 승인을 받고, 되돌릴 수 없으면서 프로덕션에 영향을 주는 행동은 사람 승인에 더해 별도 자격 증명이나 이중 확인을 요구한다.">
+    <!-- axes -->
+    <line x1="120" y1="270" x2="716" y2="270" stroke="var(--apg-grid)" stroke-width="1.5"/>
+    <line x1="120" y1="30" x2="120" y2="270" stroke="var(--apg-grid)" stroke-width="1.5"/>
+    <text x="418" y="300" text-anchor="middle" font-size="12.5" fill="var(--apg-slate)">되돌림 등급 →</text>
+    <text x="24" y="150" font-size="12.5" fill="var(--apg-slate)">영향 범위 ↑</text>
+
+    <text x="212" y="288" text-anchor="middle" font-size="11.5" fill="var(--apg-gray)">읽기 전용</text>
+    <text x="410" y="288" text-anchor="middle" font-size="11.5" fill="var(--apg-gray)">되돌릴 수 있음</text>
+    <text x="612" y="288" text-anchor="middle" font-size="11.5" fill="var(--apg-gray)">되돌릴 수 없음</text>
+
+    <text x="112" y="220" text-anchor="end" font-size="11.5" fill="var(--apg-gray)">로컬</text>
+    <text x="112" y="100" text-anchor="end" font-size="11.5" fill="var(--apg-gray)">공유·프로덕션</text>
+
+    <!-- cells -->
+    <rect x="128" y="152" width="168" height="112" rx="9" fill="var(--apg-green)" opacity="0.16" stroke="var(--apg-green)"/>
+    <text x="212" y="196" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--apg-green)">자동 실행</text>
+    <text x="212" y="218" text-anchor="middle" font-size="11.5" fill="var(--apg-slate)">read · grep · test</text>
+
+    <rect x="312" y="152" width="184" height="112" rx="9" fill="var(--apg-green)" opacity="0.16" stroke="var(--apg-green)"/>
+    <text x="404" y="192" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--apg-green)">자동 실행</text>
+    <text x="404" y="214" text-anchor="middle" font-size="11.5" fill="var(--apg-slate)">파일 수정 · 로컬 커밋</text>
+    <text x="404" y="232" text-anchor="middle" font-size="11" fill="var(--apg-gray)">체크포인트를 먼저 남길 것</text>
+
+    <rect x="512" y="152" width="196" height="112" rx="9" fill="var(--apg-amber)" opacity="0.18" stroke="var(--apg-amber)"/>
+    <text x="610" y="192" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--apg-amber)">사람에게 묻기</text>
+    <text x="610" y="214" text-anchor="middle" font-size="11.5" fill="var(--apg-slate)">외부 메일 발송 · 결제</text>
+
+    <rect x="128" y="40" width="168" height="104" rx="9" fill="var(--apg-green)" opacity="0.12" stroke="var(--apg-green)"/>
+    <text x="212" y="86" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--apg-green)">자동 실행</text>
+    <text x="212" y="108" text-anchor="middle" font-size="11.5" fill="var(--apg-slate)">읽기는 범위만 좁게</text>
+
+    <rect x="312" y="40" width="184" height="104" rx="9" fill="var(--apg-sky)" opacity="0.16" stroke="var(--apg-sky)"/>
+    <text x="404" y="80" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--apg-sky)">자동 + 사후 알림</text>
+    <text x="404" y="102" text-anchor="middle" font-size="11.5" fill="var(--apg-slate)">브랜치 push · 이슈 코멘트</text>
+    <text x="404" y="120" text-anchor="middle" font-size="11" fill="var(--apg-gray)">되돌리기 버튼을 함께</text>
+
+    <rect x="512" y="40" width="196" height="104" rx="9" fill="var(--apg-rose)" opacity="0.16" stroke="var(--apg-rose)"/>
+    <text x="610" y="74" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--apg-rose)">사람 승인 + 이중 확인</text>
+    <text x="610" y="96" text-anchor="middle" font-size="11.5" fill="var(--apg-slate)">배포 · DB 마이그레이션</text>
+    <text x="610" y="114" text-anchor="middle" font-size="11.5" fill="var(--apg-slate)">권한 부여 · force push</text>
+  </svg>
+  <figcaption id="apg-fig3-cap">되돌릴 수 있는 일에 확인 창을 띄우는 건 낭비입니다. <strong>되돌릴 수 있으면 그냥 하고 '되돌리기'를 주고, 되돌릴 수 없을 때만 묻습니다.</strong></figcaption>
+</figure>
+
+<p>이 그림에서 얻을 규칙은 짧습니다.</p>
+
+<div class="apg-note"><strong>원칙 2.</strong> <em>되돌릴 수 있으면 확인 창 대신 되돌리기를 주세요.</em> 확인 창은 사용자의 주의를 미리 당겨 쓰는 비용이고, 되돌리기는 사고가 났을 때만 지불하는 비용입니다. 사고 확률이 낮을수록 후자가 압도적으로 쌉니다.</p></div>
+
+<p>“되돌릴 수 있다”를 판단할 때는 등급을 나눠 두면 편합니다. 실무에서는 대략 세 단계로 갈립니다.</p>
+
+<ul>
+  <li><strong>싸게 되돌릴 수 있음</strong> — 작업 트리의 파일 변경. <code>git</code> 체크포인트나 세션 스냅샷으로 원복됩니다.</li>
+  <li><strong>비싸게 되돌릴 수 있음</strong> — DB 쓰기. 트랜잭션 롤백이나 보상 트랜잭션(compensating transaction)이 필요하고, 그사이 다른 사람이 읽어 갔을 수도 있습니다.</li>
+  <li><strong>되돌릴 수 없음</strong> — 이미 나간 메일, 결제, 외부 API 호출, 공개 저장소로의 force push. 사과는 되지만 취소는 안 됩니다.</li>
+</ul>
+
+<div class="apg-note apg-warn"><strong>함정.</strong> “DB는 롤백되니까 되돌릴 수 있음”이라고 단순히 분류하면 안 됩니다. <em>부작용은 롤백되지 않습니다.</em> 트랜잭션 안에서 웹훅을 쐈다면 롤백해도 웹훅은 이미 나갔습니다. 되돌림 등급은 “가장 되돌리기 어려운 부작용” 기준으로 매기세요.</p></div>
+
+<h2 id="sec-6">6. 실전 — 내 에이전트에 승인 계층 붙이기</h2>
+
+<p>이제 코드로 내려갑니다. 프레임워크가 무엇이든, 툴 호출을 실행하기 직전에 끼어드는 함수 하나가 승인 계층의 전부입니다. 먼저 판정 타입과 되돌림 등급을 정의합니다.</p>
+
+{{< highlight python >}}
+from dataclasses import dataclass
+from enum import IntEnum
+
+class Reversibility(IntEnum):
+    READ_ONLY   = 0   # 아무것도 바꾸지 않음
+    CHEAP_UNDO  = 1   # 체크포인트로 원복 가능 (작업 트리 파일 등)
+    COSTLY_UNDO = 2   # 보상 트랜잭션이 필요 (DB 쓰기 등)
+    IRREVERSIBLE = 3  # 되돌릴 수 없음 (메일·결제·배포·force push)
+
+class Scope(IntEnum):
+    LOCAL  = 0   # 내 작업 공간
+    SHARED = 1   # 팀 저장소·스테이징
+    PROD   = 2   # 프로덕션·고객에게 보이는 것
+
+@dataclass
+class ToolCall:
+    name: str
+    args: dict
+    # 신뢰할 수 없는 콘텐츠(웹페이지·이슈 코멘트·메일)를 읽은 뒤인가?
+    # 인젝션 위험 구간을 표시해 두면 판정을 더 보수적으로 할 수 있습니다.
+    tainted: bool = False
+{{< /highlight >}}
+
+<p>다음은 판정 함수입니다. 핵심은 <strong>순서</strong>입니다 — 값싼 규칙을 먼저 태우고, 분류기는 남은 것에만 부릅니다. 규칙이 확실히 아는 걸 굳이 모델에게 물으면 돈과 지연만 늘어납니다.</p>
+
+{{< highlight python >}}
+DENY = {"aws iam", "kubectl delete ns", "git push --force"}  # 절대 금지
+AUTO = {"read_file", "grep", "run_tests", "list_dir"}         # 항상 허용
+
+def decide(call: ToolCall, rev: Reversibility, scope: Scope) -> str:
+    """ALLOW | ASK | DENY 중 하나를 돌려줍니다."""
+
+    # ① 결정론적 규칙 — 가장 싸고 가장 예측 가능
+    if any(p in call.args.get("command", "") for p in DENY):
+        return "DENY"
+    if call.name in AUTO and not call.tainted:
+        return "ALLOW"
+
+    # ② 되돌릴 수 없는 일은 규칙만으로 통과시키지 않습니다
+    if rev == Reversibility.IRREVERSIBLE:
+        return "ASK"
+    if rev == Reversibility.COSTLY_UNDO and scope >= Scope.SHARED:
+        return "ASK"
+
+    # ③ 남은 애매한 구간만 분류기에게 — 특히 인젝션 위험 구간
+    if call.tainted or scope >= Scope.SHARED:
+        verdict = classify(call)          # 별도 모델 호출
+        return "ASK" if verdict.risky else "ALLOW"
+
+    # ④ 로컬에서 싸게 되돌릴 수 있는 일은 그냥 실행하고 되돌리기를 남깁니다
+    checkpoint()                          # 예: git stash create / 세션 스냅샷
+    return "ALLOW"
+{{< /highlight >}}
+
+<p>이 골격에서 눈여겨볼 점이 셋 있습니다.</p>
+
+<ul>
+  <li><strong><code>tainted</code> 플래그.</strong> 에이전트가 신뢰할 수 없는 콘텐츠를 읽은 뒤라면 같은 툴 호출도 더 의심해야 합니다. 프롬프트 인젝션은 “읽은 것”이 “하는 것”으로 번지는 경로를 타니까요.</li>
+  <li><strong><code>checkpoint()</code>가 <code>ALLOW</code>보다 먼저.</strong> 되돌리기를 약속하려면 되돌릴 지점이 실제로 있어야 합니다. 순서를 바꾸면 “되돌리기 버튼이 있는데 되돌릴 게 없는” 상태가 됩니다.</li>
+  <li><strong>분류기는 마지막.</strong> 확률적 판정은 비싸고 느립니다. 전체 호출의 5~10%만 여기까지 오도록 앞단을 설계하세요.</li>
+</ul>
+
+<p>그리고 회로 차단기를 답니다. 자동 판정이 이상해졌을 때 조용히 계속 굴러가는 게 최악입니다.</p>
+
+{{< highlight python >}}
+class Circuit:
+    def __init__(self, streak_limit=3, session_limit=20):
+        self.streak = 0
+        self.total = 0
+        self.streak_limit, self.session_limit = streak_limit, session_limit
+
+    def record(self, verdict: str) -> bool:
+        """True를 돌려주면 '전면 수동 승인으로 전환'하라는 뜻입니다."""
+        if verdict == "DENY":
+            self.streak += 1
+            self.total += 1
+        else:
+            self.streak = 0   # 통과하면 연속 카운트는 초기화
+        return self.streak >= self.streak_limit or self.total >= self.session_limit
+{{< /highlight >}}
+
+<p>차단이 연속으로 쌓인다는 건 보통 둘 중 하나입니다. 에이전트가 잘못된 경로에 갇혔거나, 누군가 밀어붙이고 있거나. 어느 쪽이든 사람이 볼 때입니다. Claude Code가 연속 3회·누적 20회를 임계값으로 쓰는 이유도 같습니다.</p>
+
+<p>마지막으로 컨테인먼트입니다. 코드로 짜는 게 아니라 <em>설정</em>으로 정하는 층인데, 사실 가장 효과가 큽니다. Claude Code를 쓴다면 저장소의 <code>.claude/settings.json</code>에 규칙을 박아 둘 수 있습니다.</p>
+
+{{< highlight json >}}
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run test:*)",
+      "Bash(git status)",
+      "Read(./src/**)"
+    ],
+    "ask": [
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Read(./.env)",
+      "Read(./secrets/**)"
+    ]
+  }
+}
+{{< /highlight >}}
+
+<p><code>deny</code>는 auto mode에서도 그대로 유효합니다. 자동 판정을 켜더라도 “이건 절대 안 된다”는 조직의 결정은 규칙으로 남겨 두세요. 확률적 판정보다 결정론적 금지가 언제나 우선입니다. 네트워크 경계도 마찬가지입니다 — 허용 목록에 없는 호스트로 나가려는 명령은 자동 통과되지 않고 원래의 승인 흐름으로 되돌아옵니다.</p>
+
+<div class="apg-note apg-good"><strong>직접 해 보기.</strong> 지금 굴리는 에이전트의 로그에서 최근 100건의 툴 호출을 뽑아 되돌림 등급으로 분류해 보세요. 대개 80% 이상이 <code>READ_ONLY</code>나 <code>CHEAP_UNDO</code>입니다. 그 80%에 승인 창을 띄우고 있었다면, 사람의 주의력 예산을 거기에 다 태우고 있었다는 뜻입니다.</p></div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<div class="apg-note apg-warn"><strong>실수 1 — 분류기를 새로운 만능 안전장치로 믿는다.</strong> auto mode도 실험에서 11%는 놓쳤습니다. 확률적 판정은 “사람보다 낫다”이지 “안전하다”가 아닙니다. 그래서 컨테인먼트가 먼저입니다 — 분류기가 뚫려도 샌드박스 밖으로는 못 나가게 해 두세요.</p></div>
+
+<div class="apg-note apg-warn"><strong>실수 2 — 되돌릴 수 있는 일에 확인 창을 띄운다.</strong> 파일 하나 고치는 데 매번 묻는 설정이 대표적입니다. 사용자를 훈련시켜 “예”를 누르는 손가락만 만들고, 정작 배포 승인 차례엔 같은 손가락이 그대로 움직입니다.</p></div>
+
+<div class="apg-note apg-warn"><strong>실수 3 — 되돌리기를 약속하고 체크포인트를 안 남긴다.</strong> “언제든 되돌릴 수 있어요”라고 UI에 적어 놓고, 정작 에이전트가 파일 40개를 고친 뒤에는 원복 지점이 없는 경우입니다. 자동 실행을 늘릴 거라면 체크포인트가 <em>먼저</em> 늘어야 합니다.</p></div>
+
+<div class="apg-note apg-warn"><strong>실수 4 — 개별 명령만 묻고 계획은 안 묻는다.</strong> 데이터가 정확히 반대를 가리킵니다. 사람은 계획은 39% 거부하고 개별 명령은 3%만 거부했습니다. 사람의 판단력이 살아 있는 지점은 <strong>계획 단위</strong>입니다. 승인을 받을 거면 “이 20단계를 이렇게 진행하겠습니다”를 한 번 보여 주고 받으세요.</p></div>
+
+<div class="apg-note apg-warn"><strong>실수 5 — 감사 로그를 안 남긴다.</strong> 사람이 덜 개입할수록 “무슨 일이 있었는지”를 나중에 재구성할 수 있어야 합니다. 판정 결과(ALLOW/ASK/DENY), 근거, 분류기 버전, 실행 결과를 남기세요. 자동화의 대가는 관측 가능성입니다.</p></div>
+
+<div class="apg-note apg-good"><strong>팁 — 승인 요청에 '무엇이 되돌릴 수 없는지'를 적으세요.</strong> “이 명령을 실행할까요?”보다 “이 명령은 프로덕션 DB의 컬럼을 <em>삭제</em>하며 되돌릴 수 없습니다”가 훨씬 낫습니다. 사람은 맥락이 있을 때만 진짜로 판단합니다.</p></div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>매번 묻는 승인은 안전장치처럼 보이지만 무너집니다.</strong> Claude Code 사용자는 권한 요청의 <strong>97%</strong>를 승인했고, 몰래 섞은 위험 명령을 <strong>13.6%</strong>만 잡았습니다. 같은 명령을 자동 분류기는 <strong>89%</strong> 막았습니다.</li>
+  <li>이건 개인의 부주의가 아니라 <strong>자동화 안주</strong>라는 구조적 현상입니다. 세션이 길어질수록 사람의 차단율은 <strong>17% → 5%</strong>로 떨어졌고, 분류기는 평평했습니다.</li>
+  <li>그렇다고 자동 판정만 믿는 것도 순진합니다(같은 실험에서 <strong>11% 미탐</strong>). 답은 <strong>컨테인먼트 → 결정론적 규칙 → 분류기 → 사람 게이트</strong>의 네 겹으로 나누는 설계입니다.</li>
+  <li>무엇을 물을지는 <strong>되돌림 등급 × 영향 범위</strong>로 고르세요. <em>되돌릴 수 있으면 확인 창 대신 되돌리기를, 되돌릴 수 없을 때만 사람을.</em></li>
+  <li>사람에게 묻는 횟수는 <strong>예산</strong>입니다. <code>ls</code>에 쓰지 말고 배포·마이그레이션·권한 부여에 쓰세요. 그리고 물을 거면 개별 명령이 아니라 <strong>계획 단위</strong>로 묻는 편이 실제로 검토됩니다.</li>
+  <li>자동화를 늘릴 때 함께 늘려야 하는 것: <strong>체크포인트, 회로 차단기(연속 차단 시 수동 전환), 감사 로그.</strong></li>
+</ul>
+
+<h2 id="sec-ref">9. 참고 자료</h2>
+
+<ul>
+  <li>Anthropic, “Auto mode is now the default in Claude Code for Pro, Max, and Team plans”(공식 공지) — <a href="https://claude.com/blog/auto-mode-default-in-claude-code" target="_blank" rel="noopener">claude.com/blog</a></li>
+  <li>TechCrunch, “Anthropic is turning Claude Code’s auto mode on by default” — <a href="https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/" target="_blank" rel="noopener">techcrunch.com</a></li>
+  <li>InfoWorld, “Anthropic makes Claude Code’s auto mode default for paid users” — <a href="https://www.infoworld.com/article/4207959/anthropic-makes-claude-codes-auto-mode-default-for-paid-users.html" target="_blank" rel="noopener">infoworld.com</a></li>
+  <li>The New Stack, “Auto Mode will soon be the default in Claude Code” — <a href="https://thenewstack.io/claude-code-auto-mode/" target="_blank" rel="noopener">thenewstack.io</a></li>
+  <li>The Register, “Claude Code puts auto mode in the driver’s seat” — <a href="https://www.theregister.com/ai-and-ml/2026/08/10/claude-code-puts-auto-mode-in-the-drivers-seat/5285326" target="_blank" rel="noopener">theregister.com</a></li>
+  <li>Help Net Security, “Anthropic to put AI in charge of reviewing Claude Code actions by default” — <a href="https://www.helpnetsecurity.com/2026/08/10/anthropic-claude-code-auto-mode/" target="_blank" rel="noopener">helpnetsecurity.com</a></li>
+  <li>GBHackers, “Claude Code Auto Mode Blocks 89% of Dangerous Commands and Prompt Injection Attacks”(Trajectory Labs 인젝션 평가 720회) — <a href="https://gbhackers.com/claude-code-auto-mode-blocks-attacks/" target="_blank" rel="noopener">gbhackers.com</a></li>
+  <li>TECHi, “Claude Code will default to auto mode despite an 11% test miss rate”(미탐 비판) — <a href="https://www.techi.com/claude-code-auto-mode-default-11-percent-miss-rate/" target="_blank" rel="noopener">techi.com</a></li>
+  <li>Claude Code Docs, “Configure the sandboxed Bash tool”(샌드박스·네트워크 허용 목록) — <a href="https://code.claude.com/docs/en/sandboxing" target="_blank" rel="noopener">code.claude.com/docs</a></li>
+  <li>Parasuraman &amp; Manzey, “Complacency and Bias in Human Use of Automation: An Attentional Integration”, <em>Human Factors</em> 52(3), 2010 — <a href="https://journals.sagepub.com/doi/10.1177/0018720810376055" target="_blank" rel="noopener">journals.sagepub.com</a></li>
+  <li>Microsoft Security Blog, “Defense in depth for autonomous AI agents”(다층 방어·컨테인먼트) — <a href="https://www.microsoft.com/en-us/security/blog/2026/05/14/defense-in-depth-autonomous-ai-agents/" target="_blank" rel="noopener">microsoft.com</a></li>
+  <li>Sophos, “Inside the lethal trifecta: Blast radius reduction in AI agent deployments” — <a href="https://www.sophos.com/en-us/blog/inside-the-lethal-trifecta-blast-radius-reduction-in-ai-agent-deployments" target="_blank" rel="noopener">sophos.com</a></li>
+  <li><strong>[한국어]</strong> 클로드 코드 권한 모드 공식 문서 — <a href="https://code.claude.com/docs/ko/permission-modes" target="_blank" rel="noopener">code.claude.com/docs/ko</a></li>
+  <li><strong>[한국어]</strong> 위키트리, “클로드 코드, 8월 14일부터 오토 모드 기본 전환” — <a href="https://www.wikitree.co.kr/articles/1151234" target="_blank" rel="noopener">wikitree.co.kr</a></li>
+  <li><strong>[한국어]</strong> PyTorchKR, “Anthropic, Claude Code의 새로운 권한 모델 Auto Mode 추가” — <a href="https://discuss.pytorch.kr/t/anthropic-claude-code-auto-mode/9408" target="_blank" rel="noopener">discuss.pytorch.kr</a></li>
+</ul>

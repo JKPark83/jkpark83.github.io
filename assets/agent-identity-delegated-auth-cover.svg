@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트 신원과 권한 위임 설계를 나타낸 그림. 왼쪽은 잘못된 방식으로, 사용자가 발급받은 토큰 하나가 에이전트와 MCP 서버를 거쳐 외부 API까지 그대로 전달되면서 감사 로그에는 누가 한 일인지 남지 않고 토큰 하나가 유출되면 전부 뚫린다고 적혀 있다. 오른쪽은 올바른 방식으로, 홉을 넘을 때마다 토큰을 새로 교환해 각 토큰에 사용 대상이 하나씩 못 박혀 있고 누가 누구를 대신해 행동했는지가 체인으로 쌓인다. 아래 띠에는 MCP 2026-07-28 규격의 세 가지 필수 요구사항인 리소스 파라미터 RFC 8707, 오디언스 검증, 토큰 패스스루 금지가 적혀 있다.">
+  <defs>
+    <linearGradient id="aid-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#151d2f"/>
+    </linearGradient>
+    <linearGradient id="aid-good" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+    <marker id="aid-ar-r" markerWidth="14" markerHeight="14" refX="9" refY="7" orient="auto">
+      <path d="M0,1 L13,7 L0,13 Z" fill="#fb7185"/>
+    </marker>
+    <marker id="aid-ar-g" markerWidth="14" markerHeight="14" refX="9" refY="7" orient="auto">
+      <path d="M0,1 L13,7 L0,13 Z" fill="#34d399"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#aid-bg)"/>
+
+  <!-- title -->
+  <text x="60" y="72" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="34" font-weight="700" fill="#e2e8f0">에이전트 신원과 권한 위임</text>
+  <text x="60" y="106" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="19" fill="#94a3b8">그 API 호출은 누구의 자격으로 나갔나 — 토큰을 넘기지 말고 갈아 끼우세요</text>
+
+  <line x1="600" y1="146" x2="600" y2="498" stroke="#334155" stroke-width="1.5" stroke-dasharray="6 8"/>
+
+  <!-- LEFT: passthrough -->
+  <text x="60" y="182" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="20" font-weight="700" fill="#fb7185">✗ 토큰 패스스루</text>
+
+  <g font-family="Pretendard, 'Noto Sans KR', sans-serif">
+    <rect x="60" y="208" width="112" height="58" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="116" y="234" text-anchor="middle" font-size="15" fill="#cbd5e1">사용자</text>
+    <text x="116" y="254" text-anchor="middle" font-size="12" fill="#64748b">로그인</text>
+
+    <rect x="212" y="208" width="112" height="58" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="268" y="234" text-anchor="middle" font-size="15" fill="#cbd5e1">에이전트</text>
+    <text x="268" y="254" text-anchor="middle" font-size="12" fill="#64748b">MCP client</text>
+
+    <rect x="364" y="208" width="112" height="58" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="420" y="234" text-anchor="middle" font-size="15" fill="#cbd5e1">MCP 서버</text>
+    <text x="420" y="254" text-anchor="middle" font-size="12" fill="#64748b">그대로 전달</text>
+
+    <path d="M172,237 L206,237" stroke="#fb7185" stroke-width="2.5" marker-end="url(#aid-ar-r)"/>
+    <path d="M324,237 L358,237" stroke="#fb7185" stroke-width="2.5" marker-end="url(#aid-ar-r)"/>
+    <path d="M476,237 L520,237" stroke="#fb7185" stroke-width="2.5" marker-end="url(#aid-ar-r)"/>
+    <text x="540" y="232" font-size="14" fill="#94a3b8">외부</text>
+    <text x="540" y="250" font-size="14" fill="#94a3b8">API</text>
+
+    <!-- one token traveling -->
+    <rect x="196" y="290" width="300" height="40" rx="10" fill="#7f1d1d" opacity="0.42" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="346" y="316" text-anchor="middle" font-size="15" fill="#fecdd3">토큰 1개가 끝까지 그대로 흐른다</text>
+
+    <text x="60" y="378" font-size="15" fill="#94a3b8">· 감사 로그에 “누가 시켰나”가 안 남는다</text>
+    <text x="60" y="406" font-size="15" fill="#94a3b8">· 한 곳에서 새면 붙은 곳 전부가 뚫린다</text>
+    <text x="60" y="434" font-size="15" fill="#94a3b8">· 스코프를 좁힐 지점이 없다</text>
+    <text x="60" y="474" font-size="15" font-weight="700" fill="#fb7185">MCP 규격: MUST NOT — 명시적으로 금지</text>
+  </g>
+
+  <!-- RIGHT: token exchange -->
+  <text x="648" y="182" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="20" font-weight="700" fill="#34d399">✓ 홉마다 토큰 교환</text>
+
+  <g font-family="Pretendard, 'Noto Sans KR', sans-serif">
+    <rect x="648" y="208" width="112" height="58" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="704" y="234" text-anchor="middle" font-size="15" fill="#cbd5e1">사용자</text>
+    <text x="704" y="254" text-anchor="middle" font-size="12" fill="#64748b">sub</text>
+
+    <rect x="800" y="208" width="112" height="58" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="856" y="234" text-anchor="middle" font-size="15" fill="#cbd5e1">에이전트</text>
+    <text x="856" y="254" text-anchor="middle" font-size="12" fill="#64748b">act</text>
+
+    <rect x="952" y="208" width="112" height="58" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="1008" y="234" text-anchor="middle" font-size="15" fill="#cbd5e1">MCP 서버</text>
+    <text x="1008" y="254" text-anchor="middle" font-size="12" fill="#64748b">act</text>
+
+    <path d="M760,237 L794,237" stroke="#34d399" stroke-width="2.5" marker-end="url(#aid-ar-g)"/>
+    <path d="M912,237 L946,237" stroke="#34d399" stroke-width="2.5" marker-end="url(#aid-ar-g)"/>
+    <path d="M1064,237 L1108,237" stroke="#34d399" stroke-width="2.5" marker-end="url(#aid-ar-g)"/>
+    <text x="1122" y="232" font-size="14" fill="#94a3b8">외부</text>
+    <text x="1122" y="250" font-size="14" fill="#94a3b8">API</text>
+
+    <!-- three distinct tokens -->
+    <rect x="648" y="290" width="146" height="40" rx="10" fill="url(#aid-good)" opacity="0.22" stroke="#34d399" stroke-width="1.5"/>
+    <text x="721" y="316" text-anchor="middle" font-size="13.5" fill="#a7f3d0">aud = MCP 서버</text>
+
+    <rect x="806" y="290" width="146" height="40" rx="10" fill="url(#aid-good)" opacity="0.22" stroke="#34d399" stroke-width="1.5"/>
+    <text x="879" y="316" text-anchor="middle" font-size="13.5" fill="#a7f3d0">aud = 외부 API</text>
+
+    <rect x="964" y="290" width="146" height="40" rx="10" fill="url(#aid-good)" opacity="0.22" stroke="#34d399" stroke-width="1.5"/>
+    <text x="1037" y="316" text-anchor="middle" font-size="13.5" fill="#a7f3d0">scope 축소</text>
+
+    <text x="648" y="378" font-size="15" fill="#94a3b8">· 토큰마다 쓸 곳이 하나로 못 박힌다</text>
+    <text x="648" y="406" font-size="15" fill="#94a3b8">· “누가 누구를 대신해”가 체인으로 남는다</text>
+    <text x="648" y="434" font-size="15" fill="#94a3b8">· 한 홉이 털려도 그 홉까지만 뚫린다</text>
+    <text x="648" y="474" font-size="15" font-weight="700" fill="#34d399">RFC 8693 token exchange · RFC 8707 resource</text>
+  </g>
+
+  <!-- bottom band -->
+  <rect x="60" y="516" width="1080" height="72" rx="14" fill="#1e293b" opacity="0.72" stroke="#334155"/>
+  <text x="88" y="546" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="15" font-weight="700" fill="#7dd3fc">MCP 2026-07-28 인가 규격이 못 박은 세 가지</text>
+  <text x="88" y="572" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="15" fill="#cbd5e1">① 클라이언트는 resource 파라미터를 MUST 포함 (RFC 8707)   ② 서버는 토큰의 audience를 MUST 검증   ③ 받은 토큰을 상류로 MUST NOT 전달</text>
+</svg>

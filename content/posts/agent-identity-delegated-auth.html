@@ -1,0 +1,631 @@
+---
+title: "그 API 호출, 누구의 자격으로 나갔나요: 에이전트 신원과 권한 위임 설계"
+date: 2026-08-16T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "agent", "MCP", "Model Context Protocol", "OAuth", "OAuth 2.1", "인증", "인가", "권한 위임", "delegation", "token exchange", "RFC 8693", "RFC 8707", "confused deputy", "agent identity", "에이전트 신원", "PKCE", "audience", "LLM", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트에 툴을 붙일 때 대부분 자기 API 키를 환경 변수에 꽂고 시작합니다. 혼자 쓸 땐 잘 굴러가지만, 사용자가 늘고 MCP 서버가 여러 개 붙는 순간 '이 요청은 대체 누가 시킨 건가'에 아무도 답할 수 없게 됩니다. 2026-07-28 MCP 규격은 인가를 통째로 다시 쓰면서 토큰을 그대로 넘기는 짓을 명시적으로 금지했고, 같은 시기 Black Hat에서는 '에이전트 신원'을 내건 제품이 한꺼번에 쏟아졌습니다. 이 글은 왜 API 키 한 장으로는 안 되는지, 토큰 패스스루와 confused deputy가 정확히 무엇을 망가뜨리는지, 사람의 신원을 여러 홉의 에이전트에 어떻게 안전하게 실어 나르는지(RFC 8693 token exchange와 act 클레임), 그리고 오늘 당장 붙일 수 있는 검증 코드까지 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-identity-delegated-auth-cover.svg"
+  alt: "왼쪽에는 사용자 토큰 하나가 에이전트와 MCP 서버를 거쳐 외부 API까지 그대로 흘러가며 감사 로그에 아무것도 남지 않는 잘못된 방식이, 오른쪽에는 홉마다 토큰을 새로 교환해 각 토큰의 사용 대상이 하나로 못 박히고 누가 누구를 대신했는지가 체인으로 쌓이는 올바른 방식이 나란히 그려져 있다."
+  caption: "에이전트 인증의 핵심 질문은 '토큰이 유효한가'가 아니라 '이 토큰은 어디에 쓰라고 준 것인가'입니다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 신원·권한 위임 포스트 전용 스타일 (aid- 접두사) ── */
+.aid-fig{
+  --aid-sky:#0284c7; --aid-amber:#d97706; --aid-green:#16a34a; --aid-rose:#e11d48;
+  --aid-slate:#64748b; --aid-violet:#7c3aed; --aid-teal:#0d9488; --aid-blue:#2563eb;
+  --aid-grid:#cbd5e1; --aid-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .aid-fig{
+  --aid-sky:#38bdf8; --aid-amber:#fbbf24; --aid-green:#4ade80; --aid-rose:#fb7185;
+  --aid-slate:#94a3b8; --aid-violet:#a78bfa; --aid-teal:#2dd4bf; --aid-blue:#60a5fa;
+  --aid-grid:#334155; --aid-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .aid-fig{
+    --aid-sky:#38bdf8; --aid-amber:#fbbf24; --aid-green:#4ade80; --aid-rose:#fb7185;
+    --aid-slate:#94a3b8; --aid-violet:#a78bfa; --aid-teal:#2dd4bf; --aid-blue:#60a5fa;
+    --aid-grid:#334155; --aid-gray:#64748b;
+  }
+}
+.aid-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.aid-fig text{font-family:inherit}
+.aid-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.aid-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.aid-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.aid-toc ol{margin:0;padding-left:1.25rem}
+.aid-toc li{margin:.22rem 0;font-size:.95rem}
+.aid-toc a{text-decoration:none}
+.aid-toc a:hover{text-decoration:underline}
+.aid-pull{font-size:1.12rem;line-height:1.72}
+.aid-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.aid-note{border-left:4px solid var(--aid-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.aid-note strong{color:var(--aid-blue,#2563eb)}
+.aid-warn{border-left:4px solid var(--aid-rose,#e11d48)}
+.aid-warn strong{color:var(--aid-rose,#e11d48)}
+.aid-good{border-left:4px solid var(--aid-teal,#0d9488)}
+.aid-good strong{color:var(--aid-teal,#0d9488)}
+.aid-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.aid-tbl th,.aid-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.aid-tbl th{background:var(--entry);font-weight:700}
+.aid-tbl code{font-size:.86em}
+.aid-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="aid-pull">
+  “MCP 서버는 자신에게 발급되지 않은 토큰을 <strong>절대 받아들여선 안 된다(MUST NOT)</strong>.”
+  <footer>— Model Context Protocol, 2026-07-28 규격 &lt;Security Best Practices&gt; 중 Token Passthrough 절</footer>
+</blockquote>
+
+<div class="aid-toc">
+  <div class="aid-toc-title">이 글의 순서</div>
+  <ol>
+    <li><a href="#sec-1">도입 — API 키 한 장으로 시작해서 어디서 무너지나</a></li>
+    <li><a href="#sec-2">배경 — OAuth를 5분 만에 (에이전트에 필요한 부분만)</a></li>
+    <li><a href="#sec-3">함정 ① 토큰 패스스루 — 가장 흔하고 가장 조용한 실수</a></li>
+    <li><a href="#sec-4">2026-07-28 MCP 규격이 못 박은 것</a></li>
+    <li><a href="#sec-5">함정 ② confused deputy — 동의 화면을 건너뛰는 공격</a></li>
+    <li><a href="#sec-6">진짜 어려운 문제 — 여러 홉을 건너는 위임</a></li>
+    <li><a href="#sec-7">실전 — 오늘 붙일 수 있는 코드와 체크리스트</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — API 키 한 장으로 시작해서 어디서 무너지나</h2>
+
+<p>에이전트에 처음 툴을 붙일 때 우리는 거의 다 같은 길을 갑니다. GitHub 토큰 하나 발급받아 <code>GITHUB_TOKEN</code>에 넣고, Slack 토큰 하나 더 넣고, 사내 API 키까지 <code>.env</code>에 채웁니다. 잘 돌아갑니다. 내 노트북에서 내가 쓰는 동안은요.</p>
+
+<p>그런데 이 구조를 회사 동료 30명이 쓰는 서비스로 옮기는 순간, 답할 수 없는 질문이 하나 생깁니다. <strong>“방금 그 API 호출은 누구의 자격으로 나갔나요?”</strong></p>
+
+<p>서버 로그를 열어 보면 전부 같은 얼굴입니다. 모든 요청이 <code>agent-service-account</code> 한 명의 이름으로 나갔고, 그 계정은 30명 누구의 권한이든 다 갖고 있습니다. A가 볼 수 없어야 할 저장소를 에이전트에게 부탁하면? 에이전트는 아무 저항 없이 읽어 줍니다. 에이전트가 실수로 데이터를 지웠을 때 누가 시킨 일인지 추적하려면? 로그에는 서비스 계정 이름만 남아 있습니다.</p>
+
+<p>이건 보안 담당자만의 고민이 아니라 <strong>설계 문제</strong>입니다. 에이전트가 사람 대신 시스템을 만지는 순간, “권한”은 코드 한 줄이 아니라 아키텍처의 일부가 되니까요.</p>
+
+<p>이번 주에 이 주제가 유난히 시끄러웠던 데는 이유가 있습니다.</p>
+
+<ul>
+  <li><strong>MCP 2026-07-28 규격이 인가(authorization)를 통째로 다시 썼습니다.</strong> 세션과 초기화 핸드셰이크를 걷어낸 이 대규모 개정판은 7월 28일에 확정됐고, Tier 1 SDK 네 개(TypeScript·Python·Go·C#)가 같은 날 대응을 내놨습니다. 이전 규격에 맞춰 짜 둔 MCP 서버를 8월부터 옮기라는 이야기라, 실무자들이 지금 막 인가 부분을 다시 읽고 있는 참입니다.</li>
+  <li><strong>Black Hat USA 2026에서 “에이전트 신원”이 하나의 제품 카테고리가 됐습니다.</strong> 48시간 사이에 15개 넘는 업체가 에이전트 인프라 보안 제품을 냈고, 그중 상당수가 “정적 자격 증명(static credential)에 기댄 기존 신원 모델은 자율 에이전트에 맞지 않는다”는 같은 문장을 출발점으로 삼았습니다.</li>
+  <li><strong>표준은 아직 미완성입니다.</strong> 사람 → 에이전트 → 서브 에이전트 → API로 이어지는 다단계 위임을 어떻게 검증 가능하게 남길지를 두고 IETF에서 새 초안(actor chain)이 논의되고 있습니다. 즉, 지금 당장은 각자 설계해야 하는 영역이 남아 있다는 뜻입니다.</li>
+</ul>
+
+<div class="aid-note"><strong>이 글에서 얻어갈 것.</strong> ① 왜 토큰을 “그대로 넘기면” 안 되는지 ② MCP 규격이 요구하는 최소한이 정확히 무엇인지 ③ 사람의 신원을 여러 홉의 에이전트에 어떻게 실어 나르는지 ④ 오늘 코드에 바로 넣을 수 있는 검증 로직. OAuth를 잘 몰라도 따라올 수 있게 필요한 만큼만 짚고 갑니다.</p></div>
+
+<h2 id="sec-2">2. 배경 — OAuth를 5분 만에 (에이전트에 필요한 부분만)</h2>
+
+<p>먼저 등장인물 넷만 외우면 됩니다. 비유하자면 호텔입니다.</p>
+
+<table class="aid-tbl">
+  <thead>
+    <tr><th>역할</th><th>OAuth 용어</th><th>호텔 비유</th><th>에이전트 세계에선</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>권한의 주인</td><td>resource owner</td><td>투숙객 본인</td><td>에이전트에게 일을 시킨 사람</td></tr>
+    <tr><td>대신 요청하는 쪽</td><td>client</td><td>심부름을 부탁받은 벨보이</td><td>MCP 클라이언트(에이전트)</td></tr>
+    <tr><td>열쇠를 발급하는 곳</td><td>authorization server (AS)</td><td>프런트 데스크</td><td>사내 IdP, Okta, Entra 등</td></tr>
+    <tr><td>열쇠로 여는 문</td><td>resource server (RS)</td><td>객실 문</td><td>MCP 서버, 외부 API</td></tr>
+  </tbody>
+</table>
+
+<p>프런트에서 받는 카드키가 <strong>액세스 토큰(access token)</strong>입니다. 여기서 초보자가 가장 자주 놓치는 두 속성이 있는데, 이 글의 나머지 전부가 사실 이 둘 이야기입니다.</p>
+
+<ul>
+  <li><strong>스코프(scope)</strong> — “무엇을 할 수 있는가”. 카드키로 헬스장은 되고 와인 창고는 안 되는 것과 같습니다.</li>
+  <li><strong>오디언스(audience)</strong> — “<em>어느 문</em>에 쓰라고 준 것인가”. 1204호 카드키는 1204호에서만 통해야 합니다. 토큰의 <code>aud</code> 클레임에 들어갑니다.</li>
+</ul>
+
+<p>API 키는 이 둘이 사실상 없는 물건입니다. 대체로 만료도 없고, 누구를 대신하는지도 안 적혀 있고, 어디에 쓰라는 표시도 없습니다. 그래서 혼자 쓸 땐 편하지만 <strong>여럿이 쓰는 순간 “구분”이라는 기능 자체가 없어집니다</strong>. 마스터키를 30명에게 복사해 준 셈이니까요.</p>
+
+<div class="aid-note aid-good"><strong>정리.</strong> 에이전트 인증의 목표는 “토큰이 유효한가”를 확인하는 게 아닙니다. <em>이 토큰은 누구를 대신해, 무엇을, 어디에 하라고 준 것인가</em>를 시스템이 스스로 답할 수 있게 만드는 것입니다.</p></div>
+
+<h2 id="sec-3">3. 함정 ① 토큰 패스스루 — 가장 흔하고 가장 조용한 실수</h2>
+
+<p>MCP 서버를 만들다 보면 자연스럽게 이런 코드를 쓰게 됩니다. 클라이언트가 <code>Authorization</code> 헤더에 실어 보낸 토큰을 받아서, 외부 API를 부를 때 그대로 다시 붙이는 겁니다.</p>
+
+{{< highlight python >}}
+# ❌ 하지 마세요 — 이게 바로 '토큰 패스스루'입니다
+@app.post("/mcp")
+async def handle(request: Request):
+    token = request.headers["Authorization"]        # 클라이언트가 준 토큰
+    # 검증 없이 그대로 상류 API에 재사용
+    r = await httpx.get("https://api.github.com/user/repos",
+                        headers={"Authorization": token})
+    return r.json()
+{{< /highlight >}}
+
+<p>동작은 잘 합니다. 그리고 바로 그 점이 이 실수가 오래 살아남는 이유입니다. MCP 규격은 이 패턴을 <strong>안티패턴(anti-pattern)</strong>이라고 이름 붙이고 <strong>MUST NOT</strong>으로 금지합니다. 규격이 드는 근거를 실무 언어로 옮기면 이렇습니다.</p>
+
+<ul>
+  <li><strong>보안 통제를 건너뜁니다.</strong> 레이트 리밋이나 요청 검증처럼 “토큰의 audience에 기대는” 통제들이 전부 무력해집니다. 클라이언트가 서버를 거치지 않고 직접 상류 API를 불러도 똑같이 통하니까요.</li>
+  <li><strong>감사 추적이 사라집니다.</strong> 상류 API 로그에는 실제로 요청을 전달한 MCP 서버가 아니라 <em>다른 신원</em>이 찍힙니다. 사고가 났을 때 경로를 되짚을 수가 없습니다.</li>
+  <li><strong>신뢰 경계가 무너집니다.</strong> 여러 서비스가 검증 없이 같은 토큰을 받아 주면, 한 곳만 뚫려도 연결된 전부가 뚫립니다.</li>
+</ul>
+
+<p>여기에 하나 더. 서버가 <strong>audience를 검증하지 않으면</strong> 남의 서비스용으로 발급된 토큰까지 받아 주게 됩니다. 1204호 카드키를 프런트에 보여 주며 “저 금고 열어 주세요”라고 했는데 열어 주는 상황입니다.</p>
+
+<figure class="aid-fig" role="group" aria-labelledby="aid-fig1-cap">
+  <svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" aria-label="토큰 패스스루와 토큰 교환을 비교한 그림. 위쪽은 잘못된 방식으로, 사용자가 발급받은 토큰 하나가 에이전트와 MCP 서버를 지나 외부 API까지 그대로 전달되며 모든 구간에서 같은 토큰이 쓰이고 상류 API 로그에는 실제 호출자가 남지 않는다. 아래쪽은 올바른 방식으로, MCP 서버가 받은 토큰을 audience 기준으로 먼저 검증한 뒤 인가 서버에서 외부 API용 새 토큰을 발급받아 사용하며, 각 구간의 토큰은 서로 다른 audience와 좁혀진 scope를 갖는다.">
+    <defs>
+      <marker id="aid-a1" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 Z" fill="var(--aid-rose)"/></marker>
+      <marker id="aid-a2" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 Z" fill="var(--aid-green)"/></marker>
+      <marker id="aid-a3" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 Z" fill="var(--aid-blue)"/></marker>
+    </defs>
+
+    <!-- TOP: passthrough -->
+    <text x="24" y="26" font-size="14" font-weight="700" fill="var(--aid-rose)">✗ 토큰 패스스루 — 하나의 토큰이 끝까지</text>
+
+    <rect x="24" y="44" width="120" height="46" rx="9" fill="var(--aid-slate)" opacity="0.16" stroke="var(--aid-slate)"/>
+    <text x="84" y="72" text-anchor="middle" font-size="13" fill="var(--aid-slate)">에이전트</text>
+
+    <rect x="230" y="44" width="140" height="46" rx="9" fill="var(--aid-slate)" opacity="0.16" stroke="var(--aid-slate)"/>
+    <text x="300" y="66" text-anchor="middle" font-size="13" fill="var(--aid-slate)">MCP 서버</text>
+    <text x="300" y="82" text-anchor="middle" font-size="11" fill="var(--aid-gray)">검증 없이 통과</text>
+
+    <rect x="456" y="44" width="120" height="46" rx="9" fill="var(--aid-slate)" opacity="0.16" stroke="var(--aid-slate)"/>
+    <text x="516" y="72" text-anchor="middle" font-size="13" fill="var(--aid-slate)">외부 API</text>
+
+    <path d="M144,67 L224,67" stroke="var(--aid-rose)" stroke-width="2.5" marker-end="url(#aid-a1)"/>
+    <path d="M370,67 L450,67" stroke="var(--aid-rose)" stroke-width="2.5" marker-end="url(#aid-a1)"/>
+
+    <rect x="150" y="102" width="300" height="26" rx="6" fill="var(--aid-rose)" opacity="0.2" stroke="var(--aid-rose)"/>
+    <text x="300" y="120" text-anchor="middle" font-size="12" fill="var(--aid-rose)">같은 토큰 · aud 검증 없음 · scope 그대로</text>
+
+    <text x="600" y="64" font-size="11.5" fill="var(--aid-gray)">상류 로그에</text>
+    <text x="600" y="80" font-size="11.5" fill="var(--aid-gray)">호출자가 안 남음</text>
+    <text x="600" y="112" font-size="11.5" fill="var(--aid-rose)">한 곳 유출 =</text>
+    <text x="600" y="128" font-size="11.5" fill="var(--aid-rose)">전부 유출</text>
+
+    <line x1="24" y1="158" x2="736" y2="158" stroke="var(--aid-grid)" stroke-width="1" stroke-dasharray="4 6"/>
+
+    <!-- BOTTOM: exchange -->
+    <text x="24" y="190" font-size="14" font-weight="700" fill="var(--aid-green)">✓ 홉마다 새 토큰 — 경계를 넘을 때마다 갈아 끼운다</text>
+
+    <rect x="24" y="210" width="120" height="46" rx="9" fill="var(--aid-violet)" opacity="0.16" stroke="var(--aid-violet)"/>
+    <text x="84" y="238" text-anchor="middle" font-size="13" fill="var(--aid-violet)">에이전트</text>
+
+    <rect x="230" y="210" width="140" height="46" rx="9" fill="var(--aid-teal)" opacity="0.16" stroke="var(--aid-teal)"/>
+    <text x="300" y="232" text-anchor="middle" font-size="13" fill="var(--aid-teal)">MCP 서버</text>
+    <text x="300" y="248" text-anchor="middle" font-size="11" fill="var(--aid-gray)">aud 검증 후 교환</text>
+
+    <rect x="456" y="210" width="120" height="46" rx="9" fill="var(--aid-sky)" opacity="0.16" stroke="var(--aid-sky)"/>
+    <text x="516" y="238" text-anchor="middle" font-size="13" fill="var(--aid-sky)">외부 API</text>
+
+    <path d="M144,233 L224,233" stroke="var(--aid-green)" stroke-width="2.5" marker-end="url(#aid-a2)"/>
+    <path d="M370,233 L450,233" stroke="var(--aid-green)" stroke-width="2.5" marker-end="url(#aid-a2)"/>
+
+    <rect x="150" y="268" width="140" height="26" rx="6" fill="var(--aid-teal)" opacity="0.2" stroke="var(--aid-teal)"/>
+    <text x="220" y="286" text-anchor="middle" font-size="11.5" fill="var(--aid-teal)">aud = MCP 서버</text>
+
+    <rect x="330" y="268" width="150" height="26" rx="6" fill="var(--aid-sky)" opacity="0.2" stroke="var(--aid-sky)"/>
+    <text x="405" y="286" text-anchor="middle" font-size="11.5" fill="var(--aid-sky)">aud = 외부 API</text>
+
+    <!-- AS -->
+    <rect x="252" y="322" width="200" height="42" rx="9" fill="var(--aid-blue)" opacity="0.14" stroke="var(--aid-blue)"/>
+    <text x="352" y="340" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--aid-blue)">인가 서버 (AS)</text>
+    <text x="352" y="356" text-anchor="middle" font-size="11" fill="var(--aid-gray)">token exchange · scope 축소</text>
+    <path d="M330,318 L318,300" stroke="var(--aid-blue)" stroke-width="2" marker-end="url(#aid-a3)"/>
+    <path d="M382,318 L400,300" stroke="var(--aid-blue)" stroke-width="2" marker-end="url(#aid-a3)"/>
+
+    <text x="600" y="230" font-size="11.5" fill="var(--aid-gray)">홉마다 신원이</text>
+    <text x="600" y="246" font-size="11.5" fill="var(--aid-gray)">로그에 남음</text>
+    <text x="600" y="278" font-size="11.5" fill="var(--aid-green)">한 홉 유출 =</text>
+    <text x="600" y="294" font-size="11.5" fill="var(--aid-green)">그 홉까지만</text>
+  </svg>
+  <figcaption id="aid-fig1-cap">차이는 “토큰을 몇 개 쓰느냐”가 아니라 <strong>경계마다 신원이 다시 확인되느냐</strong>입니다. 위쪽 구조에서는 사고가 나도 어디서 시작됐는지 아무도 모릅니다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 2026-07-28 MCP 규격이 못 박은 것</h2>
+
+<p>새 규격의 인가 부분은 “각자 알아서 하세요”를 최대한 줄이는 방향으로 정리됐습니다. 핵심만 뽑으면 다섯 줄입니다. (규격 원문의 <strong>MUST/SHOULD</strong>를 그대로 살렸습니다.)</p>
+
+<table class="aid-tbl">
+  <thead><tr><th>누가</th><th>무엇을</th><th>강도</th></tr></thead>
+  <tbody>
+    <tr><td>MCP 서버</td><td>OAuth 2.0 Protected Resource Metadata(RFC 9728) 구현 — 즉 <code>/.well-known/oauth-protected-resource</code>로 “내 인가 서버는 여기다”를 알림</td><td>MUST</td></tr>
+    <tr><td>MCP 클라이언트</td><td>Resource Indicators(RFC 8707)의 <code>resource</code> 파라미터를 인가 요청과 토큰 요청 <em>양쪽</em>에 포함. 인가 서버가 지원하든 말든 무조건 보냄</td><td>MUST</td></tr>
+    <tr><td>MCP 서버</td><td>들어온 토큰이 <em>자기 자신을 대상으로</em> 발급된 것인지 검증. 아니면 401</td><td>MUST</td></tr>
+    <tr><td>MCP 서버</td><td>클라이언트에게 받은 토큰을 상류 API로 그대로 전달하지 않기</td><td>MUST NOT</td></tr>
+    <tr><td>MCP 클라이언트</td><td>PKCE 사용(가능하면 <code>S256</code>), 그리고 인가 서버 메타데이터에 <code>code_challenge_methods_supported</code>가 없으면 <strong>진행 자체를 거부</strong></td><td>MUST</td></tr>
+  </tbody>
+</table>
+
+<p>용어를 하나씩 풀면 이렇습니다.</p>
+
+<p><strong>PKCE</strong>(Proof Key for Code Exchange, “픽시”라고 읽습니다)는 인가 코드를 중간에서 가로채도 못 쓰게 만드는 장치입니다. 클라이언트가 무작위 값(verifier)을 만들어 그 해시(challenge)를 먼저 보내고, 나중에 원본을 함께 제시해야만 토큰을 받습니다. 택배 수령할 때 미리 정한 암호를 대는 것과 같습니다.</p>
+
+<p><strong><code>resource</code> 파라미터</strong>는 “이 토큰을 어디에 쓸 건지”를 발급 요청 단계에서 명시하는 값입니다. 인가 서버는 이걸 보고 토큰의 <code>aud</code>를 좁혀서 발급합니다. 앞서 말한 카드키의 호수를 새겨 넣는 단계라고 보면 됩니다.</p>
+
+<p>그리고 새 규격에서 눈에 띄는 변화가 하나 더 있습니다. 클라이언트 등록 방식으로 <strong>Client ID Metadata Documents</strong>가 들어왔습니다. 클라이언트가 자기 정보를 담은 JSON을 HTTPS URL에 올려 두고, <em>그 URL 자체를 <code>client_id</code>로 쓰는</em> 방식입니다. 반대로 기존의 동적 클라이언트 등록(DCR)은 <strong>deprecated</strong>가 됐습니다. 처음 보는 서버와 클라이언트가 사전 관계 없이 만나는 MCP 특성상, 매번 등록 API를 두드리는 것보다 이 편이 깔끔하다는 판단입니다.</p>
+
+{{< highlight json >}}
+// https://app.example.com/oauth/client-metadata.json
+// ↑ 이 URL 문자열이 그대로 client_id가 됩니다
+{
+  "client_id": "https://app.example.com/oauth/client-metadata.json",
+  "client_name": "Example MCP Client",
+  "redirect_uris": ["http://127.0.0.1:3000/callback"],
+  "grant_types": ["authorization_code"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none"
+}
+{{< /highlight >}}
+
+<figure class="aid-fig" role="group" aria-labelledby="aid-fig2-cap">
+  <svg viewBox="0 0 760 440" xmlns="http://www.w3.org/2000/svg" aria-label="MCP 2026-07-28 인가 흐름을 여섯 단계로 나타낸 그림. 첫째 클라이언트가 토큰 없이 요청하면 서버가 401과 함께 리소스 메타데이터 위치와 필요한 스코프를 알려 준다. 둘째 클라이언트가 보호 리소스 메타데이터를 읽어 인가 서버를 찾는다. 셋째 인가 서버 메타데이터를 읽고 PKCE 지원 여부를 확인하며 지원하지 않으면 중단한다. 넷째 PKCE 챌린지와 resource 파라미터를 붙여 인가 요청을 보내고 응답의 iss 값을 검증한다. 다섯째 code verifier와 resource를 함께 보내 토큰을 받는다. 여섯째 서버가 토큰의 audience가 자신인지 검증한 뒤 응답한다.">
+    <defs>
+      <marker id="aid-b1" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 Z" fill="var(--aid-blue)"/></marker>
+    </defs>
+
+    <text x="24" y="24" font-size="14" font-weight="700" fill="var(--aid-slate)">MCP 2026-07-28 인가 흐름 — 클라이언트가 아무것도 모르는 상태에서 시작합니다</text>
+
+    <!-- steps -->
+    <g>
+      <rect x="24" y="44" width="712" height="52" rx="10" fill="var(--aid-rose)" opacity="0.13" stroke="var(--aid-rose)"/>
+      <circle cx="52" cy="70" r="13" fill="var(--aid-rose)" opacity="0.85"/>
+      <text x="52" y="75" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">1</text>
+      <text x="78" y="66" font-size="13" font-weight="700" fill="var(--aid-rose)">토큰 없이 요청 → 401</text>
+      <text x="78" y="86" font-size="11.5" fill="var(--aid-slate)">WWW-Authenticate: Bearer resource_metadata="…", scope="files:read" ← 필요한 스코프까지 알려 줍니다</text>
+    </g>
+
+    <path d="M380,96 L380,110" stroke="var(--aid-blue)" stroke-width="2" marker-end="url(#aid-b1)"/>
+
+    <g>
+      <rect x="24" y="112" width="712" height="52" rx="10" fill="var(--aid-sky)" opacity="0.13" stroke="var(--aid-sky)"/>
+      <circle cx="52" cy="138" r="13" fill="var(--aid-sky)" opacity="0.85"/>
+      <text x="52" y="143" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">2</text>
+      <text x="78" y="134" font-size="13" font-weight="700" fill="var(--aid-sky)">보호 리소스 메타데이터 조회 (RFC 9728, 서버는 MUST 제공)</text>
+      <text x="78" y="154" font-size="11.5" fill="var(--aid-slate)">“내 인가 서버는 여기다”를 알아냅니다</text>
+    </g>
+
+    <path d="M380,164 L380,178" stroke="var(--aid-blue)" stroke-width="2" marker-end="url(#aid-b1)"/>
+
+    <g>
+      <rect x="24" y="180" width="712" height="52" rx="10" fill="var(--aid-violet)" opacity="0.13" stroke="var(--aid-violet)"/>
+      <circle cx="52" cy="206" r="13" fill="var(--aid-violet)" opacity="0.85"/>
+      <text x="52" y="211" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">3</text>
+      <text x="78" y="202" font-size="13" font-weight="700" fill="var(--aid-violet)">인가 서버 메타데이터 조회 · PKCE 지원 확인</text>
+      <text x="78" y="222" font-size="11.5" fill="var(--aid-slate)">code_challenge_methods_supported 가 없으면 → 진행 거부 (MUST)</text>
+    </g>
+
+    <path d="M380,232 L380,246" stroke="var(--aid-blue)" stroke-width="2" marker-end="url(#aid-b1)"/>
+
+    <g>
+      <rect x="24" y="248" width="712" height="52" rx="10" fill="var(--aid-amber)" opacity="0.13" stroke="var(--aid-amber)"/>
+      <circle cx="52" cy="274" r="13" fill="var(--aid-amber)" opacity="0.85"/>
+      <text x="52" y="279" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">4</text>
+      <text x="78" y="270" font-size="13" font-weight="700" fill="var(--aid-amber)">인가 요청 — code_challenge + resource + 최소 scope</text>
+      <text x="78" y="290" font-size="11.5" fill="var(--aid-slate)">응답의 iss 를 미리 기록해 둔 issuer 와 대조 (RFC 9207, mix-up 공격 방어)</text>
+    </g>
+
+    <path d="M380,300 L380,314" stroke="var(--aid-blue)" stroke-width="2" marker-end="url(#aid-b1)"/>
+
+    <g>
+      <rect x="24" y="316" width="712" height="52" rx="10" fill="var(--aid-teal)" opacity="0.13" stroke="var(--aid-teal)"/>
+      <circle cx="52" cy="342" r="13" fill="var(--aid-teal)" opacity="0.85"/>
+      <text x="52" y="347" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">5</text>
+      <text x="78" y="338" font-size="13" font-weight="700" fill="var(--aid-teal)">토큰 요청 — code_verifier + resource (양쪽 다 MUST)</text>
+      <text x="78" y="358" font-size="11.5" fill="var(--aid-slate)">인가 서버가 aud 를 이 MCP 서버로 좁혀서 발급합니다</text>
+    </g>
+
+    <path d="M380,368 L380,382" stroke="var(--aid-blue)" stroke-width="2" marker-end="url(#aid-b1)"/>
+
+    <g>
+      <rect x="24" y="384" width="712" height="46" rx="10" fill="var(--aid-green)" opacity="0.15" stroke="var(--aid-green)"/>
+      <circle cx="52" cy="407" r="13" fill="var(--aid-green)" opacity="0.85"/>
+      <text x="52" y="412" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">6</text>
+      <text x="78" y="412" font-size="13" font-weight="700" fill="var(--aid-green)">서버: aud 가 나인가? → 맞으면 처리, 아니면 401 (MUST)</text>
+    </g>
+  </svg>
+  <figcaption id="aid-fig2-cap">6단계 중 <strong>클라이언트가 무언가를 하드코딩하는 지점이 없다</strong>는 게 핵심입니다. 401 하나로 시작해 필요한 정보를 전부 발견해 나갑니다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 함정 ② confused deputy — 동의 화면을 건너뛰는 공격</h2>
+
+<p><strong>confused deputy</strong>(혼란한 대리인)는 오래된 보안 개념인데, 한 문장으로는 이렇습니다 — <em>권한 있는 중개자가, 권한 없는 요청자를 대신해, 요청자 스스로는 할 수 없었을 일을 해 주는 것</em>. 문 열 권한이 있는 경비원에게 “저기 좀 열어 주세요”라고 부탁해서 여는 상황입니다.</p>
+
+<p>MCP에서 이게 어떻게 터지는지가 규격 문서에 아주 구체적으로 적혀 있습니다. 무대는 <strong>MCP 프록시 서버</strong>입니다. 여러 MCP 클라이언트를 받아서, 자기는 외부 API에 대해 <em>하나의 OAuth 클라이언트</em>로 행동하는 서버죠. 다음 네 조건이 모두 겹치면 공격이 성립합니다.</p>
+
+<ol>
+  <li>프록시가 외부 인가 서버에 대해 <strong>정적 <code>client_id</code></strong>를 씁니다(누가 요청하든 같은 값).</li>
+  <li>프록시가 MCP 클라이언트들에게 <strong>동적 등록</strong>을 허용합니다(각자 다른 <code>client_id</code>를 받아 감).</li>
+  <li>외부 인가 서버가 첫 승인 후 브라우저에 <strong>동의 쿠키</strong>를 심습니다.</li>
+  <li>프록시가 외부로 넘기기 전에 <strong>클라이언트별 동의를 따로 받지 않습니다</strong>.</li>
+</ol>
+
+<p>공격은 이렇게 흘러갑니다. 사용자가 한 번 정상적으로 승인합니다 → 브라우저에 동의 쿠키가 남습니다 → 공격자가 악성 <code>redirect_uri</code>로 클라이언트를 동적 등록하고, 조작된 인가 링크를 사용자에게 보냅니다 → 사용자가 클릭하면 <strong>쿠키가 있으니 동의 화면이 안 뜹니다</strong> → 인가 코드가 공격자 서버로 리다이렉트됩니다 → 공격자가 그 코드를 토큰으로 바꿔 사용자 행세를 합니다.</p>
+
+<p>무서운 점은 사용자가 “허용”을 누른 적이 없다는 겁니다. 예전에 한 번 눌렀던 동의가 <em>재사용</em>됐을 뿐입니다.</p>
+
+<div class="aid-note aid-warn"><strong>처방.</strong> 규격은 정적 <code>client_id</code>를 쓰는 MCP 프록시라면 외부 인가 서버로 넘기기 <em>전에</em>, 동적 등록된 클라이언트마다 <strong>사용자 동의를 직접 받으라</strong>고 MUST로 요구합니다. “<code>[클라이언트 이름]</code>이 <code>[외부 API]</code>에 접근하도록 허용할까요?”라는 <em>내 서버가 소유한</em> 동의 페이지를 한 장 두는 것입니다. 남의 쿠키에 기대지 말고 내 동의를 저장하세요.</p></div>
+
+<h2 id="sec-6">6. 진짜 어려운 문제 — 여러 홉을 건너는 위임</h2>
+
+<p>여기까지는 “클라이언트 하나 ↔ 서버 하나”였습니다. 그런데 실제 에이전트는 이렇게 생겼습니다.</p>
+
+<p><code>사람 → 오케스트레이터 에이전트 → 서브 에이전트 → MCP 서버 → 외부 API</code></p>
+
+<p>홉이 넷입니다. 마지막 API 입장에서 알아야 할 게 두 가지인데, 서로 다릅니다.</p>
+
+<ul>
+  <li><strong>누구의 권한으로 하는 일인가</strong> — 사람 A의 데이터에 접근하는 것이므로 A의 권한 범위를 넘으면 안 됩니다.</li>
+  <li><strong>지금 실제로 두드리고 있는 게 누구인가</strong> — 사람이 직접 누른 게 아니라 서브 에이전트가 자동으로 부른 것입니다. 로그에도 그렇게 남아야 하고, “에이전트에게는 금지”인 동작도 있을 수 있습니다.</li>
+</ul>
+
+<p>OAuth에는 이걸 위한 물건이 이미 있습니다. <strong>토큰 교환(token exchange, RFC 8693)</strong>입니다. 이름 그대로 “토큰을 주고 다른 토큰을 받는” 문법이고, 전용 grant type이 하나 정의돼 있습니다.</p>
+
+{{< highlight http >}}
+POST /token HTTP/1.1
+Host: auth.example.com
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+&subject_token=<사람 A를 나타내는 토큰>          # 누구를 대신하는가
+&subject_token_type=urn:ietf:params:oauth:token-type:access_token
+&actor_token=<에이전트 자신의 토큰>               # 지금 실제로 행동하는 주체
+&actor_token_type=urn:ietf:params:oauth:token-type:access_token
+&resource=https://api.example.com                # 이 토큰을 쓸 곳 (aud를 좁힘)
+&scope=invoices:read                             # 필요한 만큼만
+{{< /highlight >}}
+
+<p>두 파라미터의 역할이 정확히 나뉩니다. <code>subject_token</code>은 <em>누구를 대신해</em>, <code>actor_token</code>은 <em>누가 실제로 행동하는지</em>를 나타냅니다. 그리고 여기서 갈리는 두 모드를 구분해야 합니다.</p>
+
+<table class="aid-tbl">
+  <thead><tr><th></th><th>임퍼소네이션(impersonation)</th><th>위임(delegation)</th></tr></thead>
+  <tbody>
+    <tr><td>토큰 모양</td><td><code>sub</code> = 사람 A. 끝.</td><td><code>sub</code> = 사람 A + <code>act</code> = 에이전트</td></tr>
+    <tr><td>받는 쪽이 보는 것</td><td>“사람 A가 직접 했다”</td><td>“에이전트가 사람 A를 대신했다”</td></tr>
+    <tr><td>에이전트에 권할까?</td><td>❌ — 로그에서 사람과 봇이 구분되지 않습니다</td><td>✅ — 기본값으로 삼으세요</td></tr>
+  </tbody>
+</table>
+
+<p>위임을 요청하려면 <code>subject_token</code>과 <code>actor_token</code>을 <strong>둘 다</strong> 보내야 합니다. 하나만 보내면 위임이 아니라 임퍼소네이션이 됩니다. 결과로 받는 JWT에는 <strong><code>act</code>(actor) 클레임</strong>이 붙는데, 여기에 “지금 행동하는 주체”가 들어갑니다. 대략 이런 모양입니다.</p>
+
+{{< highlight json >}}
+{
+  "iss": "https://auth.example.com",
+  "aud": "https://api.example.com",   // 이 토큰을 쓸 곳 하나
+  "sub": "user:a@example.com",        // 권한의 주인 = 사람 A
+  "scope": "invoices:read",           // 이 홉에 필요한 만큼만
+  "exp": 1786000000,                  // 짧게
+
+  // 지금 실제로 행동하는 주체. 중첩하면 위임 경로가 됩니다.
+  "act": {
+    "sub": "agent:invoice-bot",
+    "act": { "sub": "agent:orchestrator" }
+  }
+}
+{{< /highlight >}}
+
+<p><code>act</code> 안에 <code>act</code>를 중첩해서 “오케스트레이터가 시켰고, 청구서 봇이 실행했고, 원래 주인은 A”라는 경로를 표현합니다. 여기서 <strong>초보자가 반드시 알아야 할 함정</strong>이 하나 있습니다.</p>
+
+<div class="aid-note aid-warn"><strong>중첩된 <code>act</code>는 “참고용”입니다.</strong> RFC 8693은 토큰을 받는 쪽이 <em>최상위 클레임과 현재 행위자만</em> 판단 근거로 삼도록 규정합니다. 그 안쪽의 이전 행위자들은 <strong>정보 제공용일 뿐</strong>이라 접근 제어 판단에 쓸 수 없습니다. 게다가 <code>act</code> 체인은 각 홉의 <em>신원</em>만 담을 뿐, 홉마다 어떤 제약이 걸렸는지는 담지 않습니다. “<code>act</code> 체인만 보면 되겠네”라고 생각했다면 지금 고쳐 두세요.</p></div>
+
+<p>바로 이 빈틈 때문에 IETF에서 <strong>actor chain</strong> 초안이 논의되고 있습니다. 위임 경로를 홉을 넘어가며 <em>암호학적으로 검증 가능하게</em> 유지하는 프로파일을 정의하는 작업이고, 서비스 메시·API 게이트웨이·CI/CD 파이프라인처럼 “누가, 어떤 순서로, 누구의 권한으로 행동했는가”가 정확성 요건인 곳을 함께 겨냥합니다. 표준이 아직 굳지 않았다는 뜻이기도 하니, 지금 만드는 시스템에서는 <strong>감사 로그를 별도로 남기는 쪽</strong>이 안전합니다.</p>
+
+<figure class="aid-fig" role="group" aria-labelledby="aid-fig3-cap">
+  <svg viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg" aria-label="사람에서 오케스트레이터 에이전트, 서브 에이전트, 외부 API로 이어지는 네 홉의 위임 체인 그림. 홉을 넘을 때마다 인가 서버에서 토큰을 교환해 새 토큰을 받으며, 스코프는 전체 권한에서 문서 읽기, 다시 청구서 읽기로 점점 좁아지고 act 클레임은 반대로 한 겹씩 쌓인다. 아래에는 최상위 클레임과 현재 행위자만 접근 제어에 쓸 수 있고 중첩된 이전 행위자는 정보 제공용이라는 경고가 적혀 있다.">
+    <defs>
+      <marker id="aid-c1" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto"><path d="M0,1 L11,6 L0,11 Z" fill="var(--aid-teal)"/></marker>
+    </defs>
+
+    <text x="24" y="24" font-size="14" font-weight="700" fill="var(--aid-slate)">홉을 넘을 때마다: 스코프는 좁아지고, act 는 쌓인다</text>
+
+    <!-- nodes -->
+    <rect x="24" y="46" width="132" height="48" rx="10" fill="var(--aid-violet)" opacity="0.16" stroke="var(--aid-violet)"/>
+    <text x="90" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--aid-violet)">사람 A</text>
+    <text x="90" y="85" text-anchor="middle" font-size="11" fill="var(--aid-gray)">권한의 주인</text>
+
+    <rect x="204" y="46" width="152" height="48" rx="10" fill="var(--aid-sky)" opacity="0.16" stroke="var(--aid-sky)"/>
+    <text x="280" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--aid-sky)">오케스트레이터</text>
+    <text x="280" y="85" text-anchor="middle" font-size="11" fill="var(--aid-gray)">계획하고 나눠 줌</text>
+
+    <rect x="404" y="46" width="152" height="48" rx="10" fill="var(--aid-teal)" opacity="0.16" stroke="var(--aid-teal)"/>
+    <text x="480" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--aid-teal)">서브 에이전트</text>
+    <text x="480" y="85" text-anchor="middle" font-size="11" fill="var(--aid-gray)">청구서 담당</text>
+
+    <rect x="604" y="46" width="132" height="48" rx="10" fill="var(--aid-green)" opacity="0.16" stroke="var(--aid-green)"/>
+    <text x="670" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--aid-green)">외부 API</text>
+    <text x="670" y="85" text-anchor="middle" font-size="11" fill="var(--aid-gray)">최종 판단</text>
+
+    <path d="M156,70 L198,70" stroke="var(--aid-teal)" stroke-width="2.5" marker-end="url(#aid-c1)"/>
+    <path d="M356,70 L398,70" stroke="var(--aid-teal)" stroke-width="2.5" marker-end="url(#aid-c1)"/>
+    <path d="M556,70 L598,70" stroke="var(--aid-teal)" stroke-width="2.5" marker-end="url(#aid-c1)"/>
+
+    <text x="177" y="112" text-anchor="middle" font-size="10.5" fill="var(--aid-gray)">교환</text>
+    <text x="377" y="112" text-anchor="middle" font-size="10.5" fill="var(--aid-gray)">교환</text>
+    <text x="577" y="112" text-anchor="middle" font-size="10.5" fill="var(--aid-gray)">교환</text>
+
+    <!-- scope bar -->
+    <text x="24" y="150" font-size="12" font-weight="700" fill="var(--aid-slate)">scope</text>
+    <rect x="90" y="134" width="266" height="22" rx="5" fill="var(--aid-sky)" opacity="0.3"/>
+    <text x="223" y="150" text-anchor="middle" font-size="11.5" fill="var(--aid-slate)">docs:read invoices:* mail:send</text>
+    <rect x="404" y="134" width="152" height="22" rx="5" fill="var(--aid-teal)" opacity="0.35"/>
+    <text x="480" y="150" text-anchor="middle" font-size="11.5" fill="var(--aid-slate)">invoices:*</text>
+    <rect x="604" y="134" width="132" height="22" rx="5" fill="var(--aid-green)" opacity="0.4"/>
+    <text x="670" y="150" text-anchor="middle" font-size="11.5" fill="var(--aid-slate)">invoices:read</text>
+
+    <!-- act stack -->
+    <text x="24" y="196" font-size="12" font-weight="700" fill="var(--aid-slate)">act</text>
+    <rect x="204" y="178" width="152" height="24" rx="5" fill="var(--aid-violet)" opacity="0.22" stroke="var(--aid-violet)"/>
+    <text x="280" y="195" text-anchor="middle" font-size="11" fill="var(--aid-slate)">act: orchestrator</text>
+
+    <rect x="404" y="178" width="152" height="24" rx="5" fill="var(--aid-violet)" opacity="0.22" stroke="var(--aid-violet)"/>
+    <text x="480" y="195" text-anchor="middle" font-size="11" fill="var(--aid-slate)">act: invoice-bot</text>
+    <rect x="404" y="206" width="152" height="22" rx="5" fill="var(--aid-gray)" opacity="0.18" stroke="var(--aid-gray)" stroke-dasharray="3 3"/>
+    <text x="480" y="222" text-anchor="middle" font-size="10.5" fill="var(--aid-gray)">└ act: orchestrator</text>
+
+    <rect x="604" y="178" width="132" height="24" rx="5" fill="var(--aid-green)" opacity="0.22" stroke="var(--aid-green)"/>
+    <text x="670" y="195" text-anchor="middle" font-size="11" fill="var(--aid-slate)">sub=A · act=bot</text>
+
+    <line x1="24" y1="252" x2="736" y2="252" stroke="var(--aid-grid)" stroke-width="1" stroke-dasharray="4 6"/>
+
+    <rect x="24" y="266" width="712" height="56" rx="10" fill="var(--aid-amber)" opacity="0.14" stroke="var(--aid-amber)"/>
+    <text x="44" y="290" font-size="12.5" font-weight="700" fill="var(--aid-amber)">판단에 쓸 수 있는 것 = 최상위 클레임 + 현재 행위자(act 최상단)</text>
+    <text x="44" y="310" font-size="12" fill="var(--aid-slate)">그 안쪽에 중첩된 이전 행위자들은 정보 제공용 — 접근 제어 근거로 쓰면 안 됩니다. 감사 로그는 따로 남기세요.</text>
+  </svg>
+  <figcaption id="aid-fig3-cap">권한은 <strong>내려갈수록 좁아지고</strong>, 책임 표시는 <strong>내려갈수록 쌓입니다</strong>. 이 두 방향이 반대라는 점이 위임 설계의 핵심입니다.</figcaption>
+</figure>
+
+<h2 id="sec-7">7. 실전 — 오늘 붙일 수 있는 코드와 체크리스트</h2>
+
+<h3>7-1. MCP 서버: 토큰 검증 미들웨어</h3>
+
+<p>가장 먼저 넣어야 할 코드입니다. 규격이 요구하는 “내 것으로 발급된 토큰인가”를 확인합니다. 라이브러리 없이 뼈대만 보면 이렇습니다.</p>
+
+{{< highlight python >}}
+import time, jwt  # PyJWT
+from fastapi import Request, HTTPException
+
+MY_RESOURCE = "https://mcp.example.com/mcp"   # 이 서버의 canonical URI
+ISSUER      = "https://auth.example.com"
+
+def verify(request: Request) -> dict:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        # 401에 '어디서 인가 정보를 찾을지'와 '필요한 스코프'를 같이 알려 줍니다
+        raise HTTPException(401, headers={
+            "WWW-Authenticate":
+                f'Bearer resource_metadata='
+                f'"{MY_RESOURCE}/.well-known/oauth-protected-resource", '
+                f'scope="files:read"'
+        })
+
+    claims = jwt.decode(
+        auth[7:],
+        key=jwks_key_for(auth[7:]),      # 인가 서버 JWKS에서 서명 키 조회
+        algorithms=["RS256"],
+        issuer=ISSUER,
+        audience=MY_RESOURCE,            # ★ 핵심: aud가 '나'인지 검증 (MUST)
+    )
+
+    # 스코프는 별도로 확인해야 합니다. 토큰이 유효한 것과
+    # 이 작업을 할 권한이 있는 것은 다른 이야기입니다.
+    if "files:read" not in claims.get("scope", "").split():
+        raise HTTPException(403, "insufficient_scope")
+
+    return claims
+{{< /highlight >}}
+
+<div class="aid-note"><strong>왜 <code>audience=</code>를 꼭 넘겨야 하나요?</strong> 대부분의 JWT 라이브러리는 <code>audience</code> 인자를 <em>주지 않으면 aud 검증을 아예 건너뜁니다</em>. 서명도 맞고 만료도 안 됐으니 <code>jwt.decode()</code>는 조용히 성공합니다. 남의 서비스용 토큰이 통과하는 사고 대부분이 이 한 줄 누락에서 나옵니다.</p></div>
+
+<h3>7-2. 상류 API를 부를 때: 토큰을 넘기지 말고 바꾸기</h3>
+
+<p>앞서 금지된 패스스루 대신 이렇게 씁니다. 받은 토큰을 <em>재료</em>로만 쓰고, 실제로 나가는 건 새 토큰입니다.</p>
+
+{{< highlight python >}}
+TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange"
+ACCESS_TOKEN   = "urn:ietf:params:oauth:token-type:access_token"
+
+async def exchange_for_upstream(user_token: str, upstream: str, scope: str) -> str:
+    """사용자 토큰 → 상류 API 전용 토큰. 이 서버가 actor로 기록됩니다."""
+    r = await http.post(f"{ISSUER}/token", data={
+        "grant_type": TOKEN_EXCHANGE,
+        "subject_token": user_token,        # 누구를 대신하는가
+        "subject_token_type": ACCESS_TOKEN,
+        "actor_token": await my_own_token(),# 지금 행동하는 주체 = 이 MCP 서버
+        "actor_token_type": ACCESS_TOKEN,
+        "resource": upstream,               # aud를 상류 API 하나로 좁힘
+        "scope": scope,                     # 이 호출에 필요한 만큼만
+    })
+    r.raise_for_status()
+    return r.json()["access_token"]
+
+# 사용
+claims = verify(request)                    # ① 내 것인지 먼저 검증
+up_tok = await exchange_for_upstream(       # ② 상류용으로 교환
+    raw_token, "https://api.github.com", "repo:read")
+await http.get("https://api.github.com/user/repos",
+               headers={"Authorization": f"Bearer {up_tok}"})   # ③ 새 토큰으로 호출
+{{< /highlight >}}
+
+<div class="aid-note aid-good"><strong>인가 서버가 token exchange를 지원하지 않는다면?</strong> 흔한 상황입니다. 그럴 땐 MCP 서버가 상류 API에 대해 <em>독립된 OAuth 클라이언트</em>로서 별도 인가 플로를 돌려 토큰을 따로 받아 두면 됩니다. 규격이 요구하는 건 “교환을 쓰라”가 아니라 <strong>“받은 토큰을 그대로 재사용하지 마라”</strong>입니다. 방법은 둘 중 아무거나 좋습니다.</p></div>
+
+<h3>7-3. 에이전트 자신의 신원 만들기</h3>
+
+<p>여기까지 오면 자연스럽게 질문이 생깁니다. “<code>actor_token</code>, 그러니까 <em>에이전트 자신의 토큰</em>은 어디서 나오나요?”</p>
+
+<p>여기가 바로 표준이 아직 덜 채운 자리입니다. 실제로 MCP 인가 규격 전문을 훑어보면 “agent”라는 단어는 <code>user-agent</code>(브라우저) 말고는 나오지 않고, token exchange 이야기도 없습니다. 규격이 답하는 질문은 <strong>“이 토큰은 어느 리소스용인가”</strong>까지고, <strong>“지금 행동하는 에이전트는 누구인가”</strong>는 각자 구현할 몫으로 남아 있습니다.</p>
+
+<p>실무에서 자리 잡아 가는 답은 <strong>“에이전트를 사람 계정도, 공용 서비스 계정도 아닌 별도의 1급 신원으로 만든다”</strong>입니다. Microsoft Entra Agent ID가 대표적인데(2026년 상반기 GA), 에이전트마다 고유한 디렉터리 신원을 부여하고 OAuth on-behalf-of 흐름을 확장해 <em>사용자를 <code>sub</code>로 유지한 채</em> 에이전트를 별도 클레임으로 얹는 방식입니다. 방금 본 <code>sub</code> + <code>act</code> 구조와 정확히 같은 그림입니다.</p>
+
+<p>직접 만든다면 최소 요건은 이렇습니다.</p>
+
+<ul>
+  <li><strong>인스턴스 단위로 발급하세요.</strong> “배포 하나 = 신원 하나”가 아니라 “역할 하나 = 신원 하나”가 좋습니다. 코드 리뷰 봇과 배포 봇이 같은 신원을 쓰면 구분할 수 없습니다.</li>
+  <li><strong>수명을 짧게 하세요.</strong> 오래 사는 비밀은 언젠가 로그·프롬프트·이슈 코멘트로 샙니다. 규격도 “인가 서버는 짧은 수명의 액세스 토큰을 발급해야 한다(SHOULD)”고 권합니다.</li>
+  <li><strong>사람의 권한을 상한으로 두세요.</strong> 에이전트의 실효 권한 = (사람의 권한) ∩ (에이전트에게 허용된 범위). 교집합이지 합집합이 아닙니다.</li>
+</ul>
+
+<h3>7-4. 체크리스트</h3>
+
+<table class="aid-tbl">
+  <thead><tr><th>단계</th><th>확인할 것</th></tr></thead>
+  <tbody>
+    <tr><td>서버 진입</td><td><code>aud</code>가 내 canonical URI인지 검증했는가 (라이브러리에 <code>audience</code> 인자를 넘겼는가)</td></tr>
+    <tr><td>서버 진입</td><td><code>iss</code>가 기대한 인가 서버인지, 서명 키를 JWKS에서 가져오는지</td></tr>
+    <tr><td>401 응답</td><td><code>WWW-Authenticate</code>에 <code>resource_metadata</code>와 필요한 <code>scope</code>를 넣었는가</td></tr>
+    <tr><td>클라이언트</td><td>인가·토큰 요청 <em>양쪽</em>에 <code>resource</code>를 넣었는가, PKCE(<code>S256</code>)를 쓰는가</td></tr>
+    <tr><td>상류 호출</td><td>받은 토큰을 재사용하지 않고 새 토큰을 얻는가</td></tr>
+    <tr><td>프록시라면</td><td>외부 인가 서버로 넘기기 전에 <em>내 동의 페이지</em>를 한 번 거치는가</td></tr>
+    <tr><td>로그</td><td>사람(<code>sub</code>)과 에이전트(<code>act</code>)를 <strong>둘 다</strong> 남기는가</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<div class="aid-note aid-warn"><strong>실수 1 — <code>aud</code> 검증을 “나중에” 미룬다.</strong> 개발 초기엔 토큰이 하나뿐이라 아무 문제가 없습니다. 문제는 두 번째 MCP 서버를 붙이는 날 생기는데, 그때는 이미 여러 서비스가 서로의 토큰을 받아 주는 상태입니다. 서버가 하나일 때 넣어 두는 게 제일 쌉니다.</p></div>
+
+<div class="aid-note aid-warn"><strong>실수 2 — 스코프를 “일단 넉넉히” 받아 둔다.</strong> 나중에 401이 뜨는 게 귀찮아서 <code>repo</code> 전체를 받아 놓는 식입니다. 새 규격은 반대 방향을 권합니다 — 서버가 401의 <code>WWW-Authenticate</code>에 필요한 스코프를 적어 주고, 클라이언트는 부족할 때마다 <strong>단계적으로 올려 받는(step-up)</strong> 구조입니다. 프롬프트 인젝션이 성공했을 때 피해 범위를 결정하는 건 결국 토큰에 붙은 스코프입니다.</p></div>
+
+<div class="aid-note aid-warn"><strong>실수 3 — 위임 대신 임퍼소네이션을 쓴다.</strong> <code>actor_token</code> 없이 <code>subject_token</code>만 보내면 “사람 A가 직접 한 일”로 기록됩니다. 편하지만 그 순간 로그에서 사람과 봇을 영영 구분할 수 없게 됩니다. <em>기본값은 위임</em>으로 두세요.</p></div>
+
+<div class="aid-note aid-warn"><strong>실수 4 — 중첩된 <code>act</code>로 접근 제어를 한다.</strong> “오케스트레이터가 부른 거니까 허용” 같은 판단은 규격상 하면 안 됩니다. 최상위 클레임과 현재 행위자만 판단 근거입니다. 체인 전체를 판단에 쓰고 싶다면 별도 설계(또는 진행 중인 actor chain 프로파일)가 필요합니다.</p></div>
+
+<div class="aid-note aid-warn"><strong>실수 5 — 메타데이터 URL을 검증 없이 따라간다.</strong> 401의 <code>resource_metadata</code>는 <em>서버가 준 값</em>입니다. 악의적인 MCP 서버가 <code>http://169.254.169.254/</code>(클라우드 메타데이터 엔드포인트) 같은 주소를 넣어 두면 클라이언트가 대신 찔러 주는 SSRF가 됩니다. 규격이 이 위험을 따로 다루는 이유입니다 — HTTPS 강제, 사설 IP 차단, 리다이렉트 제한을 걸어 두세요.</p></div>
+
+<div class="aid-note aid-good"><strong>팁 — 감사 로그에 두 개의 ID를 남기세요.</strong> <code>actor=agent:invoice-bot</code>과 <code>on_behalf_of=user:a@example.com</code>을 같은 줄에 남기면, 나중에 “누가 시켰나”와 “무엇이 실행했나”를 각각 필터링할 수 있습니다. 토큰 클레임에만 의존하지 말고 애플리케이션 로그에 직접 남기는 편이 낫습니다. 토큰은 만료되지만 로그는 남으니까요.</p></div>
+
+<div class="aid-note aid-good"><strong>팁 — 로컬(stdio) MCP 서버는 이 규격을 따르지 않습니다.</strong> 규격은 stdio 전송을 쓰는 구현이라면 이 인가 흐름을 <strong>따르지 말고(SHOULD NOT)</strong> 환경에서 자격 증명을 가져오라고 명시합니다. 내 노트북에서 도는 서버에 OAuth를 붙이느라 시간을 쓸 필요는 없습니다. 이 글의 내용은 HTTP로 노출되는 순간부터 필요한 이야기입니다.</p></div>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>에이전트 인증의 질문은 “토큰이 유효한가”가 아니라 “이 토큰은 어디에 쓰라고 준 것인가”입니다.</strong> 답을 담는 자리가 <code>aud</code>(오디언스)이고, 좁히는 도구가 <code>resource</code> 파라미터(RFC 8707)입니다.</li>
+  <li><strong>토큰 패스스루는 MCP 규격이 MUST NOT으로 금지합니다.</strong> 받은 토큰을 상류로 그대로 넘기면 보안 통제가 무력해지고, 감사 추적이 끊기고, 한 곳 유출이 전부 유출이 됩니다.</li>
+  <li><strong>2026-07-28 규격의 최소선 다섯 줄</strong> — 서버는 RFC 9728 메타데이터 제공(MUST), 클라이언트는 <code>resource</code> 항상 전송(MUST), 서버는 <code>aud</code> 검증(MUST), 토큰 패스스루 금지(MUST NOT), PKCE 미지원이면 진행 거부(MUST). 클라이언트 등록은 Client ID Metadata Documents 중심으로 옮겨 갔고 DCR은 deprecated입니다.</li>
+  <li><strong>정적 <code>client_id</code>를 쓰는 MCP 프록시는 클라이언트별 동의를 직접 받으세요.</strong> 안 그러면 예전 동의 쿠키를 재사용해 동의 화면을 건너뛰는 confused deputy 공격이 성립합니다.</li>
+  <li><strong>여러 홉을 건널 땐 토큰을 넘기지 말고 교환하세요.</strong> RFC 8693 token exchange에서 <code>subject_token</code>(누구를 대신해)과 <code>actor_token</code>(누가 행동하는지)을 <em>둘 다</em> 보내면 <code>sub</code> + <code>act</code> 구조의 위임 토큰을 받습니다. 임퍼소네이션은 기본값으로 삼지 마세요.</li>
+  <li><strong>단, 중첩된 <code>act</code>는 정보 제공용입니다.</strong> 접근 제어에 쓸 수 있는 건 최상위 클레임과 현재 행위자까지입니다. 검증 가능한 위임 체인은 IETF에서 지금 만들고 있는 중이니, 그전까지는 감사 로그를 따로 남기는 게 답입니다.</li>
+  <li><strong>권한은 내려갈수록 좁아지고, 책임 표시는 내려갈수록 쌓여야 합니다.</strong> 이 두 방향이 반대라는 점만 기억해도 설계의 절반은 맞습니다.</li>
+</ul>
+
+<h2 id="sec-ref">10. 참고 자료</h2>
+
+<ul>
+  <li>Model Context Protocol, “Authorization”(2026-07-28 규격 원문 — OAuth 2.1·RFC 9728·RFC 8707·RFC 9207 요구사항) — <a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization" target="_blank" rel="noopener">modelcontextprotocol.io</a></li>
+  <li>Model Context Protocol, “Authorization Security Considerations”(토큰 오디언스 바인딩·토큰 탈취·confused deputy) — <a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations" target="_blank" rel="noopener">modelcontextprotocol.io</a></li>
+  <li>Model Context Protocol, “Client Registration”(Client ID Metadata Documents·DCR deprecated) — <a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration" target="_blank" rel="noopener">modelcontextprotocol.io</a></li>
+  <li>Model Context Protocol, “Security Best Practices”(Token Passthrough 안티패턴·confused deputy 공격 흐름·SSRF) — <a href="https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices" target="_blank" rel="noopener">modelcontextprotocol.io</a></li>
+  <li>Model Context Protocol Blog, “The 2026-07-28 Specification”(개정 요약) — <a href="https://blog.modelcontextprotocol.io/posts/2026-07-28/" target="_blank" rel="noopener">blog.modelcontextprotocol.io</a></li>
+  <li>IETF, RFC 8693 “OAuth 2.0 Token Exchange”(<code>subject_token</code>·<code>actor_token</code>·<code>act</code>·<code>may_act</code>) — <a href="https://www.rfc-editor.org/info/rfc8693/" target="_blank" rel="noopener">rfc-editor.org</a></li>
+  <li>IETF, RFC 8707 “Resource Indicators for OAuth 2.0” — <a href="https://www.rfc-editor.org/rfc/rfc8707.html" target="_blank" rel="noopener">rfc-editor.org</a></li>
+  <li>IETF, RFC 9728 “OAuth 2.0 Protected Resource Metadata” — <a href="https://datatracker.ietf.org/doc/html/rfc9728" target="_blank" rel="noopener">datatracker.ietf.org</a></li>
+  <li>IETF 초안, “Cryptographically Verifiable Actor Chains for OAuth 2.0 Token Exchange”(중첩 <code>act</code>의 한계와 6개 프로파일) — <a href="https://datatracker.ietf.org/doc/draft-mw-oauth-actor-chain/" target="_blank" rel="noopener">datatracker.ietf.org</a></li>
+  <li>Authlete, “RFC 8693 OAuth 2.0 Token Exchange”(위임 vs 임퍼소네이션 해설) — <a href="https://www.authlete.com/developers/token_exchange/" target="_blank" rel="noopener">authlete.com</a></li>
+  <li>WorkOS, “The biggest MCP spec update ships July 28: What changes for AI agent authentication” — <a href="https://workos.com/blog/mcp-2026-spec-agent-authentication" target="_blank" rel="noopener">workos.com</a></li>
+  <li>WorkOS, “AI agents and the multi-hop delegation problem” — <a href="https://workos.com/blog/oauth-multi-hop-delegation-ai-agents" target="_blank" rel="noopener">workos.com</a></li>
+  <li>Microsoft Learn, “What are agent identities?”(Entra Agent ID) — <a href="https://learn.microsoft.com/en-us/entra/agent-id/what-are-agent-identities" target="_blank" rel="noopener">learn.microsoft.com</a></li>
+  <li>Microsoft Learn, “Agent OAuth flows — On-behalf-of flow” — <a href="https://learn.microsoft.com/en-us/entra/agent-id/agent-on-behalf-of-oauth-flow" target="_blank" rel="noopener">learn.microsoft.com</a></li>
+  <li>SecurityWeek, “Black Hat USA 2026 — Summary of Vendor Announcements”(에이전트 신원 제품군) — <a href="https://www.securityweek.com/black-hat-usa-2026-summary-of-vendor-announcements-part-1/" target="_blank" rel="noopener">securityweek.com</a></li>
+  <li>Tigera, “MCP’s Auth Hardening: What the Six New OAuth SEPs Fix, and What They Still Don’t” — <a href="https://www.tigera.io/blog/mcps-auth-hardening-what-the-six-new-oauth-seps-fix-and-what-they-still-dont/" target="_blank" rel="noopener">tigera.io</a></li>
+  <li><strong>[한국어]</strong> Dale Seo, “MCP Authentication: OAuth 2.1 기반 인증 제대로 이해하기” — <a href="https://daleseo.com/mcp-auth/" target="_blank" rel="noopener">daleseo.com</a></li>
+  <li><strong>[한국어]</strong> WikiDocs, “MCP 서버 실전 가이드 — 14장 인증과 원격 배포” — <a href="https://wikidocs.net/340720" target="_blank" rel="noopener">wikidocs.net</a></li>
+  <li><strong>[한국어]</strong> CrewAI 문서, “MCP 보안 고려사항” — <a href="https://docs.crewai.com/v1.15.1/ko/mcp/security" target="_blank" rel="noopener">docs.crewai.com</a></li>
+</ul>

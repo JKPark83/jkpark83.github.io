@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 396" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="396" fill="#ffffff"/>
+  <text x="24" y="32" font-size="19" font-weight="700" fill="#0f172a">Agent Builder 시사점 — 궤적 신뢰도로 승인 자동화하기</text>
+  <text x="24" y="54" font-size="12.5" fill="#64748b">단일 응답 confidence가 아니라 &lt;궤적 단위&gt; 일관성으로 게이트를 건다</text>
+
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- step 1 -->
+  <rect x="24" y="86" width="168" height="84" rx="9" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="38" y="108" font-size="11.5" font-weight="700" fill="#475569">① 궤적 실행</text>
+  <text x="38" y="128" font-size="11" fill="#64748b">도구 호출 + 상태 갱신을</text>
+  <text x="38" y="144" font-size="11" fill="#64748b">하나의 단위로 기록</text>
+  <text x="38" y="161" font-size="11" fill="#94a3b8">단일 턴 아님</text>
+
+  <!-- step 2 -->
+  <rect x="216" y="86" width="180" height="84" rx="9" fill="#f5f3ff" stroke="#c4b5fd"/>
+  <text x="230" y="108" font-size="11.5" font-weight="700" fill="#6d28d9">② 리샘플 K회</text>
+  <text x="230" y="128" font-size="11" fill="#5b21b6">같은 입력으로 궤적을</text>
+  <text x="230" y="144" font-size="11" fill="#5b21b6">K번 재생성 (K=3~5)</text>
+  <text x="230" y="161" font-size="11" fill="#8b5cf6">black-box, 로짓 불필요</text>
+
+  <!-- step 3 -->
+  <rect x="420" y="86" width="188" height="84" rx="9" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="434" y="108" font-size="11.5" font-weight="700" fill="#1d4ed8">③ 일관성 점수</text>
+  <text x="434" y="128" font-size="11" fill="#1e40af">action-set 일치율 /</text>
+  <text x="434" y="144" font-size="11" fill="#1e40af">궤적 동등성 비교</text>
+  <text x="434" y="161" font-size="11" fill="#3b82f6">논문상 최강 계열</text>
+
+  <g stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#ar)">
+    <path d="M192,128 L212,128"/>
+    <path d="M396,128 L416,128"/>
+    <path d="M514,170 L514,196"/>
+  </g>
+
+  <!-- gate -->
+  <rect x="396" y="198" width="236" height="46" rx="9" fill="#0f172a"/>
+  <text x="514" y="219" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">승인 게이트</text>
+  <text x="514" y="236" font-size="11" fill="#cbd5e1" text-anchor="middle">일관성 &gt;= 임계값 ?</text>
+
+  <g stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#ar)">
+    <path d="M420,244 L330,278"/>
+    <path d="M608,244 L672,278"/>
+  </g>
+
+  <!-- pass -->
+  <rect x="150" y="280" width="220" height="76" rx="9" fill="#ecfdf5" stroke="#6ee7b7"/>
+  <text x="164" y="302" font-size="11.5" font-weight="700" fill="#047857">✅ 자동 승인</text>
+  <text x="164" y="321" font-size="11" fill="#065f46">Codex --approve-for-me 로</text>
+  <text x="164" y="337" font-size="11" fill="#065f46">사람 개입 없이 진행</text>
+  <text x="164" y="352" font-size="10.5" fill="#10b981">단, 샌드박스 정책은 그대로 적용</text>
+
+  <!-- fail -->
+  <rect x="480" y="280" width="252" height="76" rx="9" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="494" y="302" font-size="11.5" font-weight="700" fill="#b91c1c">⛔ 사람에게 에스컬레이션</text>
+  <text x="494" y="321" font-size="11" fill="#991b1b">불일치 = 되돌릴 수 없는 액션의</text>
+  <text x="494" y="337" font-size="11" fill="#991b1b">위험 신호. 여기서만 사람을 부른다</text>
+  <text x="494" y="352" font-size="10.5" fill="#ef4444">승인 피로도를 여기에 집중</text>
+
+  <text x="24" y="384" font-size="10.5" fill="#94a3b8">근거: arXiv 2608.11552 (궤적 단위 UQ 비교 연구) + Codex CLI 승인 자동화 플래그. 자체 제작 도식.</text>
+</svg>

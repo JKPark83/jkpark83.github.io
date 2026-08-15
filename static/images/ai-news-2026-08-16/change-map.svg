@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="430" fill="#ffffff"/>
+  <text x="24" y="32" font-size="19" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 — 2026-08-16</text>
+  <text x="24" y="54" font-size="12.5" fill="#64748b">주제: 에이전트에게 &lt;얼마나 자율을 줄까&gt; — 신뢰 측정과 권한 경계</text>
+
+  <!-- center -->
+  <ellipse cx="380" cy="234" rx="118" ry="45" fill="#0f172a"/>
+  <text x="380" y="228" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">자율성 예산</text>
+  <text x="380" y="248" font-size="11.5" fill="#cbd5e1" text-anchor="middle">신뢰 측정 · 권한 · 자원 상한</text>
+
+  <!-- connectors -->
+  <g stroke="#cbd5e1" stroke-width="1.5" fill="none">
+    <path d="M296,202 L200,146"/>
+    <path d="M464,202 L560,146"/>
+    <path d="M296,266 L200,332"/>
+    <path d="M464,266 L560,332"/>
+    <path d="M380,279 L380,336"/>
+  </g>
+
+  <!-- 모델 -->
+  <rect x="36" y="94" width="184" height="88" rx="9" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="50" y="116" font-size="12" font-weight="700" fill="#1d4ed8">🤖 모델</text>
+  <text x="50" y="135" font-size="11.5" fill="#1e40af">Qwen3.8-27B 오픈웨이트</text>
+  <text x="50" y="151" font-size="11.5" fill="#1e40af">Apache-2.0 · 27.8B · 262K ctx</text>
+  <text x="50" y="167" font-size="11.5" fill="#1e40af">OSWorld 63.9 → 84.3</text>
+
+  <!-- 논문 -->
+  <rect x="540" y="94" width="188" height="88" rx="9" fill="#f5f3ff" stroke="#c4b5fd"/>
+  <text x="554" y="116" font-size="12" font-weight="700" fill="#6d28d9">📚 논문</text>
+  <text x="554" y="135" font-size="11.5" fill="#5b21b6">2608.11552 — 궤적 단위</text>
+  <text x="554" y="151" font-size="11.5" fill="#5b21b6">불확실성 측정(UQ)</text>
+  <text x="554" y="167" font-size="11.5" fill="#5b21b6">2608.10760 — MCP 인증 게이트웨이</text>
+
+  <!-- 오픈소스 -->
+  <rect x="36" y="316" width="184" height="86" rx="9" fill="#ecfdf5" stroke="#6ee7b7"/>
+  <text x="50" y="338" font-size="12" font-weight="700" fill="#047857">🛠 오픈 배포</text>
+  <text x="50" y="357" font-size="11.5" fill="#065f46">GGUF/FP8/NVFP4/MLX가</text>
+  <text x="50" y="373" font-size="11.5" fill="#065f46">공개 24시간 안에 정렬</text>
+  <text x="50" y="389" font-size="11.5" fill="#065f46">unsloth GGUF 86.8만 DL</text>
+
+  <!-- 툴링 -->
+  <rect x="540" y="316" width="188" height="86" rx="9" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="554" y="338" font-size="12" font-weight="700" fill="#c2410c">🧑‍💻 툴링</text>
+  <text x="554" y="357" font-size="11.5" fill="#9a3412">Claude Code v2.1.233</text>
+  <text x="554" y="373" font-size="11.5" fill="#9a3412">Bash 메모리 cgroup 상한</text>
+  <text x="554" y="389" font-size="11.5" fill="#9a3412">Codex --approve-for-me</text>
+
+  <!-- 실행 -->
+  <rect x="266" y="336" width="228" height="66" rx="9" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="280" y="358" font-size="12" font-weight="700" fill="#b91c1c">✅ 오늘 할 일</text>
+  <text x="280" y="377" font-size="11.5" fill="#991b1b">되돌릴 수 없는 액션 앞에</text>
+  <text x="280" y="393" font-size="11.5" fill="#991b1b">자기일관성 게이트 1개 붙이기</text>
+
+  <text x="24" y="422" font-size="10.5" fill="#94a3b8">수치 출처: Hugging Face API / Qwen3.8-27B 공식 모델 카드 / arXiv. 자체 제작 도식.</text>
+</svg>

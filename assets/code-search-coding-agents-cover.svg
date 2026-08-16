@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="코딩 에이전트의 코드 검색 방식 세 가지를 비교한 그림. 가운데에 저장소가 있고 여기서 세 갈래 길이 뻗어 나간다. 첫째는 어휘와 구조 검색으로 ripgrep과 ast-grep과 LSP를 쓰며 인덱스가 필요 없고 항상 최신이지만 정확한 이름을 알아야 한다. 둘째는 임베딩 기반 의미 검색으로 이름을 몰라도 개념으로 찾을 수 있지만 인덱스를 계속 다시 만들어야 한다. 셋째는 코드 그래프로 호출 관계를 따라가 구조 질문에 강하지만 미리 만들어 둬야 한다. 아래 띠에는 2026년 8월 13일 voyage-code-4 공개와 함께 이 논쟁이 다시 불붙었고 실무 결론은 셋 중 하나를 고르는 것이 아니라 에이전트에게 셋 다 쥐어 주고 고르게 하는 하이브리드라고 적혀 있다.">
+  <defs>
+    <linearGradient id="csa-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#141d30"/>
+    </linearGradient>
+    <marker id="csa-ar-a" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#fbbf24"/>
+    </marker>
+    <marker id="csa-ar-s" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#38bdf8"/>
+    </marker>
+    <marker id="csa-ar-v" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#a78bfa"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#csa-bg)"/>
+
+  <text x="60" y="76" font-size="40" font-weight="800" fill="#f1f5f9" font-family="system-ui,sans-serif">코딩 에이전트는 코드를 어떻게 찾을까</text>
+  <text x="60" y="118" font-size="21" fill="#94a3b8" font-family="system-ui,sans-serif">grep · 임베딩 · 코드 그래프 — 하나를 고르는 문제가 아니다</text>
+  <line x1="60" y1="142" x2="1140" y2="142" stroke="#334155" stroke-width="1.5"/>
+
+  <!-- repo -->
+  <rect x="60" y="290" width="170" height="90" rx="14" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+  <text x="145" y="326" text-anchor="middle" font-size="19" font-weight="700" fill="#e2e8f0" font-family="system-ui,sans-serif">저장소</text>
+  <text x="145" y="352" text-anchor="middle" font-size="14" fill="#94a3b8" font-family="system-ui,sans-serif">커밋마다 바뀜</text>
+
+  <!-- lanes -->
+  <path d="M232,320 C300,320 300,215 356,215" stroke="#fbbf24" stroke-width="3" fill="none" marker-end="url(#csa-ar-a)"/>
+  <path d="M232,335 C300,335 300,335 356,335" stroke="#38bdf8" stroke-width="3" fill="none" marker-end="url(#csa-ar-s)"/>
+  <path d="M232,350 C300,350 300,455 356,455" stroke="#a78bfa" stroke-width="3" fill="none" marker-end="url(#csa-ar-v)"/>
+
+  <!-- lane 1: lexical -->
+  <rect x="366" y="172" width="470" height="86" rx="13" fill="#fbbf24" opacity="0.13"/>
+  <rect x="366" y="172" width="470" height="86" rx="13" fill="none" stroke="#fbbf24" stroke-width="1.5"/>
+  <text x="392" y="203" font-size="20" font-weight="700" fill="#fbbf24" font-family="system-ui,sans-serif">① 어휘 · 구조 검색</text>
+  <text x="392" y="228" font-size="15" fill="#cbd5e1" font-family="ui-monospace,monospace">ripgrep · ast-grep · LSP</text>
+  <text x="392" y="248" font-size="14" fill="#94a3b8" font-family="system-ui,sans-serif">인덱스 없음 · 항상 최신 · 이름을 알아야 함</text>
+
+  <!-- lane 2: semantic -->
+  <rect x="366" y="292" width="470" height="86" rx="13" fill="#38bdf8" opacity="0.13"/>
+  <rect x="366" y="292" width="470" height="86" rx="13" fill="none" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="392" y="323" font-size="20" font-weight="700" fill="#38bdf8" font-family="system-ui,sans-serif">② 의미(임베딩) 검색</text>
+  <text x="392" y="348" font-size="15" fill="#cbd5e1" font-family="ui-monospace,monospace">voyage-code-4 · 청크 임베딩</text>
+  <text x="392" y="368" font-size="14" fill="#94a3b8" font-family="system-ui,sans-serif">이름을 몰라도 찾음 · 인덱스가 낡는다</text>
+
+  <!-- lane 3: graph -->
+  <rect x="366" y="412" width="470" height="86" rx="13" fill="#a78bfa" opacity="0.13"/>
+  <rect x="366" y="412" width="470" height="86" rx="13" fill="none" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="392" y="443" font-size="20" font-weight="700" fill="#a78bfa" font-family="system-ui,sans-serif">③ 코드 그래프</text>
+  <text x="392" y="468" font-size="15" fill="#cbd5e1" font-family="ui-monospace,monospace">tree-sitter · 호출 · 참조 관계</text>
+  <text x="392" y="488" font-size="14" fill="#94a3b8" font-family="system-ui,sans-serif">“이걸 고치면 뭐가 깨지나”에 강함</text>
+
+  <!-- agent -->
+  <path d="M846,215 C910,215 910,320 962,320" stroke="#475569" stroke-width="2.5" fill="none"/>
+  <path d="M846,335 C910,335 910,335 962,335" stroke="#475569" stroke-width="2.5" fill="none"/>
+  <path d="M846,455 C910,455 910,350 962,350" stroke="#475569" stroke-width="2.5" fill="none"/>
+
+  <rect x="970" y="272" width="170" height="126" rx="14" fill="#0d9488" opacity="0.16"/>
+  <rect x="970" y="272" width="170" height="126" rx="14" fill="none" stroke="#2dd4bf" stroke-width="1.8"/>
+  <text x="1055" y="312" text-anchor="middle" font-size="20" font-weight="700" fill="#2dd4bf" font-family="system-ui,sans-serif">에이전트</text>
+  <text x="1055" y="342" text-anchor="middle" font-size="14" fill="#cbd5e1" font-family="system-ui,sans-serif">질의 모양을 보고</text>
+  <text x="1055" y="362" text-anchor="middle" font-size="14" fill="#cbd5e1" font-family="system-ui,sans-serif">도구를 고른다</text>
+  <text x="1055" y="384" text-anchor="middle" font-size="13" fill="#94a3b8" font-family="system-ui,sans-serif">→ 파일로 검증</text>
+
+  <!-- bottom band -->
+  <rect x="60" y="528" width="1080" height="62" rx="12" fill="#1e293b" stroke="#334155"/>
+  <text x="86" y="554" font-size="15" fill="#94a3b8" font-family="system-ui,sans-serif">2026-08-13 voyage-code-4 공개로 “grep이면 충분한가” 논쟁이 다시 붙었습니다.</text>
+  <text x="86" y="578" font-size="15" font-weight="700" fill="#e2e8f0" font-family="system-ui,sans-serif">실무의 답: 하나를 고르지 말고, 세 가지를 도구로 쥐어 준 다음 에이전트가 고르게 한다.</text>
+</svg>

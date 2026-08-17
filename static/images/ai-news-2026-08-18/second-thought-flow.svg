@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 476" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="476" fill="#ffffff"/>
+  <text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">Second Thought — 툴 실행 대기 구간을 병렬 추론으로 채우기</text>
+  <text x="24" y="50" font-size="12" fill="#64748b">학습 없이 추론 프레임워크만 교체. 주 스레드의 순차 디코딩 경로에서 추가 추론을 빼낸다.</text>
+
+  <text x="24" y="86" font-size="12.5" font-weight="700" fill="#b91c1c">기존 ReAct — 추론이 멈추는 구간</text>
+  <rect x="24" y="98" width="112" height="42" rx="6" fill="#e0e7ff" stroke="#818cf8"/>
+  <text x="80" y="124" font-size="12" fill="#3730a3" text-anchor="middle">Thought</text>
+
+  <rect x="144" y="98" width="330" height="42" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-dasharray="5 3"/>
+  <text x="309" y="118" font-size="12" font-weight="700" fill="#b91c1c" text-anchor="middle">reasoning idle window</text>
+  <text x="309" y="134" font-size="11" fill="#dc2626" text-anchor="middle">Action 직렬화 → 환경 실행 대기 (추론 동결)</text>
+
+  <rect x="482" y="98" width="112" height="42" rx="6" fill="#ecfdf5" stroke="#6ee7b7"/>
+  <text x="538" y="124" font-size="12" fill="#065f46" text-anchor="middle">Observation</text>
+
+  <rect x="602" y="98" width="112" height="42" rx="6" fill="#e0e7ff" stroke="#818cf8"/>
+  <text x="658" y="124" font-size="12" fill="#3730a3" text-anchor="middle">Thought</text>
+
+  <line x1="24" y1="166" x2="736" y2="166" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text x="24" y="196" font-size="12.5" font-weight="700" fill="#1d4ed8">Second Thought — 같은 구간에 4갈래를 동시 디코딩</text>
+
+  <rect x="24" y="208" width="112" height="40" rx="6" fill="#e0e7ff" stroke="#818cf8"/>
+  <text x="80" y="233" font-size="12" fill="#3730a3" text-anchor="middle">Thought</text>
+
+  <rect x="144" y="208" width="330" height="40" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="309" y="233" font-size="11.5" fill="#475569" text-anchor="middle">주 스레드: Action 직렬화 → 환경 실행 대기</text>
+
+  <rect x="482" y="208" width="112" height="40" rx="6" fill="#ecfdf5" stroke="#6ee7b7"/>
+  <text x="538" y="233" font-size="12" fill="#065f46" text-anchor="middle">Observation</text>
+
+  <rect x="602" y="208" width="112" height="40" rx="6" fill="#dbeafe" stroke="#60a5fa"/>
+  <text x="658" y="227" font-size="11.5" font-weight="700" fill="#1e40af" text-anchor="middle">merge</text>
+  <text x="658" y="242" font-size="10.5" fill="#1d4ed8" text-anchor="middle">다음 턴에 주입</text>
+
+  <g stroke="#93c5fd" stroke-width="1.4" fill="none">
+    <path d="M136,248 L176,274"/>
+    <path d="M136,248 L176,306"/>
+    <path d="M136,248 L176,338"/>
+    <path d="M136,248 L176,370"/>
+    <path d="M440,275 L602,250"/>
+    <path d="M440,307 L602,252"/>
+    <path d="M440,339 L602,254"/>
+    <path d="M440,371 L602,256"/>
+  </g>
+
+  <g>
+    <rect x="176" y="262" width="264" height="26" rx="5" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="188" y="279" font-size="11" fill="#1e40af">보조 브랜치 1 — 관측 결과 사전 가정</text>
+    <rect x="176" y="294" width="264" height="26" rx="5" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="188" y="311" font-size="11" fill="#1e40af">보조 브랜치 2 — 실패 시 대안 경로</text>
+    <rect x="176" y="326" width="264" height="26" rx="5" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="188" y="343" font-size="11" fill="#1e40af">보조 브랜치 3 — 다음 액션 후보 정리</text>
+    <rect x="176" y="358" width="264" height="26" rx="5" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="188" y="375" font-size="11" fill="#1e40af">보조 브랜치 4 — 목표 대비 진행 점검</text>
+  </g>
+
+  <rect x="24" y="400" width="712" height="60" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="40" y="422" font-size="12" font-weight="700" fill="#334155">검증된 결과 (에이전틱 벤치 3종 × 추론 LLM 3종 = 9쌍)</text>
+  <text x="40" y="443" font-size="11.5" fill="#475569">· 평균 턴 수: 9쌍 전부 감소   · 주 스레드 디코딩: 6쌍에서 최대 −43%   · Pass@1: 7쌍 유의차 없음, 2쌍 +12.4 / +10.2</text>
+</svg>

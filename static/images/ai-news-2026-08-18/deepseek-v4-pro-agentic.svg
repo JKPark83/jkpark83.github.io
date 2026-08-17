@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 460" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="460" fill="#ffffff"/>
+  <text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">DeepSeek-V4-Pro — Preview → 0813 에이전틱 벤치 델타</text>
+  <text x="24" y="50" font-size="12" fill="#64748b">동일 모델 구조 + DSpark 스펙큘레이티브 디코딩 모듈, 점수는 높을수록 좋음 (0–100)</text>
+
+  <g font-size="11.5">
+    <rect x="24" y="62" width="12" height="12" rx="2" fill="#cbd5e1"/>
+    <text x="42" y="72" fill="#475569">V4-Pro (Preview)</text>
+    <rect x="164" y="62" width="12" height="12" rx="2" fill="#2563eb"/>
+    <text x="182" y="72" fill="#475569">V4-Pro-0813</text>
+  </g>
+
+  <g stroke="#e2e8f0" stroke-width="1">
+    <line x1="170" y1="88" x2="170" y2="418"/>
+    <line x1="278" y1="88" x2="278" y2="418"/>
+    <line x1="386" y1="88" x2="386" y2="418"/>
+    <line x1="494" y1="88" x2="494" y2="418"/>
+    <line x1="602" y1="88" x2="602" y2="418"/>
+    <line x1="710" y1="88" x2="710" y2="418"/>
+  </g>
+  <g font-size="10.5" fill="#94a3b8" text-anchor="middle">
+    <text x="170" y="434">0</text>
+    <text x="278" y="434">20</text>
+    <text x="386" y="434">40</text>
+    <text x="494" y="434">60</text>
+    <text x="602" y="434">80</text>
+    <text x="710" y="434">100</text>
+  </g>
+
+  <g font-size="11.5" fill="#334155">
+    <text x="24" y="118">Terminal Bench 2.1</text>
+    <text x="24" y="172">Cybergym</text>
+    <text x="24" y="226">Toolathlon-Verified</text>
+    <text x="24" y="280">DeepSWE</text>
+    <text x="24" y="334">NL2Repo</text>
+    <text x="24" y="388">AutomationBench</text>
+  </g>
+
+  <g>
+    <rect x="170" y="96" width="389" height="16" rx="3" fill="#cbd5e1"/>
+    <text x="565" y="109" font-size="10.5" fill="#64748b">72.1</text>
+    <rect x="170" y="116" width="475" height="16" rx="3" fill="#2563eb"/>
+    <text x="651" y="129" font-size="10.5" font-weight="700" fill="#1d4ed8">87.9</text>
+
+    <rect x="170" y="150" width="285" height="16" rx="3" fill="#cbd5e1"/>
+    <text x="461" y="163" font-size="10.5" fill="#64748b">52.7</text>
+    <rect x="170" y="170" width="450" height="16" rx="3" fill="#2563eb"/>
+    <text x="626" y="183" font-size="10.5" font-weight="700" fill="#1d4ed8">83.3</text>
+
+    <rect x="170" y="204" width="302" height="16" rx="3" fill="#cbd5e1"/>
+    <text x="478" y="217" font-size="10.5" fill="#64748b">55.9</text>
+    <rect x="170" y="224" width="400" height="16" rx="3" fill="#2563eb"/>
+    <text x="576" y="237" font-size="10.5" font-weight="700" fill="#1d4ed8">74.1</text>
+
+    <rect x="170" y="258" width="69" height="16" rx="3" fill="#cbd5e1"/>
+    <text x="245" y="271" font-size="10.5" fill="#64748b">12.8</text>
+    <rect x="170" y="278" width="339" height="16" rx="3" fill="#2563eb"/>
+    <text x="515" y="291" font-size="10.5" font-weight="700" fill="#1d4ed8">62.7</text>
+
+    <rect x="170" y="312" width="208" height="16" rx="3" fill="#cbd5e1"/>
+    <text x="384" y="325" font-size="10.5" fill="#64748b">38.5</text>
+    <rect x="170" y="332" width="332" height="16" rx="3" fill="#2563eb"/>
+    <text x="508" y="345" font-size="10.5" font-weight="700" fill="#1d4ed8">61.5</text>
+
+    <rect x="170" y="366" width="69" height="16" rx="3" fill="#cbd5e1"/>
+    <text x="245" y="379" font-size="10.5" fill="#64748b">12.8</text>
+    <rect x="170" y="386" width="172" height="16" rx="3" fill="#2563eb"/>
+    <text x="348" y="399" font-size="10.5" font-weight="700" fill="#1d4ed8">31.8</text>
+  </g>
+</svg>

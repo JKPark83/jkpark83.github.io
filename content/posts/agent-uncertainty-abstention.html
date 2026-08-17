@@ -1,0 +1,582 @@
+---
+title: "에이전트는 자기가 틀렸다는 걸 알까: 궤적 단위 불확실성 측정과 멈출 줄 아는 에이전트"
+date: 2026-08-18T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "agent", "uncertainty quantification", "불확실성", "UQ", "calibration", "보정", "abstention", "escalation", "에스컬레이션", "self-consistency", "자기 일관성", "selective prediction", "risk-coverage", "conformal prediction", "eval", "평가", "observability", "tool calling", "BFCL", "tau2-bench", "uqlm", "LLM", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트가 조용히 틀리는 게 무서운 이유는, 틀린 순간에도 목소리 톤이 똑같기 때문입니다. 8월 12일 공개된 arXiv:2608.11552는 단일 턴에서 쓰던 확신도 측정법이 여러 턴짜리 에이전트 궤적으로 그대로 옮겨가는지를 처음으로 체계적으로 뜯어봤고, 답은 \"옮겨가긴 하는데 고르지 않다\"였습니다. 이 글은 확신도를 뽑는 세 가지 신호(행동 토큰 확률·재실행 일관성·자기 평가)가 각각 무엇을 재고 어디서 무너지는지, 임계값을 감이 아니라 risk-coverage 곡선으로 정하는 법, 그리고 확신이 낮을 때 멈추거나 사람에게 넘기는 게이트를 실제 에이전트 루프에 붙이는 방법을 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-uncertainty-abstention-cover.svg"
+  alt: "왼쪽에는 여러 턴에 걸친 에이전트 궤적이 그려져 있고 세 번째 단계에서 조용히 어긋난 뒤 확신에 찬 틀린 답으로 끝난다. 오른쪽에는 확신도를 뽑는 세 신호가 나열되어 있다. 화이트박스는 행동 토큰 확률을 써서 공짜지만 턴을 합치는 방식에 흔들리고, 블랙박스는 같은 작업을 여러 번 돌려 궤적이 갈리는지를 봐서 가장 강하지만 비용이 배로 들며, 리플렉시브는 모델에게 직접 물어보는 값싼 기준선이다."
+  caption: "확신도는 모델이 주는 게 아니라 시스템이 만들어 내는 값입니다. 그리고 그 값은 내 워크로드에서 측정해야 쓸모가 생깁니다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 불확실성 포스트 전용 스타일 (aua- 접두사) ── */
+.aua-fig{
+  --aua-amber:#d97706; --aua-sky:#0284c7; --aua-violet:#7c3aed; --aua-green:#16a34a;
+  --aua-rose:#e11d48; --aua-slate:#64748b; --aua-teal:#0d9488; --aua-blue:#2563eb;
+  --aua-grid:#cbd5e1; --aua-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .aua-fig{
+  --aua-amber:#fbbf24; --aua-sky:#38bdf8; --aua-violet:#a78bfa; --aua-green:#4ade80;
+  --aua-rose:#fb7185; --aua-slate:#94a3b8; --aua-teal:#2dd4bf; --aua-blue:#60a5fa;
+  --aua-grid:#334155; --aua-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .aua-fig{
+    --aua-amber:#fbbf24; --aua-sky:#38bdf8; --aua-violet:#a78bfa; --aua-green:#4ade80;
+    --aua-rose:#fb7185; --aua-slate:#94a3b8; --aua-teal:#2dd4bf; --aua-blue:#60a5fa;
+    --aua-grid:#334155; --aua-gray:#64748b;
+  }
+}
+.aua-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.aua-fig text{font-family:inherit}
+.aua-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.aua-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.aua-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.aua-toc ol{margin:0;padding-left:1.25rem}
+.aua-toc li{margin:.22rem 0;font-size:.95rem}
+.aua-toc a{text-decoration:none}
+.aua-toc a:hover{text-decoration:underline}
+.aua-pull{font-size:1.12rem;line-height:1.72}
+.aua-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.aua-note{border-left:4px solid var(--aua-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.aua-note strong{color:var(--aua-blue,#2563eb)}
+.aua-warn{border-left:4px solid var(--aua-rose,#e11d48)}
+.aua-warn strong{color:var(--aua-rose,#e11d48)}
+.aua-good{border-left:4px solid var(--aua-teal,#0d9488)}
+.aua-good strong{color:var(--aua-teal,#0d9488)}
+.aua-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.aua-tbl th,.aua-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.aua-tbl th{background:var(--entry);font-weight:700}
+.aua-tbl code{font-size:.86em}
+.aua-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="aua-pull">
+  “LLM의 불확실성 측정법은 보통 단일 턴 출력에서 평가됩니다. 하지만 에이전트에서 관측 단위는 <em>상호작용 궤적</em>입니다. 모델은 되묻고, 도구를 부르고, 상태를 갱신하고, 중간 결정을 내리며, 그 오류가 최종 결과까지 전파됩니다.”
+  <footer>— arXiv:2608.11552, “Beyond Single-Turn Confidence” (2026-08-12 공개)</footer>
+</blockquote>
+
+<div class="aua-toc">
+  <div class="aua-toc-title">이 글의 순서</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 조용히 틀리는 게 왜 제일 비싼가</a></li>
+    <li><a href="#sec-2">배경 — “확신도”가 실제로 뜻하는 것</a></li>
+    <li><a href="#sec-3">단일 턴 확신도가 궤적에서 깨지는 지점</a></li>
+    <li><a href="#sec-4">신호 세 갈래 — 화이트박스 · 블랙박스 · 리플렉시브</a></li>
+    <li><a href="#sec-5">숫자로 보기 — 갈리는 작업은 정말 더 많이 틀린다</a></li>
+    <li><a href="#sec-6">실전 — 에이전트 루프에 확신도 게이트 붙이기</a></li>
+    <li><a href="#sec-7">임계값을 감이 아니라 곡선으로 정하기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 조용히 틀리는 게 왜 제일 비싼가</h2>
+
+<p>에이전트를 처음 붙여 보면 제일 먼저 놀라는 건 성능이 아니라 <strong>말투</strong>입니다. 정답을 낼 때와 헛소리를 할 때의 어조가 똑같습니다. 환불 API를 정확히 호출했을 때도 “처리했습니다”라고 하고, 엉뚱한 주문 번호로 호출했을 때도 똑같이 “처리했습니다”라고 합니다.</p>
+
+<p>사람이라면 애매할 때 목소리가 흔들립니다. “어… 이거 맞나요?” 같은 신호가 나옵니다. 에이전트에는 그 신호가 기본으로 달려 있지 않습니다. 그래서 운영에서 진짜 아픈 실패는 크게 터지는 실패가 아니라 <em>조용히 지나가는 실패</em>입니다. 로그에는 성공으로 찍히고, 며칠 뒤 고객이 알려 줍니다.</p>
+
+<p>여기서 필요한 게 <strong>불확실성 측정(uncertainty quantification, UQ)</strong>입니다. 모델 출력에 “이 답을 얼마나 믿어도 되는가”라는 숫자를 하나 붙이는 일입니다. 그 숫자가 쓸 만하면 임계값을 걸어 낮을 때는 멈추거나(abstain), 사람에게 넘기거나(escalate), 더 센 모델로 다시 돌릴 수 있습니다.</p>
+
+<p><strong>이번 주에 왜 화제였나.</strong> 2026년 8월 12일 arXiv에 <a href="https://arxiv.org/abs/2608.11552" target="_blank" rel="noopener">“Beyond Single-Turn Confidence: Trajectory-Adapted Uncertainty Quantification for LLM Agents”</a>(arXiv:2608.11552)가 올라왔습니다. UQLM 라이브러리를 만든 Dylan Bouchard와 Mohit Singh Chauhan이 쓴 글로, 질문 하나에 답 하나를 내는 <em>단일 턴</em> 환경에서 검증된 확신도 측정법들이 <em>여러 턴짜리 에이전트 궤적</em>으로 그대로 옮겨가는지를 처음으로 체계적으로 뜯어봤습니다. 모델 5종, BFCL-v4와 τ²-bench에서 가져온 다중 턴 도구 사용 데이터셋 4종을 썼습니다.</p>
+
+<p>결론이 재미있습니다. <strong>옮겨가긴 하는데 고르지 않았습니다.</strong> 어떤 방법도 모든 모델과 도메인에서 한결같이 믿을 만하지는 않았습니다. 즉 “이 지표 쓰면 됩니다”라는 답은 없고, 각 신호가 무엇을 재고 어디서 무너지는지를 알고 <em>내 워크로드에서 재 보는</em> 수밖에 없다는 뜻입니다. 이 글은 그 지도를 그립니다.</p>
+
+<div class="aua-note"><strong>이 글에서 얻어 갈 것.</strong> ① 확신도 신호 세 갈래가 각각 무엇을 재는지, ② 왜 단일 턴 감각이 궤적에서 깨지는지, ③ 임계값을 감이 아니라 risk-coverage 곡선으로 정하는 법, ④ 실제 에이전트 루프에 게이트를 붙이는 코드.</div>
+
+<h2 id="sec-2">2. 배경 — “확신도”가 실제로 뜻하는 것</h2>
+
+<p>먼저 말을 정리하겠습니다. 확신도라고 부르는 숫자에는 성질이 다른 두 가지가 섞여 있습니다.</p>
+
+<p><strong>① 그냥 점수.</strong> 0에서 1 사이 아무 숫자입니다. 순서만 맞으면 됩니다. 즉 “점수가 낮은 쪽이 실제로 더 자주 틀린다”만 성립하면 쓸모가 있습니다. 필터링과 정렬에는 이걸로 충분합니다.</p>
+
+<p><strong>② 보정된 확률.</strong> 훨씬 센 요구입니다. “확신도 0.8이라고 말한 답들을 모아 보면 실제로 80%가 맞다”가 성립해야 합니다. 이걸 <strong>보정(calibration)</strong>이 잘 됐다고 합니다.</p>
+
+<p>둘을 구별해야 하는 이유는 실무에서 필요한 게 대개 ①이기 때문입니다. “확신 낮은 하위 20%만 사람에게 넘긴다” 같은 정책에는 순서만 맞으면 됩니다. 반대로 “확신도를 그대로 고객에게 확률로 보여 준다”처럼 숫자 자체를 쓰려면 ②가 필요하고, 이건 훨씬 어렵습니다.</p>
+
+<div class="aua-note aua-warn"><strong>주의 — 모델이 말하는 확신도는 대체로 부풀어 있습니다.</strong> 모델에게 “확신도를 0~1로 말해 줘”라고 하면 값이 0.9~1.0 근처에 몰려 버리는 현상이 널리 보고돼 있습니다. 예를 들어 표 기반 질의응답을 다룬 <a href="https://arxiv.org/pdf/2604.12491" target="_blank" rel="noopener">한 2026년 연구</a>는 GPT-4o가 맞든 틀리든 평균 99.5%의 확신을 보고했고, 그 결과 오답을 가려내는 능력이 AUROC 0.522로 거의 동전 던지기 수준이었다고 보고합니다. 숫자를 그대로 믿지 말고, 반드시 내 데이터에서 검증하세요.</div>
+
+<p>용어 하나만 더 짚겠습니다. <strong>궤적(trajectory)</strong>은 에이전트가 요청을 받고 끝낼 때까지 밟은 전체 경로입니다. 되묻기, 도구 호출, 그 결과, 중간 판단, 최종 응답이 순서대로 담긴 하나의 기록입니다. 단일 턴 세계에서는 “출력 = 문장 하나”였지만, 에이전트 세계에서는 <em>출력이 곧 궤적</em>입니다. 여기서 모든 게 달라집니다.</p>
+
+<h2 id="sec-3">3. 단일 턴 확신도가 궤적에서 깨지는 지점</h2>
+
+<p>왜 그대로 옮겨가지 않는지, 세 가지로 나눠 보겠습니다.</p>
+
+<figure class="aua-fig" role="group" aria-labelledby="aua-fig1-cap">
+  <svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" aria-label="단일 턴과 궤적에서 확신도가 붙는 방식을 비교한 그림. 위쪽 단일 턴에서는 질문 하나에 답 하나가 나오고 거기에 확신도 0.82가 하나 붙어 끝난다. 아래쪽 궤적에서는 네 개의 턴이 이어지고 각 턴마다 0.91, 0.88, 0.41, 0.95라는 서로 다른 확신도가 붙는다. 세 번째 턴에서 0.41로 흔들렸지만 마지막 턴은 다시 0.95로 확신에 차 있어서, 마지막 값만 보면 위험을 놓치고 평균을 내도 0.79로 묻혀 버린다는 점을 보여 준다. 즉 턴별 값을 어떻게 하나로 합치느냐가 결과를 좌우한다.">
+    <!-- 단일 턴 -->
+    <rect x="16" y="16" width="728" height="120" rx="12" fill="var(--aua-slate)" opacity="0.09"/>
+    <rect x="16" y="16" width="728" height="120" rx="12" fill="none" stroke="var(--aua-slate)" stroke-width="1.3"/>
+    <text x="38" y="44" font-size="14.5" font-weight="700" fill="var(--aua-slate)">단일 턴 — 확신도가 붙을 자리가 하나뿐</text>
+
+    <rect x="46" y="62" width="150" height="46" rx="9" fill="none" stroke="var(--aua-slate)" stroke-width="1.4"/>
+    <text x="121" y="90" font-size="13" fill="var(--aua-slate)" text-anchor="middle">질문</text>
+    <line x1="200" y1="85" x2="248" y2="85" stroke="var(--aua-slate)" stroke-width="1.6"/>
+    <rect x="252" y="62" width="150" height="46" rx="9" fill="none" stroke="var(--aua-slate)" stroke-width="1.4"/>
+    <text x="327" y="90" font-size="13" fill="var(--aua-slate)" text-anchor="middle">답</text>
+    <line x1="406" y1="85" x2="454" y2="85" stroke="var(--aua-slate)" stroke-width="1.6"/>
+    <rect x="458" y="62" width="130" height="46" rx="9" fill="var(--aua-green)" opacity="0.16"/>
+    <rect x="458" y="62" width="130" height="46" rx="9" fill="none" stroke="var(--aua-green)" stroke-width="1.4"/>
+    <text x="523" y="90" font-size="14" font-weight="700" fill="var(--aua-green)" text-anchor="middle">0.82</text>
+    <text x="608" y="90" font-size="12.5" fill="var(--aua-slate)">끝. 해석이 명확</text>
+
+    <!-- 궤적 -->
+    <rect x="16" y="154" width="728" height="230" rx="12" fill="var(--aua-sky)" opacity="0.08"/>
+    <rect x="16" y="154" width="728" height="230" rx="12" fill="none" stroke="var(--aua-sky)" stroke-width="1.3"/>
+    <text x="38" y="182" font-size="14.5" font-weight="700" fill="var(--aua-sky)">궤적 — 턴마다 값이 나오고, 합치는 방식이 결과를 바꾼다</text>
+
+    <g font-size="12.5">
+      <rect x="46" y="200" width="118" height="44" rx="9" fill="none" stroke="var(--aua-sky)" stroke-width="1.3"/>
+      <text x="105" y="219" fill="var(--aua-slate)" text-anchor="middle">턴 1 이해</text>
+      <text x="105" y="236" font-size="13" font-weight="700" fill="var(--aua-green)" text-anchor="middle">0.91</text>
+
+      <line x1="168" y1="222" x2="196" y2="222" stroke="var(--aua-slate)" stroke-width="1.5"/>
+
+      <rect x="200" y="200" width="118" height="44" rx="9" fill="none" stroke="var(--aua-sky)" stroke-width="1.3"/>
+      <text x="259" y="219" fill="var(--aua-slate)" text-anchor="middle">턴 2 도구</text>
+      <text x="259" y="236" font-size="13" font-weight="700" fill="var(--aua-green)" text-anchor="middle">0.88</text>
+
+      <line x1="322" y1="222" x2="350" y2="222" stroke="var(--aua-slate)" stroke-width="1.5"/>
+
+      <rect x="354" y="200" width="118" height="44" rx="9" fill="var(--aua-rose)" opacity="0.14"/>
+      <rect x="354" y="200" width="118" height="44" rx="9" fill="none" stroke="var(--aua-rose)" stroke-width="1.7"/>
+      <text x="413" y="219" fill="var(--aua-rose)" text-anchor="middle">턴 3 판단</text>
+      <text x="413" y="236" font-size="13" font-weight="700" fill="var(--aua-rose)" text-anchor="middle">0.41</text>
+
+      <line x1="476" y1="222" x2="504" y2="222" stroke="var(--aua-slate)" stroke-width="1.5"/>
+
+      <rect x="508" y="200" width="118" height="44" rx="9" fill="none" stroke="var(--aua-sky)" stroke-width="1.3"/>
+      <text x="567" y="219" fill="var(--aua-slate)" text-anchor="middle">턴 4 응답</text>
+      <text x="567" y="236" font-size="13" font-weight="700" fill="var(--aua-amber)" text-anchor="middle">0.95</text>
+    </g>
+
+    <text x="46" y="278" font-size="12.5" fill="var(--aua-slate)">이 궤적의 확신도는 얼마입니까?</text>
+
+    <g font-size="12.5">
+      <rect x="46" y="292" width="216" height="34" rx="8" fill="var(--aua-rose)" opacity="0.12"/>
+      <text x="60" y="314" fill="var(--aua-rose)">마지막 값 0.95 → 위험을 놓친다</text>
+
+      <rect x="274" y="292" width="216" height="34" rx="8" fill="var(--aua-amber)" opacity="0.14"/>
+      <text x="288" y="314" fill="var(--aua-amber)">평균 0.79 → 흔들림이 묻힌다</text>
+
+      <rect x="502" y="292" width="216" height="34" rx="8" fill="var(--aua-teal)" opacity="0.14"/>
+      <text x="516" y="314" fill="var(--aua-teal)">최솟값 0.41 → 약한 고리를 본다</text>
+    </g>
+
+    <text x="46" y="352" font-size="12.5" fill="var(--aua-slate)">셋 다 같은 궤적에서 나온 값입니다. 무엇을 고르느냐가 곧 정책입니다.</text>
+    <text x="46" y="372" font-size="12.5" fill="var(--aua-violet)">arXiv:2608.11552는 이 집계 방식(aggregator) 선택에 토큰 확률 기반 점수가 특히 민감했다고 보고합니다.</text>
+  </svg>
+  <figcaption id="aua-fig1-cap">궤적에서는 확신도가 <strong>여러 개</strong> 나옵니다. 그걸 하나로 합치는 방식이 곧 정책이고, 그 선택 하나로 신호의 성능이 달라집니다.</figcaption>
+</figure>
+
+<p><strong>① 값이 여러 개 나옵니다.</strong> 단일 턴에서는 확신도가 하나입니다. 궤적에서는 턴마다 하나씩 나옵니다. 이걸 하나로 합쳐야 임계값을 걸 수 있는데, 평균을 낼지 최솟값을 쓸지 마지막 턴만 볼지에 따라 결과가 완전히 달라집니다. 위 그림처럼 중간에 크게 흔들린 궤적도 마지막 턴만 보면 멀쩡해 보입니다. arXiv:2608.11552가 “화이트박스 신뢰도는 집계 방식 선택에 강하게 좌우된다”고 짚은 지점이 정확히 여기입니다.</p>
+
+<p><strong>② 오류가 전파됩니다.</strong> 3번 턴에서 엉뚱한 주문 번호를 집었다면, 4번 턴은 그 잘못된 전제 위에서 아주 매끄럽게 진행됩니다. 4번 턴만 놓고 보면 문법도 형식도 완벽하니 확신도가 높게 나옵니다. <em>틀린 길 위에서의 자신감</em>은 측정하기 까다롭습니다.</p>
+
+<p><strong>③ 정답이 하나가 아닙니다.</strong> 단일 턴에서는 답이 맞았는지 틀렸는지가 명확합니다. 궤적에서는 도구를 A→B 순서로 부르든 B→A로 부르든 같은 결과에 도달할 수 있습니다. “다르다”와 “틀렸다”가 같은 말이 아니라서, 두 궤적이 실질적으로 같은지 판정하는 기준부터 정의해야 합니다.</p>
+
+<div class="aua-note"><strong>덧붙여.</strong> 이 문제를 좀 더 넓게 정리한 서베이로 <a href="https://arxiv.org/abs/2602.05073" target="_blank" rel="noopener">“Uncertainty Quantification in LLM Agents: Foundations, Emerging Challenges, and Opportunities”</a>(arXiv:2602.05073)가 있습니다. 에이전트 UQ의 기술적 난점으로 추정기 선택, 이질적 주체들의 불확실성, 상호작용 시스템에서의 불확실성 동역학, 그리고 <em>세밀한 벤치마크의 부재</em>를 꼽습니다. 마지막 항목이 특히 아픕니다. 대부분의 에이전트 벤치마크는 궤적 전체에 성공/실패 딱지 하나만 달아 줘서, 어느 단계에서 어긋났는지를 알 수가 없습니다.</div>
+
+<h2 id="sec-4">4. 신호 세 갈래 — 화이트박스 · 블랙박스 · 리플렉시브</h2>
+
+<p>확신도를 뽑는 방법은 크게 세 갈래입니다. arXiv:2608.11552가 비교한 분류이기도 하고, 실무에서 고를 수 있는 선택지이기도 합니다.</p>
+
+<figure class="aua-fig" role="group" aria-labelledby="aua-fig2-cap">
+  <svg viewBox="0 0 760 470" xmlns="http://www.w3.org/2000/svg" aria-label="확신도를 뽑는 세 가지 신호를 비교한 그림. 첫째 화이트박스는 행동 토큰의 로그 확률을 읽어 추가 LLM 호출이 필요 없고 지연도 없지만 로그 확률에 접근할 수 있어야 하고 턴을 합치는 집계 방식에 크게 흔들린다. 둘째 블랙박스는 같은 작업을 k번 다시 돌려 궤적이 얼마나 갈리는지를 보며 API만 있으면 되고 신호가 가장 강하지만 비용과 지연이 k배가 된다. 셋째 리플렉시브는 궤적을 모델에게 보여 주고 스스로 평가하게 하며 추가 호출 한 번이면 되고 값싼 기준선으로 쓸 만하지만 확신이 높은 쪽으로 몰리는 편향이 있다.">
+    <rect x="16" y="16" width="728" height="136" rx="12" fill="var(--aua-amber)" opacity="0.1"/>
+    <rect x="16" y="16" width="728" height="136" rx="12" fill="none" stroke="var(--aua-amber)" stroke-width="1.4"/>
+    <text x="38" y="44" font-size="15" font-weight="700" fill="var(--aua-amber)">① 화이트박스 — 행동 토큰 확률을 읽는다</text>
+    <text x="38" y="68" font-size="12.5" fill="var(--aua-slate)">방법</text>
+    <text x="118" y="68" font-size="12.5" fill="var(--aua-slate)">도구 호출을 만든 토큰들의 로그 확률을 모아 점수로 환산</text>
+    <text x="38" y="90" font-size="12.5" fill="var(--aua-slate)">비용</text>
+    <text x="118" y="90" font-size="12.5" fill="var(--aua-green)">추가 LLM 호출 0회 — 사실상 공짜, 지연 없음</text>
+    <text x="38" y="112" font-size="12.5" fill="var(--aua-slate)">필요조건</text>
+    <text x="118" y="112" font-size="12.5" fill="var(--aua-slate)">logprobs 접근 — 열어 주지 않는 API에서는 못 씀</text>
+    <text x="38" y="134" font-size="12.5" fill="var(--aua-slate)">약점</text>
+    <text x="118" y="134" font-size="12.5" fill="var(--aua-rose)">턴을 합치는 집계 방식에 성능이 크게 흔들린다</text>
+
+    <rect x="16" y="168" width="728" height="136" rx="12" fill="var(--aua-sky)" opacity="0.1"/>
+    <rect x="16" y="168" width="728" height="136" rx="12" fill="none" stroke="var(--aua-sky)" stroke-width="1.4"/>
+    <text x="38" y="196" font-size="15" font-weight="700" fill="var(--aua-sky)">② 블랙박스 — 다시 돌려 보고 갈리는지 본다</text>
+    <text x="38" y="220" font-size="12.5" fill="var(--aua-slate)">방법</text>
+    <text x="118" y="220" font-size="12.5" fill="var(--aua-slate)">같은 작업을 k번 실행 → 궤적 일치율 · 행동 집합 일치도를 점수로</text>
+    <text x="38" y="242" font-size="12.5" fill="var(--aua-slate)">비용</text>
+    <text x="118" y="242" font-size="12.5" fill="var(--aua-rose)">토큰·지연이 k배 — 부작용 있는 도구는 샌드박스 필수</text>
+    <text x="38" y="264" font-size="12.5" fill="var(--aua-slate)">필요조건</text>
+    <text x="118" y="264" font-size="12.5" fill="var(--aua-green)">API만 있으면 됨 — 모델 내부에 접근할 필요 없음</text>
+    <text x="38" y="286" font-size="12.5" fill="var(--aua-slate)">강점</text>
+    <text x="118" y="286" font-size="12.5" fill="var(--aua-teal)">가장 강한 신호인 경우가 많다</text>
+
+    <rect x="16" y="320" width="728" height="136" rx="12" fill="var(--aua-violet)" opacity="0.1"/>
+    <rect x="16" y="320" width="728" height="136" rx="12" fill="none" stroke="var(--aua-violet)" stroke-width="1.4"/>
+    <text x="38" y="348" font-size="15" font-weight="700" fill="var(--aua-violet)">③ 리플렉시브 — 모델에게 직접 물어본다</text>
+    <text x="38" y="372" font-size="12.5" fill="var(--aua-slate)">방법</text>
+    <text x="118" y="372" font-size="12.5" fill="var(--aua-slate)">끝난 궤적을 보여 주고 “제대로 처리했나?”를 스스로 평가시킴</text>
+    <text x="38" y="394" font-size="12.5" fill="var(--aua-slate)">비용</text>
+    <text x="118" y="394" font-size="12.5" fill="var(--aua-amber)">추가 호출 1회 — 값싼 편</text>
+    <text x="38" y="416" font-size="12.5" fill="var(--aua-slate)">필요조건</text>
+    <text x="118" y="416" font-size="12.5" fill="var(--aua-green)">없음 — 어떤 모델에도 붙는다</text>
+    <text x="38" y="438" font-size="12.5" fill="var(--aua-slate)">약점</text>
+    <text x="118" y="438" font-size="12.5" fill="var(--aua-rose)">확신이 높은 쪽으로 몰리는 버릇 — 순위는 쓸 만해도 값 자체는 못 믿음</text>
+  </svg>
+  <figcaption id="aua-fig2-cap">세 신호는 <strong>비용과 접근 권한</strong>이 다릅니다. 대부분의 팀은 리플렉시브로 시작해, 위험한 경로에만 블랙박스를 얹는 조합으로 갑니다.</figcaption>
+</figure>
+
+<h3>① 화이트박스 — 행동 토큰 확률</h3>
+
+<p>모델이 <code>refund_order(order_id="A-1029")</code>라는 도구 호출을 만들 때, 각 토큰마다 로그 확률(log probability)이 나옵니다. 모델이 그 토큰을 얼마나 확신했는지를 나타내는 값입니다. 이걸 모아서 하나의 점수로 만듭니다.</p>
+
+<p>매력은 명확합니다. <strong>추가 호출이 0회</strong>라 사실상 공짜이고 지연도 없습니다. 대신 두 가지 제약이 있습니다. 로그 확률을 열어 주지 않는 API에서는 아예 못 씁니다. 그리고 앞서 본 집계 문제에 가장 크게 흔들립니다.</p>
+
+<div class="aua-note aua-warn"><strong>흔한 함정.</strong> 도구 호출 전체의 평균 로그 확률을 쓰면, <code>{"order_id": "</code> 같은 뻔한 형식 토큰들이 확률 1.0 근처로 나와 평균을 끌어올립니다. 정작 중요한 건 <code>A-1029</code>라는 <em>값</em>인데 그 부분이 묻힙니다. 인자 값 토큰만 골라 점수를 매기는 게 훨씬 낫습니다.</div>
+
+<h3>② 블랙박스 — 재실행 일관성</h3>
+
+<p>가장 직관적인 방법입니다. 같은 작업을 온도를 조금 올려 <code>k</code>번 돌린 뒤, 나온 궤적들이 서로 얼마나 비슷한지를 봅니다. 매번 같은 도구를 같은 순서로 같은 인자로 불렀다면 확신도가 높은 것이고, 매번 다른 길로 갔다면 모델이 헤매고 있는 겁니다.</p>
+
+<p>arXiv:2608.11552는 이 계열이 <strong>가장 강한 신호인 경우가 많았고</strong>, 그중에서도 궤적 일치율(trajectory-equivalence rate)과 행동 집합 일치도(action-set consistency)가 대체로 상위였다고 보고합니다. 값은 비쌉니다. 토큰과 지연이 <code>k</code>배가 됩니다.</p>
+
+<div class="aua-note aua-warn"><strong>여기서 주니어가 크게 다칩니다.</strong> 재실행은 <em>부작용이 있는 도구를 k번 실행한다</em>는 뜻입니다. 환불을 5번 하면 진짜로 5번 환불됩니다. 일관성 측정은 반드시 읽기 전용 모드나 샌드박스(모의 도구)에서 돌리고, 실제 쓰기는 게이트를 통과한 뒤 한 번만 실행해야 합니다.</div>
+
+<h3>③ 리플렉시브 — 자기 평가</h3>
+
+<p>끝난 궤적을 모델에게 그대로 보여 주고 “이 작업을 제대로 처리했습니까?”라고 묻습니다. 추가 호출 한 번이면 되고, 어떤 모델에도 붙습니다. arXiv:2608.11552는 이 계열을 <strong>대부분의 설정에서 가장 강력한 저비용 기준선</strong>으로 평가했습니다. 시작점으로 쓰기에 딱 좋다는 뜻입니다.</p>
+
+<p>다만 2절에서 본 문제가 그대로 따라옵니다. 값이 위쪽으로 몰립니다. 그래서 “0.7 미만이면 에스컬레이션” 같은 절대 임계값보다, “하위 15%를 에스컬레이션” 같은 <em>상대 기준</em>이 훨씬 안정적으로 동작합니다.</p>
+
+<div class="aua-note aua-good"><strong>가장 중요한 결론.</strong> arXiv:2608.11552는 <em>어떤 계열도 모든 모델과 도메인에서 한결같이 믿을 만하지는 않았다</em>고 못 박습니다. 그러니 이 글을 포함해 어떤 글에서도 “이거 쓰세요”를 그대로 받아들이지 마세요. 세 신호를 다 계산해 두고, 내 작업에서 어느 쪽이 오답을 잘 골라내는지 재 보는 게 유일하게 확실한 방법입니다. 다행히 그 측정은 7절에서 보듯 어렵지 않습니다.</div>
+
+<h2 id="sec-5">5. 숫자로 보기 — 갈리는 작업은 정말 더 많이 틀린다</h2>
+
+<p>“재실행해서 갈리면 못 믿는다”는 말은 그럴듯하지만, 실제로 얼마나 잘 맞을까요? <a href="https://arxiv.org/abs/2602.11619v1" target="_blank" rel="noopener">“When Agents Disagree With Themselves”</a>(arXiv:2602.11619)가 이걸 측정했습니다. 모델 4종으로 HotpotQA 200문항을 총 8,000회 실행한 결과입니다.</p>
+
+<div class="aua-tblwrap">
+<table class="aua-tbl">
+  <thead>
+    <tr><th>관찰</th><th>수치</th><th>실무에서 뜻하는 것</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>같은 입력, 10회 실행 시 나온 서로 다른 행동 경로 수</td>
+      <td>2.3 ~ 4.2개</td>
+      <td>에이전트는 원래 매번 다르게 움직입니다. 재현되지 않는 게 기본값입니다.</td>
+    </tr>
+    <tr>
+      <td>일관된 작업(고유 경로 2개 이하)의 정확도</td>
+      <td>82 ~ 87%</td>
+      <td rowspan="2">경로가 갈릴수록 실제로 훨씬 많이 틀립니다. 신호가 실재한다는 증거입니다.</td>
+    </tr>
+    <tr>
+      <td>불안정한 작업(고유 경로 4개 이상)의 정확도</td>
+      <td>41 ~ 65%</td>
+    </tr>
+    <tr>
+      <td>일관성 지표로 실패를 가려낸 성능(AUROC)</td>
+      <td>0.62 ~ 0.78</td>
+      <td>완벽하진 않지만 동전 던지기(0.5)보다 확실히 낫습니다. 필터로 쓸 만한 수준입니다.</td>
+    </tr>
+    <tr>
+      <td>k=3 실행이 일치할 때만 답하는 정책</td>
+      <td>정확도 87~88%<br>커버리지 54~62%</td>
+      <td>절반쯤은 사람에게 넘기는 대신, 답한 것의 정확도를 단일 실행 대비 6~14%p 올립니다.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>마지막 줄이 이 글 전체의 핵심 거래입니다. <strong>커버리지(coverage, 에이전트가 스스로 답한 비율)를 내주고 정확도를 삽니다.</strong> 공짜 점심은 없습니다. 대신 그 교환 비율을 눈으로 보고 정할 수 있게 되는 게 UQ를 붙이는 이유입니다.</p>
+
+<p>같은 논문의 곁가지 관찰도 실무에 쓸모가 있습니다. 경로가 갈리는 지점이 <strong>초반 단계에 몰려 있었습니다</strong>(Llama 계열에서는 2번째 스텝이 전체 분기의 50.5%). 어디를 고쳐야 하는지 알려 주는 신호입니다. 초반 계획 단계에서 갈린다면, 확신도를 붙이기 전에 프롬프트와 도구 설명부터 손보는 게 순서입니다.</p>
+
+<p>멈추는 것 자체의 효과를 잰 연구도 있습니다. <a href="https://arxiv.org/abs/2510.16492" target="_blank" rel="noopener">“Check Yourself Before You Wreck Yourself”</a>는 ToolEmu 환경의 144개 다중 턴 시나리오에서 모델 12종을 평가해, 위험할 때 그만두라고 명시적으로 지시한 에이전트가 안전성 점수를 0~3 척도에서 평균 <strong>+0.39</strong>(상용 모델은 +0.64) 올린 반면 유용성은 <strong>-0.03</strong>밖에 잃지 않았다고 보고합니다. 멈출 줄 알게 만드는 값이 생각보다 싸다는 이야기입니다.</p>
+
+<h2 id="sec-6">6. 실전 — 에이전트 루프에 확신도 게이트 붙이기</h2>
+
+<p>이제 붙여 보겠습니다. 구조는 단순합니다. <strong>기존 루프는 그대로 두고, 되돌릴 수 없는 행동 직전에 게이트를 하나 끼웁니다.</strong></p>
+
+<figure class="aua-fig" role="group" aria-labelledby="aua-fig3-cap">
+  <svg viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg" aria-label="확신도 게이트를 붙인 에이전트 루프의 흐름도. 요청이 들어오면 에이전트가 궤적을 만들고, 그 궤적에서 확신도 점수를 계산한다. 점수가 높으면 그대로 실행하고, 중간이면 더 강한 모델로 다시 시도하거나 추가 확인 질문을 하고, 낮으면 사람에게 넘긴다. 어느 경로든 결과와 점수를 함께 로그로 남겨 나중에 임계값을 다시 계산하는 데 쓴다.">
+    <g font-size="12.5">
+      <rect x="24" y="34" width="120" height="46" rx="9" fill="none" stroke="var(--aua-slate)" stroke-width="1.4"/>
+      <text x="84" y="62" fill="var(--aua-slate)" text-anchor="middle">요청</text>
+
+      <line x1="148" y1="57" x2="184" y2="57" stroke="var(--aua-slate)" stroke-width="1.6"/>
+
+      <rect x="188" y="34" width="148" height="46" rx="9" fill="var(--aua-sky)" opacity="0.14"/>
+      <rect x="188" y="34" width="148" height="46" rx="9" fill="none" stroke="var(--aua-sky)" stroke-width="1.4"/>
+      <text x="262" y="62" fill="var(--aua-sky)" text-anchor="middle">에이전트 루프</text>
+
+      <line x1="340" y1="57" x2="376" y2="57" stroke="var(--aua-slate)" stroke-width="1.6"/>
+
+      <rect x="380" y="34" width="160" height="46" rx="9" fill="var(--aua-violet)" opacity="0.14"/>
+      <rect x="380" y="34" width="160" height="46" rx="9" fill="none" stroke="var(--aua-violet)" stroke-width="1.4"/>
+      <text x="460" y="56" fill="var(--aua-violet)" text-anchor="middle">확신도 계산</text>
+      <text x="460" y="72" font-size="11" fill="var(--aua-slate)" text-anchor="middle">궤적 → 점수 하나</text>
+
+      <line x1="544" y1="57" x2="580" y2="57" stroke="var(--aua-slate)" stroke-width="1.6"/>
+
+      <rect x="584" y="34" width="152" height="46" rx="9" fill="none" stroke="var(--aua-amber)" stroke-width="1.6"/>
+      <text x="660" y="62" font-weight="700" fill="var(--aua-amber)" text-anchor="middle">게이트</text>
+
+      <!-- 세 갈래 -->
+      <path d="M660,84 L660,104 L180,104 L180,124" fill="none" stroke="var(--aua-green)" stroke-width="1.5"/>
+      <path d="M660,84 L660,124" fill="none" stroke="var(--aua-rose)" stroke-width="1.5"/>
+      <path d="M660,84 L660,104 L420,104 L420,124" fill="none" stroke="var(--aua-amber)" stroke-width="1.5"/>
+
+      <rect x="80" y="126" width="200" height="66" rx="9" fill="var(--aua-green)" opacity="0.13"/>
+      <rect x="80" y="126" width="200" height="66" rx="9" fill="none" stroke="var(--aua-green)" stroke-width="1.4"/>
+      <text x="180" y="150" font-weight="700" fill="var(--aua-green)" text-anchor="middle">높음 → 그냥 실행</text>
+      <text x="180" y="170" font-size="11.5" fill="var(--aua-slate)" text-anchor="middle">대부분의 트래픽이 여기로</text>
+      <text x="180" y="186" font-size="11.5" fill="var(--aua-slate)" text-anchor="middle">지연·비용 그대로</text>
+
+      <rect x="320" y="126" width="200" height="66" rx="9" fill="var(--aua-amber)" opacity="0.13"/>
+      <rect x="320" y="126" width="200" height="66" rx="9" fill="none" stroke="var(--aua-amber)" stroke-width="1.4"/>
+      <text x="420" y="150" font-weight="700" fill="var(--aua-amber)" text-anchor="middle">중간 → 한 번 더</text>
+      <text x="420" y="170" font-size="11.5" fill="var(--aua-slate)" text-anchor="middle">더 강한 모델로 재시도</text>
+      <text x="420" y="186" font-size="11.5" fill="var(--aua-slate)" text-anchor="middle">또는 사용자에게 되묻기</text>
+
+      <rect x="560" y="126" width="200" height="66" rx="9" fill="var(--aua-rose)" opacity="0.13"/>
+      <rect x="560" y="126" width="200" height="66" rx="9" fill="none" stroke="var(--aua-rose)" stroke-width="1.4"/>
+      <text x="660" y="150" font-weight="700" fill="var(--aua-rose)" text-anchor="middle">낮음 → 넘긴다</text>
+      <text x="660" y="170" font-size="11.5" fill="var(--aua-slate)" text-anchor="middle">사람에게 에스컬레이션</text>
+      <text x="660" y="186" font-size="11.5" fill="var(--aua-slate)" text-anchor="middle">되돌릴 수 없는 행동은 보류</text>
+
+      <path d="M180,194 L180,222 L380,222" fill="none" stroke="var(--aua-slate)" stroke-width="1.4"/>
+      <path d="M420,194 L420,222" fill="none" stroke="var(--aua-slate)" stroke-width="1.4"/>
+      <path d="M660,194 L660,222 L460,222" fill="none" stroke="var(--aua-slate)" stroke-width="1.4"/>
+
+      <rect x="270" y="228" width="220" height="46" rx="9" fill="var(--aua-teal)" opacity="0.14"/>
+      <rect x="270" y="228" width="220" height="46" rx="9" fill="none" stroke="var(--aua-teal)" stroke-width="1.5"/>
+      <text x="380" y="248" font-weight="700" fill="var(--aua-teal)" text-anchor="middle">점수와 결과를 함께 로그</text>
+      <text x="380" y="266" font-size="11.5" fill="var(--aua-slate)" text-anchor="middle">(점수, 실제 성공 여부) 쌍을 쌓는다</text>
+
+      <path d="M380,276 L380,296 L744,296 L744,57 L740,57" fill="none" stroke="var(--aua-teal)" stroke-width="1.4" stroke-dasharray="5 4"/>
+      <text x="560" y="314" font-size="12" fill="var(--aua-teal)" text-anchor="middle">쌓인 로그로 임계값을 주기적으로 다시 계산 → 7절</text>
+    </g>
+  </svg>
+  <figcaption id="aua-fig3-cap">게이트는 <strong>세 갈래</strong>여야 합니다. 통과·재시도·에스컬레이션. 그리고 어느 경로로 갔든 점수와 결과를 같이 남겨야 임계값을 고칠 수 있습니다.</figcaption>
+</figure>
+
+<p>가장 값싼 신호인 리플렉시브 점수부터 만들어 보겠습니다. 궤적을 문자열로 정리해 모델에게 채점시킵니다.</p>
+
+{{< highlight python >}}
+import json
+
+# 궤적을 채점용 텍스트로 납작하게 편다.
+# 핵심: 도구 "인자"까지 남겨야 한다. 인자가 틀린 게 가장 흔한 실패라서.
+def render_trajectory(steps: list[dict]) -> str:
+    lines = []
+    for i, s in enumerate(steps, 1):
+        if s["type"] == "tool_call":
+            args = json.dumps(s["args"], ensure_ascii=False)
+            lines.append(f'{i}. 도구 호출: {s["name"]}({args})')
+        elif s["type"] == "tool_result":
+            # 결과는 길어질 수 있으니 앞부분만. 채점에는 이 정도로 충분하다.
+            lines.append(f'{i}. 결과: {str(s["content"])[:300]}')
+        else:
+            lines.append(f'{i}. {s["type"]}: {s["content"]}')
+    return "\n".join(lines)
+
+
+JUDGE_PROMPT = """다음은 에이전트가 사용자 요청을 처리한 전체 기록입니다.
+
+[요청]
+{request}
+
+[처리 기록]
+{trajectory}
+
+이 기록을 검토하고 JSON만 출력하세요.
+- correct: 요청을 실제로 올바르게 처리했으면 true, 아니면 false
+- confidence: 그 판단에 대한 확신 0.0~1.0
+- risk: 되돌릴 수 없는 행동이 잘못된 대상에 실행됐을 위험 "none"|"low"|"high"
+- reason: 한 문장 근거
+
+출력 예: {{"correct": true, "confidence": 0.83, "risk": "none", "reason": "..."}}"""
+
+
+async def reflexive_score(client, request: str, steps: list[dict]) -> dict:
+    resp = await client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=300,
+        temperature=0,           # 채점은 재현 가능해야 하므로 0
+        messages=[{
+            "role": "user",
+            "content": JUDGE_PROMPT.format(
+                request=request,
+                trajectory=render_trajectory(steps),
+            ),
+        }],
+    )
+    return json.loads(resp.content[0].text)
+{{< /highlight >}}
+
+<p>다음은 블랙박스 일관성입니다. 같은 작업을 <code>k</code>번 돌리고, 나온 궤적들의 <em>행동 집합</em>이 얼마나 일치하는지를 봅니다.</p>
+
+{{< highlight python >}}
+from collections import Counter
+
+def action_signature(steps: list[dict]) -> tuple:
+    """궤적을 비교 가능한 형태로 압축한다.
+    순서까지 볼지 말지는 도메인이 정한다. 조회 순서가 바뀌어도 같은 결과라면
+    frozenset을, 순서가 의미를 가지면 tuple을 쓴다."""
+    calls = [
+        (s["name"], json.dumps(s["args"], sort_keys=True, ensure_ascii=False))
+        for s in steps if s["type"] == "tool_call"
+    ]
+    return tuple(calls)          # 순서 포함 비교
+
+
+async def consistency_score(run_agent, request: str, k: int = 3) -> float:
+    """k번 재실행해 가장 흔한 궤적이 차지하는 비율을 반환한다.
+    1.0 = 매번 똑같이 행동함, 1/k = 매번 다르게 행동함.
+
+    ⚠️ run_agent 는 반드시 부작용 없는 모드(모의 도구/읽기 전용)여야 한다.
+       실제 쓰기를 k번 하면 진짜로 k번 실행된다."""
+    runs = [await run_agent(request, temperature=0.7) for _ in range(k)]
+    sigs = Counter(action_signature(r) for r in runs)
+    return sigs.most_common(1)[0][1] / k
+{{< /highlight >}}
+
+<p>마지막으로 게이트입니다. 두 신호를 합쳐 세 갈래로 분기합니다.</p>
+
+{{< highlight python >}}
+IRREVERSIBLE = {"refund_order", "send_email", "delete_record", "charge_card"}
+
+async def guarded_run(client, run_agent, request: str, thresholds: dict):
+    # 1) 부작용 없는 모드로 먼저 계획을 세운다 (dry-run)
+    steps = await run_agent(request, dry_run=True)
+
+    # 2) 값싼 신호부터
+    judge = await reflexive_score(client, request, steps)
+    score = judge["confidence"] if judge["correct"] else 0.0
+
+    # 3) 되돌릴 수 없는 행동이 섞여 있을 때만 비싼 신호를 추가로 산다
+    touches_irreversible = any(
+        s["type"] == "tool_call" and s["name"] in IRREVERSIBLE for s in steps
+    )
+    if touches_irreversible:
+        score = min(score, await consistency_score(run_agent, request, k=3))
+
+    # 4) 세 갈래 분기 — 임계값은 7절에서 측정으로 정한다
+    if score >= thresholds["auto"]:
+        result = await run_agent(request, dry_run=False, plan=steps)
+        decision = "auto"
+    elif score >= thresholds["retry"]:
+        # 더 강한 모델에 한 번 더 맡긴다. 그래도 낮으면 사람에게.
+        steps = await run_agent(request, dry_run=True, model="claude-opus-5")
+        judge = await reflexive_score(client, request, steps)
+        if judge["correct"] and judge["confidence"] >= thresholds["auto"]:
+            result = await run_agent(request, dry_run=False, plan=steps)
+            decision = "retry_ok"
+        else:
+            result, decision = await escalate(request, steps), "escalated"
+    else:
+        result, decision = await escalate(request, steps), "escalated"
+
+    # 5) 반드시 남긴다 — 이 로그가 없으면 임계값을 고칠 수 없다
+    log_event(request=request, score=score, decision=decision,
+              reason=judge["reason"], trajectory=steps)
+    return result
+{{< /highlight >}}
+
+<div class="aua-note aua-good"><strong>설계 포인트 — 비싼 신호는 비싼 행동에만.</strong> 모든 요청에 k번 재실행을 붙이면 비용이 감당이 안 됩니다. 위 코드처럼 <em>되돌릴 수 없는 도구를 건드릴 때만</em> 일관성 측정을 추가로 사는 게 현실적인 타협점입니다. 조회만 하는 요청은 리플렉시브 점수 하나로 충분합니다.</div>
+
+<p>직접 구현하기 전에 기존 라이브러리를 보는 것도 방법입니다. arXiv:2608.11552의 저자들이 만든 <a href="https://github.com/cvs-health/uqlm" target="_blank" rel="noopener">UQLM</a>은 지금까지 이야기한 세 계열(블랙박스 일관성, 화이트박스 토큰 확률, LLM 심사)의 스코어러를 0~1 점수로 통일해 제공합니다. 정답 데이터가 없어도 돌아간다는 게 실무에서 큰 장점입니다.</p>
+
+<h2 id="sec-7">7. 임계값을 감이 아니라 곡선으로 정하기</h2>
+
+<p>위 코드의 <code>thresholds</code>에 무슨 값을 넣어야 할까요? 0.7? 0.8? <strong>감으로 정하면 안 됩니다.</strong> 6절에서 로그를 남긴 이유가 여기 있습니다.</p>
+
+<p>필요한 건 <code>(점수, 실제로 맞았는지)</code> 쌍 몇백 개입니다. 확보 방법은 두 가지입니다. 평가 세트를 만들어 돌리거나, 운영 로그에 사후 라벨을 다는 겁니다. 어느 쪽이든 그 데이터로 <strong>risk-coverage 곡선</strong>을 그립니다. 임계값을 1.0에서 0.0까지 훑으면서, 각 지점에서 두 값을 잽니다.</p>
+
+<ul>
+  <li><strong>커버리지</strong> — 임계값을 넘어 자동 처리된 요청의 비율</li>
+  <li><strong>리스크</strong> — 그렇게 자동 처리된 것들 중 틀린 비율</li>
+</ul>
+
+<p>이 곡선이 있으면 대화가 완전히 달라집니다. “0.8이 좋을 것 같아요”가 아니라 “자동 처리 오류율을 3% 이하로 묶으려면 임계값 0.74, 이때 68%가 자동으로 처리되고 32%는 사람에게 갑니다”가 됩니다. 비즈니스가 답할 수 있는 형태의 질문으로 바뀝니다.</p>
+
+{{< highlight python >}}
+def risk_coverage(scores: list[float], correct: list[bool]) -> list[dict]:
+    """(점수, 정답여부) 쌍으로 risk-coverage 곡선을 만든다.
+    각 후보 임계값에서 '얼마나 자동 처리되고, 그중 얼마나 틀리는지'를 계산."""
+    pairs = sorted(zip(scores, correct), key=lambda p: -p[0])
+    n, wrong, out = len(pairs), 0, []
+    for i, (s, ok) in enumerate(pairs, 1):
+        if not ok:
+            wrong += 1
+        out.append({
+            "threshold": s,
+            "coverage": i / n,        # 이 점수 이상을 자동 처리했을 때의 비율
+            "risk": wrong / i,        # 그 자동 처리분에서의 오류율
+        })
+    return out
+
+
+def pick_threshold(curve: list[dict], max_risk: float = 0.03) -> dict:
+    """오류율 상한을 지키면서 커버리지를 최대로 하는 지점을 고른다."""
+    ok = [p for p in curve if p["risk"] <= max_risk]
+    if not ok:
+        raise ValueError("이 신호로는 목표 오류율을 못 맞춥니다. 신호부터 바꾸세요.")
+    return max(ok, key=lambda p: p["coverage"])
+{{< /highlight >}}
+
+<p>여기서 세 신호를 비교하는 방법도 같습니다. 각 신호로 곡선을 그려 보고, <em>같은 오류율에서 커버리지가 가장 높은</em> 신호가 내 워크로드에서 이긴 신호입니다. 논문이 뭐라고 했든 이 결과가 우선입니다.</p>
+
+<div class="aua-note"><strong>한 걸음 더 — 통계적 보장이 필요하다면.</strong> 규제 산업처럼 “오류율이 3%를 넘지 않는다”를 <em>보장</em>해야 한다면 <strong>등각 예측(conformal prediction)</strong>을 찾아보세요. 별도 보정 데이터셋으로 임계값을 잡아 유한 표본에서의 오류율 상한을 분포 가정 없이 제공합니다. 에이전트 도구 호출에 적용한 <a href="https://arxiv.org/html/2607.24343v1" target="_blank" rel="noopener">역할별 등각 위험 제어</a>나 <a href="https://arxiv.org/html/2511.11828v2" target="_blank" rel="noopener">신뢰도 제약하에 비용을 최소화하는 오케스트레이션</a> 같은 연구가 있습니다. 다만 위 곡선으로 충분한 팀이 대부분이니, 여기서 시작하세요.</div>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<div class="aua-note aua-warn"><strong>실수 1 — 모델이 말한 확신도를 그대로 임계값에 씁니다.</strong> 2절에서 봤듯 값이 위쪽에 몰립니다. 0.9 미만을 걸러 내려 했는데 전체의 3%만 걸리는 일이 생깁니다. 절대 임계값 대신 <em>백분위 기준</em>으로 시작하고(하위 15% 에스컬레이션), 곡선을 그려 본 뒤 절대값으로 옮기세요.</div>
+
+<div class="aua-note aua-warn"><strong>실수 2 — 일관성 측정을 실제 도구로 돌립니다.</strong> 재실행 k회는 부작용도 k회입니다. dry-run 모드나 모의 도구를 먼저 만들어 두세요. 이건 UQ를 붙이기 <em>전에</em> 해야 할 준비 작업입니다.</div>
+
+<div class="aua-note aua-warn"><strong>실수 3 — 확신도가 낮을 때 그냥 재시도만 합니다.</strong> 같은 컨텍스트로 다시 돌리면 대개 같은 곳에서 같은 이유로 실패합니다. 게다가 실패한 시도가 컨텍스트에 남아 다음 시도를 오염시킵니다. 재시도는 <em>무언가를 바꿀 때만</em> 의미가 있습니다. 모델을 올리거나, 컨텍스트를 정리하거나, 사용자에게 되묻거나.</div>
+
+<div class="aua-note aua-warn"><strong>실수 4 — 게이트를 두 갈래로만 만듭니다.</strong> 통과 아니면 에스컬레이션으로 나누면 사람 쪽 큐가 금방 넘칩니다. 중간 구간을 두고 “더 강한 모델로 한 번 더”나 “사용자에게 한 가지만 확인”을 넣으면, 사람에게 가는 양이 크게 줍니다.</div>
+
+<div class="aua-note aua-good"><strong>팁 1 — 첫날부터 점수를 로그에 남기세요.</strong> 게이트를 켜지 않더라도 점수는 계산해 두고 결과와 함께 저장하세요. 2주만 쌓여도 곡선을 그릴 수 있고, 그때는 임계값이 토론이 아니라 계산이 됩니다. 반대로 로그가 없으면 아무것도 못 정합니다.</div>
+
+<div class="aua-note aua-good"><strong>팁 2 — 분기 지점을 같이 기록하세요.</strong> 5절의 연구처럼 갈리는 지점이 특정 스텝에 몰려 있다면, 그건 확신도 문제가 아니라 그 스텝의 프롬프트나 도구 설명 문제입니다. UQ는 <em>어디를 고쳐야 하는지</em>를 알려 주는 관측 도구이기도 합니다.</div>
+
+<div class="aua-note aua-good"><strong>팁 3 — 에스컬레이션 경로를 먼저 만드세요.</strong> 확신도가 낮다는 걸 알아냈는데 넘길 곳이 없으면 아무 소용이 없습니다. 사람이 어떤 화면에서 무엇을 보고 어떻게 이어받는지를 정하는 게 점수 정교화보다 먼저입니다. Anthropic이 신뢰할 수 있는 에이전트의 원칙으로 <a href="https://www.anthropic.com/news/our-framework-for-developing-safe-and-trustworthy-agents" target="_blank" rel="noopener">모든 단계에서의 실질적인 사람 통제</a>를 앞세우는 것도 같은 맥락입니다.</div>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>에이전트의 진짜 위험은 요란한 실패가 아니라 조용한 실패입니다.</strong> 맞을 때와 틀릴 때의 말투가 같기 때문에, 확신도 신호를 따로 만들어 붙이지 않으면 시스템은 둘을 구별하지 못합니다.</li>
+  <li><strong>단일 턴 확신도 감각은 궤적에 그대로 옮겨가지 않습니다.</strong> 값이 턴마다 나와 합쳐야 하고, 오류가 전파되며, “다르다”와 “틀렸다”가 같은 말이 아닙니다.</li>
+  <li><strong>신호는 세 갈래입니다.</strong> 화이트박스(행동 토큰 확률)는 공짜지만 집계 방식에 흔들리고, 블랙박스(재실행 일관성)는 가장 강하지만 비용이 k배이며, 리플렉시브(자기 평가)는 값싼 기준선으로 대체로 쓸 만합니다.</li>
+  <li><strong>2026-08-12 공개된 arXiv:2608.11552의 결론은 “정답 없음”입니다.</strong> 모델 5종·다중 턴 도구 사용 데이터셋 4종에서 어떤 계열도 모든 모델·도메인에서 한결같지 않았습니다. 내 워크로드에서 재 보는 것 말고 지름길이 없습니다.</li>
+  <li><strong>신호가 실재한다는 증거는 있습니다.</strong> arXiv:2602.11619는 경로가 갈리는 작업의 정확도가 41~65%로, 일관된 작업의 82~87%보다 크게 낮다고 보고합니다. k=3 합의 정책은 커버리지 54~62%에서 정확도 87~88%를 냈습니다.</li>
+  <li><strong>멈출 줄 알게 만드는 값은 쌉니다.</strong> arXiv:2510.16492는 위험할 때 그만두라고 지시한 에이전트가 안전성 +0.39(0~3 척도)를 얻고 유용성은 -0.03만 잃었다고 보고합니다.</li>
+  <li><strong>게이트는 세 갈래로 만드세요.</strong> 통과 · 재시도(모델 상향 또는 되묻기) · 사람에게. 두 갈래면 사람 쪽 큐가 넘칩니다. 그리고 비싼 신호는 되돌릴 수 없는 행동에만 사겠다고 정하세요.</li>
+  <li><strong>임계값은 고르는 게 아니라 계산하는 값입니다.</strong> <code>(점수, 정답여부)</code> 쌍을 쌓아 risk-coverage 곡선을 그리면, “0.8쯤이 좋겠다”가 “오류율 3% 상한에서 임계값 0.74, 자동 처리 68%”로 바뀝니다. 오늘 할 수 있는 가장 값싼 준비는 점수를 로그에 남기는 일입니다.</li>
+</ul>
+
+<h2 id="sec-ref">10. 참고 자료</h2>
+
+<ul>
+  <li>Dylan Bouchard, Mohit Singh Chauhan, “Beyond Single-Turn Confidence: Trajectory-Adapted Uncertainty Quantification for LLM Agents”(arXiv:2608.11552 · 2026-08-12 공개 · 모델 5종 · BFCL-v4와 τ²-bench 기반 다중 턴 도구 사용 데이터셋 4종 · 화이트박스는 집계 방식에 민감, 리플렉시브는 최고의 저비용 기준선, 블랙박스 자기일관성이 가장 강한 경우가 많음) — <a href="https://arxiv.org/abs/2608.11552" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>Changdae Oh 외, “Uncertainty Quantification in LLM Agents: Foundations, Emerging Challenges, and Opportunities”(arXiv:2602.05073 · 에이전트 UQ의 일반 정식화와 네 가지 난점 · 세밀한 벤치마크의 부재) — <a href="https://arxiv.org/abs/2602.05073" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>Aman Mehta, “When Agents Disagree With Themselves: Behavioral Consistency as an Uncertainty Signal for LLM Agents”(arXiv:2602.11619 · 모델 4종 · HotpotQA 200문항 · 8,000회 실행 · 일관/불안정 작업 정확도 82~87% 대 41~65% · AUROC 0.62~0.78 · k=3 합의 시 커버리지 54~62%에서 정확도 87~88%) — <a href="https://arxiv.org/abs/2602.11619v1" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>“Check Yourself Before You Wreck Yourself: Selectively Quitting Improves LLM Agent Safety”(arXiv:2510.16492 · NeurIPS 2025 · ToolEmu 144개 다중 턴 시나리오 · 모델 12종 · 안전성 +0.39(상용 +0.64), 유용성 -0.03) — <a href="https://arxiv.org/abs/2510.16492" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>“Calibrated Confidence Estimation for Tabular Question Answering”(arXiv:2604.12491 · 언어화된 확신도의 포화 · GPT-4o 평균 확신 99.5%, AUROC 0.522) — <a href="https://arxiv.org/pdf/2604.12491" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>“Beyond Aggregate Risk: Role-Stratified Conformal Risk Control for LLM Tool Calls”(arXiv:2607.24343 · 도구 호출에 대한 등각 위험 제어) — <a href="https://arxiv.org/html/2607.24343v1" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>“Conformal Constrained Policy Optimization for Cost-Effective LLM Agents”(arXiv:2511.11828 · 신뢰도 보장을 만족하면서 비용을 최소화하는 오케스트레이션) — <a href="https://arxiv.org/html/2511.11828v2" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>UQLM — 블랙박스·화이트박스·LLM 심사 스코어러를 0~1 점수로 통일해 제공하는 파이썬 패키지(arXiv:2507.06196 · TMLR) — <a href="https://github.com/cvs-health/uqlm" target="_blank" rel="noopener">github.com/cvs-health/uqlm</a> · <a href="https://cvs-health.github.io/uqlm/latest/index.html" target="_blank" rel="noopener">문서</a></li>
+  <li>Anthropic, “Our framework for developing safe and trustworthy agents”(모든 단계에서의 사람 통제를 포함한 다섯 원칙) — <a href="https://www.anthropic.com/news/our-framework-for-developing-safe-and-trustworthy-agents" target="_blank" rel="noopener">anthropic.com</a></li>
+  <li>Anthropic, “Demystifying evals for AI agents”(에이전트 평가 설계) — <a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener">anthropic.com</a></li>
+  <li>“Why Retrying Fails: Context Contamination in LLM Agent Pipelines”(arXiv:2605.08563 · 실패한 시도가 컨텍스트에 남아 다음 시도를 오염시키는 문제) — <a href="https://arxiv.org/pdf/2605.08563" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li><strong>[한국어]</strong> 한컴테크, “최신 논문 분석을 통한 LLM의 환각 현상 완화 전략 탐구”(자기 일관성과 신뢰도 보정을 포함한 환각 완화 기법 정리) — <a href="https://tech.hancom.com/llm-hallucination-reduction-research/" target="_blank" rel="noopener">tech.hancom.com</a></li>
+  <li><strong>[한국어]</strong> SK devocean, “LLM 성능, 어떻게 평가하는 것일까? (feat. lm-eval-harness)”(평가 지표와 하네스 기초) — <a href="https://devocean.sk.com/blog/techBoardDetail.do?ID=166716" target="_blank" rel="noopener">devocean.sk.com</a></li>
+</ul>

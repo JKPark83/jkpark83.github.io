@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트의 확신도를 측정하는 세 가지 신호를 비교한 그림. 왼쪽에는 여러 턴에 걸친 에이전트 궤적이 있고 도구 호출이 이어지다가 중간에서 어긋난다. 오른쪽에는 세 신호가 나열된다. 첫째 화이트박스는 행동 토큰 확률을 쓰며 공짜지만 턴을 합치는 방식에 크게 흔들린다. 둘째 블랙박스는 같은 작업을 여러 번 돌려 궤적이 얼마나 갈리는지를 보며 가장 강하지만 비용이 배로 든다. 셋째 리플렉시브는 모델에게 직접 물어보며 값싼 기준선으로 쓸 만하다. 아래 띠에는 2026년 8월 12일 공개된 논문이 어떤 신호도 모든 모델과 도메인에서 한결같지는 않다고 보고했으며 그래서 임계값은 고르는 것이 아니라 측정해서 정해야 한다고 적혀 있다.">
+  <defs>
+    <linearGradient id="aua-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#161d2e"/>
+    </linearGradient>
+    <marker id="aua-ar" markerWidth="12" markerHeight="12" refX="8.5" refY="6" orient="auto">
+      <path d="M0,1 L11,6 L0,11 Z" fill="#64748b"/>
+    </marker>
+    <marker id="aua-ar-r" markerWidth="12" markerHeight="12" refX="8.5" refY="6" orient="auto">
+      <path d="M0,1 L11,6 L0,11 Z" fill="#fb7185"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#aua-bg)"/>
+
+  <text x="60" y="82" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#f1f5f9">에이전트는 자기가 틀렸다는 걸 알까</text>
+  <text x="60" y="122" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">궤적 단위 불확실성 측정과 멈출 줄 아는 에이전트</text>
+
+  <!-- 왼쪽: 궤적 -->
+  <rect x="60" y="160" width="470" height="330" rx="14" fill="#1e293b" opacity="0.55"/>
+  <rect x="60" y="160" width="470" height="330" rx="14" fill="none" stroke="#334155" stroke-width="1.4"/>
+  <text x="86" y="196" font-family="system-ui,-apple-system,sans-serif" font-size="17" font-weight="700" fill="#e2e8f0">하나의 궤적 = 관측 단위</text>
+
+  <g font-family="system-ui,-apple-system,sans-serif" font-size="13.5">
+    <circle cx="112" cy="248" r="17" fill="#4ade80" opacity="0.22"/>
+    <circle cx="112" cy="248" r="17" fill="none" stroke="#4ade80" stroke-width="1.6"/>
+    <text x="112" y="253" font-size="13" font-weight="700" fill="#4ade80" text-anchor="middle">1</text>
+    <text x="146" y="253" fill="#cbd5e1">사용자 요청 이해</text>
+
+    <line x1="112" y1="268" x2="112" y2="290" stroke="#64748b" stroke-width="1.6" marker-end="url(#aua-ar)"/>
+
+    <circle cx="112" cy="312" r="17" fill="#4ade80" opacity="0.22"/>
+    <circle cx="112" cy="312" r="17" fill="none" stroke="#4ade80" stroke-width="1.6"/>
+    <text x="112" y="317" font-size="13" font-weight="700" fill="#4ade80" text-anchor="middle">2</text>
+    <text x="146" y="317" fill="#cbd5e1">도구 호출 · 결과 반영</text>
+
+    <line x1="112" y1="332" x2="112" y2="354" stroke="#fb7185" stroke-width="1.6" marker-end="url(#aua-ar-r)"/>
+
+    <circle cx="112" cy="376" r="17" fill="#fb7185" opacity="0.22"/>
+    <circle cx="112" cy="376" r="17" fill="none" stroke="#fb7185" stroke-width="1.6"/>
+    <text x="112" y="381" font-size="13" font-weight="700" fill="#fb7185" text-anchor="middle">3</text>
+    <text x="146" y="381" fill="#fb7185">여기서 어긋난다 — 그런데 조용하다</text>
+
+    <line x1="112" y1="396" x2="112" y2="418" stroke="#64748b" stroke-width="1.6" marker-end="url(#aua-ar)"/>
+
+    <circle cx="112" cy="440" r="17" fill="#fbbf24" opacity="0.22"/>
+    <circle cx="112" cy="440" r="17" fill="none" stroke="#fbbf24" stroke-width="1.6"/>
+    <text x="112" y="445" font-size="13" font-weight="700" fill="#fbbf24" text-anchor="middle">4</text>
+    <text x="146" y="445" fill="#fbbf24">확신에 찬 최종 답 — 틀린 답</text>
+  </g>
+
+  <!-- 오른쪽: 세 신호 -->
+  <g font-family="system-ui,-apple-system,sans-serif">
+    <rect x="570" y="160" width="570" height="98" rx="12" fill="#fbbf24" opacity="0.11"/>
+    <rect x="570" y="160" width="570" height="98" rx="12" fill="none" stroke="#fbbf24" stroke-width="1.4"/>
+    <text x="596" y="192" font-size="17" font-weight="700" fill="#fbbf24">화이트박스 — 행동 토큰 확률</text>
+    <text x="596" y="219" font-size="13.5" fill="#cbd5e1">추가 호출 0회. 공짜에 가깝다</text>
+    <text x="596" y="242" font-size="13.5" fill="#fb7185">턴을 어떻게 합치느냐에 크게 흔들린다</text>
+
+    <rect x="570" y="276" width="570" height="98" rx="12" fill="#38bdf8" opacity="0.11"/>
+    <rect x="570" y="276" width="570" height="98" rx="12" fill="none" stroke="#38bdf8" stroke-width="1.4"/>
+    <text x="596" y="308" font-size="17" font-weight="700" fill="#38bdf8">블랙박스 — 다시 돌려 보고 갈리는지 본다</text>
+    <text x="596" y="335" font-size="13.5" fill="#cbd5e1">가장 강한 신호. 궤적 일치율 · 행동 집합 일치</text>
+    <text x="596" y="358" font-size="13.5" fill="#fb7185">비용이 k배로 늘어난다</text>
+
+    <rect x="570" y="392" width="570" height="98" rx="12" fill="#a78bfa" opacity="0.11"/>
+    <rect x="570" y="392" width="570" height="98" rx="12" fill="none" stroke="#a78bfa" stroke-width="1.4"/>
+    <text x="596" y="424" font-size="17" font-weight="700" fill="#a78bfa">리플렉시브 — 모델에게 직접 물어본다</text>
+    <text x="596" y="451" font-size="13.5" fill="#cbd5e1">값싼 기준선으로 대체로 쓸 만하다</text>
+    <text x="596" y="474" font-size="13.5" fill="#fb7185">확신이 0.9 근처에 몰리는 버릇이 있다</text>
+  </g>
+
+  <!-- 하단 띠 -->
+  <rect x="60" y="518" width="1080" height="66" rx="12" fill="#0ea5e9" opacity="0.12"/>
+  <rect x="60" y="518" width="1080" height="66" rx="12" fill="none" stroke="#38bdf8" stroke-width="1.3"/>
+  <text x="88" y="545" font-family="system-ui,-apple-system,sans-serif" font-size="14.5" fill="#e2e8f0">2026-08-12 공개 · arXiv:2608.11552 — 모델 5종 · 다중 턴 도구 사용 데이터셋 4종에서 <tspan font-weight="700" fill="#7dd3fc">어떤 신호도 모든 모델·도메인에서 한결같지는 않았다</tspan></text>
+  <text x="88" y="569" font-family="system-ui,-apple-system,sans-serif" font-size="14.5" fill="#94a3b8">그래서 임계값은 고르는 게 아니라 <tspan font-weight="700" fill="#cbd5e1">내 워크로드에서 측정해서 정하는 것</tspan>입니다</text>
+</svg>

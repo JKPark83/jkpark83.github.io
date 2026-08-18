@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="리즈닝 모델이 돌려주는 응답을 블록의 배열로 그린 그림. 왼쪽에는 모델이 내놓은 세 블록이 있다. 첫째는 thinking 블록으로 signature라는 암호 필드가 붙어 있고, 둘째는 text 블록, 셋째는 tool_use 블록이다. 가운데에서 길이 둘로 갈린다. 위쪽 길은 받은 그대로 돌려주는 방식으로 추론이 이어지고 캐시가 살아 있으며 도구 결과를 받은 뒤에도 같은 생각을 이어 간다. 아래쪽 길은 thinking 블록을 떨구고 tool_use만 돌려주는 방식으로 사백 에러가 나거나 thinking이 조용히 꺼지거나 캐시가 통째로 새로 만들어진다. 오른쪽 아래에는 이 암호 덩어리가 로그에 그대로 쌓이면 위험하다는 경고가 있다.">
+  <defs>
+    <linearGradient id="rbs-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#151d31"/>
+    </linearGradient>
+    <marker id="rbs-ar-g" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#4ade80"/>
+    </marker>
+    <marker id="rbs-ar-r" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#fb7185"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#rbs-bg)"/>
+
+  <text x="60" y="76" font-size="39" font-weight="800" fill="#f1f5f9" font-family="system-ui,sans-serif">에이전트가 매 턴 주고받는 그 암호 덩어리</text>
+  <text x="60" y="118" font-size="21" fill="#94a3b8" font-family="system-ui,sans-serif">reasoning 블록은 장식이 아니라 상태(state)입니다 — 떨구면 조용히 망가집니다</text>
+  <line x1="60" y1="142" x2="1140" y2="142" stroke="#334155" stroke-width="1.5"/>
+
+  <!-- left: response blocks -->
+  <text x="60" y="192" font-size="15" font-weight="700" fill="#64748b" font-family="system-ui,sans-serif">모델이 돌려준 content 배열</text>
+
+  <rect x="60" y="206" width="290" height="78" rx="12" fill="#a78bfa" opacity="0.15"/>
+  <rect x="60" y="206" width="290" height="78" rx="12" fill="none" stroke="#a78bfa" stroke-width="1.7"/>
+  <text x="82" y="236" font-size="18" font-weight="700" fill="#a78bfa" font-family="ui-monospace,monospace">thinking</text>
+  <text x="82" y="262" font-size="14" fill="#cbd5e1" font-family="ui-monospace,monospace">signature: "BDaL4Vrb…"</text>
+
+  <rect x="60" y="296" width="290" height="56" rx="12" fill="none" stroke="#475569" stroke-width="1.5"/>
+  <text x="82" y="331" font-size="17" font-weight="700" fill="#94a3b8" font-family="ui-monospace,monospace">text</text>
+
+  <rect x="60" y="364" width="290" height="56" rx="12" fill="#38bdf8" opacity="0.13"/>
+  <rect x="60" y="364" width="290" height="56" rx="12" fill="none" stroke="#38bdf8" stroke-width="1.6"/>
+  <text x="82" y="399" font-size="17" font-weight="700" fill="#38bdf8" font-family="ui-monospace,monospace">tool_use</text>
+
+  <!-- split -->
+  <path d="M356,250 C420,250 420,222 486,222" stroke="#4ade80" stroke-width="3" fill="none" marker-end="url(#rbs-ar-g)"/>
+  <path d="M356,392 C420,392 420,222 486,222" stroke="#4ade80" stroke-width="3" fill="none" opacity="0.55"/>
+  <path d="M356,392 C420,392 420,430 486,430" stroke="#fb7185" stroke-width="3" fill="none" marker-end="url(#rbs-ar-r)"/>
+  <text x="372" y="470" font-size="14" fill="#fb7185" font-family="system-ui,sans-serif">thinking 탈락</text>
+
+  <!-- good path -->
+  <rect x="496" y="176" width="644" height="150" rx="14" fill="#4ade80" opacity="0.11"/>
+  <rect x="496" y="176" width="644" height="150" rx="14" fill="none" stroke="#4ade80" stroke-width="1.7"/>
+  <text x="524" y="211" font-size="21" font-weight="700" fill="#4ade80" font-family="system-ui,sans-serif">받은 그대로 돌려준다</text>
+  <text x="524" y="243" font-size="15" fill="#cbd5e1" font-family="ui-monospace,monospace">messages += [assistant(response.content), tool_result]</text>
+  <text x="524" y="272" font-size="15.5" fill="#e2e8f0" font-family="system-ui,sans-serif">추론이 이어짐 · 캐시 히트 유지 · 다음 도구 선택이 흔들리지 않음</text>
+  <text x="524" y="300" font-size="15.5" fill="#94a3b8" font-family="system-ui,sans-serif">OpenAI: 하네스에서 이 한 가지를 바꿔 ARC-AGI-3 13.3% → 38.3%</text>
+
+  <!-- bad path -->
+  <rect x="496" y="348" width="644" height="196" rx="14" fill="#fb7185" opacity="0.11"/>
+  <rect x="496" y="348" width="644" height="196" rx="14" fill="none" stroke="#fb7185" stroke-width="1.7"/>
+  <text x="524" y="383" font-size="21" font-weight="700" fill="#fb7185" font-family="system-ui,sans-serif">떨구거나 손대면 — 셋 중 하나</text>
+
+  <text x="524" y="416" font-size="15.5" fill="#e2e8f0" font-family="system-ui,sans-serif">① 400 — blocks in the latest assistant message cannot be modified</text>
+  <text x="524" y="446" font-size="15.5" fill="#e2e8f0" font-family="system-ui,sans-serif">② 에러 없이 thinking만 조용히 꺼짐 (응답을 봐야 안다)</text>
+  <text x="524" y="476" font-size="15.5" fill="#e2e8f0" font-family="system-ui,sans-serif">③ cache_read 1,370 → 0 · 프리픽스 통째로 다시 생성</text>
+
+  <line x1="524" y1="496" x2="1112" y2="496" stroke="#fb7185" stroke-width="1" opacity="0.4"/>
+  <text x="524" y="524" font-size="15" fill="#fbbf24" font-family="system-ui,sans-serif">⚠ 그리고 이 덩어리는 불투명하지 않습니다 — 로그에 그대로 남기지 마세요</text>
+
+  <text x="60" y="596" font-size="14.5" fill="#64748b" font-family="system-ui,sans-serif">출처: platform.claude.com/docs — Thinking · Thinking in tool and multi-turn workflows · arXiv:2608.09867</text>
+</svg>

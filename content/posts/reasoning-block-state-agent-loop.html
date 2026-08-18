@@ -1,0 +1,644 @@
+---
+title: "에이전트가 매 턴 주고받는 그 암호 덩어리: reasoning 블록을 제대로 다루는 법"
+date: 2026-08-19T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "agent", "reasoning", "리즈닝", "thinking block", "reasoning item", "signature", "redacted_thinking", "encrypted_content", "prompt caching", "프롬프트 캐싱", "context window", "컨텍스트", "tool use", "도구 호출", "agent loop", "에이전트 루프", "Responses API", "Messages API", "context editing", "observability", "로깅", "LLM", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "리즈닝 모델을 쓰는 에이전트는 매 턴 이상한 물건을 주고받습니다. thinking 블록에 붙은 signature, 혹은 reasoning item의 encrypted_content라는 긴 base64 덩어리요. 대부분은 이게 뭔지 모른 채 그냥 통과시키거나, 로그를 깔끔하게 만들려고 떨궈 버립니다. 그런데 이번 주 이 덩어리가 두 번 화제가 됐습니다. 8월 11일에는 이게 생각만큼 불투명하지 않다는 논문이 나왔고, 그 직전에는 OpenAI가 하네스에서 이걸 버리지 않게 고쳤더니 ARC-AGI-3 점수가 13.3%에서 38.3%로 뛰었다고 발표했습니다. 이 글은 이 블록이 정확히 무엇이고, 왜 받은 그대로 돌려줘야 하며, 떨궜을 때 어떤 세 가지 방식으로 망가지는지, 그리고 모델·공급자별로 무엇이 다른지를 junior 개발자 눈높이로 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "reasoning-block-state-agent-loop-cover.svg"
+  alt: "리즈닝 모델이 돌려준 content 배열이 thinking·text·tool_use 세 블록으로 그려져 있고, 여기서 길이 둘로 갈린다. 받은 그대로 돌려주면 추론이 이어지고 캐시가 유지되지만, thinking 블록을 떨구면 400 에러가 나거나 thinking이 조용히 꺼지거나 캐시가 통째로 새로 생성된다."
+  caption: "thinking 블록은 응답의 장식이 아니라 다음 요청의 입력 상태입니다. 그리고 이 상태를 어떻게 다루느냐가 정확도·비용·보안을 한꺼번에 흔듭니다."
+  relative: false
+---
+
+<style>
+/* ── reasoning 블록 상태 관리 포스트 전용 스타일 (rbs- 접두사) ── */
+.rbs-fig{
+  --rbs-violet:#7c3aed; --rbs-sky:#0284c7; --rbs-green:#16a34a; --rbs-rose:#e11d48;
+  --rbs-amber:#d97706; --rbs-slate:#64748b; --rbs-teal:#0d9488; --rbs-blue:#2563eb;
+  --rbs-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .rbs-fig{
+  --rbs-violet:#a78bfa; --rbs-sky:#38bdf8; --rbs-green:#4ade80; --rbs-rose:#fb7185;
+  --rbs-amber:#fbbf24; --rbs-slate:#94a3b8; --rbs-teal:#2dd4bf; --rbs-blue:#60a5fa;
+  --rbs-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .rbs-fig{
+    --rbs-violet:#a78bfa; --rbs-sky:#38bdf8; --rbs-green:#4ade80; --rbs-rose:#fb7185;
+    --rbs-amber:#fbbf24; --rbs-slate:#94a3b8; --rbs-teal:#2dd4bf; --rbs-blue:#60a5fa;
+    --rbs-gray:#64748b;
+  }
+}
+.rbs-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.rbs-fig text{font-family:inherit}
+.rbs-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.rbs-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.rbs-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.rbs-toc ol{margin:0;padding-left:1.25rem}
+.rbs-toc li{margin:.22rem 0;font-size:.95rem}
+.rbs-toc a{text-decoration:none}
+.rbs-toc a:hover{text-decoration:underline}
+.rbs-pull{font-size:1.12rem;line-height:1.72}
+.rbs-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.rbs-note{border-left:4px solid var(--rbs-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.rbs-note strong{color:var(--rbs-blue,#2563eb)}
+.rbs-warn{border-left:4px solid var(--rbs-rose,#e11d48)}
+.rbs-warn strong{color:var(--rbs-rose,#e11d48)}
+.rbs-good{border-left:4px solid var(--rbs-teal,#0d9488)}
+.rbs-good strong{color:var(--rbs-teal,#0d9488)}
+.rbs-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.rbs-tbl th,.rbs-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.rbs-tbl th{background:var(--entry);font-weight:700}
+.rbs-tbl code{font-size:.86em}
+.rbs-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="rbs-pull">
+  “서버에 저장하는 대신, 공급자는 추론 흔적을 암호화된 텍스트 덩어리로 클라이언트에 돌려주고 클라이언트는 그것을 이후 요청마다 다시 실어 보냅니다.”
+  <footer>— arXiv:2608.09867, “Stealing Reasoning Traces from Proprietary LLM APIs” (2026-08-10 제출)</footer>
+</blockquote>
+
+<div class="rbs-toc">
+  <div class="rbs-toc-title">이 글의 순서</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 같은 물건이 한 주에 두 번 화제가 됐다</a></li>
+    <li><a href="#sec-2">배경 — 리즈닝 모델의 응답은 “블록의 배열”이다</a></li>
+    <li><a href="#sec-3">도구 호출 한 바퀴는 “턴 하나”다</a></li>
+    <li><a href="#sec-4">떨구면 벌어지는 세 가지 일</a></li>
+    <li><a href="#sec-5">모델마다 다르다 — 다 남기기 vs 마지막 턴만</a></li>
+    <li><a href="#sec-6">OpenAI 쪽은 어떻게 다른가</a></li>
+    <li><a href="#sec-7">실전 — 안 깨지는 루프와 로그 위생</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 같은 물건이 한 주에 두 번 화제가 됐다</h2>
+
+<p>리즈닝 모델(reasoning model, 답을 내기 전에 눈에 안 보이는 “생각”을 먼저 하는 모델)을 에이전트에 붙여 보면, API 응답에서 처음 보는 물건을 만납니다. 이런 겁니다.</p>
+
+{{< highlight json >}}
+{
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "사용자가 파리 날씨를 묻고 있다. get_weather 함수가 있으니...",
+      "signature": "BDaL4VrbR2Oj0hO4XpJxT28J5T...."
+    },
+    { "type": "text", "text": "파리 날씨를 확인해 보겠습니다" },
+    { "type": "tool_use", "id": "toolu_01Cswd...", "name": "get_weather",
+      "input": { "location": "Paris" } }
+  ]
+}
+{{< /highlight >}}
+
+<p>여기서 <code>signature</code>가 문제의 그 덩어리입니다. 읽을 수도 없고, 길고, 로그를 지저분하게 만듭니다. 그래서 많은 사람이 두 가지 중 하나를 합니다. 아무 생각 없이 통과시키거나, 대화 기록을 예쁘게 만들려고 <code>thinking</code> 블록을 통째로 걸러 냅니다.</p>
+
+<p><strong>이번 주에 왜 화제였나.</strong> 이 덩어리가 8월 둘째 주에 서로 정반대 방향에서 두 번 조명을 받았습니다.</p>
+
+<p>하나는 <em>버리면 안 된다</em>는 쪽입니다. OpenAI는 <a href="https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores/" target="_blank" rel="noopener">“How enabling two settings tripled our scores on the ARC-AGI-3 benchmark”</a>에서, 공식 ARC-AGI-3 하네스가 매 수(手)마다 모델의 비공개 추론을 버리고 오래된 기록을 잘라 내고 있었다고 밝혔습니다. 모델을 새로 학습시키지도, 추론 예산을 늘리지도, 게임 전용 도구를 붙이지도 않고 <strong>추론을 버리지 않게 하는 것과 압축(compaction) 두 가지만 켰더니</strong> GPT-5.6 Sol의 점수가 13.3%에서 38.3%로 올랐고, 출력 토큰은 오히려 약 6분의 1로 줄었습니다.</p>
+
+<p>다른 하나는 <em>아무 데나 두면 안 된다</em>는 쪽입니다. 8월 10일 arXiv에 <a href="https://arxiv.org/abs/2608.09867" target="_blank" rel="noopener">“Stealing Reasoning Traces from Proprietary LLM APIs”</a>(arXiv:2608.09867)가 올라와 이튿날 널리 퍼졌습니다. 요지는 이 암호화 블록이 같은 공급자 생태계 안에서 세션·사용자·모델을 넘나들며 그대로 호환된다는 것입니다. 연구진은 공개된 에이전트 실행 기록에서 이 블록들을 모아 복원했고, 그 안에서 자격 증명과 개인 식별 정보가 나왔다고 보고했습니다. <strong>즉, 개발자들이 “어차피 못 읽는 덩어리”라고 생각하고 그대로 공개 로그에 올려 둔 것들이었습니다.</strong></p>
+
+<p>정리하면 이렇습니다. 이 블록은 <strong>에이전트 루프에서 가장 값진 상태이면서 동시에 가장 잘못 다뤄지는 상태</strong>입니다. 이 글은 이게 정확히 뭐고, 어떻게 다뤄야 하는지를 다룹니다.</p>
+
+<div class="rbs-note"><strong>이 글에서 얻어 갈 것.</strong> ① thinking 블록·signature·reasoning item이 각각 무엇인지, ② 왜 “받은 그대로” 돌려줘야 하는지, ③ 떨궜을 때 망가지는 세 가지 방식과 그 증상, ④ 모델·공급자별 차이와 컨텍스트 비용, ⑤ 안 깨지는 루프 코드와 로그 위생.</div>
+
+<h2 id="sec-2">2. 배경 — 리즈닝 모델의 응답은 “블록의 배열”이다</h2>
+
+<p>먼저 용어를 정리하겠습니다. 리즈닝 모델의 응답은 문자열 하나가 아니라 <strong>content 블록의 배열</strong>입니다. Claude의 Messages API 기준으로 에이전트가 자주 만나는 종류는 넷입니다.</p>
+
+<div class="rbs-tblwrap">
+<table class="rbs-tbl">
+  <thead>
+    <tr><th>블록</th><th>안에 든 것</th><th>돌려줄 때 규칙</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>thinking</code></td>
+      <td><code>thinking</code>(생각 텍스트, 요약본이거나 빈 문자열) + <code>signature</code></td>
+      <td>도구를 쓰는 턴 안에서는 <strong>필수</strong>. 손대면 안 됨</td>
+    </tr>
+    <tr>
+      <td><code>redacted_thinking</code></td>
+      <td><code>data</code>(암호화된 내용, 읽을 수 있는 텍스트 없음)</td>
+      <td><code>thinking</code>과 <strong>똑같이</strong> 취급. 필터에서 빠지기 쉬움</td>
+    </tr>
+    <tr><td><code>text</code></td><td>사용자에게 보여 줄 텍스트</td><td>평범</td></tr>
+    <tr><td><code>tool_use</code></td><td><code>id</code>, <code>name</code>, <code>input</code></td><td><code>tool_result</code>의 <code>tool_use_id</code>로 짝을 맞춤</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong><code>signature</code>가 뭔가.</strong> Anthropic 문서의 설명은 짧고 분명합니다. 전체 thinking 내용이 암호화되어 각 thinking 블록의 <code>signature</code> 필드에 담겨 돌아오고, API는 <strong>이 값으로 그 블록을 정말 Claude가 생성했는지 검증</strong>합니다. 그러니까 서명이자 봉투입니다. 문서는 이 값을 불투명하게 취급하라고 못 박습니다. 해석하지도, 파싱하지도 말라는 뜻입니다. Claude API·Amazon Bedrock·Google Cloud 사이에서는 서로 호환됩니다.</p>
+
+<p><strong><code>redacted_thinking</code>은 뭔가.</strong> 안전상의 이유로 추론 일부가 가려질 때 나오는 별도 블록입니다. 모양은 이렇습니다.</p>
+
+{{< highlight json >}}
+{ "type": "redacted_thinking", "data": "..." }
+{{< /highlight >}}
+
+<p>여기서 첫 번째 함정이 나옵니다. 많은 코드가 이렇게 씁니다.</p>
+
+{{< highlight python >}}
+# ❌ redacted_thinking이 조용히 사라진다
+blocks = [b for b in response.content if b.type == "thinking"]
+{{< /highlight >}}
+
+<p>이 한 줄이 나중에 400 에러로 돌아옵니다. Anthropic 문서가 이 실수를 콕 집어 경고할 만큼 흔합니다.</p>
+
+<p><strong>왜 빈 문자열이 오나.</strong> 최근 모델은 <code>display</code> 기본값이 <code>"omitted"</code>라서, thinking 블록은 오는데 <code>thinking</code> 필드가 빈 문자열이고 <code>signature</code>만 채워져 있는 경우가 많습니다. 생각 텍스트를 보고 싶으면 <code>display: "summarized"</code>를 주면 됩니다. 어느 쪽이든 <strong>돌려줄 때는 받은 배열을 그대로</strong> 넘기면 됩니다.</p>
+
+<div class="rbs-note"><strong>왜 텍스트가 아니라 봉투일까.</strong> 공급자는 원본 사고 흔적을 그대로 노출하지 않으려 합니다. 그렇다고 서버에 세션 상태를 들고 있으면 무상태(stateless) API가 아니게 되죠. 그래서 “암호화해서 클라이언트에 맡기고, 다음 요청에 다시 받는” 방식을 씁니다. 여러분의 애플리케이션이 <em>모델의 단기 기억을 대신 보관하는 창고</em>가 된다는 뜻입니다. 이 사실 하나만 이해하면 아래 내용이 전부 자연스럽게 따라옵니다.</div>
+
+<h2 id="sec-3">3. 도구 호출 한 바퀴는 “턴 하나”다</h2>
+
+<p>이제 핵심 개념입니다. 우리 눈에 대화는 이렇게 보입니다. 사용자 → 어시스턴트 → 사용자 → 어시스턴트. 그런데 도구를 쓰면 <code>tool_result</code>가 <em>user 역할</em>로 들어갑니다. 그래서 코드만 보면 턴이 계속 바뀌는 것처럼 보이죠.</p>
+
+<p>모델이 보는 그림은 다릅니다. Anthropic 문서의 표현을 그대로 옮기면, <strong>도구 사용 루프 전체가 하나의 assistant 턴</strong>입니다. 모델은 답을 만들다가 외부 정보를 기다리려고 잠깐 멈춘 것이고, <code>tool_result</code>를 받으면 <em>같은 응답을 이어서</em> 만듭니다. 그러니 아까 하던 생각이 아직 거기 있어야 합니다.</p>
+
+<figure class="rbs-fig" role="group" aria-labelledby="rbs-fig1-cap">
+  <svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" aria-label="도구 호출이 들어간 대화를 두 관점으로 비교한 그림. 위쪽은 코드에서 보이는 구조로 user 메시지, assistant 메시지, tool_result가 담긴 user 메시지, 그리고 다시 assistant 메시지가 나란히 네 칸으로 늘어서 있어서 턴이 두 번 바뀐 것처럼 보인다. 아래쪽은 모델이 보는 구조로 첫 user 메시지 다음의 세 칸 전체가 하나의 커다란 assistant 턴으로 묶여 있고, 그 안에서 thinking 블록이 tool_use 블록과 함께 이동해 tool_result 뒤의 응답까지 이어진다는 점을 굵은 선으로 표시한다.">
+    <!-- 위: 코드에서 보이는 구조 -->
+    <rect x="16" y="16" width="728" height="150" rx="12" fill="var(--rbs-slate)" opacity="0.09"/>
+    <rect x="16" y="16" width="728" height="150" rx="12" fill="none" stroke="var(--rbs-slate)" stroke-width="1.3"/>
+    <text x="38" y="44" font-size="14.5" font-weight="700" fill="var(--rbs-slate)">코드에서 보이는 구조 — 턴이 두 번 바뀐 것 같다</text>
+
+    <g font-size="12">
+      <rect x="40" y="62" width="150" height="76" rx="9" fill="none" stroke="var(--rbs-slate)" stroke-width="1.3"/>
+      <text x="115" y="86" fill="var(--rbs-slate)" text-anchor="middle" font-weight="700">user</text>
+      <text x="115" y="110" fill="var(--rbs-gray)" text-anchor="middle">“파리 날씨?”</text>
+
+      <rect x="204" y="62" width="150" height="76" rx="9" fill="none" stroke="var(--rbs-slate)" stroke-width="1.3"/>
+      <text x="279" y="86" fill="var(--rbs-slate)" text-anchor="middle" font-weight="700">assistant</text>
+      <text x="279" y="107" fill="var(--rbs-violet)" text-anchor="middle">thinking</text>
+      <text x="279" y="126" fill="var(--rbs-sky)" text-anchor="middle">tool_use</text>
+
+      <rect x="368" y="62" width="150" height="76" rx="9" fill="none" stroke="var(--rbs-slate)" stroke-width="1.3"/>
+      <text x="443" y="86" fill="var(--rbs-slate)" text-anchor="middle" font-weight="700">user</text>
+      <text x="443" y="110" fill="var(--rbs-gray)" text-anchor="middle">tool_result</text>
+
+      <rect x="532" y="62" width="150" height="76" rx="9" fill="none" stroke="var(--rbs-slate)" stroke-width="1.3"/>
+      <text x="607" y="86" fill="var(--rbs-slate)" text-anchor="middle" font-weight="700">assistant</text>
+      <text x="607" y="110" fill="var(--rbs-gray)" text-anchor="middle">최종 답</text>
+    </g>
+
+    <!-- 아래: 모델이 보는 구조 -->
+    <rect x="16" y="184" width="728" height="200" rx="12" fill="var(--rbs-teal)" opacity="0.09"/>
+    <rect x="16" y="184" width="728" height="200" rx="12" fill="none" stroke="var(--rbs-teal)" stroke-width="1.3"/>
+    <text x="38" y="212" font-size="14.5" font-weight="700" fill="var(--rbs-teal)">모델이 보는 구조 — 도구 루프 전체가 assistant 턴 하나</text>
+
+    <g font-size="12">
+      <rect x="40" y="230" width="150" height="70" rx="9" fill="none" stroke="var(--rbs-slate)" stroke-width="1.3"/>
+      <text x="115" y="256" fill="var(--rbs-slate)" text-anchor="middle" font-weight="700">user</text>
+      <text x="115" y="278" fill="var(--rbs-gray)" text-anchor="middle">“파리 날씨?”</text>
+
+      <rect x="204" y="222" width="478" height="86" rx="11" fill="var(--rbs-teal)" opacity="0.13"/>
+      <rect x="204" y="222" width="478" height="86" rx="11" fill="none" stroke="var(--rbs-teal)" stroke-width="1.8"/>
+      <text x="443" y="243" font-size="13" font-weight="700" fill="var(--rbs-teal)" text-anchor="middle">assistant 턴 하나 — 중간에 thinking 설정을 못 바꾼다</text>
+
+      <rect x="220" y="254" width="130" height="40" rx="7" fill="var(--rbs-violet)" opacity="0.18"/>
+      <rect x="220" y="254" width="130" height="40" rx="7" fill="none" stroke="var(--rbs-violet)" stroke-width="1.5"/>
+      <text x="285" y="279" fill="var(--rbs-violet)" text-anchor="middle" font-weight="700">thinking</text>
+
+      <rect x="360" y="254" width="120" height="40" rx="7" fill="none" stroke="var(--rbs-sky)" stroke-width="1.4"/>
+      <text x="420" y="279" fill="var(--rbs-sky)" text-anchor="middle" font-weight="700">tool_use</text>
+
+      <rect x="490" y="254" width="82" height="40" rx="7" fill="none" stroke="var(--rbs-gray)" stroke-width="1.3"/>
+      <text x="531" y="279" fill="var(--rbs-gray)" text-anchor="middle">결과</text>
+
+      <rect x="582" y="254" width="86" height="40" rx="7" fill="none" stroke="var(--rbs-gray)" stroke-width="1.3"/>
+      <text x="625" y="279" fill="var(--rbs-gray)" text-anchor="middle">최종 답</text>
+    </g>
+
+    <!-- 이어짐 표시 -->
+    <path d="M285,300 C285,332 625,332 625,300" fill="none" stroke="var(--rbs-violet)" stroke-width="2.2" stroke-dasharray="6 4"/>
+    <text x="455" y="352" font-size="12.5" font-weight="700" fill="var(--rbs-violet)" text-anchor="middle">이 생각이 여기까지 이어져야 한다 → 그래서 thinking 블록을 같이 돌려준다</text>
+  </svg>
+  <figcaption id="rbs-fig1-cap">코드에서는 <code>tool_result</code>가 user 메시지라 턴이 끊겨 보이지만, 모델에게는 <strong>도구 루프 전체가 하나의 assistant 턴</strong>입니다. 그 턴 안의 thinking 블록은 끝까지 따라다녀야 합니다.</figcaption>
+</figure>
+
+<p>그래서 규칙이 이렇게 갈립니다. Anthropic 문서의 세 줄 요약을 그대로 옮기면:</p>
+
+<ul>
+  <li><strong>필수</strong> — 도구 사용 턴 안에서는 thinking 블록을 돌려준다.</li>
+  <li><strong>권장</strong> — 턴을 넘어서도 전부 돌려준다.</li>
+  <li><strong>허용</strong> — 도구를 안 쓰는 대화라면 이전 턴 thinking은 생략해도 된다.</li>
+</ul>
+
+<p>그리고 한 가지 제약이 더 있습니다. <strong>가장 최근 assistant 메시지 안에서 연속된 thinking 블록의 순서는 모델이 만든 그대로여야 합니다.</strong> 재배열도, 편집도, 일부만 빼는 것도 안 됩니다. <code>redacted_thinking</code>도 포함해서요.</p>
+
+<div class="rbs-good"><strong>좋은 소식.</strong> 오래된 thinking을 직접 잘라 낼 필요는 없습니다. 전부 그대로 돌려주면 API가 알아서 걸러 내고, 실제로 모델에게 보여 준 블록에 대해서만 input 토큰을 매깁니다. 즉 <strong>“그냥 다 돌려준다”가 기본값으로 옳습니다.</strong></div>
+
+<h2 id="sec-4">4. 떨구면 벌어지는 세 가지 일</h2>
+
+<p>이제 재미없는 부분입니다. 블록을 떨구거나 손댔을 때 나오는 증상은 셋인데, 난이도가 정반대입니다.</p>
+
+<figure class="rbs-fig" role="group" aria-labelledby="rbs-fig2-cap">
+  <svg viewBox="0 0 760 320" xmlns="http://www.w3.org/2000/svg" aria-label="reasoning 블록을 잘못 다뤘을 때 나타나는 세 가지 증상을 나란히 비교한 그림. 첫째는 400 에러로 즉시 요청이 실패하며 원인은 블록을 수정했거나 redacted_thinking을 필터로 떨군 것이고 발견하기 가장 쉽다. 둘째는 에러 없이 thinking이 조용히 꺼지는 경우로 턴 중간에 thinking 설정을 바꿨을 때 발생하며 응답에 thinking 블록이 있는지 직접 확인해야만 알 수 있다. 셋째는 캐시 미스로 thinking 설정이나 effort 값을 바꾸면 캐시 프리픽스가 새로 시작되어 cache_read가 1370에서 0으로 떨어지고 비용만 늘어난다.">
+    <text x="16" y="26" font-size="14.5" font-weight="700" fill="var(--rbs-slate)">증상 세 가지 — 오른쪽으로 갈수록 알아채기 어렵다</text>
+
+    <!-- ① 400 -->
+    <rect x="16" y="44" width="234" height="252" rx="12" fill="var(--rbs-rose)" opacity="0.11"/>
+    <rect x="16" y="44" width="234" height="252" rx="12" fill="none" stroke="var(--rbs-rose)" stroke-width="1.6"/>
+    <text x="40" y="76" font-size="15" font-weight="700" fill="var(--rbs-rose)">① 400 에러</text>
+    <text x="40" y="104" font-size="12" fill="var(--rbs-slate)">blocks … cannot be</text>
+    <text x="40" y="122" font-size="12" fill="var(--rbs-slate)">modified</text>
+    <line x1="40" y1="138" x2="226" y2="138" stroke="var(--rbs-rose)" stroke-width="1" opacity="0.45"/>
+    <text x="40" y="162" font-size="12" fill="var(--rbs-gray)">원인: 메시지 재조립</text>
+    <text x="40" y="182" font-size="12" fill="var(--rbs-gray)">redacted_thinking 필터링</text>
+    <rect x="40" y="200" width="186" height="34" rx="7" fill="var(--rbs-green)" opacity="0.16"/>
+    <rect x="40" y="200" width="186" height="34" rx="7" fill="none" stroke="var(--rbs-green)" stroke-width="1.3"/>
+    <text x="133" y="222" font-size="12.5" font-weight="700" fill="var(--rbs-green)" text-anchor="middle">즉시 터짐 = 제일 낫다</text>
+    <text x="40" y="258" font-size="12" fill="var(--rbs-slate)">고치는 법:</text>
+    <text x="40" y="277" font-size="12" fill="var(--rbs-slate)">받은 배열 그대로 echo</text>
+
+    <!-- ② 조용한 비활성화 -->
+    <rect x="263" y="44" width="234" height="252" rx="12" fill="var(--rbs-amber)" opacity="0.11"/>
+    <rect x="263" y="44" width="234" height="252" rx="12" fill="none" stroke="var(--rbs-amber)" stroke-width="1.6"/>
+    <text x="287" y="76" font-size="15" font-weight="700" fill="var(--rbs-amber)">② 조용히 꺼짐</text>
+    <text x="287" y="104" font-size="12" fill="var(--rbs-slate)">에러 없음 · 200 OK</text>
+    <text x="287" y="122" font-size="12" fill="var(--rbs-slate)">thinking 블록만 사라짐</text>
+    <line x1="287" y1="138" x2="473" y2="138" stroke="var(--rbs-amber)" stroke-width="1" opacity="0.45"/>
+    <text x="287" y="162" font-size="12" fill="var(--rbs-gray)">원인: 턴 중간에</text>
+    <text x="287" y="182" font-size="12" fill="var(--rbs-gray)">thinking 설정 변경</text>
+    <rect x="287" y="200" width="186" height="34" rx="7" fill="var(--rbs-rose)" opacity="0.16"/>
+    <rect x="287" y="200" width="186" height="34" rx="7" fill="none" stroke="var(--rbs-rose)" stroke-width="1.3"/>
+    <text x="380" y="222" font-size="12.5" font-weight="700" fill="var(--rbs-rose)" text-anchor="middle">품질만 떨어진다</text>
+    <text x="287" y="258" font-size="12" fill="var(--rbs-slate)">확인하는 법:</text>
+    <text x="287" y="277" font-size="12" fill="var(--rbs-slate)">응답에 thinking 있나 검사</text>
+
+    <!-- ③ 캐시 미스 -->
+    <rect x="510" y="44" width="234" height="252" rx="12" fill="var(--rbs-sky)" opacity="0.11"/>
+    <rect x="510" y="44" width="234" height="252" rx="12" fill="none" stroke="var(--rbs-sky)" stroke-width="1.6"/>
+    <text x="534" y="76" font-size="15" font-weight="700" fill="var(--rbs-sky)">③ 캐시 미스</text>
+    <text x="534" y="104" font-size="12" fill="var(--rbs-slate)">cache_read 1,370 → 0</text>
+    <text x="534" y="122" font-size="12" fill="var(--rbs-slate)">프리픽스 새로 생성</text>
+    <line x1="534" y1="138" x2="720" y2="138" stroke="var(--rbs-sky)" stroke-width="1" opacity="0.45"/>
+    <text x="534" y="162" font-size="12" fill="var(--rbs-gray)">원인: effort · budget_tokens</text>
+    <text x="534" y="182" font-size="12" fill="var(--rbs-gray)">· thinking 모드 변경</text>
+    <rect x="534" y="200" width="186" height="34" rx="7" fill="var(--rbs-rose)" opacity="0.16"/>
+    <rect x="534" y="200" width="186" height="34" rx="7" fill="none" stroke="var(--rbs-rose)" stroke-width="1.3"/>
+    <text x="627" y="222" font-size="12.5" font-weight="700" fill="var(--rbs-rose)" text-anchor="middle">청구서로만 드러난다</text>
+    <text x="534" y="258" font-size="12" fill="var(--rbs-slate)">확인하는 법:</text>
+    <text x="534" y="277" font-size="12" fill="var(--rbs-slate)">cache_read_input_tokens</text>
+  </svg>
+  <figcaption id="rbs-fig2-cap">즉시 터지는 400은 오히려 다행입니다. 진짜 무서운 건 <strong>에러 없이 품질만 떨어지는 ②</strong>와 <strong>청구서로만 드러나는 ③</strong>입니다.</figcaption>
+</figure>
+
+<h3>① 400 — 그나마 친절한 실패</h3>
+
+<p>도구 결과를 돌려주는 요청이 <code>invalid_request_error</code>로 실패하고 메시지에 이 문구가 들어 있습니다.</p>
+
+{{< highlight text >}}
+`thinking` or `redacted_thinking` blocks in the latest assistant message cannot be modified
+{{< /highlight >}}
+
+<p>원인은 거의 항상 둘 중 하나입니다. content 블록을 타입으로 걸러 <code>redacted_thinking</code>을 떨궜거나, assistant 메시지를 그대로 넘기지 않고 <em>새로 조립했거나</em>. 고치는 법도 하나입니다. 받은 배열을 그대로 실어 보내면 됩니다.</p>
+
+<h3>② 에러 없이 thinking이 꺼지는 경우</h3>
+
+<p>이쪽이 진짜 골칫거리입니다. 턴 중간에 — 예를 들어 도구를 호출한 뒤 결과를 돌려주는 사이에 — thinking 설정을 바꾸면 API는 에러를 내지 않습니다. 대신 <strong>그 요청에서 thinking을 조용히 끕니다.</strong> 문서가 “degrade gracefully”라고 부르는 동작인데, 실무에서는 “원인 모를 품질 저하”로 나타납니다.</p>
+
+<p>턴 구조가 깨질 것 같으면 API가 thinking 블록을 알아서 벗겨 내기도 합니다. 그래서 thinking이 실제로 작동했는지 확인하는 방법은 하나뿐입니다. <strong>응답에 thinking 블록이 있는지 직접 보는 것.</strong></p>
+
+{{< highlight python >}}
+# thinking이 정말 켜져 있었는지 확인 — 200 OK만으로는 알 수 없다
+thought = any(b.type in ("thinking", "redacted_thinking") for b in resp.content)
+if not thought:
+    logger.warning("thinking이 꺼진 채로 응답함 — 턴 구조나 설정 변경을 확인하세요")
+{{< /highlight >}}
+
+<p>규칙은 간단합니다. <strong>thinking 설정은 턴과 턴 사이에서만 바꾸세요.</strong> 도구 루프 한가운데서는 절대 건드리지 않습니다.</p>
+
+<h3>③ 캐시가 통째로 다시 만들어지는 경우</h3>
+
+<p>프롬프트 캐싱(prompt caching, 같은 앞부분을 재사용해 입력 비용을 줄이는 기능)은 thinking 설정과 <code>effort</code> 값이 <em>프롬프트 자체에 렌더링</em>되기 때문에 이것들이 바뀌면 캐시 프리픽스가 새로 시작됩니다. Anthropic 문서에 실린 실측 결과가 이걸 그대로 보여 줍니다. 3번째 요청에서 예산을 4,000에서 8,000으로 바꿨을 뿐인데:</p>
+
+{{< highlight text >}}
+1번째(캐시 생성): cache_creation=1370  cache_read=0
+2번째(설정 동일):  cache_creation=0     cache_read=1370   ← 히트
+3번째(예산 변경):  cache_creation=1370  cache_read=0      ← 통째로 다시
+{{< /highlight >}}
+
+<p>반대로 좋은 소식도 있습니다. thinking 블록은 도구 결과와 <strong>함께 캐시됩니다.</strong> <code>cache_control</code>을 따로 안 붙여도 그렇습니다. 그러니 여러 단계짜리 도구 워크플로에서 블록을 그대로 유지하면 캐시 히트로 이득을 봅니다. 다만 캐시에서 읽힌 thinking 블록도 input 토큰으로 계산된다는 점은 기억하세요.</p>
+
+<div class="rbs-note"><strong>팁.</strong> 생각을 많이 시키는 작업은 기본 5분짜리 캐시 수명 안에 안 끝나는 경우가 많습니다. 여러 단계짜리 에이전트라면 1시간 캐시를 검토하세요.</div>
+
+<h2 id="sec-5">5. 모델마다 다르다 — 다 남기기 vs 마지막 턴만</h2>
+
+<p>여기서 많이들 헷갈립니다. “이전 턴의 thinking 블록이 컨텍스트에 남는가”는 <strong>모델마다 다릅니다.</strong></p>
+
+<div class="rbs-tblwrap">
+<table class="rbs-tbl">
+  <thead>
+    <tr><th>계열</th><th>이전 턴을 전부 남김</th><th>마지막 턴만 남김</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Opus</td><td>Claude Opus 4.5 이상</td><td>Claude Opus 4.1 이하</td></tr>
+    <tr><td>Sonnet</td><td>Claude Sonnet 4.6 이상</td><td>Claude Sonnet 4.5 이하</td></tr>
+    <tr><td>Haiku</td><td>(없음)</td><td>Claude Haiku 4.5까지 전부</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Claude Fable 5, Mythos 5, Mythos Preview도 전부 남기는 쪽입니다.</p>
+
+<p><strong>전부 남기는 모델</strong>은 캐시 히트에 유리하고, 문서에 따르면 지능에 나쁜 영향은 없습니다. 대신 남은 thinking이 <em>대화 기록과 똑같이</em> 컨텍스트를 먹고 input 토큰으로 청구됩니다. 긴 에이전트 세션에서는 이게 쌓입니다.</p>
+
+<p><strong>마지막 턴만 남기는 모델</strong>은 <code>tool_result</code>가 아닌 일반 user 메시지가 오는 순간 이전 thinking 블록이 전부 사라집니다. 즉 thinking은 그 턴 한정 비용이고 다음 턴에는 창을 안 먹습니다. 여러분이 옛날 블록을 돌려보내도 API가 알아서 벗겨 냅니다.</p>
+
+<figure class="rbs-fig" role="group" aria-labelledby="rbs-fig3-cap">
+  <svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" aria-label="네 번의 턴 동안 thinking 블록이 컨텍스트에 어떻게 쌓이는지를 두 모델 계열로 비교한 그림. 위쪽 전부 남기는 모델에서는 턴이 지날수록 보라색 thinking 블록이 하나씩 더 쌓여 네 번째 턴에서는 네 개가 모두 컨텍스트에 남아 있고, 캐시 히트에 유리하지만 input 토큰으로 계속 청구된다. 아래쪽 마지막 턴만 남기는 모델에서는 매 턴 이전 thinking 블록이 사라지고 항상 현재 턴의 하나만 남아 있어서 컨텍스트를 아끼지만 이전 추론은 이어지지 않는다.">
+    <!-- keep all -->
+    <rect x="16" y="16" width="728" height="126" rx="12" fill="var(--rbs-violet)" opacity="0.09"/>
+    <rect x="16" y="16" width="728" height="126" rx="12" fill="none" stroke="var(--rbs-violet)" stroke-width="1.3"/>
+    <text x="38" y="44" font-size="14" font-weight="700" fill="var(--rbs-violet)">전부 남김 (Opus 4.5+ · Sonnet 4.6+ · Fable 5 · Mythos 5) — 캐시 ✓ / 컨텍스트 ↑</text>
+    <g>
+      <rect x="44" y="58" width="150" height="66" rx="8" fill="none" stroke="var(--rbs-gray)" stroke-width="1.2"/>
+      <rect x="54" y="94" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.55"/>
+      <text x="119" y="78" font-size="12" fill="var(--rbs-slate)" text-anchor="middle">턴 1</text>
+
+      <rect x="208" y="58" width="150" height="66" rx="8" fill="none" stroke="var(--rbs-gray)" stroke-width="1.2"/>
+      <rect x="218" y="94" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.55"/>
+      <rect x="218" y="70" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.3"/>
+      <text x="283" y="136" font-size="11.5" fill="var(--rbs-gray)" text-anchor="middle">턴 2</text>
+
+      <rect x="372" y="58" width="150" height="66" rx="8" fill="none" stroke="var(--rbs-gray)" stroke-width="1.2"/>
+      <rect x="382" y="94" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.55"/>
+      <rect x="382" y="70" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.3"/>
+      <rect x="382" y="46" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.22"/>
+      <text x="447" y="136" font-size="11.5" fill="var(--rbs-gray)" text-anchor="middle">턴 3</text>
+
+      <rect x="536" y="58" width="150" height="66" rx="8" fill="none" stroke="var(--rbs-gray)" stroke-width="1.2"/>
+      <rect x="546" y="94" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.55"/>
+      <rect x="546" y="70" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.3"/>
+      <rect x="546" y="46" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.22"/>
+      <rect x="546" y="22" width="130" height="20" rx="5" fill="var(--rbs-violet)" opacity="0.16"/>
+      <text x="611" y="136" font-size="11.5" fill="var(--rbs-gray)" text-anchor="middle">턴 4 — 넷 다 남아 있다</text>
+    </g>
+
+    <!-- last turn only -->
+    <rect x="16" y="160" width="728" height="124" rx="12" fill="var(--rbs-teal)" opacity="0.09"/>
+    <rect x="16" y="160" width="728" height="124" rx="12" fill="none" stroke="var(--rbs-teal)" stroke-width="1.3"/>
+    <text x="38" y="188" font-size="14" font-weight="700" fill="var(--rbs-teal)">마지막 턴만 (Opus 4.1↓ · Sonnet 4.5↓ · Haiku 전 모델) — 컨텍스트 ✓ / 추론은 안 이어짐</text>
+    <g>
+      <rect x="44" y="202" width="150" height="60" rx="8" fill="none" stroke="var(--rbs-gray)" stroke-width="1.2"/>
+      <rect x="54" y="232" width="130" height="20" rx="5" fill="var(--rbs-teal)" opacity="0.55"/>
+      <text x="119" y="222" font-size="12" fill="var(--rbs-slate)" text-anchor="middle">턴 1</text>
+
+      <rect x="208" y="202" width="150" height="60" rx="8" fill="none" stroke="var(--rbs-gray)" stroke-width="1.2"/>
+      <rect x="218" y="232" width="130" height="20" rx="5" fill="var(--rbs-teal)" opacity="0.55"/>
+      <text x="283" y="222" font-size="12" fill="var(--rbs-gray)" text-anchor="middle">턴 2</text>
+
+      <rect x="372" y="202" width="150" height="60" rx="8" fill="none" stroke="var(--rbs-gray)" stroke-width="1.2"/>
+      <rect x="382" y="232" width="130" height="20" rx="5" fill="var(--rbs-teal)" opacity="0.55"/>
+      <text x="447" y="222" font-size="12" fill="var(--rbs-gray)" text-anchor="middle">턴 3</text>
+
+      <rect x="536" y="202" width="150" height="60" rx="8" fill="none" stroke="var(--rbs-gray)" stroke-width="1.2"/>
+      <rect x="546" y="232" width="130" height="20" rx="5" fill="var(--rbs-teal)" opacity="0.55"/>
+      <text x="611" y="222" font-size="12" fill="var(--rbs-gray)" text-anchor="middle">턴 4 — 항상 하나</text>
+    </g>
+    <text x="380" y="278" font-size="12" fill="var(--rbs-slate)" text-anchor="middle">tool_result가 아닌 user 메시지가 오면 이전 thinking은 전부 스트립된다</text>
+  </svg>
+  <figcaption id="rbs-fig3-cap">같은 코드라도 <strong>모델을 바꾸면 컨텍스트 사용량 곡선이 달라집니다.</strong> 여러 모델 티어를 오가는 코드라면 기본값에 기대지 말고 <code>keep</code>을 명시하세요.</figcaption>
+</figure>
+
+<p><strong>기본값을 덮어쓰려면</strong> context editing의 <code>clear_thinking_20251015</code> 전략을 씁니다. “최근 N개 턴의 thinking만 남기기” 또는 “전부 남기기”를 직접 고를 수 있습니다.</p>
+
+{{< highlight python >}}
+response = client.beta.messages.create(
+    model="claude-opus-5",
+    max_tokens=16000,
+    messages=messages,
+    betas=["context-management-2025-06-27"],
+    context_management={
+        "edits": [
+            # 최근 2개 턴의 thinking만 남긴다. "all"을 주면 전부 유지(캐시 히트 최대).
+            {"type": "clear_thinking_20251015",
+             "keep": {"type": "thinking_turns", "value": 2}},
+            # 여러 전략을 함께 쓸 때 clear_thinking은 반드시 배열 맨 앞에 와야 한다.
+            {"type": "clear_tool_uses_20250919",
+             "trigger": {"type": "input_tokens", "value": 50000},
+             "keep": {"type": "tool_uses", "value": 5}},
+        ]
+    },
+)
+{{< /highlight >}}
+
+<p>단, 지우는 순간 그 지점에서 캐시가 무효화됩니다. <strong>컨텍스트 여유와 캐시 히트를 맞바꾸는 손잡이</strong>라고 생각하면 정확합니다.</p>
+
+<div class="rbs-warn"><strong>모델을 바꿔 끼울 때.</strong> 대화 도중에 모델을 교체한다면(예: 폴백) 이전 턴의 <code>thinking</code>·<code>redacted_thinking</code> 블록을 <strong>벗겨 내고</strong> 보내세요. 이 블록들은 만든 모델에 묶여 있습니다. 다른 모델은 에러를 내지 않고 조용히 무시하는데, <em>무시된 블록도 input 토큰은 그대로 청구됩니다.</em> 라우팅·폴백을 쓰는 팀이 청구서 보고 놀라는 전형적인 지점입니다.</div>
+
+<h2 id="sec-6">6. OpenAI 쪽은 어떻게 다른가</h2>
+
+<p>OpenAI의 Responses API는 같은 문제를 다른 방식으로 풉니다. 이름은 thinking 블록이 아니라 <strong>reasoning item</strong>이고, 보관 위치를 고를 수 있습니다.</p>
+
+<p><strong>상태를 서버에 맡기는 방식.</strong> 응답은 기본적으로 저장되므로(<code>store: true</code>), 다음 요청에서 <code>previous_response_id</code>로 이전 응답을 가리키면 그 추론을 이어 쓸 수 있습니다. 코드가 단순해집니다. 다만 <em>비용까지 공짜가 되지는 않습니다.</em> <code>previous_response_id</code>를 써도 이어진 응답들의 이전 입력 토큰은 전부 input 토큰으로 청구됩니다.</p>
+
+<p><strong>상태를 클라이언트가 들고 있는 방식.</strong> 데이터 보관 정책상 서버 저장을 못 쓰는 조직(ZDR 등)을 위해, 암호화된 reasoning item을 받아 직접 들고 다닐 수 있습니다.</p>
+
+{{< highlight python >}}
+resp = client.responses.create(
+    model="gpt-5.6-terra",
+    input=history,
+    tools=tools,
+    store=False,                                  # 서버에 저장하지 않음
+    include=["reasoning.encrypted_content"],      # 대신 암호화된 추론을 돌려받음
+)
+
+# 다음 요청에서는 output 아이템을 그대로 이어 붙인다.
+# (Claude에서 content 배열을 통째로 echo하는 것과 같은 발상)
+history += resp.output
+{{< /highlight >}}
+
+<p>OpenAI 설명에 따르면 요청에 실려 온 <code>encrypted_content</code>는 메모리에서만 복호화되어 다음 응답 생성에 쓰이고 디스크에는 쓰이지 않습니다. 그리고 GPT-5.6 계열은 이전 턴의 reasoning을 재사용하는 <code>all_turns</code>를 기본으로 씁니다. 이전 응답 아이템에 접근할 수 있을 때만 효과가 있으니, <strong>결국 “아이템을 이어 붙였는가”가 관건입니다.</strong></p>
+
+<p>1절의 ARC-AGI-3 이야기가 바로 이 지점입니다. 모델도 예산도 그대로였고, 하네스가 매 수마다 추론을 버리던 것을 안 버리게 바꾼 게 전부였습니다. <strong>모델을 바꾸기 전에 하네스가 뭘 버리고 있는지부터 보라</strong>는 교훈으로 읽는 게 맞습니다.</p>
+
+<div class="rbs-tblwrap">
+<table class="rbs-tbl">
+  <thead>
+    <tr><th></th><th>Anthropic Messages API</th><th>OpenAI Responses API</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>이름</td><td><code>thinking</code> / <code>redacted_thinking</code> 블록</td><td>reasoning item</td></tr>
+    <tr><td>봉투 필드</td><td><code>signature</code> / <code>data</code></td><td><code>encrypted_content</code></td></tr>
+    <tr><td>보관 주체</td><td>항상 클라이언트</td><td>서버(기본) 또는 클라이언트(<code>store: false</code>)</td></tr>
+    <tr><td>이어 붙이는 법</td><td>assistant content 배열을 그대로 echo</td><td><code>previous_response_id</code> 또는 output 아이템 복사</td></tr>
+    <tr><td>어길 때</td><td>400 또는 조용한 thinking 비활성화</td><td>추론 연속성 상실</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="sec-7">7. 실전 — 안 깨지는 루프와 로그 위생</h2>
+
+<h3>안 깨지는 에이전트 루프</h3>
+
+<p>규칙은 하나로 줄일 수 있습니다. <strong>응답 content를 손대지 말고 통째로 넣는다.</strong> 블록 타입으로 걸러 내는 코드를 아예 쓰지 않는 게 요령입니다.</p>
+
+{{< highlight python >}}
+import anthropic
+
+client = anthropic.Anthropic()
+messages = [{"role": "user", "content": "파리 날씨 확인하고 우산이 필요한지 알려줘"}]
+
+while True:
+    resp = client.messages.create(
+        model="claude-opus-4-8",
+        max_tokens=16000,
+        thinking={"type": "adaptive"},   # 루프 도중에는 절대 바꾸지 않는다
+        tools=TOOLS,
+        messages=messages,
+    )
+
+    # ① 받은 배열을 통째로 넣는다. 필터링·재조립 금지.
+    #    thinking / redacted_thinking / text / tool_use가 원래 순서 그대로 들어간다.
+    messages.append({"role": "assistant", "content": resp.content})
+
+    if resp.stop_reason != "tool_use":
+        break
+
+    # ② 도구를 돌리고 결과를 user 메시지로 붙인다.
+    results = []
+    for block in resp.content:
+        if block.type == "tool_use":
+            results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": run_tool(block.name, block.input),
+            })
+    messages.append({"role": "user", "content": results})
+{{< /highlight >}}
+
+<p>짧죠. 요점은 <code>resp.content</code>를 <strong>가공하지 않는 것</strong>입니다. 화면에 보여 줄 텍스트가 필요하면 <em>표시용으로만</em> 따로 뽑아 쓰고, API에 보내는 배열은 원본을 유지하세요.</p>
+
+{{< highlight python >}}
+# 화면 표시용 — 여기서 뽑은 값을 다시 API로 보내면 안 된다
+display_text = "".join(b.text for b in resp.content if b.type == "text")
+{{< /highlight >}}
+
+<h3>로그 위생 — 덩어리를 그대로 남기지 않기</h3>
+
+<p>1절의 논문이 짚은 문제가 여기입니다. 연구진은 공개된 에이전트 실행 기록에서 이 블록들을 모아 복원했고, 그 안에서 자격 증명과 개인 정보를 찾아냈습니다. 이 추출 기법 자체는 2026년 8월 기준 더 이상 재현되지 않고, 실제 악용 사례도 문서화되지 않았습니다. 하지만 교훈은 남습니다.</p>
+
+<p><strong>암호화됐다는 말은 “안전하다”가 아니라 “내가 못 읽는다”입니다.</strong> 그 안에는 모델이 사용자 데이터를 보며 한 생각이 들어 있습니다. 그러니 실행 기록을 외부에 내보낼 때는 마스킹하세요.</p>
+
+{{< highlight python >}}
+OPAQUE_KEYS = {"signature", "data", "encrypted_content"}
+
+def redact_reasoning(obj):
+    """추적/디버그 기록을 밖으로 내보내기 전에 불투명 필드를 마스킹한다.
+
+    주의: 이 결과물은 '보관·공유용'이다. API로 되돌려 보낼 원본은
+    반드시 손대지 않은 채로 따로 들고 있어야 한다.
+    """
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if k in OPAQUE_KEYS and isinstance(v, str):
+                out[k] = f"<redacted:{len(v)}B>"      # 길이만 남겨 디버깅에 쓴다
+            elif k == "thinking" and isinstance(v, str):
+                out[k] = f"<thinking:{len(v)}chars>"  # 생각 텍스트도 원문 저장은 피한다
+            else:
+                out[k] = redact_reasoning(v)
+        return out
+    if isinstance(obj, list):
+        return [redact_reasoning(x) for x in obj]
+    return obj
+{{< /highlight >}}
+
+<p>운영 규칙으로 정리하면 이렇습니다.</p>
+
+<ul>
+  <li><strong>원본은 세션 메모리에만.</strong> API로 되돌려 보낼 배열은 손대지 않은 채로 들고 있되, 그 수명은 대화 수명까지로 한정합니다.</li>
+  <li><strong>내보내는 순간 마스킹.</strong> 이슈 첨부, 공개 저장소, 외부 로그 수집기, 재현용 덤프 — 프로세스 밖으로 나가는 모든 경로에 위 함수를 겁니다.</li>
+  <li><strong>추적 도구 설정을 확인.</strong> 요청·응답 본문을 통째로 저장하는 설정이면 이 필드도 같이 쌓입니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<div class="rbs-tblwrap">
+<table class="rbs-tbl">
+  <thead><tr><th>실수</th><th>왜 생기나</th><th>고치는 법</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>b.type == "thinking"</code>으로 필터링</td>
+      <td><code>redacted_thinking</code>이 조용히 빠져 400</td>
+      <td>필터링을 없애고 content 배열을 그대로 echo</td>
+    </tr>
+    <tr>
+      <td>assistant 메시지를 직접 재조립</td>
+      <td>순서·필드가 원본과 달라져 검증 실패</td>
+      <td><code>resp.content</code>를 그대로 대입</td>
+    </tr>
+    <tr>
+      <td>도구 루프 중간에 effort·모드 변경</td>
+      <td>에러 없이 thinking이 꺼짐</td>
+      <td>턴 사이에서만 변경. 응답에 thinking 있는지 검사</td>
+    </tr>
+    <tr>
+      <td>요청마다 effort를 흔듦</td>
+      <td>캐시 프리픽스가 매번 새로 생성</td>
+      <td>한 대화 동안 설정을 고정</td>
+    </tr>
+    <tr>
+      <td>폴백으로 모델을 바꾸며 블록을 그대로 전달</td>
+      <td>다른 모델은 무시하지만 input 토큰은 청구</td>
+      <td>모델 교체 시 이전 thinking 블록 제거</td>
+    </tr>
+    <tr>
+      <td>빈 <code>thinking</code> 필드를 보고 “안 왔네” 판단</td>
+      <td>신형 모델은 <code>display</code> 기본이 <code>"omitted"</code></td>
+      <td>필요하면 <code>display: "summarized"</code>. 어차피 echo는 동일</td>
+    </tr>
+    <tr>
+      <td>실행 기록을 통째로 공개</td>
+      <td>불투명해 보이는 필드에 내용이 들어 있음</td>
+      <td>내보내기 경로에서 마스킹</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>팁 하나 — 여러 모델을 돌린다면 기본값에 기대지 마세요.</strong> 같은 코드가 Haiku와 Opus에서 컨텍스트를 전혀 다르게 씁니다. <code>clear_thinking_20251015</code>의 <code>keep</code>을 명시하면 모델을 바꿔도 동작이 예측 가능해집니다.</p>
+
+<p><strong>팁 둘 — 회귀를 잡는 지표를 하나 두세요.</strong> 턴마다 <code>cache_read_input_tokens</code>와 “thinking 블록이 왔는지”를 같이 남기면, 앞서 본 ②와 ③이 배포 직후에 그래프로 드러납니다. 둘 다 에러를 안 내는 실패라서, 재는 것 말고는 알아챌 방법이 없습니다.</p>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>리즈닝 모델의 응답은 블록의 배열입니다. <code>thinking</code>의 <code>signature</code>, <code>redacted_thinking</code>의 <code>data</code>, OpenAI의 <code>encrypted_content</code>는 <strong>모델의 단기 기억을 담은 봉투</strong>입니다.</li>
+  <li>도구 사용 루프 전체가 <strong>assistant 턴 하나</strong>입니다. 그 안에서는 thinking 블록을 <strong>받은 그대로</strong> 돌려주는 게 필수입니다.</li>
+  <li>어겼을 때 증상은 셋입니다. ① 400 에러, ② <strong>에러 없이 thinking이 꺼짐</strong>, ③ 캐시 프리픽스 재생성. 뒤로 갈수록 알아채기 어렵습니다.</li>
+  <li>가장 흔한 원인은 <code>b.type == "thinking"</code> 필터링과 메시지 재조립입니다. 필터링을 없애면 대부분 해결됩니다.</li>
+  <li>이전 턴 블록을 남기는지는 <strong>모델마다 다릅니다.</strong> Opus 4.5+·Sonnet 4.6+·Fable 5·Mythos 5는 전부 남기고, 그 이전 모델과 Haiku 계열은 마지막 턴만 남깁니다. 여러 티어를 쓰면 <code>clear_thinking_20251015</code>로 명시하세요.</li>
+  <li>모델을 바꿔 끼울 때는 이전 thinking 블록을 벗겨 내세요. 무시되더라도 <strong>input 토큰은 청구됩니다.</strong></li>
+  <li>모델을 바꾸기 전에 <strong>하네스가 뭘 버리고 있는지</strong> 보세요. OpenAI는 추론 유지와 압축 두 가지만 켜서 ARC-AGI-3 점수를 13.3%에서 38.3%로 올렸습니다.</li>
+  <li>불투명해 보이는 필드는 안전하다는 뜻이 아닙니다. 실행 기록을 밖으로 내보낼 때는 <strong>마스킹하고</strong>, 원본은 세션 안에만 두세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li>Anthropic, “Thinking”(thinking 블록 구조, 도구 사용과 thinking, 블록 보존 규칙, 모델별 보존 정책, 프롬프트 캐싱·컨텍스트 윈도, thinking 암호화, <code>redacted_thinking</code>) — <a href="https://platform.claude.com/docs/en/build-with-claude/thinking" target="_blank" rel="noopener">platform.claude.com</a></li>
+  <li>Anthropic, “Thinking in tool and multi-turn workflows”(두 턴짜리 도구 라운드트립 전체 예제 · assistant 턴을 그대로 echo하는 코드 · interleaved thinking 비교) — <a href="https://platform.claude.com/docs/en/build-with-claude/thinking-tool-workflows" target="_blank" rel="noopener">platform.claude.com</a></li>
+  <li>Anthropic, “Troubleshooting thinking”(400 <code>blocks … cannot be modified</code>의 정확한 메시지·원인·해법 · 설정 변경 후 캐시 히트 하락 · 빈 thinking 필드) — <a href="https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting" target="_blank" rel="noopener">platform.claude.com</a></li>
+  <li>Anthropic, “Extended thinking”(<code>budget_tokens</code> 규칙 · 예산 변경 시 캐시 무효화 실측 출력 <code>cache_creation=1370</code> · adaptive thinking 마이그레이션) — <a href="https://platform.claude.com/docs/en/build-with-claude/extended-thinking" target="_blank" rel="noopener">platform.claude.com</a></li>
+  <li>Anthropic, “Context editing — Thinking Block Clearing”(<code>clear_thinking_20251015</code> · <code>keep</code> 옵션 · 모델별 기본값 표 · 캐시와의 상호작용 · 전략 순서) — <a href="https://platform.claude.com/docs/en/build-with-claude/context-editing" target="_blank" rel="noopener">platform.claude.com</a></li>
+  <li>OpenAI, “How enabling two settings tripled our scores on the ARC-AGI-3 benchmark”(추론 유지 + 압축만으로 GPT-5.6 Sol 13.3% → 38.3% · 출력 토큰 약 1/6) — <a href="https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores/" target="_blank" rel="noopener">openai.com</a></li>
+  <li>OpenAI, “The builder’s guide to GPT-5.6”(persisted reasoning · native compaction · 다중 에이전트 · programmatic tool calling) — <a href="https://openai.com/index/builders-guide-to-gpt-5-6/" target="_blank" rel="noopener">openai.com</a></li>
+  <li>OpenAI, “Reasoning models”(reasoning item · <code>previous_response_id</code> · <code>store</code> · 입력 토큰 과금) — <a href="https://developers.openai.com/api/docs/guides/reasoning" target="_blank" rel="noopener">developers.openai.com</a></li>
+  <li>OpenAI Cookbook, “Better performance from reasoning models using the Responses API”(이전 reasoning item을 모델에 다시 보여 주는 이유) — <a href="https://developers.openai.com/cookbook/examples/responses_api/reasoning_items" target="_blank" rel="noopener">developers.openai.com</a></li>
+  <li>A. Panfilov 외, “Stealing Reasoning Traces from Proprietary LLM APIs”(arXiv:2608.09867 · 2026-08-10 제출 · 암호화 추론 블록이 세션·사용자·모델 간 호환된다는 구조적 취약점 · 공개 실행 기록에서 자격 증명·개인 정보 확인 · 주요 기법은 2026년 8월 기준 재현 불가) — <a href="https://arxiv.org/abs/2608.09867" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>Simon Willison, “Stealing Reasoning Traces from Proprietary LLM APIs”(위 논문에 대한 실무자 관점 정리 · 2026-08-11) — <a href="https://simonwillison.net/2026/Aug/11/stealing-reasoning-traces/" target="_blank" rel="noopener">simonwillison.net</a></li>
+  <li>The Hacker News, “OpenAI, Anthropic, Google API Flaw Let Weaker AI Models Decode Stronger Models’ Reasoning”(보도 · 공개 실행 기록에서 발견된 자격 증명·PII 규모) — <a href="https://thehackernews.com/2026/08/openai-anthropic-google-api-flaw-let.html" target="_blank" rel="noopener">thehackernews.com</a></li>
+  <li>The Decoder, “OpenAI claims GPT-5.6 Sol beats Opus 5 on ARC-AGI-3 with its latest API and two additional settings”(하네스 변경이 벤치마크 결과를 좌우한다는 논쟁 정리) — <a href="https://the-decoder.com/openai-claims-gpt-5-6-sol-beats-opus-5-on-arc-agi-3-with-its-latest-api-and-two-additional-settings/" target="_blank" rel="noopener">the-decoder.com</a></li>
+  <li><strong>[한국어]</strong> Chaos and Order, “LLM 캐싱의 원리 — 프롬프트 캐싱과 Prefix Cache는 왜 돈을 아껴주는가”(캐시 프리픽스가 무엇이고 어떤 변경이 그것을 깨는지) — <a href="https://www.youngju.dev/blog/2026-07-08-llm-caching-explained" target="_blank" rel="noopener">youngju.dev</a></li>
+  <li><strong>[한국어]</strong> 박재홍, “프롬프트 캐싱, 제대로 쓰면 API 비용 80%를 줄인다”(캐시 쓰기·읽기 단가와 손익분기) — <a href="https://wikidocs.net/blog/@jaehong/12142/" target="_blank" rel="noopener">wikidocs.net</a></li>
+</ul>

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="400" fill="#ffffff"/>
+  <text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">에이전트 실행을 트랜잭션으로 감싸면 — Agentic Transaction 사이클</text>
+  <text x="24" y="50" font-size="12" fill="#64748b">arXiv 2608.13900의 탐색–실행–검증 사이클 구조를 도식화</text>
+
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="arg" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 z" fill="#059669"/>
+    </marker>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 z" fill="#dc2626"/>
+    </marker>
+  </defs>
+
+  <g>
+    <rect x="24" y="96" width="150" height="62" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+    <text x="99" y="122" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">① 탐색</text>
+    <text x="99" y="141" font-size="10.5" fill="#475569" text-anchor="middle">읽기 전용으로 계획 수립</text>
+  </g>
+  <line x1="174" y1="127" x2="206" y2="127" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <g>
+    <rect x="212" y="96" width="150" height="62" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+    <text x="287" y="122" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">② 실행</text>
+    <text x="287" y="141" font-size="10.5" fill="#475569" text-anchor="middle">쓰기 작업 + 되돌리기 기록</text>
+  </g>
+  <line x1="362" y1="127" x2="394" y2="127" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <g>
+    <rect x="400" y="96" width="150" height="62" rx="6" fill="#fef3c7" stroke="#fcd34d"/>
+    <text x="475" y="122" font-size="13" font-weight="700" fill="#92400e" text-anchor="middle">③ 검증</text>
+    <text x="475" y="141" font-size="10.5" fill="#78350f" text-anchor="middle">confidence 발산 여부 확인</text>
+  </g>
+
+  <path d="M550,112 L588,112" stroke="#059669" stroke-width="1.5" marker-end="url(#arg)" fill="none"/>
+  <path d="M550,142 L588,142" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arr)" fill="none"/>
+
+  <g>
+    <rect x="594" y="88" width="142" height="42" rx="6" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <text x="665" y="105" font-size="12" font-weight="700" fill="#047857" text-anchor="middle">수렴 → COMMIT</text>
+    <text x="665" y="121" font-size="10" fill="#065f46" text-anchor="middle">상태 확정 · 스킬 허브 등록</text>
+  </g>
+  <g>
+    <rect x="594" y="136" width="142" height="42" rx="6" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="665" y="153" font-size="12" font-weight="700" fill="#b91c1c" text-anchor="middle">발산 → ROLLBACK</text>
+    <text x="665" y="169" font-size="10" fill="#991b1b" text-anchor="middle">보상 실행 후 ①로 복귀</text>
+  </g>
+
+  <path d="M665,178 L665,200 L99,200 L99,164" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3" fill="none" marker-end="url(#arr)"/>
+  <text x="380" y="195" font-size="10.5" fill="#dc2626" text-anchor="middle">부분 성공 상태를 남기지 않고 되감는다</text>
+
+  <line x1="24" y1="222" x2="736" y2="222" stroke="#e2e8f0"/>
+  <text x="24" y="244" font-size="13" font-weight="700" fill="#0f172a">ACID를 에이전트 용어로 다시 읽으면</text>
+
+  <g>
+    <rect x="24" y="256" width="172" height="76" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="38" y="278" font-size="11.5" font-weight="700" fill="#1d4ed8">Semantic Atomicity</text>
+    <text x="38" y="298" font-size="10.5" fill="#475569">멀티스텝 작업은 전부</text>
+    <text x="38" y="314" font-size="10.5" fill="#475569">되거나 전부 되감긴다</text>
+  </g>
+  <g>
+    <rect x="204" y="256" width="172" height="76" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="218" y="278" font-size="11.5" font-weight="700" fill="#1d4ed8">Semantic Consistency</text>
+    <text x="218" y="298" font-size="10.5" fill="#475569">커밋 후 워크스페이스가</text>
+    <text x="218" y="314" font-size="10.5" fill="#475569">불변식을 만족한다</text>
+  </g>
+  <g>
+    <rect x="384" y="256" width="172" height="76" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="398" y="278" font-size="11.5" font-weight="700" fill="#1d4ed8">Semantic Isolation</text>
+    <text x="398" y="298" font-size="10.5" fill="#475569">의미 의존성을 보고</text>
+    <text x="398" y="314" font-size="10.5" fill="#475569">동시 실행을 분리한다</text>
+  </g>
+  <g>
+    <rect x="564" y="256" width="172" height="76" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="578" y="278" font-size="11.5" font-weight="700" fill="#1d4ed8">Semantic Durability</text>
+    <text x="578" y="298" font-size="10.5" fill="#475569">커밋된 상태와 스킬이</text>
+    <text x="578" y="314" font-size="10.5" fill="#475569">다음 세션까지 남는다</text>
+  </g>
+
+  <g>
+    <rect x="24" y="346" width="712" height="34" rx="4" fill="#f1f5f9"/>
+    <text x="36" y="368" font-size="11.5" fill="#334155">논문이 보고한 결과: 이 구조를 구현한 데이터 에이전트가 Claude Code를 포함한 기존 SOTA 대비 10.6% 개선.</text>
+  </g>
+</svg>

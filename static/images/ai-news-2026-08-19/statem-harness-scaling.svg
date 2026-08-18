@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="420" fill="#ffffff"/>
+  <text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">StateM — 모델 가중치를 그대로 두고 하니스만 바꿨을 때</text>
+  <text x="24" y="50" font-size="12" fill="#64748b">Terminal-Bench 2.1 정확도(%), 높을수록 좋음. 같은 모델 · 같은 가중치, 실행 런타임만 교체</text>
+
+  <g font-size="11.5">
+    <rect x="24" y="64" width="12" height="12" rx="2" fill="#cbd5e1"/>
+    <text x="42" y="74" fill="#475569">기존 하니스(레퍼런스)</text>
+    <rect x="204" y="64" width="12" height="12" rx="2" fill="#2563eb"/>
+    <text x="222" y="74" fill="#475569">StateM 런타임</text>
+  </g>
+
+  <g stroke="#e2e8f0" stroke-width="1">
+    <line x1="200" y1="90" x2="200" y2="344"/>
+    <line x1="306" y1="90" x2="306" y2="344"/>
+    <line x1="412" y1="90" x2="412" y2="344"/>
+    <line x1="518" y1="90" x2="518" y2="344"/>
+    <line x1="624" y1="90" x2="624" y2="344"/>
+    <line x1="730" y1="90" x2="730" y2="344"/>
+  </g>
+  <g font-size="10.5" fill="#94a3b8" text-anchor="middle">
+    <text x="200" y="360">0</text>
+    <text x="306" y="360">20</text>
+    <text x="412" y="360">40</text>
+    <text x="518" y="360">60</text>
+    <text x="624" y="360">80</text>
+    <text x="730" y="360">100</text>
+  </g>
+
+  <g font-size="12" fill="#334155" text-anchor="end">
+    <text x="188" y="127">GPT-5.5 xhigh</text>
+    <text x="188" y="217">GPT-5.6 Luna</text>
+    <text x="188" y="307">DeepSeek-V4 Flash</text>
+  </g>
+  <g font-size="10" fill="#94a3b8" text-anchor="end">
+    <text x="188" y="142">런북 직접 구성</text>
+    <text x="188" y="232">frozen profile</text>
+    <text x="188" y="322">적응 비용 &lt; $38</text>
+  </g>
+
+  <g>
+    <rect x="200" y="104" width="440.4" height="24" rx="3" fill="#cbd5e1"/>
+    <text x="632" y="121" font-size="12" font-weight="600" fill="#334155" text-anchor="end">83.1</text>
+    <rect x="200" y="134" width="488.1" height="24" rx="3" fill="#2563eb"/>
+    <text x="680" y="151" font-size="12" font-weight="700" fill="#ffffff" text-anchor="end">92.1</text>
+
+    <rect x="200" y="194" width="406.5" height="24" rx="3" fill="#cbd5e1"/>
+    <text x="598" y="211" font-size="12" font-weight="600" fill="#334155" text-anchor="end">76.7</text>
+    <rect x="200" y="224" width="452.6" height="24" rx="3" fill="#2563eb"/>
+    <text x="644" y="241" font-size="12" font-weight="700" fill="#ffffff" text-anchor="end">85.4</text>
+
+    <rect x="200" y="284" width="438.3" height="24" rx="3" fill="#cbd5e1"/>
+    <text x="630" y="301" font-size="12" font-weight="600" fill="#334155" text-anchor="end">82.7</text>
+    <rect x="200" y="314" width="466.9" height="24" rx="3" fill="#2563eb"/>
+    <text x="659" y="331" font-size="12" font-weight="700" fill="#ffffff" text-anchor="end">88.1</text>
+  </g>
+
+  <g>
+    <line x1="705" y1="92" x2="705" y2="344" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <text x="700" y="102" font-size="10.5" fill="#dc2626" text-anchor="end" font-weight="600">95.3</text>
+  </g>
+
+  <g>
+    <rect x="24" y="374" width="712" height="34" rx="4" fill="#f1f5f9"/>
+    <text x="36" y="389" font-size="11" fill="#334155">붉은 선 95.3 = StateM + GPT-5.6 Sol xhigh, 445회 시행 raw accuracy. 89개 과제 전부 최소 1회 성공.</text>
+    <text x="36" y="403" font-size="11" fill="#334155">최종 점수 산출 API 비용은 약 $15, 같은 벤치의 GPT 레퍼런스는 $574.68.</text>
+  </g>
+</svg>

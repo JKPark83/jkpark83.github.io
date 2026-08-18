@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="430" fill="#ffffff"/>
+  <text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">로컬에서 툴을 호출하는 두 가지 방식 — 메모리 발자국 비교</text>
+  <text x="24" y="50" font-size="12" fill="#64748b">가로축은 로그 스케일. 각 모델 카드에 공개된 수치 기준</text>
+
+  <g stroke="#e2e8f0" stroke-width="1">
+    <line x1="200" y1="70" x2="200" y2="190"/>
+    <line x1="325" y1="70" x2="325" y2="190"/>
+    <line x1="450" y1="70" x2="450" y2="190"/>
+    <line x1="575" y1="70" x2="575" y2="190"/>
+    <line x1="700" y1="70" x2="700" y2="190"/>
+  </g>
+  <g font-size="10.5" fill="#94a3b8" text-anchor="middle">
+    <text x="200" y="206">10MB</text>
+    <text x="325" y="206">100MB</text>
+    <text x="450" y="206">1GB</text>
+    <text x="575" y="206">10GB</text>
+    <text x="700" y="206">100GB</text>
+  </g>
+
+  <g font-size="12" fill="#334155" text-anchor="end">
+    <text x="188" y="100">needle2</text>
+    <text x="188" y="160">Muse Glimmer-30B</text>
+  </g>
+  <g font-size="10" fill="#94a3b8" text-anchor="end">
+    <text x="188" y="115">세션 피크 RAM</text>
+    <text x="188" y="175">K-Quant-17GB 기준</text>
+  </g>
+
+  <rect x="200" y="84" width="56" height="26" rx="3" fill="#059669"/>
+  <text x="266" y="102" font-size="12" font-weight="700" fill="#059669">약 28MB</text>
+
+  <rect x="200" y="144" width="404" height="26" rx="3" fill="#7c3aed"/>
+  <text x="614" y="162" font-size="12" font-weight="700" fill="#7c3aed">약 17GB</text>
+
+  <line x1="24" y1="226" x2="736" y2="226" stroke="#e2e8f0"/>
+
+  <g>
+    <rect x="24" y="240" width="348" height="176" rx="6" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <text x="40" y="264" font-size="13.5" font-weight="700" fill="#047857">Cactus-Compute/needle2</text>
+    <text x="40" y="282" font-size="11" fill="#475569">Apache-2.0 · HF 좋아요 160 · 다운로드 14,219</text>
+    <g font-size="11.5" fill="#334155">
+      <text x="40" y="306">· 45M 파라미터, 단일 14MB 바이너리</text>
+      <text x="40" y="326">· 스키마에서 컴파일한 바이트 단위 문법으로 디코딩 제약</text>
+      <text x="40" y="346">· 툴 6개 이상이면 검색 헤드가 매 턴 상위 5개만 렌더</text>
+      <text x="40" y="366">· 응답마다 보정된 confidence → 임계값 아래는 에스컬레이션</text>
+      <text x="40" y="386">· 256토큰 슬라이딩 윈도, 툴은 KV sink로 고정</text>
+      <text x="40" y="406">· Raspberry Pi 5에서 500 tok/s 디코드</text>
+    </g>
+  </g>
+
+  <g>
+    <rect x="388" y="240" width="348" height="176" rx="6" fill="#f5f3ff" stroke="#ddd6fe"/>
+    <text x="404" y="264" font-size="13.5" font-weight="700" fill="#6d28d9">meta-models/Muse-Glimmer-30B</text>
+    <text x="404" y="282" font-size="11" fill="#475569">Apache-2.0 · HF 좋아요 1,679 · 다운로드 384,097</text>
+    <g font-size="11.5" fill="#334155">
+      <text x="404" y="306">· 29.6B(1.8B ViT 포함), 컨텍스트 131,072+</text>
+      <text x="404" y="326">· 4bit 압축 시 언어모델 20GB 미만</text>
+      <text x="404" y="346">· 4bit 열화: K-Quant-Dynamic 0.2% / 17GB 1.0%</text>
+      <text x="404" y="366">· DFlash 드래프터로 RTX 5090 74.9 → 233.4 tok/s</text>
+      <text x="404" y="386">· 툴 호출 실패 시 진단 후 재시도하도록 학습</text>
+      <text x="404" y="406">· 텍스트+이미지 입력, MCP-Atlas 75.5</text>
+    </g>
+  </g>
+</svg>

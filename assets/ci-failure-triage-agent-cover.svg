@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="CI 빌드가 실패했을 때 에이전트가 1차 대응자로 붙는 흐름을 그린 그림. 맨 왼쪽에 빨간 CI 실패 표시가 있고, 화살표를 따라 에이전트가 로그를 읽어 원인을 분류한다. 분류 결과는 셋으로 갈린다. 첫째 일시적 실패는 한 번만 재실행하고, 둘째 진짜 회귀는 최소 수정 패치를 만들어 PR로 올린 뒤 사람이 리뷰하며, 셋째 인프라 문제는 증거를 정리해 사람에게 넘긴다. 오른쪽 아래에는 테스트를 지우거나 단언을 약화시켜 초록불을 만드는 부정행위를 CI 규칙으로 막아야 한다는 경고가 있다.">
+  <defs>
+    <linearGradient id="cft-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#151d31"/>
+    </linearGradient>
+    <marker id="cft-ar" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#94a3b8"/>
+    </marker>
+    <marker id="cft-ar-a" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#fbbf24"/>
+    </marker>
+    <marker id="cft-ar-r" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#fb7185"/>
+    </marker>
+    <marker id="cft-ar-s" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#cft-bg)"/>
+
+  <text x="60" y="72" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="38" font-weight="700" fill="#e2e8f0">CI가 빨개졌다. 누가 먼저 볼 것인가</text>
+  <text x="60" y="110" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">감지 → 분류 → 조치 → 검증 → 인계. 에이전트를 1차 대응자로 붙이는 다섯 단계</text>
+
+  <!-- 실패 이벤트 -->
+  <rect x="52" y="270" width="176" height="96" rx="14" fill="#1e1b2e" stroke="#fb7185" stroke-width="2"/>
+  <circle cx="88" cy="306" r="11" fill="#fb7185"/>
+  <text x="110" y="312" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="20" font-weight="700" fill="#fb7185">CI 실패</text>
+  <text x="72" y="344" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="14" fill="#94a3b8">workflow_run</text>
+
+  <line x1="228" y1="318" x2="292" y2="318" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#cft-ar)"/>
+
+  <!-- 에이전트 -->
+  <rect x="296" y="246" width="196" height="144" rx="14" fill="#172033" stroke="#a78bfa" stroke-width="2"/>
+  <text x="394" y="286" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" font-weight="700" fill="#a78bfa">1차 대응 에이전트</text>
+  <text x="394" y="318" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="16" fill="#cbd5e1">실패한 job 로그만 읽고</text>
+  <text x="394" y="342" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="16" fill="#cbd5e1">원인을 한 줄로 분류</text>
+  <text x="394" y="370" text-anchor="middle" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="14" fill="#64748b">--json-schema</text>
+
+  <!-- 세 갈래 -->
+  <path d="M492 300 C 540 300, 546 176, 596 176" fill="none" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#cft-ar-a)"/>
+  <path d="M492 318 L 596 318" fill="none" stroke="#fb7185" stroke-width="2.5" marker-end="url(#cft-ar-r)"/>
+  <path d="M492 336 C 540 336, 546 460, 596 460" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#cft-ar-s)"/>
+
+  <!-- 일시적 -->
+  <rect x="600" y="136" width="268" height="80" rx="12" fill="#1f1b12" stroke="#fbbf24" stroke-width="1.8"/>
+  <text x="620" y="172" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="19" font-weight="700" fill="#fbbf24">일시적 실패</text>
+  <text x="620" y="198" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#cbd5e1">재실행 딱 한 번 · 기록 남김</text>
+
+  <!-- 회귀 -->
+  <rect x="600" y="278" width="268" height="80" rx="12" fill="#211520" stroke="#fb7185" stroke-width="1.8"/>
+  <text x="620" y="314" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="19" font-weight="700" fill="#fb7185">진짜 회귀</text>
+  <text x="620" y="340" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#cbd5e1">최소 패치 → PR → 사람 리뷰</text>
+
+  <!-- 인프라 -->
+  <rect x="600" y="420" width="268" height="80" rx="12" fill="#101f2a" stroke="#38bdf8" stroke-width="1.8"/>
+  <text x="620" y="456" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="19" font-weight="700" fill="#38bdf8">인프라 · 모르겠음</text>
+  <text x="620" y="482" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#cbd5e1">증거만 묶어 사람에게 인계</text>
+
+  <!-- 사람 게이트 -->
+  <line x1="868" y1="318" x2="932" y2="318" stroke="#4ade80" stroke-width="2.5" marker-end="url(#cft-ar)"/>
+  <rect x="936" y="266" width="212" height="104" rx="14" fill="#0f2018" stroke="#4ade80" stroke-width="2"/>
+  <text x="1042" y="304" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="20" font-weight="700" fill="#4ade80">사람 체크포인트</text>
+  <text x="1042" y="332" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#cbd5e1">merge 권한은</text>
+  <text x="1042" y="354" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#cbd5e1">끝까지 사람에게</text>
+
+  <!-- 경고 -->
+  <rect x="52" y="524" width="1096" height="66" rx="12" fill="#20141a" stroke="#fb7185" stroke-width="1.6"/>
+  <text x="76" y="552" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="700" fill="#fb7185">막아야 할 것 —</text>
+  <text x="212" y="552" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" fill="#cbd5e1">테스트 삭제 · 단언 약화 · 대상 자체를 mock으로 치환 · 버그 동작을 정답으로 단언</text>
+  <text x="76" y="576" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#94a3b8">초록불은 목표가 아니라 신호입니다. 신호를 고치라고 시키면 에이전트는 신호를 끕니다.</text>
+</svg>

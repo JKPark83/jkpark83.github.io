@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+<rect width="760" height="430" fill="#ffffff"/>
+<text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">Ornith-1.0-397B → Ornith-1.5-397B (자기개선 루프 확장 후)</text>
+<text x="24" y="50" font-size="12" fill="#64748b">공식 모델 카드 수치(%), 높을수록 좋음 · 5회 독립 실행 평균 · 세로선은 Claude Opus 4.8 참고치</text>
+<g font-size="11.5"><rect x="24" y="64" width="12" height="12" rx="2" fill="#cbd5e1"/><text x="42" y="74" fill="#475569">Ornith-1.0-397B</text><rect x="150" y="64" width="12" height="12" rx="2" fill="#ea580c"/><text x="168" y="74" fill="#475569">Ornith-1.5-397B</text><line x1="300" y1="62" x2="300" y2="78" stroke="#334155" stroke-width="2" stroke-dasharray="3 2"/><text x="310" y="74" fill="#475569">Claude Opus 4.8</text></g>
+<g stroke="#e2e8f0" stroke-width="1">
+<line x1="222.0" y1="94" x2="222.0" y2="374"/>
+<line x1="322.8" y1="94" x2="322.8" y2="374"/>
+<line x1="423.6" y1="94" x2="423.6" y2="374"/>
+<line x1="524.4" y1="94" x2="524.4" y2="374"/>
+<line x1="625.2" y1="94" x2="625.2" y2="374"/>
+<line x1="726.0" y1="94" x2="726.0" y2="374"/>
+</g>
+<g font-size="10.5" fill="#94a3b8" text-anchor="middle">
+<text x="222.0" y="390">0</text>
+<text x="322.8" y="390">20</text>
+<text x="423.6" y="390">40</text>
+<text x="524.4" y="390">60</text>
+<text x="625.2" y="390">80</text>
+<text x="726.0" y="390">100</text>
+</g>
+<text x="212" y="128" font-size="11.5" fill="#334155" text-anchor="end">Terminal-Bench 2.1</text>
+<rect x="222" y="102" width="390.6" height="15" rx="3" fill="#cbd5e1"/>
+<text x="618.6" y="114" font-size="10.5" fill="#94a3b8">77.5</text>
+<rect x="222" y="121" width="433.9" height="15" rx="3" fill="#ea580c"/>
+<text x="661.9" y="133" font-size="10.5" font-weight="700" fill="#c2410c">86.1</text>
+<line x1="650.4" y1="99" x2="650.4" y2="139" stroke="#334155" stroke-width="2" stroke-dasharray="3 2"/>
+<text x="212" y="174" font-size="11.5" fill="#334155" text-anchor="end">SWE-bench Verified</text>
+<rect x="222" y="148" width="415.3" height="15" rx="3" fill="#cbd5e1"/>
+<text x="643.3" y="160" font-size="10.5" fill="#94a3b8">82.4</text>
+<rect x="222" y="167" width="433.4" height="15" rx="3" fill="#ea580c"/>
+<text x="661.4" y="179" font-size="10.5" font-weight="700" fill="#c2410c">86</text>
+<line x1="654.4" y1="145" x2="654.4" y2="185" stroke="#334155" stroke-width="2" stroke-dasharray="3 2"/>
+<text x="212" y="220" font-size="11.5" fill="#334155" text-anchor="end">DeepSWE</text>
+<rect x="222" y="194" width="40.3" height="15" rx="3" fill="#cbd5e1"/>
+<text x="268.3" y="206" font-size="10.5" fill="#94a3b8">8</text>
+<rect x="222" y="213" width="282.2" height="15" rx="3" fill="#ea580c"/>
+<text x="510.2" y="225" font-size="10.5" font-weight="700" fill="#c2410c">56</text>
+<line x1="519.4" y1="191" x2="519.4" y2="231" stroke="#334155" stroke-width="2" stroke-dasharray="3 2"/>
+<text x="212" y="266" font-size="11.5" fill="#334155" text-anchor="end">Toolathlon-Verified</text>
+<rect x="222" y="240" width="217.7" height="15" rx="3" fill="#cbd5e1"/>
+<text x="445.7" y="252" font-size="10.5" fill="#94a3b8">43.2</text>
+<rect x="222" y="259" width="358.8" height="15" rx="3" fill="#ea580c"/>
+<text x="586.8" y="271" font-size="10.5" font-weight="700" fill="#c2410c">71.2</text>
+<line x1="606.0" y1="237" x2="606.0" y2="277" stroke="#334155" stroke-width="2" stroke-dasharray="3 2"/>
+<text x="212" y="312" font-size="11.5" fill="#334155" text-anchor="end">NL2Repo</text>
+<rect x="222" y="286" width="242.9" height="15" rx="3" fill="#cbd5e1"/>
+<text x="470.9" y="298" font-size="10.5" fill="#94a3b8">48.2</text>
+<rect x="222" y="305" width="299.9" height="15" rx="3" fill="#ea580c"/>
+<text x="527.9" y="317" font-size="10.5" font-weight="700" fill="#c2410c">59.5</text>
+<line x1="573.3" y1="283" x2="573.3" y2="323" stroke="#334155" stroke-width="2" stroke-dasharray="3 2"/>
+<text x="212" y="358" font-size="11.5" fill="#334155" text-anchor="end">MCP-Atlas</text>
+<rect x="222" y="332" width="385.1" height="15" rx="3" fill="#cbd5e1"/>
+<text x="613.1" y="344" font-size="10.5" fill="#94a3b8">76.4</text>
+<rect x="222" y="351" width="403.2" height="15" rx="3" fill="#ea580c"/>
+<text x="631.2" y="363" font-size="10.5" font-weight="700" fill="#c2410c">80</text>
+<line x1="636.3" y1="329" x2="636.3" y2="369" stroke="#334155" stroke-width="2" stroke-dasharray="3 2"/>
+<rect x="24" y="400" width="712" height="22" rx="6" fill="#fff7ed" stroke="#fed7aa"/>
+<text x="36" y="415" font-size="11" fill="#9a3412">DeepSWE 8.0 → 56.0, Toolathlon-Verified 43.2 → 71.2. 가중치가 아니라 &#39;태스크를 스스로 만들어내는 루프&#39;를 넓힌 결과다.</text>
+</svg>

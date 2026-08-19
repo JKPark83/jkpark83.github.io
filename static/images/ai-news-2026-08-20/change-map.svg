@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="470" fill="#ffffff"/>
+  <text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 — 2026-08-20</text>
+  <text x="24" y="50" font-size="12" fill="#64748b">공통 축: 자기개선·자동생성의 성과는 &#39;한 번 측정&#39;으로 판단하면 부호가 뒤집힌다</text>
+
+  <rect x="266" y="72" width="228" height="52" rx="10" fill="#1e293b"/>
+  <text x="380" y="94" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle">단일 측정은 결론을 뒤집는다</text>
+  <text x="380" y="112" font-size="11" fill="#cbd5e1" text-anchor="middle">반복 · 순서 셔플 · 실제 부하에서 재측정</text>
+
+  <g stroke="#cbd5e1" stroke-width="1.5" fill="none">
+    <path d="M266 98 L150 98 L150 150"/>
+    <path d="M494 98 L610 98 L610 150"/>
+    <path d="M330 124 L330 150"/>
+    <path d="M430 124 L430 150"/>
+  </g>
+
+  <g>
+    <rect x="24" y="150" width="252" height="96" rx="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="38" y="172" font-size="12.5" font-weight="700" fill="#1d4ed8">모델 · Ornith-1.5 (MIT)</text>
+    <text x="38" y="191" font-size="11" fill="#334155">397B / 35B-A3B / 9B 오픈웨이트</text>
+    <text x="38" y="208" font-size="11" fill="#334155">태스크·스캐폴드·롤아웃 동시 자기개선</text>
+    <text x="38" y="225" font-size="11" fill="#334155">DeepSWE 8 → 56.0 (1.0 → 1.5)</text>
+    <text x="38" y="240" font-size="10.5" fill="#64748b">전 벤치마크 5회 독립 실행 평균 보고</text>
+  </g>
+
+  <g>
+    <rect x="290" y="150" width="200" height="96" rx="9" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="304" y="172" font-size="12.5" font-weight="700" fill="#b91c1c">논문 · 2608.18066</text>
+    <text x="304" y="191" font-size="11" fill="#334155">메모리 기반 자기개선의 취약성</text>
+    <text x="304" y="208" font-size="11" fill="#334155">순서 셔플 시 +1.5% → −4.5%</text>
+    <text x="304" y="225" font-size="11" fill="#334155">71% 케이스에서 분산 증가</text>
+    <text x="304" y="240" font-size="10.5" fill="#64748b">Salesforce AI Research</text>
+  </g>
+
+  <g>
+    <rect x="504" y="150" width="232" height="96" rx="9" fill="#f5f3ff" stroke="#ddd6fe"/>
+    <text x="518" y="172" font-size="12.5" font-weight="700" fill="#6d28d9">논문 · TRUSS (2608.17588)</text>
+    <text x="518" y="191" font-size="11" fill="#334155">Agent Skill 자동 생성 + 안전 게이트</text>
+    <text x="518" y="208" font-size="11" fill="#334155">산출물 정적 검사 → shadow 실행 증거</text>
+    <text x="518" y="225" font-size="11" fill="#334155">공격 성공률 38.71% → 19.35%</text>
+    <text x="518" y="240" font-size="10.5" fill="#64748b">HUST · NTU</text>
+  </g>
+
+  <g stroke="#cbd5e1" stroke-width="1.5" fill="none">
+    <path d="M380 246 L380 274"/>
+  </g>
+
+  <g>
+    <rect x="24" y="274" width="342" height="86" rx="9" fill="#f0fdf4" stroke="#bbf7d0"/>
+    <text x="38" y="296" font-size="12.5" font-weight="700" fill="#15803d">런타임 · DFlash2 드래프터 (Apache-2.0)</text>
+    <text x="38" y="315" font-size="11" fill="#334155">Qwen3.8-27B 무손실 speculative decoding</text>
+    <text x="38" y="332" font-size="11" fill="#334155">GSM8K 동시성 1에서 3.43× · 동시성 32에서 1.45×</text>
+    <text x="38" y="349" font-size="11" fill="#b91c1c">같은 조건에서 MTP는 HumanEval c=32에 0.84×로 역전</text>
+  </g>
+
+  <g>
+    <rect x="386" y="274" width="350" height="86" rx="9" fill="#fffbeb" stroke="#fde68a"/>
+    <text x="400" y="296" font-size="12.5" font-weight="700" fill="#b45309">툴링 · Claude Code v2.1.235 (8/18)</text>
+    <text x="400" y="315" font-size="11" fill="#334155">MCP v2 subscriptions/listen 스트림 무한 재연결 수정</text>
+    <text x="400" y="332" font-size="11" fill="#334155">고정 타임아웃으로 스트림을 끊는 서버(서버리스) 대상</text>
+    <text x="400" y="349" font-size="11" fill="#334155">Windows NT device prefix UNC 우회 → 자격증명 유출 차단</text>
+  </g>
+
+  <rect x="24" y="378" width="712" height="70" rx="9" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="38" y="399" font-size="12" font-weight="700" fill="#0f172a">오늘 개발자가 바로 할 일</text>
+  <text x="38" y="418" font-size="11" fill="#334155">1) 에이전트 eval을 3회 반복 + 태스크 순서 셔플로 재실행해 부호가 유지되는지 확인</text>
+  <text x="38" y="435" font-size="11" fill="#334155">2) 자동 생성한 Skill은 산출물 리뷰가 아니라 격리 실행 트레이스로 검증  3) 스펙 디코딩 이득은 실제 동시성에서 재측정</text>
+</svg>

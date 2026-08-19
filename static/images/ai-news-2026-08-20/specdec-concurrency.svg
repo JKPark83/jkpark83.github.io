@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+<rect width="760" height="430" fill="#ffffff"/>
+<text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">Speculative decoding 이득은 동시성이 올라가면 녹아내린다</text>
+<text x="24" y="50" font-size="12" fill="#64748b">Qwen3.8-27B · GSM8K · SGLang, H200 1장 · 7 draft tokens/step · autoregressive 대비 처리량 배수</text>
+<g font-size="11.5">
+<rect x="24" y="64" width="12" height="12" rx="2" fill="#94a3b8"/><text x="42" y="74" fill="#475569">MTP</text>
+<rect x="152" y="64" width="12" height="12" rx="2" fill="#60a5fa"/><text x="170" y="74" fill="#475569">DSpark</text>
+<rect x="280" y="64" width="12" height="12" rx="2" fill="#0d9488"/><text x="298" y="74" fill="#475569">DFlash 2</text>
+</g>
+<g stroke="#e2e8f0" stroke-width="1">
+<line x1="88" y1="297.5" x2="736" y2="297.5"/>
+<line x1="88" y1="232.5" x2="736" y2="232.5"/>
+<line x1="88" y1="200.0" x2="736" y2="200.0"/>
+<line x1="88" y1="167.5" x2="736" y2="167.5"/>
+<line x1="88" y1="135.0" x2="736" y2="135.0"/>
+<line x1="88" y1="102.5" x2="736" y2="102.5"/>
+</g>
+<line x1="88" y1="265.0" x2="736" y2="265.0" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="742" y="269.0" font-size="10.5" fill="#dc2626" text-anchor="end">1.0× (이득 없음)</text>
+<g font-size="10.5" fill="#94a3b8" text-anchor="end">
+<text x="80" y="301.5">0.5×</text>
+<text x="80" y="269.0">1.0×</text>
+<text x="80" y="236.5">1.5×</text>
+<text x="80" y="204.0">2.0×</text>
+<text x="80" y="171.5">2.5×</text>
+<text x="80" y="139.0">3.0×</text>
+<text x="80" y="106.5">3.5×</text>
+</g>
+<line x1="88" y1="330" x2="736" y2="330" stroke="#cbd5e1" stroke-width="1.5"/>
+<rect x="110" y="161.7" width="52" height="168.3" rx="3" fill="#94a3b8"/>
+<text x="136.0" y="154.7" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">2.59×</text>
+<rect x="168" y="155.2" width="52" height="174.8" rx="3" fill="#60a5fa"/>
+<text x="194.0" y="148.2" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">2.69×</text>
+<rect x="226" y="107.1" width="52" height="222.9" rx="3" fill="#0d9488"/>
+<text x="252.0" y="100.1" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">3.43×</text>
+<text x="194.0" y="350" font-size="12" font-weight="700" fill="#475569" text-anchor="middle">동시성 1</text>
+<rect x="320" y="187.7" width="52" height="142.3" rx="3" fill="#94a3b8"/>
+<text x="346.0" y="180.7" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">2.19×</text>
+<rect x="378" y="185.0" width="52" height="145.0" rx="3" fill="#60a5fa"/>
+<text x="404.0" y="178.0" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">2.23×</text>
+<rect x="436" y="145.4" width="52" height="184.6" rx="3" fill="#0d9488"/>
+<text x="462.0" y="138.4" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">2.84×</text>
+<text x="404.0" y="350" font-size="12" font-weight="700" fill="#475569" text-anchor="middle">동시성 8</text>
+<rect x="530" y="262.4" width="52" height="67.6" rx="3" fill="#94a3b8"/>
+<text x="556.0" y="255.4" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">1.04×</text>
+<rect x="588" y="256.6" width="52" height="73.4" rx="3" fill="#60a5fa"/>
+<text x="614.0" y="249.6" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">1.13×</text>
+<rect x="646" y="235.8" width="52" height="94.2" rx="3" fill="#0d9488"/>
+<text x="672.0" y="228.8" font-size="11" font-weight="700" fill="#334155" text-anchor="middle">1.45×</text>
+<text x="614.0" y="350" font-size="12" font-weight="700" fill="#475569" text-anchor="middle">동시성 32</text>
+<rect x="24" y="360" width="712" height="52" rx="8" fill="#fef2f2" stroke="#fecaca"/>
+<text x="38" y="381" font-size="11.5" font-weight="700" fill="#b91c1c">같은 조건, MT-Bench 동시성 32에서는 부호가 뒤집힌다</text>
+<text x="38" y="400" font-size="11" fill="#334155">MTP 0.77× · DSpark 0.74× · DFlash 2 1.01×. 배치가 차면 드래프트 검증이 오히려 손해가 된다 — 벤치는 동시성 1이 아니라 운영 동시성에서.</text>
+</svg>

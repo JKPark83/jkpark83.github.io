@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="760" height="420" fill="#ffffff"/>
+  <text x="24" y="30" font-size="18" font-weight="700" fill="#0f172a">메모리 기반 자기개선 에이전트 — 평가 축을 2개 넓히면 결론이 바뀐다</text>
+  <text x="24" y="50" font-size="12" fill="#64748b">arXiv 2608.18066 · WebArena(812) / VisualWebArena(910) / SCUBA(267) · Agent Workflow Memory, ReasoningBank 재평가</text>
+
+  <rect x="24" y="68" width="340" height="128" rx="9" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="40" y="90" font-size="12.5" font-weight="700" fill="#475569">기존 평가 관행</text>
+  <text x="40" y="112" font-size="11" fill="#334155">· 1회 실행 pass rate만 보고</text>
+  <text x="40" y="132" font-size="11" fill="#334155">· 논문마다 고정된 기본 태스크 순서 사용</text>
+  <text x="40" y="152" font-size="11" fill="#334155">· 분산 · 순서 의존성 보고 없음</text>
+  <text x="40" y="178" font-size="11" font-weight="700" fill="#15803d">결론: 메모리를 쌓으면 좋아진다 (+1.5%)</text>
+
+  <path d="M372 132 L392 132" stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#94a3b8"/></marker></defs>
+
+  <rect x="400" y="68" width="336" height="128" rx="9" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="416" y="90" font-size="12.5" font-weight="700" fill="#b91c1c">이 논문의 평가 관행</text>
+  <text x="416" y="112" font-size="11" fill="#334155">· 동일 실험을 3회 반복해 표준편차 · 최고-최저 격차 측정</text>
+  <text x="416" y="132" font-size="11" fill="#334155">· 기본 순서 + 셔플 순서 2종(Shuffle-1, Shuffle-2)</text>
+  <text x="416" y="152" font-size="11" fill="#334155">· 도메인별 pass@1을 런 단위 통계로 집계</text>
+  <text x="416" y="178" font-size="11" font-weight="700" fill="#b91c1c">결론: 순서가 바뀌면 오히려 나빠진다 (−4.5%)</text>
+
+  <text x="24" y="230" font-size="12.5" font-weight="700" fill="#0f172a">태스크 순서에 따른 성능 변화</text>
+
+  <line x1="300" y1="246" x2="300" y2="322" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="300" y="338" font-size="10.5" fill="#94a3b8" text-anchor="middle">0</text>
+
+  <text x="290" y="272" font-size="11.5" fill="#334155" text-anchor="end">기본 순서(암묵적 커리큘럼)</text>
+  <rect x="300" y="258" width="90" height="18" rx="3" fill="#16a34a"/>
+  <text x="398" y="271" font-size="11.5" font-weight="700" fill="#15803d">+1.5%</text>
+
+  <text x="290" y="308" font-size="11.5" fill="#334155" text-anchor="end">무작위 셔플 순서</text>
+  <rect x="30" y="294" width="270" height="18" rx="3" fill="#dc2626"/>
+  <text x="20" y="307" font-size="11.5" font-weight="700" fill="#b91c1c" text-anchor="end">−4.5%</text>
+
+  <rect x="24" y="352" width="230" height="52" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="38" y="372" font-size="11.5" font-weight="700" fill="#b45309">71%</text>
+  <text x="38" y="392" font-size="11" fill="#334155">자기개선 적용 시 분산이 늘어난 케이스</text>
+
+  <rect x="264" y="352" width="230" height="52" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="278" y="372" font-size="11.5" font-weight="700" fill="#b45309">최대 10%p</text>
+  <text x="278" y="392" font-size="11" fill="#334155">같은 실험 최고 런과 최저 런의 격차</text>
+
+  <rect x="504" y="352" width="232" height="52" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="518" y="372" font-size="11.5" font-weight="700" fill="#b45309">원인 가설: 명세 부족</text>
+  <text x="518" y="392" font-size="11" fill="#334155">브라우저 전용 환경에 API 사용을 권하는 메모리</text>
+</svg>

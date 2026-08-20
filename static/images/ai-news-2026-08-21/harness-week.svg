@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="900" height="430" fill="#fafaf8"/>
+  <text x="450" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">이번 주 하네스 업데이트 한눈에 (8/18~8/20)</text>
+
+  <!-- Codex card -->
+  <rect x="45" y="62" width="390" height="300" rx="12" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.6"/>
+  <text x="65" y="94" font-size="16.5" font-weight="700" fill="#166534">🟩 Codex CLI 0.148.0 stable</text>
+  <text x="65" y="114" font-size="12.5" fill="#6b7280">8/18 · 0.147 이후 첫 stable 승격</text>
+  <g font-size="13" fill="#1f2937">
+    <text x="65" y="148">• <tspan font-weight="700">codex exec fork</tspan> — 세션 분기</text>
+    <text x="65" y="176">• <tspan font-weight="700">/export</tspan> — 대화를 Markdown으로</text>
+    <text x="65" y="204">• Amazon Bedrock 내장 프로바이더</text>
+    <text x="65" y="232">• Hook 비동기 실행 + MCP 툴 호출 가능</text>
+    <text x="65" y="260">• /status에 크레딧·비용 추정 표시</text>
+    <text x="65" y="288">• resume 시 작업 디렉터리·승인 정책 복원</text>
+  </g>
+  <text x="65" y="336" font-size="12" fill="#6b7280">프로덕션 핀을 0.147 → 0.148로 올릴 때</text>
+
+  <!-- Claude Code card -->
+  <rect x="465" y="62" width="390" height="300" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.6"/>
+  <text x="485" y="94" font-size="16.5" font-weight="700" fill="#1e40af">🟦 Claude Code v2.1.236~237</text>
+  <text x="485" y="114" font-size="12.5" fill="#6b7280">8/19~8/20 · 연이틀 릴리즈</text>
+  <g font-size="13" fill="#1f2937">
+    <text x="485" y="148">• <tspan font-weight="700">ANTHROPIC_DEFAULT_MODEL</tspan> 환경변수</text>
+    <text x="485" y="176">• LLM 게이트웨이 프롬프트 캐시 버그 수정</text>
+    <text x="485" y="204">• "Concise" 출력 스타일 내장</text>
+    <text x="485" y="232">• macOS 샌드박스 read-deny 우회 차단</text>
+    <text x="485" y="260">• SendMessage에 notify_when_idle 추가</text>
+  </g>
+  <text x="485" y="336" font-size="12" fill="#6b7280">게이트웨이/커스텀 base URL 사용자는 필수 업그레이드</text>
+
+  <text x="450" y="400" text-anchor="middle" font-size="12" fill="#9ca3af">출처: openai/codex 및 anthropics/claude-code 릴리즈 노트 · 자체 작도</text>
+</svg>

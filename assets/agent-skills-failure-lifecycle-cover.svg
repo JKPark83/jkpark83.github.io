@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트 스킬 풀이 커질 때 생기는 일을 그린 그림. 왼쪽에는 스킬 5개짜리 작은 풀이 있고 실제 사용 정밀도 29.6퍼센트가 적혀 있다. 오른쪽에는 스킬 100개짜리 큰 풀이 있고 실제 사용 정밀도가 3.3퍼센트로 무너져 있다. 두 풀 사이에는 풀이 커질수록 정밀도가 떨어진다는 하강 화살표가 있다. 아래에는 작성, 라우팅, 실행, 관측, 개정과 폐기로 이어지는 스킬 라이프사이클 다섯 단계가 순서대로 놓여 있다.">
+  <defs>
+    <linearGradient id="asf-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#171d33"/>
+    </linearGradient>
+    <marker id="asf-ar" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#fb7185"/>
+    </marker>
+    <marker id="asf-ar-s" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto">
+      <path d="M0,1 L11,6 L0,11 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#asf-bg)"/>
+
+  <text x="60" y="74" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">스킬 100개를 모으면 생기는 일</text>
+  <text x="60" y="114" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">에이전트 스킬은 왜 통하고, 언제 무너지고, 어떻게 관리해야 하는가</text>
+
+  <!-- 왼쪽: 스킬 5개 풀 -->
+  <rect x="90" y="180" width="300" height="230" rx="16" fill="#131a2c" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="240" y="216" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="20" font-weight="700" fill="#2dd4bf">스킬 5개</text>
+  <g font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="13" fill="#94a3b8">
+    <rect x="120" y="234" width="240" height="24" rx="6" fill="#1c2740"/><text x="132" y="251">pdf-report/SKILL.md</text>
+    <rect x="120" y="264" width="240" height="24" rx="6" fill="#1c2740"/><text x="132" y="281">db-migration/SKILL.md</text>
+    <rect x="120" y="294" width="240" height="24" rx="6" fill="#1c2740"/><text x="132" y="311">release-notes/SKILL.md</text>
+    <rect x="120" y="324" width="112" height="24" rx="6" fill="#1c2740"/>
+    <rect x="248" y="324" width="112" height="24" rx="6" fill="#1c2740"/>
+  </g>
+  <text x="240" y="386" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" fill="#e2e8f0">실사용 정밀도 <tspan font-weight="700" fill="#2dd4bf">29.6%</tspan></text>
+
+  <!-- 오른쪽: 스킬 100개 풀 -->
+  <rect x="810" y="180" width="300" height="230" rx="16" fill="#131a2c" stroke="#fb7185" stroke-width="2"/>
+  <text x="960" y="216" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="20" font-weight="700" fill="#fb7185">스킬 100개</text>
+  <g fill="#1c2740">
+    <rect x="836" y="234" width="58" height="16" rx="4"/><rect x="900" y="234" width="58" height="16" rx="4"/><rect x="964" y="234" width="58" height="16" rx="4"/><rect x="1028" y="234" width="58" height="16" rx="4"/>
+    <rect x="836" y="256" width="58" height="16" rx="4"/><rect x="900" y="256" width="58" height="16" rx="4"/><rect x="964" y="256" width="58" height="16" rx="4"/><rect x="1028" y="256" width="58" height="16" rx="4"/>
+    <rect x="836" y="278" width="58" height="16" rx="4"/><rect x="900" y="278" width="58" height="16" rx="4"/><rect x="964" y="278" width="58" height="16" rx="4"/><rect x="1028" y="278" width="58" height="16" rx="4"/>
+    <rect x="836" y="300" width="58" height="16" rx="4"/><rect x="900" y="300" width="58" height="16" rx="4"/><rect x="964" y="300" width="58" height="16" rx="4"/><rect x="1028" y="300" width="58" height="16" rx="4"/>
+    <rect x="836" y="322" width="58" height="16" rx="4"/><rect x="900" y="322" width="58" height="16" rx="4"/><rect x="964" y="322" width="58" height="16" rx="4"/><rect x="1028" y="322" width="58" height="16" rx="4"/>
+  </g>
+  <text x="960" y="360" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="14" fill="#64748b">…비슷한 스킬끼리 서로를 가린다</text>
+  <text x="960" y="386" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" fill="#e2e8f0">실사용 정밀도 <tspan font-weight="700" fill="#fb7185">3.3%</tspan></text>
+
+  <!-- 가운데 하강 화살표 -->
+  <path d="M410,250 C540,250 660,330 786,352" fill="none" stroke="#fb7185" stroke-width="3.5" marker-end="url(#asf-ar)"/>
+  <text x="600" y="268" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="700" fill="#fbbf24">풀이 커질수록</text>
+  <text x="600" y="292" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="700" fill="#fbbf24">검색은 조용히 무너진다</text>
+
+  <!-- 하단 라이프사이클 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="700">
+    <rect x="90" y="486" width="168" height="56" rx="12" fill="none" stroke="#a78bfa" stroke-width="2"/>
+    <text x="174" y="520" text-anchor="middle" fill="#a78bfa">① 작성(증류)</text>
+    <rect x="298" y="486" width="168" height="56" rx="12" fill="none" stroke="#38bdf8" stroke-width="2"/>
+    <text x="382" y="520" text-anchor="middle" fill="#38bdf8">② 라우팅</text>
+    <rect x="506" y="486" width="168" height="56" rx="12" fill="none" stroke="#4ade80" stroke-width="2"/>
+    <text x="590" y="520" text-anchor="middle" fill="#4ade80">③ 실행(적응)</text>
+    <rect x="714" y="486" width="168" height="56" rx="12" fill="none" stroke="#fbbf24" stroke-width="2"/>
+    <text x="798" y="520" text-anchor="middle" fill="#fbbf24">④ 관측</text>
+    <rect x="922" y="486" width="188" height="56" rx="12" fill="none" stroke="#fb7185" stroke-width="2"/>
+    <text x="1016" y="520" text-anchor="middle" fill="#fb7185">⑤ 개정 · 폐기</text>
+    <line x1="258" y1="514" x2="292" y2="514" stroke="#64748b" stroke-width="2.5" marker-end="url(#asf-ar-s)"/>
+    <line x1="466" y1="514" x2="500" y2="514" stroke="#64748b" stroke-width="2.5" marker-end="url(#asf-ar-s)"/>
+    <line x1="674" y1="514" x2="708" y2="514" stroke="#64748b" stroke-width="2.5" marker-end="url(#asf-ar-s)"/>
+    <line x1="882" y1="514" x2="916" y2="514" stroke="#64748b" stroke-width="2.5" marker-end="url(#asf-ar-s)"/>
+  </g>
+  <text x="600" y="586" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="16" fill="#94a3b8">스킬은 한 번 심는 지식이 아니라, 라이프사이클로 관리하는 자산이다</text>
+</svg>

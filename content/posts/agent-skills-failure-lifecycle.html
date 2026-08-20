@@ -1,0 +1,455 @@
+---
+title: "스킬 100개를 모으면 생기는 일: 에이전트 스킬은 왜 통하고, 언제 무너지나"
+date: 2026-08-21T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "agent", "Agent Skills", "에이전트 스킬", "SKILL.md", "skill library", "스킬 라이브러리", "procedural knowledge", "절차적 지식", "retrieval", "검색", "progressive disclosure", "점진적 공개", "Claude Code", "SkillsBench", "Terminal-Bench", "evals", "평가", "lifecycle", "라이프사이클", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "작년 10월 등장한 에이전트 스킬(SKILL.md)은 이제 OpenAI Codex, Cursor, Gemini CLI까지 쓰는 사실상의 표준이 됐습니다. 그런데 이번 주, 스킬이 '언제, 왜 무너지는지'를 처음으로 해부한 논문이 트렌딩에 올랐습니다. 결론이 뼈아픕니다. 스킬이 통하는 이유의 65.7%는 지식 주입이 아니라 절차 고정이었고, 스킬 풀이 5개에서 100개로 커지면 실사용 정밀도는 29.6%에서 3.3%로 무너지며, 공개된 SKILL.md 13만 8천 개 중 91.8%에 결함이 있었습니다. 같은 주에 '스킬이 오히려 해를 끼친 사례 307건'을 분석한 논문까지 나왔습니다. 이 글은 세 논문을 묶어, 스킬을 '한 번 심는 지식'이 아니라 '라이프사이클로 관리하는 자산'으로 다루는 법을 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-skills-failure-lifecycle-cover.svg"
+  alt: "스킬 5개짜리 풀은 실사용 정밀도 29.6%인데 스킬 100개짜리 풀은 3.3%로 무너지는 대비를 그린 그림. 아래에 작성, 라우팅, 실행, 관측, 개정·폐기로 이어지는 스킬 라이프사이클 다섯 단계가 있다."
+  caption: "스킬은 쌓을수록 좋아지는 자산이 아닙니다. 관리하지 않고 쌓으면, 검색이 조용히 무너집니다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 스킬 라이프사이클 포스트 전용 스타일 (asf- 접두사) ── */
+.asf-fig{
+  --asf-violet:#7c3aed; --asf-sky:#0284c7; --asf-green:#16a34a; --asf-rose:#e11d48;
+  --asf-amber:#d97706; --asf-slate:#64748b; --asf-teal:#0d9488; --asf-blue:#2563eb;
+  --asf-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .asf-fig{
+  --asf-violet:#a78bfa; --asf-sky:#38bdf8; --asf-green:#4ade80; --asf-rose:#fb7185;
+  --asf-amber:#fbbf24; --asf-slate:#94a3b8; --asf-teal:#2dd4bf; --asf-blue:#60a5fa;
+  --asf-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .asf-fig{
+    --asf-violet:#a78bfa; --asf-sky:#38bdf8; --asf-green:#4ade80; --asf-rose:#fb7185;
+    --asf-amber:#fbbf24; --asf-slate:#94a3b8; --asf-teal:#2dd4bf; --asf-blue:#60a5fa;
+    --asf-gray:#64748b;
+  }
+}
+.asf-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.asf-fig text{font-family:inherit}
+.asf-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.asf-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.asf-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.asf-toc ol{margin:0;padding-left:1.25rem}
+.asf-toc li{margin:.22rem 0;font-size:.95rem}
+.asf-toc a{text-decoration:none}
+.asf-toc a:hover{text-decoration:underline}
+.asf-pull{font-size:1.12rem;line-height:1.72}
+.asf-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.asf-note{border-left:4px solid var(--asf-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.asf-note strong{color:var(--asf-blue,#2563eb)}
+.asf-warn{border-left:4px solid var(--asf-rose,#e11d48)}
+.asf-warn strong{color:var(--asf-rose,#e11d48)}
+.asf-good{border-left:4px solid var(--asf-teal,#0d9488)}
+.asf-good strong{color:var(--asf-teal,#0d9488)}
+.asf-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.asf-tbl th,.asf-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.asf-tbl th{background:var(--entry);font-weight:700}
+.asf-tbl code{font-size:.86em}
+.asf-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="asf-pull">
+"스킬을 부지런히 쌓았더니 에이전트가 똑똑해지기는커녕, 엉뚱한 스킬을 꺼내 쓰기 시작했다."<br>
+이번 주 트렌딩 논문이 숫자로 증명한 현상입니다. 스킬 풀이 5개에서 100개로 커지는 동안, 에이전트가 맞는 스킬을 실제로 꺼내 쓰는 비율은 <strong>29.6%에서 3.3%로</strong> 떨어졌습니다.
+<footer>— arXiv:2608.14036, "Demystifying Agent Skills: Why They Work—Until They Don't"</footer>
+</blockquote>
+
+<div class="asf-toc">
+  <div class="asf-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 이번 주, 스킬 생태계에 성적표가 날아왔다</a></li>
+    <li><a href="#sec-2">배경 — 에이전트 스킬 3분 요약</a></li>
+    <li><a href="#sec-3">스킬은 왜 통하나 — 지식 주입이 아니라 절차 고정</a></li>
+    <li><a href="#sec-4">무너지는 지점 ① — 검색은 조용히 무너진다</a></li>
+    <li><a href="#sec-5">무너지는 지점 ② — '맞는' 스킬도 해를 끼친다</a></li>
+    <li><a href="#sec-6">무너지는 지점 ③ — 공개 스킬의 91.8%는 결함이 있다</a></li>
+    <li><a href="#sec-7">라이프사이클로 관리하기 — 다섯 단계 설계</a></li>
+    <li><a href="#sec-8">실전 — 차등 평가 하네스 만들기</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 이번 주, 스킬 생태계에 성적표가 날아왔다</h2>
+
+<p>에이전트 스킬(Agent Skills)은 요즘 에이전트 생태계에서 가장 빠르게 퍼진 물건입니다. 2025년 10월 Anthropic이 Claude에 처음 넣었고, 12월에 <a href="https://agentskills.io" target="_blank" rel="noopener">오픈 표준</a>으로 풀리자 OpenAI Codex, GitHub Copilot, Cursor, Gemini CLI, VS Code까지 채택해 올해 6월 기준 호환 제품이 40개 안팎에 이릅니다. "잘 만든 절차를 <code>SKILL.md</code> 파일 하나에 담아 두면, 에이전트가 필요할 때 꺼내 쓴다" — 개념이 단순하니 다들 열심히 만들었습니다. 스킬 마켓이 생기고, 회사마다 스킬 저장소가 생기고, "스킬 100선" 같은 모음집이 돌았습니다.</p>
+
+<p>그리고 이번 주, 그 열풍에 처음으로 제대로 된 성적표가 날아왔습니다. 8월 셋째 주 Hugging Face 트렌딩 페이퍼에 오른 <a href="https://arxiv.org/abs/2608.14036" target="_blank" rel="noopener">"Demystifying Agent Skills: Why They Work—Until They Don't"</a>(arXiv:2608.14036)가 그 주인공입니다. 스킬이 "얼마나 도움이 되는가"를 넘어 <strong>"왜 통하고, 정확히 어디서 무너지는가"</strong>를 8,135건의 시행 기록으로 해부한 첫 논문입니다. 트위터(X)에서는 Rohan Paul 같은 대형 계정이 핵심 발견을 풀어 옮기며 확산됐습니다.</p>
+
+<p>혼자 온 것도 아닙니다. 같은 8월에 <a href="https://arxiv.org/html/2608.11888v1" target="_blank" rel="noopener">"Agent Skills Can Be Harmful"</a>(arXiv:2608.11888)은 <strong>스킬 때문에 오히려 실패하거나 비용이 늘어난 사례 307건</strong>을 원인별로 분석했고, <a href="https://arxiv.org/html/2608.08453v1" target="_blank" rel="noopener">"What Keeps Agent Skills from Being Reusable?"</a>(arXiv:2608.08453)은 공개 저장소의 <code>SKILL.md</code> <strong>138,133개를 전수 조사해 91.8%에서 결함</strong>을 찾아냈습니다. 스킬을 "어떻게 쓰나"를 다루던 시기가 지나가고, <strong>"스킬이 실패하는 방식"을 데이터로 따지는 시기</strong>가 온 겁니다.</p>
+
+<p>이 블로그는 작년에 <a href="/posts/agent-skills-skill-md/">SKILL.md 작성법</a>을 다룬 적이 있습니다. 그 글이 "스킬을 만드는 법"이었다면, 이 글은 그다음 질문을 다룹니다. <strong>스킬이 쌓인 뒤에 무슨 일이 벌어지고, 그걸 어떻게 관리해야 하는가.</strong></p>
+
+<div class="asf-note"><strong>이 글에서 얻어 갈 것.</strong> ① 스킬이 성능을 올리는 진짜 메커니즘(절차 고정)과 그 증거, ② 스킬 풀이 커질 때 검색이 무너지는 구조와 숫자, ③ '관련 있는' 스킬이 해를 끼치는 패턴, ④ 스킬을 라이프사이클(작성→라우팅→실행→관측→개정·폐기)로 관리하는 설계, ⑤ 스킬 하나의 손익을 측정하는 차등 평가 하네스 코드.</div>
+
+<h2 id="sec-2">2. 배경 — 에이전트 스킬 3분 요약</h2>
+
+<p>따라오는 데 필요한 최소한만 정리합니다. 스킬은 <strong>에이전트에게 주는 절차 매뉴얼 폴더</strong>입니다. 폴더 안에 <code>SKILL.md</code> 파일 하나(필수)와 스크립트·참고 문서·템플릿(선택)이 들어갑니다.</p>
+
+{{< highlight text >}}
+pdf-report/
+├── SKILL.md        # 필수 — YAML 메타데이터 + 절차 지침
+├── scripts/        # 선택 — 실행 코드 (Python, Bash 등)
+├── references/     # 선택 — 추가 문서 (필요할 때만 읽음)
+└── assets/         # 선택 — 템플릿, 이미지, 데이터
+{{< /highlight >}}
+
+<p>핵심 설계는 <strong>점진적 공개(progressive disclosure)</strong>입니다. 에이전트는 시작할 때 모든 스킬의 <strong>이름과 설명(description) 몇 줄만</strong> 컨텍스트에 올립니다. 스킬 하나당 수십 토큰 수준입니다. 작업 중에 "지금 이 스킬이 필요하겠다"고 판단하면 그때 <code>SKILL.md</code> 본문을 읽고, 본문이 가리키는 참고 문서나 스크립트는 실행 중에만 가져옵니다. 스킬이 아무리 많아도 평소 컨텍스트 비용은 목차 수준으로 억제하겠다는 구조입니다.</p>
+
+<p>여기서 한 가지를 미리 눈여겨봐 두세요. 이 구조에서 <strong>에이전트가 스킬을 고르는 근거는 사실상 description 몇 줄이 전부</strong>입니다. 이 몇 줄이 곧 라우팅 메타데이터(routing metadata, 어떤 요청에 이 스킬을 꺼낼지 결정하는 신호)이고, 뒤에서 보겠지만 스킬 생태계가 무너지는 지점도 정확히 여기입니다.</p>
+
+<h2 id="sec-3">3. 스킬은 왜 통하나 — 지식 주입이 아니라 절차 고정</h2>
+
+<p>먼저 좋은 소식부터. 스킬이 성능을 올린다는 것 자체는 데이터로 확인됩니다. 스킬 효과를 처음 체계적으로 잰 벤치마크 <a href="https://arxiv.org/abs/2602.12670" target="_blank" rel="noopener">SkillsBench</a>(11개 도메인, 86개 과제, 결정론적 채점기)에서 <strong>사람이 다듬은(curated) 스킬은 평균 통과율을 33.9%에서 50.5%로, +16.6%p</strong> 끌어올렸습니다. 에이전트·모델 조합에 따라 +4.1%p에서 +25.7%p까지 편차는 있지만 방향은 일관됩니다.</p>
+
+<p>그런데 <strong>왜</strong> 오를까요? 직관적인 답은 "모델이 모르는 지식을 넣어 주니까"입니다. 이번 주 트렌딩 논문이 해부한 결과는 다릅니다. 연구진은 Terminal-Bench 2.0(터미널 환경 89개 과제 벤치마크)과 SkillsBench 위에서 Claude·Gemini·Codex 계열 에이전트를 돌리며 8,135건의 시행 기록을 모으고, 스킬이 실제로 어떻게 쓰였는지 트라젝토리(trajectory, 에이전트의 행동 기록)를 하나하나 대조해 분류했습니다. 결과:</p>
+
+<ul>
+  <li>스킬이 도움이 된 사례의 <strong>65.7%는 절차 고정(procedural anchoring)</strong>이었습니다. 시행착오로 흔들릴 수 있는 실행 경로를, 검증된 절차에 닻을 내리듯 고정해서 안정시킨 겁니다.</li>
+  <li>반면 "모델이 몰랐던 사실을 알려 줘서" 도움이 된 <strong>명시적 지식 주입(explicit knowledge injection)은 4.5%</strong>에 그쳤습니다.</li>
+</ul>
+
+<p>즉 스킬은 백과사전이 아니라 <strong>체크리스트</strong>로 작동합니다. 조종사가 이륙 절차를 몰라서 체크리스트를 읽는 게 아니듯, 모델도 대부분의 지식은 이미 갖고 있습니다. 스킬의 가치는 "이 순서로, 이 도구로, 이 함정을 피해서 하라"고 실행을 고정해 주는 데 있습니다.</p>
+
+<p>표현 방식 실험도 같은 방향을 가리킵니다. 같은 과거 경험을 두 가지 형태로 줬습니다. 하나는 실행 세부가 많이 남은 워크플로 메모리(Agent Workflow Memory, 과거 트라젝토리에서 재사용 루틴을 뽑아 두는 기법) 형태, 다른 하나는 군더더기를 걷어 낸 <code>SKILL.md</code> 형태. 조건을 맞춘 비교에서 <strong>스킬 쪽이 61.9% vs 55.9%로 약 6%p 앞섰습니다.</strong> 경험을 날것으로 많이 남길수록 좋은 게 아니라, <strong>증류할수록 잘 옮겨진다</strong>는 뜻입니다.</p>
+
+<figure class="asf-fig">
+  <svg viewBox="0 0 1000 430" role="img" aria-label="스킬이 작동하는 메커니즘을 그린 도해. 왼쪽에 시행착오와 노이즈가 섞인 과거 트라젝토리가 있고, 증류 화살표를 거쳐 간결한 SKILL.md 절차가 되며, 이 절차가 에이전트의 실행을 닻처럼 고정한다. 아래 막대그래프는 스킬이 도움이 된 이유의 65.7퍼센트가 절차 고정이고 명시적 지식 주입은 4.5퍼센트에 불과함을 보여 준다.">
+    <g font-family="system-ui,-apple-system,sans-serif">
+      <!-- 왼쪽: 노이즈 트라젝토리 -->
+      <rect x="20" y="40" width="270" height="150" rx="12" fill="none" stroke="var(--asf-slate)" stroke-width="2" stroke-dasharray="6 4"/>
+      <text x="155" y="70" text-anchor="middle" font-size="17" font-weight="700" fill="var(--asf-slate)">과거 트라젝토리</text>
+      <text x="155" y="94" text-anchor="middle" font-size="13" fill="var(--asf-gray)">시행착오 · 우회 · 재시도 포함</text>
+      <path d="M50,130 L90,115 L120,150 L160,110 L190,160 L230,125 L260,140" fill="none" stroke="var(--asf-slate)" stroke-width="2.5"/>
+      <circle cx="120" cy="150" r="5" fill="var(--asf-rose)"/>
+      <circle cx="190" cy="160" r="5" fill="var(--asf-rose)"/>
+      <text x="155" y="182" text-anchor="middle" font-size="12" fill="var(--asf-rose)">막다른 길, 실패한 시도</text>
+
+      <!-- 증류 화살표 -->
+      <line x1="300" y1="115" x2="370" y2="115" stroke="var(--asf-amber)" stroke-width="3"/>
+      <path d="M370,108 L384,115 L370,122 Z" fill="var(--asf-amber)"/>
+      <text x="337" y="98" text-anchor="middle" font-size="15" font-weight="700" fill="var(--asf-amber)">증류</text>
+
+      <!-- 가운데: SKILL.md -->
+      <rect x="392" y="40" width="240" height="150" rx="12" fill="none" stroke="var(--asf-teal)" stroke-width="2.5"/>
+      <text x="512" y="70" text-anchor="middle" font-size="17" font-weight="700" fill="var(--asf-teal)">SKILL.md</text>
+      <text x="512" y="94" text-anchor="middle" font-size="13" fill="var(--asf-gray)">검증된 절차만 남긴 체크리스트</text>
+      <g font-size="13" fill="var(--asf-teal)">
+        <text x="420" y="122">1. 입력 형식 확인</text>
+        <text x="420" y="144">2. 변환 스크립트 실행</text>
+        <text x="420" y="166">3. 결과 검증 후 저장</text>
+      </g>
+
+      <!-- 고정 화살표 -->
+      <line x1="642" y1="115" x2="712" y2="115" stroke="var(--asf-teal)" stroke-width="3"/>
+      <path d="M712,108 L726,115 L712,122 Z" fill="var(--asf-teal)"/>
+      <text x="679" y="98" text-anchor="middle" font-size="15" font-weight="700" fill="var(--asf-teal)">절차 고정</text>
+
+      <!-- 오른쪽: 안정된 실행 -->
+      <rect x="734" y="40" width="246" height="150" rx="12" fill="none" stroke="var(--asf-green)" stroke-width="2.5"/>
+      <text x="857" y="70" text-anchor="middle" font-size="17" font-weight="700" fill="var(--asf-green)">안정된 실행</text>
+      <text x="857" y="94" text-anchor="middle" font-size="13" fill="var(--asf-gray)">흔들리던 경로가 절차에 닻을 내림</text>
+      <path d="M764,145 L810,140 L856,142 L902,138 L948,140" fill="none" stroke="var(--asf-green)" stroke-width="3"/>
+      <text x="857" y="176" text-anchor="middle" font-size="12" fill="var(--asf-green)">재시도 감소 · 결과 일관성 상승</text>
+
+      <!-- 하단 막대그래프 -->
+      <text x="500" y="250" text-anchor="middle" font-size="16" font-weight="700" fill="var(--asf-gray)">스킬이 도움이 된 이유 (arXiv:2608.14036 트라젝토리 분석)</text>
+      <rect x="180" y="280" width="460" height="34" rx="6" fill="var(--asf-teal)"/>
+      <text x="660" y="303" font-size="15" font-weight="700" fill="var(--asf-teal)">65.7% 절차 고정</text>
+      <rect x="180" y="330" width="32" height="34" rx="6" fill="var(--asf-violet)"/>
+      <text x="228" y="353" font-size="15" font-weight="700" fill="var(--asf-violet)">4.5% 명시적 지식 주입</text>
+      <text x="500" y="404" text-anchor="middle" font-size="13" fill="var(--asf-gray)">스킬은 백과사전이 아니라 체크리스트다 — 모르는 걸 알려 주는 게 아니라, 아는 걸 흔들리지 않게 한다</text>
+    </g>
+  </svg>
+  <figcaption>그림 1. 스킬이 작동하는 메커니즘. 경험을 증류한 절차가 실행을 고정한다. 도움이 된 사례의 65.7%가 절차 고정이었고, 지식 주입은 4.5%에 불과했다.</figcaption>
+</figure>
+
+<p>이 발견이 실무에 주는 첫 번째 지침은 분명합니다. <strong>스킬 본문에 배경 지식을 쌓지 말고, 절차를 쓰세요.</strong> "PDF란 무엇인가"를 세 문단 설명하는 스킬보다 "이 순서로 변환하고, 이 명령으로 검증하라"는 열 줄이 강합니다. 그리고 SkillsBench의 또 다른 발견이 이 지침에 무게를 더합니다. <strong>에이전트가 스스로 생성한(self-generated) 스킬은 평균적으로 이득이 없었습니다.</strong> 모델은 아직 자기 경험에서 좋은 절차를 증류하는 데 서툽니다. 당분간 스킬 작성의 병목은 사람의 큐레이션입니다.</p>
+
+<h2 id="sec-4">4. 무너지는 지점 ① — 검색은 조용히 무너진다</h2>
+
+<p>이제 나쁜 소식입니다. 스킬이 이렇게 좋다면, 많이 모을수록 좋을까요? 논문은 스킬 풀 크기를 5개에서 100개까지 늘리며 두 가지를 쟀습니다.</p>
+
+<ul>
+  <li><strong>검색 정밀도</strong> — 임베딩 검색이 관련 스킬을 상위로 올리는 비율. 88.3%에서 76.9%로, 완만하게 떨어집니다.</li>
+  <li><strong>실사용 정밀도(actual-use precision)</strong> — 에이전트가 맞는 스킬을 실제로 꺼내서 제대로 쓴 비율. <strong>29.6%에서 3.3%로 무너집니다.</strong></li>
+</ul>
+
+<figure class="asf-fig">
+  <svg viewBox="0 0 1000 420" role="img" aria-label="스킬 풀이 5개에서 100개로 커질 때 두 지표의 변화를 비교한 막대그래프. 임베딩 검색 정밀도는 88.3퍼센트에서 76.9퍼센트로 완만하게 떨어지지만, 실사용 정밀도는 29.6퍼센트에서 3.3퍼센트로 급락한다. 두 지표의 간극이 벌어지는 것이 핵심이다.">
+    <g font-family="system-ui,-apple-system,sans-serif">
+      <text x="500" y="34" text-anchor="middle" font-size="17" font-weight="700" fill="var(--asf-gray)">스킬 풀 크기에 따른 정밀도 변화 (arXiv:2608.14036)</text>
+
+      <!-- 축 -->
+      <line x1="120" y1="330" x2="920" y2="330" stroke="var(--asf-gray)" stroke-width="1.5"/>
+      <line x1="120" y1="330" x2="120" y2="60" stroke="var(--asf-gray)" stroke-width="1.5"/>
+      <g font-size="12" fill="var(--asf-gray)">
+        <text x="108" y="335" text-anchor="end">0%</text>
+        <text x="108" y="200" text-anchor="end">50%</text>
+        <text x="108" y="70" text-anchor="end">100%</text>
+      </g>
+      <line x1="120" y1="197.5" x2="920" y2="197.5" stroke="var(--asf-gray)" stroke-width="0.5" stroke-dasharray="4 6" opacity="0.5"/>
+
+      <!-- 풀 5개 그룹 -->
+      <text x="330" y="368" text-anchor="middle" font-size="15" font-weight="700" fill="var(--asf-gray)">스킬 풀 5개</text>
+      <rect x="220" y="95.9" width="90" height="234.1" rx="4" fill="var(--asf-sky)"/>
+      <text x="265" y="86" text-anchor="middle" font-size="16" font-weight="700" fill="var(--asf-sky)">88.3%</text>
+      <rect x="340" y="251.5" width="90" height="78.5" rx="4" fill="var(--asf-teal)"/>
+      <text x="385" y="241" text-anchor="middle" font-size="16" font-weight="700" fill="var(--asf-teal)">29.6%</text>
+
+      <!-- 풀 100개 그룹 -->
+      <text x="710" y="368" text-anchor="middle" font-size="15" font-weight="700" fill="var(--asf-gray)">스킬 풀 100개</text>
+      <rect x="600" y="126.6" width="90" height="203.4" rx="4" fill="var(--asf-sky)"/>
+      <text x="645" y="116" text-anchor="middle" font-size="16" font-weight="700" fill="var(--asf-sky)">76.9%</text>
+      <rect x="720" y="321.1" width="90" height="8.9" rx="3" fill="var(--asf-rose)"/>
+      <text x="765" y="310" text-anchor="middle" font-size="16" font-weight="700" fill="var(--asf-rose)">3.3%</text>
+
+      <!-- 간극 강조 -->
+      <path d="M430,270 C520,268 560,300 715,318" fill="none" stroke="var(--asf-rose)" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <text x="560" y="255" text-anchor="middle" font-size="14" font-weight="700" fill="var(--asf-rose)">실사용 정밀도는 1/9로 급락</text>
+
+      <!-- 범례 -->
+      <rect x="270" y="392" width="16" height="16" rx="3" fill="var(--asf-sky)"/>
+      <text x="294" y="405" font-size="13" fill="var(--asf-gray)">임베딩 검색 정밀도 (검색기가 관련 스킬을 상위로 올림)</text>
+      <rect x="640" y="392" width="16" height="16" rx="3" fill="var(--asf-teal)"/>
+      <text x="664" y="405" font-size="13" fill="var(--asf-gray)">실사용 정밀도 (에이전트가 맞는 스킬을 실제로 씀)</text>
+    </g>
+  </svg>
+  <figcaption>그림 2. 풀이 5개에서 100개로 커질 때, 검색 지표는 완만하게 나빠지지만(88.3%→76.9%) 에이전트의 실사용 정밀도는 무너진다(29.6%→3.3%). 검색 대시보드만 보면 이 붕괴가 보이지 않는다.</figcaption>
+</figure>
+
+<p>두 숫자의 간극이 이 논문에서 가장 중요한 발견입니다. <strong>검색기는 그럭저럭 버티는데, 에이전트의 실제 선택은 무너집니다.</strong> 이유를 풀어 보면 이렇습니다. 스킬이 100개쯤 되면 비슷한 영역의 스킬이 여럿 생깁니다. "PDF 보고서 생성", "PDF 양식 채우기", "문서를 PDF로 변환"… 임베딩 공간에서는 전부 서로 가깝습니다. 검색기가 관련 후보를 상위에 올려도, 에이전트는 description 몇 줄만 보고 그중 하나를 고르거나, 아예 엉뚱한 걸 고르거나, 맞는 걸 골라 놓고 다르게 씁니다. <strong>검색(retrieval)과 선택·사용(use)은 다른 문제</strong>인데, 우리는 보통 검색 지표만 모니터링합니다.</p>
+
+<div class="asf-warn asf-note"><strong>왜 "조용히" 무너지나.</strong> 스킬 풀은 하루아침에 100개가 되지 않습니다. 한 주에 두세 개씩, 각각은 합리적인 이유로 추가됩니다. 그리고 스킬 선택 실패는 에러를 내지 않습니다. 에이전트는 엉뚱한 스킬로도 뭔가를 해내거나, 스킬 없이 하던 대로 합니다. 실패 로그도, 알람도 없습니다. 어느 날 "요즘 에이전트가 예전 같지 않다"는 감각만 남습니다.</div>
+
+<h2 id="sec-5">5. 무너지는 지점 ② — '맞는' 스킬도 해를 끼친다</h2>
+
+<p>검색이 완벽해서 항상 관련 있는 스킬이 로드된다고 칩시다. 그럼 안전할까요? 같은 주에 나온 두 번째 논문(arXiv:2608.11888)의 답은 "아니오"입니다. 이 논문은 <strong>차등 분석(differential analysis)</strong>이라는 깔끔한 방법을 씁니다. 같은 과제를 <strong>스킬을 준 실행</strong>과 <strong>스킬 없이(또는 의미가 비슷한 다른 스킬로) 한 실행</strong>으로 나란히 돌려서, 스킬 쪽만 실패했거나 비용이 유의미하게 늘었다면 그 차이를 스킬 탓으로 귀속시키는 겁니다.</p>
+
+<p>이렇게 잡아낸 <strong>스킬 유발 실패가 307건</strong>입니다. 기능 실패(스킬 없으면 성공했을 과제가 실패) 125건, 효율 회귀(성공은 했지만 토큰·시간이 크게 증가) 182건. 주목할 점은 <strong>효율 회귀가 더 많다</strong>는 겁니다. 성공률만 보는 평가로는 절반 이상의 피해가 안 보입니다.</p>
+
+<p>'관련 있는' 스킬이 어떻게 해를 끼칠까요? 첫 논문의 실패 분류와 겹쳐 보면 패턴이 잡힙니다. 연구진은 트라젝토리를 공개 코딩(open coding, 미리 정한 범주 없이 기록을 읽으며 유형을 도출하는 질적 분석)해 실패를 크게 세 축으로 정리했습니다.</p>
+
+<div class="asf-tblwrap"><table class="asf-tbl">
+  <tr><th>실패 축</th><th>무슨 일이 벌어지나</th><th>예시</th></tr>
+  <tr><td><strong>깨지기 쉬운 가정<br>(brittle assumptions)</strong></td><td>스킬이 작성 당시 환경을 암묵적으로 전제. 전제가 깨지면 절차가 통째로 어긋난다.</td><td>스킬이 <code>pip install</code>을 지시하는데 실행 환경은 오프라인. 특정 디렉터리 구조·특정 버전 CLI를 전제.</td></tr>
+  <tr><td><strong>맞지 않는 컨텍스트<br>(incompatible contexts)</strong></td><td>스킬 자체는 멀쩡하지만 지금 과제·프레임워크와 궁합이 안 맞는다. 다른 하네스로 옮기면 조용히 어긋나는 경우 포함.</td><td>Claude Code용으로 쓴 도구 호출 관례를 다른 CLI 에이전트가 그대로 따라 하다 실패.</td></tr>
+  <tr><td><strong>불충분한 적응<br>(insufficient adaptation)</strong></td><td>에이전트가 스킬을 레시피가 아니라 법전처럼 따른다. 상황이 절차와 다른데도 절차를 고집한다.</td><td>스킬의 3단계가 이미 완료된 상태인데도 처음부터 다시 실행해 시간과 토큰을 태움.</td></tr>
+</table></div>
+
+<p>여기서 아이러니가 하나 보입니다. 3장에서 스킬의 힘은 <strong>절차 고정</strong>이라고 했습니다. 그런데 실패의 큰 축은 <strong>절차를 너무 고정해서</strong> 생깁니다. 같은 칼의 양날입니다. 닻은 배를 안정시키지만, 조류가 바뀌었는데 닻을 안 올리면 배가 가라앉습니다. 그래서 좋은 스킬은 절차만 쓰지 않고 <strong>전제 조건과 탈출 조건</strong>을 함께 씁니다. "이 스킬은 X가 설치된 환경을 전제한다", "Y 상황이면 이 절차 대신 Z를 하라"처럼요.</p>
+
+<h2 id="sec-6">6. 무너지는 지점 ③ — 공개 스킬의 91.8%는 결함이 있다</h2>
+
+<p>마지막 축은 생태계 위생입니다. 세 번째 논문(arXiv:2608.08453)은 GitHub 공개 저장소 20,556곳에서 <code>SKILL.md</code> 138,133개를 모아, 공식 스펙과 모범 사례에 근거한 결함 분류표로 전수 검사했습니다. 결과: <strong>91.8%가 결함을 하나 이상</strong> 갖고 있었습니다(판정 기준을 느슨하게/엄격하게 바꿔도 88.8~94.6%로 안정적).</p>
+
+<p>결함의 정체는 무슨 교묘한 공격이 아니라 <strong>평범한 포장 불량</strong>입니다. 상위 유형 세 가지:</p>
+
+<ul>
+  <li><strong>약한 라우팅 메타데이터</strong> — description이 "PDF 관련 작업을 돕는다" 수준. 언제 이 스킬을 꺼내야 하고 언제 꺼내면 안 되는지 판단할 신호가 없습니다. 2장에서 봤듯 에이전트의 선택 근거는 이 몇 줄이 전부인데도요. 4장의 검색 붕괴는 이 결함이 쌓인 결과이기도 합니다.</li>
+  <li><strong>비대하거나 실행 불가능한 본문</strong> — 절차 대신 배경 설명이 가득하거나, 따라 할 수 없는 모호한 지시("적절히 처리한다")로 채워진 경우.</li>
+  <li><strong>부실한 자원 조직</strong> — 본문이 참조하는 스크립트가 없거나 경로가 깨졌거나, 작성자 로컬 환경에서만 도는 경우.</li>
+</ul>
+
+<p>논문의 표현을 빌리면, 공개된 스킬 다수는 "하나의 과제, 하나의 저장소, 하나의 대화에서 태어난" 흔적이 역력합니다. <strong>한 번 성공한 기록을 재사용 가능한 부품인 척 공유</strong>한 겁니다. 스킬이 재사용되려면 다섯 관문 — 에이전트가 <strong>고르고</strong>, <strong>로드하고</strong>, 자원을 <strong>찾고</strong>, 안전하게 <strong>실행하고</strong>, 작성자 환경 밖으로 <strong>이식</strong>되는 — 을 다 통과해야 하는데, 관문마다 결함 유형이 하나씩 대응합니다. 마켓에서 스킬을 받아 올 때 "별점"이 아니라 이 다섯 관문으로 검사해야 하는 이유입니다.</p>
+
+<h2 id="sec-7">7. 라이프사이클로 관리하기 — 다섯 단계 설계</h2>
+
+<p>세 논문을 한 문장으로 줄이면 이렇습니다. <strong>스킬은 "한 번 주입하는 지식"이 아니라 "라이프사이클로 관리하는 자산"이다.</strong> 첫 논문의 결론 문장이기도 합니다. 코드에 비유하면 정확합니다. 코드도 짜는 것보다 유지보수가 본체이고, 의존성도 추가하는 것보다 관리가 본체입니다. 스킬 라이브러리는 <strong>에이전트의 의존성 목록</strong>입니다. <code>package.json</code>에 아무 패키지나 추가하지 않듯, 스킬 풀에도 같은 규율이 필요합니다.</p>
+
+<figure class="asf-fig">
+  <svg viewBox="0 0 1000 470" role="img" aria-label="스킬 라이프사이클 다섯 단계를 그린 순환 도해. 작성 단계에서는 경험을 증류하고 전제 조건을 명시한다. 라우팅 단계에서는 언제 쓰고 언제 쓰지 말지를 description에 담는다. 실행 단계에서는 절차를 상황에 맞게 적응시킨다. 관측 단계에서는 스킬 사용 여부와 손익을 로그로 남긴다. 개정과 폐기 단계에서는 해를 끼치는 스킬을 고치거나 제거한다. 각 단계 옆에 그 단계가 무너질 때 나타나는 실패가 붉게 표시되어 있고, 다섯 단계는 화살표로 순환한다.">
+    <defs>
+      <marker id="asf-lc-ar" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto">
+        <path d="M0,1 L11,6 L0,11 Z" fill="var(--asf-gray)"/>
+      </marker>
+    </defs>
+    <g font-family="system-ui,-apple-system,sans-serif">
+      <text x="500" y="34" text-anchor="middle" font-size="17" font-weight="700" fill="var(--asf-gray)">스킬 라이프사이클 — 단계마다 대응하는 실패 모드가 있다</text>
+
+      <!-- ① 작성 -->
+      <rect x="30" y="70" width="285" height="106" rx="12" fill="none" stroke="var(--asf-violet)" stroke-width="2.5"/>
+      <text x="52" y="100" font-size="17" font-weight="700" fill="var(--asf-violet)">① 작성 — 증류</text>
+      <text x="52" y="126" font-size="13.5" fill="var(--asf-gray)">배경 지식 대신 절차. 전제 조건과</text>
+      <text x="52" y="146" font-size="13.5" fill="var(--asf-gray)">탈출 조건 명시. 사람이 큐레이션.</text>
+      <text x="52" y="168" font-size="12.5" fill="var(--asf-rose)">✕ 실패: 비대한 본문, 깨지기 쉬운 가정</text>
+
+      <!-- ② 라우팅 -->
+      <rect x="358" y="70" width="285" height="106" rx="12" fill="none" stroke="var(--asf-sky)" stroke-width="2.5"/>
+      <text x="380" y="100" font-size="17" font-weight="700" fill="var(--asf-sky)">② 라우팅 — 선택 신호</text>
+      <text x="380" y="126" font-size="13.5" fill="var(--asf-gray)">description에 "언제 쓰고, 언제 쓰지</text>
+      <text x="380" y="146" font-size="13.5" fill="var(--asf-gray)">말지"를 담기. 풀 크기 자체를 관리.</text>
+      <text x="380" y="168" font-size="12.5" fill="var(--asf-rose)">✕ 실패: 실사용 정밀도 29.6%→3.3%</text>
+
+      <!-- ③ 실행 -->
+      <rect x="686" y="70" width="285" height="106" rx="12" fill="none" stroke="var(--asf-green)" stroke-width="2.5"/>
+      <text x="708" y="100" font-size="17" font-weight="700" fill="var(--asf-green)">③ 실행 — 적응</text>
+      <text x="708" y="126" font-size="13.5" fill="var(--asf-gray)">스킬은 법전이 아니라 레시피.</text>
+      <text x="708" y="146" font-size="13.5" fill="var(--asf-gray)">상황이 다르면 벗어날 권한을 명시.</text>
+      <text x="708" y="168" font-size="12.5" fill="var(--asf-rose)">✕ 실패: 불충분한 적응, 절차 맹종</text>
+
+      <!-- ④ 관측 -->
+      <rect x="530" y="250" width="330" height="106" rx="12" fill="none" stroke="var(--asf-amber)" stroke-width="2.5"/>
+      <text x="552" y="280" font-size="17" font-weight="700" fill="var(--asf-amber)">④ 관측 — 손익 측정</text>
+      <text x="552" y="306" font-size="13.5" fill="var(--asf-gray)">어떤 스킬이 로드·사용됐는지 로그.</text>
+      <text x="552" y="326" font-size="13.5" fill="var(--asf-gray)">차등 평가로 스킬별 손익 계산 (8장).</text>
+      <text x="552" y="348" font-size="12.5" fill="var(--asf-rose)">✕ 실패: 효율 회귀 182건은 성공률에 안 보임</text>
+
+      <!-- ⑤ 개정/폐기 -->
+      <rect x="140" y="250" width="330" height="106" rx="12" fill="none" stroke="var(--asf-rose)" stroke-width="2.5"/>
+      <text x="162" y="280" font-size="17" font-weight="700" fill="var(--asf-rose)">⑤ 개정 · 폐기</text>
+      <text x="162" y="306" font-size="13.5" fill="var(--asf-gray)">해를 끼치는 스킬은 고치거나 제거.</text>
+      <text x="162" y="326" font-size="13.5" fill="var(--asf-gray)">환경이 바뀌면 스킬도 낡는다.</text>
+      <text x="162" y="348" font-size="12.5" fill="var(--asf-rose)">✕ 실패: 91.8% 결함 스킬이 풀에 쌓임</text>
+
+      <!-- 순환 화살표 -->
+      <line x1="315" y1="123" x2="352" y2="123" stroke="var(--asf-gray)" stroke-width="2.5" marker-end="url(#asf-lc-ar)"/>
+      <line x1="643" y1="123" x2="680" y2="123" stroke="var(--asf-gray)" stroke-width="2.5" marker-end="url(#asf-lc-ar)"/>
+      <path d="M828,182 C828,215 790,235 760,246" fill="none" stroke="var(--asf-gray)" stroke-width="2.5" marker-end="url(#asf-lc-ar)"/>
+      <line x1="524" y1="303" x2="476" y2="303" stroke="var(--asf-gray)" stroke-width="2.5" marker-end="url(#asf-lc-ar)"/>
+      <path d="M175,244 C160,215 160,205 172,182" fill="none" stroke="var(--asf-gray)" stroke-width="2.5" marker-end="url(#asf-lc-ar)"/>
+
+      <text x="500" y="420" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--asf-gray)">스킬 풀은 package.json과 같다 — 추가는 쉽고, 관리가 본체다</text>
+      <text x="500" y="446" text-anchor="middle" font-size="13" fill="var(--asf-gray)">추가할 때 심사하고, 돌릴 때 관측하고, 낡으면 폐기한다</text>
+    </g>
+  </svg>
+  <figcaption>그림 3. 스킬 라이프사이클 다섯 단계. 이번 주 세 논문이 찾아낸 실패 모드는 각각 특정 단계의 부재에 대응한다.</figcaption>
+</figure>
+
+<p>단계별로 실무 지침을 정리합니다. 먼저 <strong>작성</strong>. 좋은 스킬과 나쁜 스킬의 차이를 description과 본문 첫머리만으로 비교해 보면 이렇습니다.</p>
+
+{{< highlight yaml >}}
+# 나쁜 예 — 138K 조사에서 걸린 전형적 결함들
+---
+name: pdf-helper
+description: PDF 관련 작업을 돕는 유용한 스킬입니다.   # 언제 쓰라는 건지 알 수 없음
+---
+PDF(Portable Document Format)는 Adobe가 1993년에 만든…  # 배경 지식으로 시작 (모델은 이미 안다)
+상황에 맞게 적절히 처리하세요.                          # 실행 불가능한 지시
+{{< /highlight >}}
+
+{{< highlight yaml >}}
+# 좋은 예 — 라우팅 신호 + 절차 + 전제/탈출 조건
+---
+name: pdf-form-fill
+description: >
+  사용자가 "PDF 양식(form)을 채워 달라"고 할 때 사용.
+  양식 필드가 없는 일반 PDF 편집이나 PDF 생성에는 쓰지 말 것
+  (그 경우 pdf-report 스킬 사용).                    # 언제 쓰고 / 언제 쓰지 말지
+---
+전제: Python 3.10+, pypdf 설치 환경. 오프라인이면 이 스킬을 중단하고 사용자에게 알릴 것.
+
+1. scripts/inspect_fields.py로 양식 필드 목록을 먼저 추출한다.
+2. 필드가 0개면 이 스킬을 종료하고 일반 편집 절차로 전환한다.   # 탈출 조건
+3. 값을 채운 뒤 scripts/verify_fill.py로 결과를 검증한다.
+{{< /highlight >}}
+
+<p>다음 <strong>라우팅</strong>. description을 다듬는 것 못지않게 중요한 게 <strong>풀 크기 자체를 관리</strong>하는 일입니다. 4장의 붕괴 곡선을 뒤집어 읽으면, 실사용 정밀도를 지키는 가장 확실한 방법은 후보군을 작게 유지하는 겁니다. 전사 공용 풀 하나에 100개를 쌓지 말고, 프로젝트·팀·도메인 단위로 스킬을 스코프해서 <strong>한 에이전트가 보는 풀을 수 개~십수 개로</strong> 유지하세요. 겹치는 스킬("pdf-helper"와 "pdf-tools")은 검색 공간에서 서로를 가리는 소음이니, 새 스킬을 추가하기 전에 기존 스킬과의 역할 경계부터 확인해야 합니다.</p>
+
+<p><strong>실행</strong> 단계의 지침은 스킬 본문 안에 들어갑니다. 위 좋은 예처럼 절차마다 "이 조건이면 벗어나라"를 명시해서, 에이전트가 절차를 법전처럼 맹종하다 5장의 '불충분한 적응' 실패에 빠지지 않게 합니다. 그리고 <strong>관측</strong>과 <strong>개정·폐기</strong> — 이건 코드가 필요하니 다음 장에서 직접 만들어 봅니다.</p>
+
+<h2 id="sec-8">8. 실전 — 차등 평가 하네스 만들기</h2>
+
+<p>5장의 차등 분석은 논문 방법론이지만, 축소판은 오늘 바로 만들 수 있습니다. 아이디어는 하나입니다. <strong>스킬 하나의 손익은, 같은 과제를 스킬 있음/없음으로 돌려 비교해야만 보인다.</strong> 우리 팀 과제 10~20개로 이걸 자동화해 두면, 스킬을 추가·수정할 때마다 회귀 테스트처럼 돌릴 수 있습니다.</p>
+
+<p>Claude Code의 헤드리스 모드(<code>-p</code>)를 예로 들면, 스킬 디렉터리를 통째로 바꿔치기하는 것만으로 두 조건을 만들 수 있습니다.</p>
+
+{{< highlight python >}}
+import json, subprocess, time
+from pathlib import Path
+
+TASKS = json.loads(Path("eval_tasks.json").read_text())
+# 예: [{"id": "t1", "prompt": "invoice.pdf 양식을 data.json 값으로 채워 줘",
+#       "verify": "python verify/t1.py"}, ...]  # 과제마다 결정론적 채점 스크립트
+
+def run_once(task, skills_dir):
+    """스킬 디렉터리를 지정해 과제 1회 실행, 성공 여부·비용을 반환"""
+    t0 = time.time()
+    r = subprocess.run(
+        ["claude", "-p", task["prompt"],
+         "--settings", json.dumps({"skillsDir": str(skills_dir)}),
+         "--output-format", "json", "--max-turns", "30"],
+        capture_output=True, text=True, timeout=900)
+    out = json.loads(r.stdout)
+    ok = subprocess.run(task["verify"], shell=True).returncode == 0  # 채점은 LLM이 아니라 스크립트로
+    return {"ok": ok, "cost": out.get("total_cost_usd", 0),
+            "turns": out.get("num_turns", 0), "sec": time.time() - t0}
+
+def differential(task, base_dir, skill_dir, n=3):
+    """스킬 없음(base) vs 있음(skill)을 n회씩 돌려 손익 계산. 1회 비교는 노이즈에 속는다."""
+    base  = [run_once(task, base_dir)  for _ in range(n)]
+    skill = [run_once(task, skill_dir) for _ in range(n)]
+    rate  = lambda rs: sum(r["ok"] for r in rs) / n
+    cost  = lambda rs: sum(r["cost"] for r in rs) / n
+    return {"task": task["id"],
+            "pass_delta": rate(skill) - rate(base),      # 음수면 기능 실패 유발
+            "cost_ratio": cost(skill) / max(cost(base), 1e-9)}  # 1.5 초과면 효율 회귀 의심
+
+for task in TASKS:
+    r = differential(task, Path("skills-none"), Path("skills-full"))
+    flag = ""
+    if r["pass_delta"] < 0:   flag = "!! 기능 실패 유발"
+    elif r["cost_ratio"] > 1.5: flag = "!  효율 회귀"     # 논문의 307건 중 182건이 이 유형
+    print(f'{r["task"]}: 통과율 {r["pass_delta"]:+.0%}, 비용 {r["cost_ratio"]:.2f}x {flag}')
+{{< /highlight >}}
+
+<p>포인트 세 가지만 짚습니다.</p>
+
+<ul>
+  <li><strong>채점은 결정론적으로.</strong> SkillsBench가 결정론적 채점기를 고집한 이유와 같습니다. "결과가 좋아 보이는지"를 LLM에게 물으면 평가 자체가 흔들립니다. 파일이 생겼는지, 테스트가 통과하는지처럼 스크립트로 판정하세요.</li>
+  <li><strong>성공률과 비용을 같이 보세요.</strong> 논문이 잡은 스킬 유발 실패 307건 중 182건은 효율 회귀였습니다. <code>cost_ratio</code>를 안 보면 피해의 절반 이상을 놓칩니다.</li>
+  <li><strong>여러 번 돌려 평균하세요.</strong> 에이전트 실행은 비결정적이라 1회 비교는 노이즈에 속습니다. 예산이 허락하는 만큼(최소 3회) 반복해 평균으로 판단하세요.</li>
+</ul>
+
+<p>여기에 운영 로그로 <strong>스킬별 사용 빈도</strong>를 남기면 폐기 후보도 보입니다. 석 달간 한 번도 로드되지 않은 스킬, 로드됐을 때 통과율이 오히려 낮은 스킬이 <code>⑤ 개정·폐기</code> 단계의 입력입니다.</p>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>실수 ① 스킬을 지식 문서로 쓴다.</strong> 배경 설명 세 문단짜리 스킬은 컨텍스트만 태웁니다. 스킬이 도움이 된 이유의 65.7%는 절차 고정, 지식 주입은 4.5%였습니다. 절차·전제·탈출 조건만 남기고 증류하세요.</li>
+  <li><strong>실수 ② 스킬 생성을 에이전트에게 맡기고 검수를 생략한다.</strong> SkillsBench에서 자가 생성 스킬은 평균 이득이 없었습니다. "이번 세션 잘 됐으니 스킬로 저장해 둬"가 쌓이면, 138K 조사가 발견한 '한 번 성공한 기록의 무덤'이 됩니다. 생성은 시켜도 좋지만, 풀에 넣기 전 사람이 다섯 관문(선택·로드·자원·실행·이식)을 검사하세요.</li>
+  <li><strong>실수 ③ 풀 크기를 무한정 키운다.</strong> 5개→100개에서 실사용 정밀도 29.6%→3.3%. 스킬 추가는 공짜가 아니라 기존 스킬들의 선택 정밀도를 깎는 비용입니다. 추가 전에 "이걸로 뭘 지울까"를 같이 물으세요.</li>
+  <li><strong>실수 ④ 검색 지표만 모니터링한다.</strong> 임베딩 정밀도는 88.3%→76.9%로 완만히 빠지는 동안 실사용은 붕괴했습니다. "검색기가 맞는 스킬을 올렸는가"가 아니라 "에이전트가 맞는 스킬을 썼고 그래서 이득이 났는가"를 재세요(8장 하네스).</li>
+  <li><strong>실수 ⑤ 성공률만 보고 스킬을 평가한다.</strong> 스킬 유발 피해의 과반(307건 중 182건)은 성공하면서 비용이 느는 효율 회귀입니다. 비용·턴 수·시간을 반드시 함께 기록하세요.</li>
+  <li><strong>팁 ① description에 '쓰지 말아야 할 때'를 적으세요.</strong> 라우팅 정밀도를 올리는 가장 값싼 수단입니다. 비슷한 스킬이 있다면 서로의 description에서 상대를 언급해 경계를 그어 주세요.</li>
+  <li><strong>팁 ② 스킬에도 버전과 소유자를 두세요.</strong> 스킬 풀을 git으로 관리하고, 스킬마다 담당자와 마지막 검증일을 남기면 "낡은 스킬"이 눈에 보입니다. 의존성 관리와 똑같이 하면 됩니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>이번 주 트렌딩 논문(arXiv:2608.14036)이 에이전트 스킬을 8,135건의 시행 기록으로 해부했습니다. 같은 8월에 스킬 유발 실패 307건 분석(arXiv:2608.11888), 공개 SKILL.md 138K 전수 조사(arXiv:2608.08453)까지 — 스킬 생태계가 "만드는 법"에서 <strong>"실패하는 방식"</strong>으로 넘어가는 주였습니다.</li>
+  <li><strong>스킬은 체크리스트지 백과사전이 아닙니다.</strong> 도움이 된 사례의 65.7%가 절차 고정, 지식 주입은 4.5%. 같은 경험도 증류된 스킬 형태가 세부 가득한 워크플로 메모리보다 6%p 앞섰습니다.</li>
+  <li><strong>스킬 풀이 커지면 검색이 조용히 무너집니다.</strong> 5개→100개에서 실사용 정밀도 29.6%→3.3%. 검색 지표(88.3%→76.9%)만 보면 이 붕괴가 안 보입니다. 풀을 작게 스코프하는 게 최선의 방어입니다.</li>
+  <li><strong>'맞는' 스킬도 해를 끼칩니다.</strong> 깨지기 쉬운 가정, 맞지 않는 컨텍스트, 절차 맹종. 피해의 과반은 성공률에 안 잡히는 효율 회귀였습니다.</li>
+  <li><strong>공개 스킬 91.8%에 결함이 있습니다.</strong> 대부분 약한 라우팅 메타데이터, 비대한 본문, 부실한 자원 조직 같은 포장 불량입니다. 남의 스킬은 다섯 관문(선택·로드·자원·실행·이식)으로 심사하세요.</li>
+  <li>결론: <strong>스킬은 한 번 심는 지식이 아니라 라이프사이클(작성→라우팅→실행→관측→개정·폐기)로 관리하는 자산</strong>입니다. 스킬 있음/없음을 나란히 돌리는 차등 평가 하네스가 그 관리의 시작점입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li>Z. Jiang et al., "Demystifying Agent Skills: Why They Work—Until They Don't"(arXiv:2608.14036 · 8,135건 시행 기록 · 절차 고정 65.7% vs 지식 주입 4.5% · 풀 5→100개에서 실사용 정밀도 29.6%→3.3% · Skill 61.9% vs Workflow Memory 55.9%) — <a href="https://arxiv.org/abs/2608.14036" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>zhiyuanjiang04/demystify-agent-skills(위 논문의 실험 파이프라인 · Terminal-Bench 2 / SkillsBench 평가 유틸 · 실패 분류 도구) — <a href="https://github.com/zhiyuanjiang04/demystify-agent-skills" target="_blank" rel="noopener">github.com</a></li>
+  <li>G. Dong et al., "Agent Skills Can Be Harmful: An Empirical Study of Skill-Induced Failures in LLM Agents"(arXiv:2608.11888 · 차등 분석으로 스킬 유발 실패 307건 귀속 · 기능 실패 125건 + 효율 회귀 182건) — <a href="https://arxiv.org/html/2608.11888v1" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>"What Keeps Agent Skills from Being Reusable? Evidence from 138K SKILL.md Files"(arXiv:2608.08453 · 20,556개 저장소의 SKILL.md 138,133개 전수 조사 · 91.8% 결함 · 약한 라우팅 메타데이터/비대한 본문/부실한 자원 조직) — <a href="https://arxiv.org/html/2608.08453v1" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>"SkillsBench: Benchmarking How Well Agent Skills Work Across Diverse Tasks"(arXiv:2602.12670 · 11개 도메인 86개 과제 · 결정론적 채점 · 큐레이션 스킬 +16.6%p, 자가 생성 스킬 이득 없음 · 7개 구성 7,308 트라젝토리) — <a href="https://arxiv.org/abs/2602.12670" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>Z. Z. Wang, J. Mao, D. Fried, G. Neubig, "Agent Workflow Memory"(arXiv:2409.07429 · 과거 경험에서 재사용 워크플로를 유도해 제공 · Mind2Web/WebArena) — <a href="https://arxiv.org/abs/2409.07429" target="_blank" rel="noopener">arxiv.org</a></li>
+  <li>Agent Skills 공식 스펙(SKILL.md 구조 · 점진적 공개 · 호환 제품 쇼케이스) — <a href="https://agentskills.io" target="_blank" rel="noopener">agentskills.io</a></li>
+  <li>SiliconANGLE, "Anthropic makes agent Skills an open standard"(2025-12-18 표준 공개 경위) — <a href="https://siliconangle.com/2025/12/18/anthropic-makes-agent-skills-open-standard/" target="_blank" rel="noopener">siliconangle.com</a></li>
+  <li>The New Stack, "Agent Skills: Anthropic's Next Bid to Define AI Standards"(생태계 채택 현황 · Microsoft/Cursor/Goose 등) — <a href="https://thenewstack.io/agent-skills-anthropics-next-bid-to-define-ai-standards/" target="_blank" rel="noopener">thenewstack.io</a></li>
+  <li>Terminal-Bench 2.0(Stanford·Laude Institute · 터미널 환경 89개 과제) — <a href="https://www.tbench.ai/news" target="_blank" rel="noopener">tbench.ai</a></li>
+  <li>Rohan Paul, 논문 핵심 발견 해설 스레드(X · 같은 경험을 Workflow Memory와 SKILL.md 두 형태로 준 비교 실험 소개) — <a href="https://x.com/rohanpaul_ai/status/2089588099701416425" target="_blank" rel="noopener">x.com</a></li>
+  <li><strong>[한국어]</strong> Claude Platform Docs, "Skill 작성 모범 사례"(공식 한국어 문서 · description 작성 요령 · 점진적 공개 활용) — <a href="https://platform.claude.com/docs/ko/agents-and-tools/agent-skills/best-practices" target="_blank" rel="noopener">platform.claude.com</a></li>
+  <li><strong>[한국어]</strong> Dale Seo, "Agent Skill 만들기: SKILL.md 작성 가이드"(SKILL.md 구조와 작성 실습) — <a href="https://daleseo.com/skill-md/" target="_blank" rel="noopener">daleseo.com</a></li>
+</ul>

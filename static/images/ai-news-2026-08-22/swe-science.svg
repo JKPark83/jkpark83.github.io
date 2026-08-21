@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="440" fill="#f8fafc"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">SWE-bench Science — 과학 코드 수리는 아직 미해결 지대</text>
+  <text x="400" y="53" text-anchor="middle" font-size="12" fill="#64748b">출처: OpenMOSS (arXiv 2608.19799) — 119개 태스크 · 98개 리포 · 20개 과학 도메인</text>
+
+  <!-- pipeline: dataset -> paradigms -> result -->
+  <rect x="40" y="85" width="170" height="80" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="125" y="113" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">태스크 소스</text>
+  <text x="125" y="134" text-anchor="middle" font-size="11.5" fill="#334155">실제 과학 소프트웨어</text>
+  <text x="125" y="151" text-anchor="middle" font-size="11.5" fill="#334155">98개 GitHub 리포</text>
+
+  <line x1="210" y1="125" x2="260" y2="125" stroke="#94a3b8" stroke-width="2"/>
+  <path d="M 260 125 l -8 -5 v 10 z" fill="#94a3b8"/>
+
+  <rect x="265" y="70" width="200" height="110" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="365" y="94" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">3가지 태스크 패러다임</text>
+  <text x="365" y="117" text-anchor="middle" font-size="11.5" fill="#334155">① 이슈 기반 수리</text>
+  <text x="365" y="137" text-anchor="middle" font-size="11.5" fill="#334155">② 전문가 탐색형</text>
+  <text x="365" y="157" text-anchor="middle" font-size="11.5" fill="#334155">③ 엔지니어링 통합</text>
+
+  <line x1="465" y1="125" x2="515" y2="125" stroke="#94a3b8" stroke-width="2"/>
+  <path d="M 515 125 l -8 -5 v 10 z" fill="#94a3b8"/>
+
+  <rect x="520" y="85" width="240" height="80" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="640" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="#b91c1c">최고 성적: Claude Code + Opus 5</text>
+  <text x="640" y="136" text-anchor="middle" font-size="16" font-weight="700" fill="#b91c1c">pass@1 50% 미만</text>
+  <text x="640" y="155" text-anchor="middle" font-size="11" fill="#64748b">일반 SWE-bench 대비 큰 격차</text>
+
+  <!-- failure modes -->
+  <text x="400" y="215" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1e293b">반복 관찰된 4가지 실패 메커니즘</text>
+
+  <rect x="40" y="235" width="355" height="60" rx="10" fill="#fff7ed" stroke="#f97316" stroke-width="1.2"/>
+  <text x="217" y="260" text-anchor="middle" font-size="12.5" font-weight="700" fill="#c2410c">① 과학 지식·추상화 결핍</text>
+  <text x="217" y="281" text-anchor="middle" font-size="11.5" fill="#334155">도메인 개념을 몰라 수식·물리량을 잘못 다룸</text>
+
+  <rect x="405" y="235" width="355" height="60" rx="10" fill="#fff7ed" stroke="#f97316" stroke-width="1.2"/>
+  <text x="582" y="260" text-anchor="middle" font-size="12.5" font-weight="700" fill="#c2410c">② 잘못된 탐색 · 표면적 수리</text>
+  <text x="582" y="281" text-anchor="middle" font-size="11.5" fill="#334155">근본 원인 대신 증상만 패치</text>
+
+  <rect x="40" y="305" width="355" height="60" rx="10" fill="#fff7ed" stroke="#f97316" stroke-width="1.2"/>
+  <text x="217" y="330" text-anchor="middle" font-size="12.5" font-weight="700" fill="#c2410c">③ 수리 범위 · 시스템 통합 미완</text>
+  <text x="217" y="351" text-anchor="middle" font-size="11.5" fill="#334155">고친 곳 외 연쇄 영향 누락</text>
+
+  <rect x="405" y="305" width="355" height="60" rx="10" fill="#fff7ed" stroke="#f97316" stroke-width="1.2"/>
+  <text x="582" y="330" text-anchor="middle" font-size="12.5" font-weight="700" fill="#c2410c">④ 관찰 사례 밖 일반화 실패</text>
+  <text x="582" y="351" text-anchor="middle" font-size="11.5" fill="#334155">본 케이스에만 맞는 과적합 수정</text>
+
+  <rect x="120" y="385" width="560" height="38" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+  <text x="400" y="409" text-anchor="middle" font-size="12" fill="#1d4ed8">주의: 과학적 가이드를 넣어도 항상 도움이 되진 않음 — 잘못 정렬된 힌트는 앵커링 유발</text>
+</svg>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="430" fill="#f8fafc"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">Agent Skills는 왜 작동하나 — 그리고 어디서 무너지나</text>
+  <text x="400" y="53" text-anchor="middle" font-size="12" fill="#64748b">출처: Demystifying Agent Skills (arXiv 2608.14036) — 8,135개 트라이얼 기록 분석</text>
+
+  <!-- Left panel: mechanism -->
+  <rect x="35" y="75" width="350" height="240" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="210" y="102" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">스킬이 성공에 기여한 방식</text>
+
+  <!-- bar: procedural anchoring 65.7% -->
+  <text x="60" y="140" font-size="12.5" fill="#334155">절차적 앵커링</text>
+  <rect x="60" y="148" width="273" height="26" rx="4" fill="#3b82f6"/>
+  <text x="325" y="166" font-size="13" font-weight="700" fill="#ffffff" text-anchor="end">65.7%</text>
+
+  <!-- bar: knowledge injection 4.5% -->
+  <text x="60" y="205" font-size="12.5" fill="#334155">명시적 지식 주입</text>
+  <rect x="60" y="213" width="19" height="26" rx="4" fill="#94a3b8"/>
+  <text x="86" y="231" font-size="13" font-weight="700" fill="#475569">4.5%</text>
+
+  <text x="60" y="272" font-size="11.5" fill="#64748b">스킬은 "몰랐던 사실"을 알려주는 게 아니라</text>
+  <text x="60" y="290" font-size="11.5" fill="#64748b">흔들리는 행동 궤적을 절차로 고정해서 돕는다</text>
+
+  <!-- Right panel: retrieval collapse -->
+  <rect x="415" y="75" width="350" height="240" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="590" y="102" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">스킬 풀 크기 vs 실사용 정밀도</text>
+
+  <!-- axis area: bars for pool 5 -> 29.6, pool 100 -> 3.3 -->
+  <text x="480" y="270" text-anchor="middle" font-size="12" fill="#334155">풀 5개</text>
+  <rect x="450" y="128" width="60" height="118" rx="4" fill="#22c55e"/>
+  <text x="480" y="121" text-anchor="middle" font-size="14" font-weight="700" fill="#15803d">29.6%</text>
+
+  <text x="700" y="270" text-anchor="middle" font-size="12" fill="#334155">풀 100개</text>
+  <rect x="670" y="233" width="60" height="13" rx="3" fill="#ef4444"/>
+  <text x="700" y="226" text-anchor="middle" font-size="14" font-weight="700" fill="#b91c1c">3.3%</text>
+
+  <path d="M 516 140 C 590 150, 630 190, 664 226" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="6 4"/>
+  <text x="590" y="180" text-anchor="middle" font-size="11.5" fill="#b45309">-89% 급감</text>
+
+  <line x1="440" y1="246" x2="740" y2="246" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="590" y="295" text-anchor="middle" font-size="11.5" fill="#64748b">스킬을 쌓을수록 "맞는 스킬을 고르는 일"이 병목이 된다</text>
+
+  <!-- bottom fact cards -->
+  <rect x="35" y="335" width="355" height="70" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+  <text x="212" y="362" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d4ed8">Workflow Memory 대비 +6.06점</text>
+  <text x="212" y="384" text-anchor="middle" font-size="11.5" fill="#334155">동일 조건 비교에서 스킬 방식이 우세</text>
+
+  <rect x="410" y="335" width="355" height="70" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1.2"/>
+  <text x="587" y="362" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b91c1c">실패 조건 3가지</text>
+  <text x="587" y="384" text-anchor="middle" font-size="11.5" fill="#334155">깨지기 쉬운 가정 · 맞지 않는 컨텍스트 · 적응 부족</text>
+</svg>

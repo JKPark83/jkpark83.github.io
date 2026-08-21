@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="470" fill="#f8fafc"/>
+  <text x="400" y="34" text-anchor="middle" font-size="21" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 — 2026-08-22</text>
+  <text x="400" y="56" text-anchor="middle" font-size="13" fill="#64748b">주제: 에이전트의 "지식과 능력"은 실제로 어떻게 작동하는가</text>
+
+  <!-- center node -->
+  <rect x="290" y="200" width="220" height="70" rx="12" fill="#1e293b"/>
+  <text x="400" y="230" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">스킬·지식의 해부</text>
+  <text x="400" y="252" text-anchor="middle" font-size="12" fill="#cbd5e1">언제 돕고, 왜 작동하고, 어디서 깨지나</text>
+
+  <!-- edges -->
+  <line x1="290" y1="215" x2="205" y2="140" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="510" y1="215" x2="595" y2="140" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="290" y1="255" x2="205" y2="345" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="510" y1="255" x2="595" y2="345" stroke="#94a3b8" stroke-width="2"/>
+
+  <!-- top-left: skills paper -->
+  <rect x="40" y="80" width="220" height="86" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="150" y="103" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1d4ed8">📚 Agent Skills 해부 논문</text>
+  <text x="150" y="124" text-anchor="middle" font-size="11.5" fill="#334155">스킬 = 지식 주입(4.5%)이 아니라</text>
+  <text x="150" y="141" text-anchor="middle" font-size="11.5" fill="#334155">절차적 앵커(65.7%)로 작동</text>
+  <text x="150" y="158" text-anchor="middle" font-size="11" fill="#64748b">arXiv 2608.14036</text>
+
+  <!-- top-right: swe-bench science -->
+  <rect x="540" y="80" width="220" height="86" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="650" y="103" text-anchor="middle" font-size="13.5" font-weight="700" fill="#b91c1c">📚 SWE-bench Science</text>
+  <text x="650" y="124" text-anchor="middle" font-size="11.5" fill="#334155">과학 코드 수리, 최상위 에이전트도</text>
+  <text x="650" y="141" text-anchor="middle" font-size="11.5" fill="#334155">pass@1 50% 미만</text>
+  <text x="650" y="158" text-anchor="middle" font-size="11" fill="#64748b">arXiv 2608.19799</text>
+
+  <!-- bottom-left: tools -->
+  <rect x="40" y="310" width="220" height="86" rx="10" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="150" y="333" text-anchor="middle" font-size="13.5" font-weight="700" fill="#15803d">🛠 하네스 업데이트</text>
+  <text x="150" y="354" text-anchor="middle" font-size="11.5" fill="#334155">Codex 0.147 Agent Plugins</text>
+  <text x="150" y="371" text-anchor="middle" font-size="11.5" fill="#334155">Claude Code 2.1.237 Concise 스타일</text>
+  <text x="150" y="388" text-anchor="middle" font-size="11" fill="#64748b">플러그인 배포 · 출력 다이어트</text>
+
+  <!-- bottom-right: esopt -->
+  <rect x="540" y="310" width="220" height="86" rx="10" fill="#faf5ff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="650" y="333" text-anchor="middle" font-size="13.5" font-weight="700" fill="#7e22ce">🧬 Agentic ESOpt</text>
+  <text x="650" y="354" text-anchor="middle" font-size="11.5" fill="#334155">역전파 없이 진화 전략(ES)으로</text>
+  <text x="650" y="371" text-anchor="middle" font-size="11.5" fill="#334155">장기 에이전트 전체 파라미터 튜닝</text>
+  <text x="650" y="388" text-anchor="middle" font-size="11" fill="#64748b">arXiv 2608.17310</text>
+
+  <!-- bottom note -->
+  <rect x="180" y="420" width="440" height="34" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.2"/>
+  <text x="400" y="442" text-anchor="middle" font-size="12" fill="#92400e">생태계: Anthropic, 이르면 8월 말 IPO 공개 파일링 — 역대 최대 규모 조준</text>
+</svg>

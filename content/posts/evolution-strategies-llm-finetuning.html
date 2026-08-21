@@ -1,0 +1,368 @@
+---
+title: "역전파 없이 LLM을 파인튜닝한다: 진화 전략(ES)은 왜 에이전트 시대에 부활했나"
+date: 2026-08-22T07:30:00+09:00
+draft: false
+tags: ["AI", "파인튜닝", "fine-tuning", "진화 전략", "Evolution Strategies", "ES", "RLHF", "GRPO", "PPO", "post-training", "포스트 트레이닝", "Agentic ESOpt", "EGGROLL", "long-horizon agent", "장기 호라이즌 에이전트", "credit assignment", "크레딧 할당", "GPU 메모리", "AI 에이전트", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "7B 모델을 풀 파라미터로 파인튜닝하려면 옵티마이저 상태까지 88GB 안팎의 메모리가 필요합니다. 그런데 역전파를 아예 버리면 어떨까요? 이번 주 Hugging Face 트렌딩에 오른 Agentic ESOpt는 추론 수준 메모리만으로 장기 호라이즌 에이전트를 풀 파라미터 파인튜닝해 GRPO를 12.5%p 앞섰습니다. 2017년 OpenAI가 실험하다 접어 둔 진화 전략(Evolution Strategies)이 왜 지금, 에이전트 학습에서 부활하고 있는지 — 원리부터 Countdown 벤치마크 숫자(ES 60.5% vs RL 32.5%), EGGROLL의 저랭크 트릭, 망각 논쟁까지 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "evolution-strategies-llm-finetuning-cover.svg"
+  alt: "역전파 기반 RL 파인튜닝의 88GB 메모리 스택과, 추론 메모리만 쓰는 진화 전략의 병렬 구조를 비교한 그림"
+  caption: "그래디언트를 계산하지 않으면, 그래디언트를 저장할 필요도 없습니다. ES는 파인튜닝을 '추론 여러 번'으로 바꿉니다."
+  relative: false
+---
+
+<style>
+/* ── 진화 전략 파인튜닝 포스트 전용 스타일 (esf- 접두사) ── */
+.esf-fig{
+  --esf-violet:#7c3aed; --esf-sky:#0284c7; --esf-green:#16a34a; --esf-rose:#e11d48;
+  --esf-amber:#d97706; --esf-slate:#64748b; --esf-teal:#0d9488; --esf-blue:#2563eb;
+  --esf-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .esf-fig{
+  --esf-violet:#a78bfa; --esf-sky:#38bdf8; --esf-green:#4ade80; --esf-rose:#fb7185;
+  --esf-amber:#fbbf24; --esf-slate:#94a3b8; --esf-teal:#2dd4bf; --esf-blue:#60a5fa;
+  --esf-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .esf-fig{
+    --esf-violet:#a78bfa; --esf-sky:#38bdf8; --esf-green:#4ade80; --esf-rose:#fb7185;
+    --esf-amber:#fbbf24; --esf-slate:#94a3b8; --esf-teal:#2dd4bf; --esf-blue:#60a5fa;
+    --esf-gray:#64748b;
+  }
+}
+.esf-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.esf-fig text{font-family:inherit}
+.esf-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.esf-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.esf-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.esf-toc ol{margin:0;padding-left:1.25rem}
+.esf-toc li{margin:.22rem 0;font-size:.95rem}
+.esf-toc a{text-decoration:none}
+.esf-toc a:hover{text-decoration:underline}
+.esf-pull{font-size:1.12rem;line-height:1.72}
+.esf-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.esf-note{border-left:4px solid var(--esf-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.esf-note strong{color:var(--esf-blue,#2563eb)}
+.esf-warn{border-left:4px solid var(--esf-rose,#e11d48)}
+.esf-warn strong{color:var(--esf-rose,#e11d48)}
+.esf-good{border-left:4px solid var(--esf-teal,#0d9488)}
+.esf-good strong{color:var(--esf-teal,#0d9488)}
+.esf-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.esf-tbl th,.esf-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.esf-tbl th{background:var(--entry);font-weight:700}
+.esf-tbl code{font-size:.86em}
+.esf-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="esf-pull">
+"장기 호라이즌 에이전트를 파인튜닝하고 싶은데, RL 학습 스택을 감당할 GPU가 없다."<br>
+이번 주 Hugging Face 트렌딩 논문은 이 문제를 정면으로 겨냥합니다. 역전파를 버리고 <strong>추론 수준 메모리만으로 풀 파라미터를 최적화</strong>했는데, 15턴 에이전트 태스크에서 GRPO를 <strong>12.5%p</strong> 앞섰습니다.
+<footer>— arXiv:2608.17310, "Agentic ESOpt: Fine-Tuning Long-Horizon LLM Agents with Minimal GPU Requirements"</footer>
+</blockquote>
+
+<div class="esf-toc">
+  <div class="esf-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — GPU 가난한 팀의 파인튜닝 딜레마</a></li>
+    <li><a href="#sec-2">배경 — RL 파인튜닝은 왜 이렇게 비싼가</a></li>
+    <li><a href="#sec-3">진화 전략 5분 원리 — 미분 대신 주변을 뒤진다</a></li>
+    <li><a href="#sec-4">부활의 타임라인 — 8B 풀 파라미터, 그리고 100배 가속</a></li>
+    <li><a href="#sec-5">에이전트와 만나다 — Agentic ESOpt</a></li>
+    <li><a href="#sec-6">실전 — 60줄짜리 미니 ES 파인튜닝 루프</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁 — 망각 논쟁과 선택 가이드</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — GPU 가난한 팀의 파인튜닝 딜레마</h2>
+
+<p>에이전트를 만들다 보면 언젠가 이 벽에 부딪힙니다. 프롬프트도 다듬을 만큼 다듬었고, 스킬도 넣었고, 컨텍스트 엔지니어링도 했는데, 우리 도메인 태스크에서 모델이 자꾸 같은 자리에서 넘어집니다. "이쯤 되면 모델 자체를 우리 태스크에 맞춰 학습시켜야 하나?" — 그런데 견적을 내 보면 한숨이 나옵니다. 7B 모델을 풀 파라미터로 파인튜닝하려면 <strong>가중치·그래디언트·옵티마이저 상태만으로 A100 80GB 한 장을 넘기고</strong>, GRPO 같은 강화학습(RL) 파인튜닝은 여기에 롤아웃용 추론 엔진까지 얹어야 합니다. junior 입장에서는 시작도 하기 전에 인프라에서 막히는 셈입니다.</p>
+
+<p>그래서 이번 주 트렌딩이 흥미롭습니다. 8월 셋째 주 Hugging Face 데일리 페이퍼에 오른 <a href="https://arxiv.org/abs/2608.17310" target="_blank" rel="noopener">"Agentic ESOpt: Fine-Tuning Long-Horizon LLM Agents with Minimal GPU Requirements"</a>(arXiv:2608.17310)는 제목부터 이 딜레마를 겨냥합니다. 역전파(backpropagation) 기반 RL을 버리고 <strong>진화 전략(Evolution Strategies, ES)</strong>으로 장기 호라이즌 에이전트를 풀 파라미터 파인튜닝했는데, 필요한 GPU 메모리는 <strong>추론 수준</strong>이고, 15턴짜리 멀티턴 태스크에서 조건을 맞춘 GRPO 베이스라인을 <strong>12.5%p</strong> 앞섰습니다.</p>
+
+<p>사실 이 논문은 혼자가 아니라, 작년 가을부터 이어져 온 흐름의 최신 장면입니다. 2025년 9월 <a href="https://arxiv.org/abs/2509.24372" target="_blank" rel="noopener">"Evolution Strategies at Scale"</a>이 "ES로 수십억 파라미터 LLM을 풀 파라미터 파인튜닝할 수 있다"는 걸 처음 보였고, 11월 <a href="https://arxiv.org/abs/2511.16652" target="_blank" rel="noopener">EGGROLL</a>이 속도를 100배 끌어올렸으며, 올해 들어 "ES는 기존 능력을 망각시킨다"는 반박 논문과 그에 대한 재반박까지 나오면서 포스트 트레이닝(post-training, 사전학습 이후의 추가 학습 단계) 판에서 가장 뜨거운 논쟁 중 하나가 됐습니다. 이 글은 이 흐름 전체를 junior 개발자 눈높이에서 정리합니다.</p>
+
+<div class="esf-note"><strong>이 글에서 얻어 갈 것.</strong> ① RL 파인튜닝 메모리가 어디서 폭발하는지 계산해 보기, ② ES의 원리와 "시드만 통신하는" 분산 트릭, ③ Countdown 벤치마크에서 ES가 RL을 두 배 가까이 앞선 숫자와 그 이유, ④ 장기 호라이즌 에이전트에 ES가 유리한 구조적 이유, ⑤ 직접 돌려 볼 수 있는 미니 ES 루프 코드, ⑥ 망각(catastrophic forgetting) 논쟁의 현재 스코어.</div>
+
+<h2 id="sec-2">2. 배경 — RL 파인튜닝은 왜 이렇게 비싼가</h2>
+
+<p>먼저 상대를 알아야 합니다. 요즘 에이전트 파인튜닝의 표준 코스는 SFT(지도 파인튜닝)로 형태를 잡고, GRPO·PPO 같은 RL로 "보상을 최대화하는 행동"을 학습시키는 겁니다. 문제는 이 RL 스택의 비용 구조입니다.</p>
+
+<p>역전파 기반 학습은 파라미터마다 그래디언트(gradient, 손실을 줄이는 방향)를 계산하고, Adam 계열 옵티마이저는 파라미터마다 FP32 모멘트 두 개를 추가로 저장합니다. 7B 모델로 계산해 보면 대략 이렇습니다: 가중치 14GB(BF16) + 그래디언트 14GB + 옵티마이저 상태 56GB(FP32 모멘트 2개) + 활성값 = <strong>약 88GB</strong>. 추론이라면 14GB면 충분한 모델인데, 학습이 되는 순간 메모리가 6배로 뜁니다. RL은 여기에 하나 더 얹습니다. 롤아웃(rollout, 현재 모델로 응답을 생성해 보는 것)을 뽑을 추론 엔진과 학습 엔진을 함께 돌려야 하고, 둘 사이에서 가중치를 계속 동기화해야 합니다.</p>
+
+<p>비용 말고 구조적인 문제도 있습니다. <strong>크레딧 할당(credit assignment)</strong>, 즉 "결과가 좋았는데, 어느 행동 덕분이었나"를 따지는 문제입니다. RL은 토큰 단위로 손실을 흘려보내는데, 에이전트 트라젝토리가 15턴, 30턴으로 길어지고 보상은 맨 끝에 성공/실패 하나만 떨어지면(희소 보상, sparse reward), "3턴째의 그 도구 호출이 성공에 얼마나 기여했나"를 역산하는 일이 점점 어려워집니다. 장기 호라이즌 에이전트 RL이 유독 불안정한 핵심 이유 중 하나입니다.</p>
+
+<figure class="esf-fig">
+  <svg viewBox="0 0 1000 440" role="img" aria-label="RL 파인튜닝과 ES 파인튜닝의 구성 요소를 비교한 도해. 왼쪽 RL 스택은 학습 엔진에 가중치 14기가바이트, 그래디언트 14기가바이트, 옵티마이저 상태 56기가바이트, 활성값이 쌓여 있고 별도의 롤아웃 추론 엔진과 가중치 동기화 화살표가 있다. 오른쪽 ES 스택은 추론 엔진 하나에 가중치 14기가바이트와 KV 캐시만 있고, 시드로 만든 노이즈를 잠깐 더했다 빼는 화살표만 있다.">
+    <g font-family="system-ui,-apple-system,sans-serif">
+      <!-- 왼쪽: RL -->
+      <text x="250" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="var(--esf-rose)">GRPO/PPO 파인튜닝 스택</text>
+      <rect x="60" y="56" width="380" height="250" rx="12" fill="none" stroke="var(--esf-rose)" stroke-width="2"/>
+      <text x="250" y="82" text-anchor="middle" font-size="14" font-weight="700" fill="var(--esf-rose)">학습 엔진 (역전파)</text>
+      <rect x="85" y="96" width="330" height="34" rx="6" fill="none" stroke="var(--esf-slate)" stroke-width="1.5"/>
+      <text x="250" y="118" text-anchor="middle" font-size="13" fill="var(--esf-slate)">가중치 14GB (BF16)</text>
+      <rect x="85" y="136" width="330" height="34" rx="6" fill="none" stroke="var(--esf-violet)" stroke-width="1.5"/>
+      <text x="250" y="158" text-anchor="middle" font-size="13" fill="var(--esf-violet)">그래디언트 14GB</text>
+      <rect x="85" y="176" width="330" height="76" rx="6" fill="none" stroke="var(--esf-rose)" stroke-width="1.5"/>
+      <text x="250" y="208" text-anchor="middle" font-size="13" fill="var(--esf-rose)">옵티마이저 상태 56GB</text>
+      <text x="250" y="230" text-anchor="middle" font-size="12" fill="var(--esf-gray)">(Adam FP32 모멘트 ×2)</text>
+      <rect x="85" y="258" width="330" height="34" rx="6" fill="none" stroke="var(--esf-amber)" stroke-width="1.5"/>
+      <text x="250" y="280" text-anchor="middle" font-size="13" fill="var(--esf-amber)">활성값 +α (시퀀스 길이 비례)</text>
+      <rect x="120" y="340" width="260" height="52" rx="10" fill="none" stroke="var(--esf-sky)" stroke-width="2"/>
+      <text x="250" y="362" text-anchor="middle" font-size="13" fill="var(--esf-sky)">롤아웃 추론 엔진 (별도)</text>
+      <text x="250" y="382" text-anchor="middle" font-size="12" fill="var(--esf-gray)">가중치 14GB + KV 캐시</text>
+      <path d="M250,306 L250,340" stroke="var(--esf-slate)" stroke-width="2"/>
+      <text x="262" y="328" font-size="11.5" fill="var(--esf-gray)">가중치 동기화 ↑↓</text>
+      <text x="250" y="424" text-anchor="middle" font-size="15" font-weight="700" fill="var(--esf-rose)">7B 기준 ≈ 88GB + 추론 엔진</text>
+
+      <!-- 오른쪽: ES -->
+      <text x="750" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="var(--esf-green)">ES 파인튜닝 스택</text>
+      <rect x="560" y="56" width="380" height="180" rx="12" fill="none" stroke="var(--esf-green)" stroke-width="2"/>
+      <text x="750" y="82" text-anchor="middle" font-size="14" font-weight="700" fill="var(--esf-green)">추론 엔진 하나가 전부</text>
+      <rect x="585" y="96" width="330" height="34" rx="6" fill="none" stroke="var(--esf-slate)" stroke-width="1.5"/>
+      <text x="750" y="118" text-anchor="middle" font-size="13" fill="var(--esf-slate)">가중치 14GB (BF16)</text>
+      <rect x="585" y="136" width="330" height="34" rx="6" fill="none" stroke="var(--esf-sky)" stroke-width="1.5"/>
+      <text x="750" y="158" text-anchor="middle" font-size="13" fill="var(--esf-sky)">KV 캐시 (추론용)</text>
+      <rect x="585" y="176" width="330" height="44" rx="6" fill="none" stroke="var(--esf-teal)" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="750" y="196" text-anchor="middle" font-size="13" fill="var(--esf-teal)">시드 노이즈 σε — 더했다가 다시 뺌</text>
+      <text x="750" y="214" text-anchor="middle" font-size="12" fill="var(--esf-gray)">(제자리 연산, 상주 메모리 없음)</text>
+      <g>
+        <rect x="585" y="264" width="150" height="40" rx="8" fill="none" stroke="var(--esf-gray)" stroke-width="1.5"/>
+        <text x="660" y="289" text-anchor="middle" font-size="12.5" fill="var(--esf-gray)">그래디언트 ✕ 없음</text>
+        <rect x="765" y="264" width="150" height="40" rx="8" fill="none" stroke="var(--esf-gray)" stroke-width="1.5"/>
+        <text x="840" y="289" text-anchor="middle" font-size="12.5" fill="var(--esf-gray)">옵티마이저 ✕ 없음</text>
+      </g>
+      <text x="750" y="348" text-anchor="middle" font-size="13.5" fill="var(--esf-slate)">병렬 워커 N개로 복제 — 워커 간 통신은</text>
+      <text x="750" y="370" text-anchor="middle" font-size="13.5" fill="var(--esf-slate)"><tspan font-weight="700" fill="var(--esf-teal)">랜덤 시드 + 보상 스칼라</tspan>뿐</text>
+      <text x="750" y="424" text-anchor="middle" font-size="15" font-weight="700" fill="var(--esf-green)">7B 기준 ≈ 추론 메모리 그대로</text>
+    </g>
+  </svg>
+  <figcaption>그림 1. 같은 7B 모델이라도 역전파 기반 RL 스택(왼쪽)은 그래디언트·옵티마이저 상태·별도 롤아웃 엔진까지 필요하지만, ES(오른쪽)는 추론 엔진 하나로 끝납니다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 진화 전략 5분 원리 — 미분 대신 주변을 뒤진다</h2>
+
+<p>진화 전략(Evolution Strategies)은 이름 때문에 유전 알고리즘의 복잡한 교배·변이를 떠올리기 쉽지만, LLM 파인튜닝에 쓰이는 형태는 놀랄 만큼 단순합니다. 산에서 안개 때문에 앞이 안 보일 때를 상상해 보세요. 그래디언트 하강이 "발밑 경사를 재서 가장 가파른 방향으로 간다"라면, ES는 <strong>"주변 여러 방향으로 정찰을 보내 보고, 좋은 보고가 온 방향으로 한 걸음 옮긴다"</strong>입니다. 한 스텝은 세 단계입니다.</p>
+
+<ol>
+  <li><strong>흔든다.</strong> 현재 파라미터 θ에 가우시안 노이즈를 곱한 σε를 더해, 조금씩 다른 모델 N개를 만듭니다(σ는 흔드는 폭, ε은 랜덤 방향).</li>
+  <li><strong>굴린다.</strong> 각 변형 모델로 태스크를 실행하고 보상 R을 받습니다. 여기에 필요한 건 <strong>forward pass, 즉 추론뿐</strong>입니다.</li>
+  <li><strong>모은다.</strong> 보상이 높았던 노이즈 방향은 양(+)으로, 낮았던 방향은 음(−)으로 가중해 평균 낸 방향으로 θ를 업데이트합니다.</li>
+</ol>
+
+<p>미분을 한 번도 안 했는데 결과적으로는 "보상이 오르는 방향"의 추정치를 얻습니다. 보상이 미분 불가능해도, 중간에 도구 호출·환경 상호작용이 끼어 있어도 상관없습니다. 모델을 <strong>블랙박스</strong>로 취급하기 때문입니다.</p>
+
+<p>이 아이디어 자체는 오래됐습니다. 2017년 OpenAI의 <a href="https://arxiv.org/abs/1703.03864" target="_blank" rel="noopener">"Evolution Strategies as a Scalable Alternative to Reinforcement Learning"</a>(Salimans, Ho, Chen, Sutskever)이 이미 Atari·MuJoCo에서 RL과 맞먹는 성능을 보였고, 여기서 지금도 그대로 쓰이는 분산 트릭이 나왔습니다. 노이즈 ε을 통째로 주고받는 대신 <strong>랜덤 시드만 공유</strong>하면, 각 워커가 같은 노이즈를 재생성할 수 있으니 워커 간 통신은 시드와 보상 <strong>스칼라 몇 개</strong>로 끝납니다. 이 트릭으로 1,440개 CPU 코어를 묶어 3D 휴머노이드 보행을 10분 만에 학습시켰습니다. 당시에는 "수십억 파라미터에서는 무리"라는 평가와 함께 잊혔는데, 그 전제가 작년에 깨졌습니다.</p>
+
+<figure class="esf-fig">
+  <svg viewBox="0 0 1000 400" role="img" aria-label="ES 한 스텝의 순환 구조를 그린 도해. 가운데 현재 파라미터 세타에서 시드 1, 2, N으로 흔든 변형 모델 세 개가 나오고, 각각 태스크를 실행해 보상 0.9, 0.2, 0.6을 받는다. 보상을 정규화한 뒤 가중 평균한 방향으로 세타가 업데이트되어 다시 처음으로 돌아간다.">
+    <g font-family="system-ui,-apple-system,sans-serif">
+      <rect x="40" y="160" width="170" height="70" rx="12" fill="none" stroke="var(--esf-blue)" stroke-width="2.5"/>
+      <text x="125" y="190" text-anchor="middle" font-size="16" font-weight="700" fill="var(--esf-blue)">현재 모델 θ</text>
+      <text x="125" y="212" text-anchor="middle" font-size="12" fill="var(--esf-gray)">추론 엔진에 로드</text>
+
+      <!-- 흔들기 -->
+      <path d="M210,175 L300,90" stroke="var(--esf-slate)" stroke-width="2"/>
+      <path d="M210,195 L300,195" stroke="var(--esf-slate)" stroke-width="2"/>
+      <path d="M210,215 L300,300" stroke="var(--esf-slate)" stroke-width="2"/>
+      <text x="245" y="130" font-size="12.5" fill="var(--esf-gray)" transform="rotate(-40 245 130)">① 흔든다</text>
+
+      <rect x="305" y="55" width="180" height="62" rx="10" fill="none" stroke="var(--esf-teal)" stroke-width="2"/>
+      <text x="395" y="81" text-anchor="middle" font-size="14" fill="var(--esf-teal)">θ + σε₁ (seed 1)</text>
+      <text x="395" y="102" text-anchor="middle" font-size="12" fill="var(--esf-gray)">변형 모델 1</text>
+      <rect x="305" y="164" width="180" height="62" rx="10" fill="none" stroke="var(--esf-teal)" stroke-width="2"/>
+      <text x="395" y="190" text-anchor="middle" font-size="14" fill="var(--esf-teal)">θ + σε₂ (seed 2)</text>
+      <text x="395" y="211" text-anchor="middle" font-size="12" fill="var(--esf-gray)">변형 모델 2</text>
+      <rect x="305" y="273" width="180" height="62" rx="10" fill="none" stroke="var(--esf-teal)" stroke-width="2"/>
+      <text x="395" y="299" text-anchor="middle" font-size="14" fill="var(--esf-teal)">θ + σεₙ (seed N)</text>
+      <text x="395" y="320" text-anchor="middle" font-size="12" fill="var(--esf-gray)">변형 모델 N</text>
+
+      <!-- 굴리기 -->
+      <path d="M485,86 L570,86" stroke="var(--esf-slate)" stroke-width="2"/>
+      <path d="M485,195 L570,195" stroke="var(--esf-slate)" stroke-width="2"/>
+      <path d="M485,304 L570,304" stroke="var(--esf-slate)" stroke-width="2"/>
+      <text x="527" y="172" text-anchor="middle" font-size="12.5" fill="var(--esf-gray)">② 굴린다</text>
+
+      <rect x="575" y="61" width="150" height="50" rx="10" fill="none" stroke="var(--esf-green)" stroke-width="2"/>
+      <text x="650" y="92" text-anchor="middle" font-size="14.5" fill="var(--esf-green)">보상 R₁ = 0.9</text>
+      <rect x="575" y="170" width="150" height="50" rx="10" fill="none" stroke="var(--esf-rose)" stroke-width="2"/>
+      <text x="650" y="201" text-anchor="middle" font-size="14.5" fill="var(--esf-rose)">보상 R₂ = 0.2</text>
+      <rect x="575" y="279" width="150" height="50" rx="10" fill="none" stroke="var(--esf-amber)" stroke-width="2"/>
+      <text x="650" y="310" text-anchor="middle" font-size="14.5" fill="var(--esf-amber)">보상 Rₙ = 0.6</text>
+
+      <!-- 모으기 -->
+      <path d="M725,86 L790,170" stroke="var(--esf-slate)" stroke-width="2"/>
+      <path d="M725,195 L790,195" stroke="var(--esf-slate)" stroke-width="2"/>
+      <path d="M725,304 L790,225" stroke="var(--esf-slate)" stroke-width="2"/>
+      <rect x="795" y="160" width="185" height="76" rx="12" fill="none" stroke="var(--esf-violet)" stroke-width="2.5"/>
+      <text x="887" y="188" text-anchor="middle" font-size="14" font-weight="700" fill="var(--esf-violet)">③ 모은다</text>
+      <text x="887" y="209" text-anchor="middle" font-size="12.5" fill="var(--esf-slate)">θ ← θ + α·Σ 정규화(Rᵢ)·εᵢ</text>
+      <text x="887" y="227" text-anchor="middle" font-size="12" fill="var(--esf-gray)">보상 가중 평균 방향으로 이동</text>
+
+      <!-- 순환 -->
+      <path d="M887,236 C887,380 260,390 130,240" fill="none" stroke="var(--esf-gray)" stroke-width="2" stroke-dasharray="7 5"/>
+      <text x="520" y="386" text-anchor="middle" font-size="12.5" fill="var(--esf-gray)">다음 스텝 반복 — 통신은 시드 + 보상 스칼라뿐</text>
+    </g>
+  </svg>
+  <figcaption>그림 2. ES 한 스텝: 흔들고(perturb) → 굴리고(evaluate) → 모은다(update). 세 단계 모두 forward pass만 쓰며, 분산 실행 시 워커들은 시드와 보상 값만 주고받습니다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 부활의 타임라인 — 8B 풀 파라미터, 그리고 100배 가속</h2>
+
+<p>2025년 9월, Cognizant AI Lab의 <a href="https://arxiv.org/abs/2509.24372" target="_blank" rel="noopener">"Evolution Strategies at Scale: LLM Fine-Tuning Beyond Reinforcement Learning"</a>이 통념을 깼습니다. 차원 축소 없이 <strong>최대 8B 파라미터 전체</strong>를 ES로 파인튜닝하는 데 처음 성공한 겁니다. 테스트베드는 Countdown 태스크 — 주어진 숫자들을 사칙연산으로 조합해 목표 숫자를 만드는, 답이 명확해 보상 설계가 쉬운 추론 과제입니다.</p>
+
+<p>결과가 인상적입니다. Qwen2.5(0.5B~7B)와 LLaMA3(1B~8B) 전 모델에서 ES는 베이스 대비 평균 <strong>+36.4%p</strong>를 끌어올려 PPO(+17.9%p), GRPO(+21.3%p)를 크게 앞섰습니다. Qwen2.5-3B에서는 <strong>ES 60.5% vs 최고 RL 32.5%</strong>로 거의 두 배였고, RL이 거의 손을 못 대는 0.5B 소형 모델도 0.1%에서 14.4%로 끌어올렸습니다. 더 놀라운 건 효율입니다. 수십억 차원을 "무작위로 뒤지는" 방법인데도, 비슷한 성능에 도달하는 데 필요한 샘플 평가 횟수가 <strong>RL의 20% 미만</strong>이었습니다. 사용한 하이퍼파라미터도 소박합니다. 개체군(population) 크기 N=30, 노이즈 폭 σ=0.001, 학습률 5×10⁻⁴ — 전 실험 공통입니다.</p>
+
+<figure class="esf-fig">
+  <svg viewBox="0 0 1000 380" role="img" aria-label="Countdown 벤치마크 결과 막대그래프 두 개. 왼쪽은 베이스 모델 대비 평균 개선 폭으로 ES가 36.4%p, GRPO가 21.3%p, PPO가 17.9%p이다. 오른쪽은 Qwen2.5-3B 정확도로 ES가 60.5%, 최고 RL 방법이 32.5%이다.">
+    <g font-family="system-ui,-apple-system,sans-serif">
+      <text x="250" y="34" text-anchor="middle" font-size="16" font-weight="700" fill="var(--esf-slate)">베이스 대비 평균 개선 (%p)</text>
+      <text x="250" y="56" text-anchor="middle" font-size="12" fill="var(--esf-gray)">Qwen2.5 0.5B~7B · LLaMA3 1B~8B 평균</text>
+      <!-- 축 -->
+      <line x1="90" y1="300" x2="440" y2="300" stroke="var(--esf-gray)" stroke-width="1.5"/>
+      <!-- ES 36.4 -->
+      <rect x="120" y="118" width="80" height="182" rx="6" fill="var(--esf-green)" opacity="0.85"/>
+      <text x="160" y="104" text-anchor="middle" font-size="16" font-weight="700" fill="var(--esf-green)">+36.4</text>
+      <text x="160" y="326" text-anchor="middle" font-size="14" fill="var(--esf-slate)">ES</text>
+      <!-- GRPO 21.3 -->
+      <rect x="230" y="194" width="80" height="106" rx="6" fill="var(--esf-sky)" opacity="0.85"/>
+      <text x="270" y="180" text-anchor="middle" font-size="16" font-weight="700" fill="var(--esf-sky)">+21.3</text>
+      <text x="270" y="326" text-anchor="middle" font-size="14" fill="var(--esf-slate)">GRPO</text>
+      <!-- PPO 17.9 -->
+      <rect x="340" y="211" width="80" height="89" rx="6" fill="var(--esf-violet)" opacity="0.85"/>
+      <text x="380" y="197" text-anchor="middle" font-size="16" font-weight="700" fill="var(--esf-violet)">+17.9</text>
+      <text x="380" y="326" text-anchor="middle" font-size="14" fill="var(--esf-slate)">PPO</text>
+
+      <text x="750" y="34" text-anchor="middle" font-size="16" font-weight="700" fill="var(--esf-slate)">Qwen2.5-3B 정확도 (%)</text>
+      <text x="750" y="56" text-anchor="middle" font-size="12" fill="var(--esf-gray)">Countdown 태스크</text>
+      <line x1="590" y1="300" x2="940" y2="300" stroke="var(--esf-gray)" stroke-width="1.5"/>
+      <!-- ES 60.5 -->
+      <rect x="640" y="98" width="110" height="202" rx="6" fill="var(--esf-green)" opacity="0.85"/>
+      <text x="695" y="84" text-anchor="middle" font-size="17" font-weight="700" fill="var(--esf-green)">60.5</text>
+      <text x="695" y="326" text-anchor="middle" font-size="14" fill="var(--esf-slate)">ES</text>
+      <!-- best RL 32.5 -->
+      <rect x="790" y="192" width="110" height="108" rx="6" fill="var(--esf-rose)" opacity="0.85"/>
+      <text x="845" y="178" text-anchor="middle" font-size="17" font-weight="700" fill="var(--esf-rose)">32.5</text>
+      <text x="845" y="326" text-anchor="middle" font-size="14" fill="var(--esf-slate)">최고 RL</text>
+      <text x="520" y="360" text-anchor="middle" font-size="12.5" fill="var(--esf-gray)">출처: Evolution Strategies at Scale (arXiv:2509.24372) — N=30, σ=0.001, α=5×10⁻⁴ 공통 설정</text>
+    </g>
+  </svg>
+  <figcaption>그림 3. Countdown 태스크 결과. ES는 전 모델 평균 개선 폭에서 RL을 크게 앞섰고(왼쪽), Qwen2.5-3B에서는 최고 RL 방법의 두 배 가까운 정확도를 냈습니다(오른쪽).</figcaption>
+</figure>
+
+<p>남은 문제는 속도였습니다. 순진한 ES는 변형 모델마다 노이즈 행렬을 통째로 만들어 가중치에 더해야 해서, GPU에서 배치 행렬곱의 산술 강도(arithmetic intensity)가 떨어집니다. 2025년 11월의 <a href="https://arxiv.org/abs/2511.16652" target="_blank" rel="noopener">EGGROLL</a>은 이 노이즈를 풀랭크 행렬 대신 <strong>랭크-r 저랭크(low-rank) 행렬 곱</strong>으로 구성해, 보조 메모리를 O(mn)에서 O(r(m+n))으로 줄이고 수십억 파라미터 모델에서 학습 속도를 <strong>100배 수준</strong>으로 끌어올렸습니다. 순수 배치 추론 처리량의 최대 91%까지 나오니, 사실상 "추론 돌리는 속도로 학습한다"에 가까워진 셈입니다. LoRA가 파인튜닝에서 저랭크로 메모리를 아꼈듯, EGGROLL은 ES의 노이즈에 같은 트릭을 쓴 것이라고 이해하면 쉽습니다.</p>
+
+<h2 id="sec-5">5. 에이전트와 만나다 — Agentic ESOpt</h2>
+
+<p>그리고 이번 주의 주인공, <a href="https://arxiv.org/abs/2608.17310" target="_blank" rel="noopener">Agentic ESOpt</a>입니다. 앞선 연구들이 단발 추론 태스크에서 ES의 가능성을 보였다면, 이 논문은 "ES가 특히 빛나는 곳은 <strong>장기 호라이즌 에이전트</strong>"라고 주장합니다. 근거는 세 가지입니다.</p>
+
+<ul>
+  <li><strong>모델 확장성.</strong> ES는 추론 수준 메모리로 풀 파라미터를 최적화합니다. RL 학습 스택이 안 들어가는 GPU에서도 큰 모델을 다룰 수 있습니다.</li>
+  <li><strong>유연성.</strong> ES는 블랙박스 인터페이스라 <strong>프롬프트 공간의 진화와 자연스럽게 합성</strong>됩니다. 논문은 이를 파라미터-컨텍스트 공진화(parameter-context co-evolution)라고 부릅니다. 가중치만 흔드는 게 아니라, 에이전트에게 주는 컨텍스트(지침·스킬)도 같은 루프에서 함께 최적화하는 겁니다.</li>
+  <li><strong>장기 호라이즌 확장성.</strong> ES는 보상을 턴별로 쪼개 역산할 필요 없이 <strong>트라젝토리 전체 보상 하나로 파라미터를 갱신</strong>합니다. "어느 턴 덕분인가"라는 크레딧 할당 문제를 아예 우회하니, 호라이즌이 길어질수록 RL 대비 유리해집니다.</li>
+</ul>
+
+<p>숫자도 이 주장을 따라갑니다. 15턴 멀티턴 설정의 Qwen3.5-4B에서 조건을 맞춘 최강 GRPO 베이스라인 대비 <strong>+12.5%p</strong>, WebArena-Lite(웹 조작 에이전트 벤치마크)에서는 27B급 모델의 풀 파라미터 최적화로 베이스라인 대비 <strong>+6.69%</strong>를 기록했습니다. 탐색과 수렴의 균형을 위해 흔드는 폭 σ를 코사인 스케줄로 서서히 줄이는 장치도 넣었습니다. 초반에는 넓게 정찰하고, 후반에는 촘촘하게 다듬는 셈입니다.</p>
+
+<div class="esf-note"><strong>왜 "트라젝토리 보상 하나"가 강점일까요?</strong> RL에서 보상 하나로 30턴짜리 트라젝토리를 학습하려면 그 보상을 토큰 수만 개에 배분해야 하고, 이 추정이 노이즈투성이가 됩니다. ES는 반대로 "이 파라미터 방향이 트라젝토리 전체 성과를 올렸는가"만 봅니다. 판정 단위가 애초에 트라젝토리라서, 보상이 희소하고 지연될수록 상대적으로 손해가 적습니다. 2017년 OpenAI 실험에서도 ES는 희소 보상과 긴 호라이즌에 강한 모습을 보였는데, 에이전트 시대에 정확히 그 장점이 다시 소환된 겁니다.</div>
+
+<h2 id="sec-6">6. 실전 — 60줄짜리 미니 ES 파인튜닝 루프</h2>
+
+<p>원리를 코드로 확인해 봅시다. 아래는 ES 파인튜닝의 뼈대를 그대로 옮긴 미니 루프입니다. 실제 대규모 구현(<a href="https://github.com/cognizant-ai-lab/es-fine-tuning" target="_blank" rel="noopener">es-fine-tuning</a>, <a href="https://github.com/zz1358m/Agentic-ESOpt" target="_blank" rel="noopener">Agentic-ESOpt</a>)은 vLLM 같은 추론 엔진 위에서 돌지만, 핵심 로직은 이게 전부입니다.</p>
+
+{{< highlight python >}}
+import torch
+
+SIGMA = 1e-3      # 노이즈 폭 (ES at Scale 설정)
+LR = 5e-4         # 학습률
+POP = 30          # 개체군 크기 N
+
+def perturb_(model, seed, scale):
+    """시드로 노이즈를 재생성해 가중치에 제자리로 더한다.
+    노이즈 텐서를 상주시키지 않는 게 메모리 절약의 핵심."""
+    gen = torch.Generator(device="cuda").manual_seed(seed)
+    for p in model.parameters():
+        noise = torch.randn(p.shape, generator=gen, device=p.device, dtype=p.dtype)
+        p.data.add_(noise, alpha=scale)
+
+def es_step(model, evaluate, step):
+    seeds = torch.randint(0, 2**31 - 1, (POP,)).tolist()
+    rewards = []
+    for seed in seeds:                     # 실전에서는 워커 N개에 분산
+        perturb_(model, seed, +SIGMA)      # ① 흔든다
+        rewards.append(evaluate(model))    # ② 굴린다 — 추론만, 역전파 없음
+        perturb_(model, seed, -SIGMA)      # 같은 시드로 원상 복구
+    # 보상 정규화: 절대값 대신 "무리 안에서의 상대 순위"만 쓴다
+    r = torch.tensor(rewards)
+    r = (r - r.mean()) / (r.std() + 1e-8)
+    # ③ 모은다 — 좋았던 방향은 +, 나빴던 방향은 −로 가중 평균
+    for i, seed in enumerate(seeds):
+        perturb_(model, seed, LR * r[i].item() / POP)
+    return sum(rewards) / POP
+
+def evaluate(model):
+    """에이전트 트라젝토리를 끝까지 굴리고 보상 '하나'를 돌려준다.
+    멀티턴이든 도구 호출이든 상관없다 — ES는 결과만 본다."""
+    trajectory = run_agent(model, task_suite)   # 15턴이어도 OK
+    return score(trajectory)                    # 예: 성공=1.0, 실패=0.0
+{{< /highlight >}}
+
+<p>눈여겨볼 지점이 셋 있습니다. 첫째, <code>evaluate</code> 안에서 무슨 일이 벌어져도 됩니다. 도구 호출, 샌드박스 실행, 외부 API — 전부 미분할 필요가 없으니 자유입니다. 둘째, 같은 시드로 노이즈를 다시 만들어 빼는 방식이라 <strong>노이즈 행렬을 저장하지 않습니다</strong>. 분산 실행 시에도 워커끼리 시드와 보상 스칼라만 주고받으면 됩니다. 셋째, 보상을 평균 0으로 정규화하기 때문에 "N개 중 상대적으로 잘한 방향"만 남습니다. GRPO가 그룹 상대 보상을 쓰는 것과 닮은 구조인데, ES는 그걸 토큰 손실이 아니라 파라미터 공간에서 직접 합니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁 — 망각 논쟁과 선택 가이드</h2>
+
+<p><strong>① "ES가 만능"이라고 결론 내리지 마세요 — 망각 논쟁이 진행 중입니다.</strong> 올해 1월 <a href="https://arxiv.org/abs/2601.20861" target="_blank" rel="noopener">"Evolutionary Strategies lead to Catastrophic Forgetting in LLMs"</a>는 찬물을 끼얹었습니다. ES가 수학·추론 태스크에서 GRPO급 성능은 내지만, ES 업데이트는 RL보다 덜 희소하고 ℓ2 노름이 커서 파라미터를 더 전역적으로 건드리며, 그 결과 <strong>기존 능력의 망각</strong>이 두드러진다는 겁니다. 5월에 나온 재반박 <a href="https://arxiv.org/abs/2605.30148" target="_blank" rel="noopener">"Overcoming Forgetting in LLM Fine-Tuning with Evolution Strategies"</a>는 이것이 되돌릴 수 없는 망각이라기보다 학습 중 회복되곤 하는 성능 드리프트(drift)에 가깝고 RL에서도 일어난다고 분석하면서, 초기 모델 쪽으로 최적화를 묶어 두는 정규화 기법 Anchored Weight Decay(AWD)를 해법으로 제시했습니다. 실무 교훈은 명확합니다. <strong>ES로 파인튜닝했다면 타깃 태스크 점수만 보지 말고, 기존 능력 평가셋(held-out evals)을 반드시 같이 돌리세요.</strong></p>
+
+<p><strong>② σ와 N을 감으로 키우지 마세요.</strong> σ가 크면 정찰 범위는 넓어지지만 변형 모델이 "망가진 모델"이 되어 보상 신호가 뭉개지고, 너무 작으면 노이즈 대비 신호가 안 잡힙니다. 검증된 출발점(σ=0.001, N=30, α=5×10⁻⁴)에서 시작해 보상 곡선을 보며 조정하고, 장기 학습이라면 Agentic ESOpt처럼 σ를 서서히 줄이는 스케줄을 고려하세요. N을 늘리면 그래디언트 추정이 안정되는 대신 스텝당 롤아웃 비용이 정비례로 늘어납니다.</p>
+
+<p><strong>③ 평가 노이즈가 곧 학습 노이즈입니다.</strong> ES는 보상 숫자 하나로 방향을 정하므로, 보상이 흔들리면 학습 전체가 흔들립니다. 태스크 샘플링을 고정하고, 가능하면 변형 모델 간 동일한 태스크 배치로 평가하고, 채점기를 결정론적으로 만드세요. 에이전트 평가의 비결정성(도구 타임아웃, 외부 API 변동)은 ES에서 그대로 그래디언트 노이즈가 됩니다.</p>
+
+<p><strong>④ 선택 가이드.</strong> 상황별로 정리하면 이렇습니다.</p>
+
+<div class="esf-tblwrap">
+<table class="esf-tbl">
+  <thead><tr><th>상황</th><th>추천</th><th>이유</th></tr></thead>
+  <tbody>
+    <tr><td>정답 라벨이 있는 데이터가 충분</td><td>SFT (+LoRA)</td><td>모방으로 충분하면 가장 싸고 안정적입니다.</td></tr>
+    <tr><td>토큰 단위 보상 신호가 촘촘하고, 학습 인프라가 충분</td><td>GRPO/PPO</td><td>촘촘한 신호는 역전파가 잘 활용합니다. 검증된 레시피도 많습니다.</td></tr>
+    <tr><td>보상이 트라젝토리 끝에 하나뿐인 장기 호라이즌 에이전트</td><td>ES 검토</td><td>크레딧 할당을 우회하고, 미분 불가능한 파이프라인도 그대로 학습합니다.</td></tr>
+    <tr><td>추론 GPU는 있는데 학습용 대형 GPU가 없음</td><td>ES 검토</td><td>추론 수준 메모리로 풀 파라미터 최적화가 가능합니다.</td></tr>
+    <tr><td>범용 능력 유지가 최우선인 프로덕션 모델</td><td>신중하게</td><td>망각/드리프트 논쟁이 진행 중입니다. 기존 능력 평가셋과 AWD류 정규화를 병행하세요.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="esf-warn"><strong>주의.</strong> ES 계열은 아직 프런티어 랩의 표준 포스트 트레이닝 파이프라인에 들어간 기법이 아닙니다. 지금 위치는 "강력한 연구 결과 + 빠르게 자라는 실전 코드베이스"입니다. 프로덕션에 넣기 전에 자기 태스크에서 GRPO/SFT 베이스라인과 직접 비교 실험을 하는 걸 전제로 하세요.</div>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>RL 파인튜닝이 비싼 건 역전파 때문입니다. 7B 풀 파인튜닝은 그래디언트·옵티마이저 상태까지 약 88GB가 필요하지만, ES는 <strong>추론 메모리만으로 풀 파라미터를 최적화</strong>합니다.</li>
+  <li>ES의 한 스텝은 "흔들고(θ+σε) → 굴리고(보상 평가) → 모은다(보상 가중 평균)"이며, 분산 시 워커 간 통신은 <strong>랜덤 시드와 보상 스칼라뿐</strong>입니다. 2017년 OpenAI가 검증한 트릭입니다.</li>
+  <li>2025년 9월 "ES at Scale"이 8B 풀 파라미터 ES 파인튜닝에 처음 성공했습니다. Countdown에서 평균 개선 <strong>+36.4%p로 GRPO(+21.3%p)·PPO(+17.9%p)를 압도</strong>했고, 샘플 평가 횟수는 RL의 20% 미만이었습니다.</li>
+  <li>EGGROLL은 노이즈를 저랭크로 바꿔 ES 학습을 <strong>100배 가속</strong>해 순수 추론 처리량의 91%까지 끌어올렸습니다.</li>
+  <li>이번 주 트렌딩 Agentic ESOpt는 ES를 장기 호라이즌 에이전트에 적용해, <strong>트라젝토리 단위 보상으로 크레딧 할당을 우회</strong>하고 15턴 태스크에서 GRPO를 12.5%p 앞섰습니다. 컨텍스트(프롬프트)와 파라미터를 같은 루프에서 공진화시키는 것도 특징입니다.</li>
+  <li>단, <strong>망각(forgetting) 논쟁이 진행 중</strong>입니다. ES 파인튜닝을 시도한다면 기존 능력 평가셋을 반드시 병행하고, AWD 같은 정규화를 고려하세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2608.17310" target="_blank" rel="noopener">Agentic ESOpt: Fine-Tuning Long-Horizon LLM Agents with Minimal GPU Requirements (arXiv:2608.17310)</a> — 이번 주 Hugging Face 트렌딩 논문</li>
+  <li><a href="https://github.com/zz1358m/Agentic-ESOpt" target="_blank" rel="noopener">Agentic-ESOpt 공식 코드 (GitHub)</a></li>
+  <li><a href="https://arxiv.org/abs/2509.24372" target="_blank" rel="noopener">Evolution Strategies at Scale: LLM Fine-Tuning Beyond Reinforcement Learning (arXiv:2509.24372)</a> — Cognizant AI Lab, 8B 풀 파라미터 ES 첫 성공</li>
+  <li><a href="https://github.com/cognizant-ai-lab/es-fine-tuning" target="_blank" rel="noopener">es-fine-tuning 공식 코드 (GitHub)</a></li>
+  <li><a href="https://www.cognizant.com/us/en/ai-lab/blog/evolution-strategies-fine-tuning-llm" target="_blank" rel="noopener">Evolution Strategies vs. Reinforcement Learning for LLM Fine-Tuning — Cognizant AI Lab 블로그</a></li>
+  <li><a href="https://arxiv.org/abs/2511.16652" target="_blank" rel="noopener">Evolution Strategies at the Hyperscale (EGGROLL, arXiv:2511.16652)</a> · <a href="https://eshyperscale.github.io/" target="_blank" rel="noopener">프로젝트 페이지</a></li>
+  <li><a href="https://arxiv.org/abs/2601.20861" target="_blank" rel="noopener">Evolutionary Strategies lead to Catastrophic Forgetting in LLMs (arXiv:2601.20861)</a> — 망각 문제 제기</li>
+  <li><a href="https://arxiv.org/abs/2605.30148" target="_blank" rel="noopener">Overcoming Forgetting in LLM Fine-Tuning with Evolution Strategies (arXiv:2605.30148)</a> — 드리프트 분석과 Anchored Weight Decay</li>
+  <li><a href="https://arxiv.org/abs/2604.01499" target="_blank" rel="noopener">Matching Accuracy, Different Geometry: Evolution Strategies vs GRPO in LLM Post-Training (arXiv:2604.01499)</a></li>
+  <li><a href="https://arxiv.org/abs/1703.03864" target="_blank" rel="noopener">Evolution Strategies as a Scalable Alternative to Reinforcement Learning (arXiv:1703.03864)</a> · <a href="https://openai.com/index/evolution-strategies/" target="_blank" rel="noopener">OpenAI 블로그 (2017)</a></li>
+  <li><a href="https://www.alphaxiv.org/blog/es-for-fine-tuning-llms" target="_blank" rel="noopener">Evolution Strategies vs GRPO for LLM Fine-Tuning — alphaXiv 해설</a></li>
+  <li><a href="https://lilianweng.github.io/posts/2019-09-05-evolution-strategies/" target="_blank" rel="noopener">Evolution Strategies — Lil'Log (배경 지식)</a></li>
+  <li><a href="https://apxml.com/courses/introduction-to-llm-fine-tuning/chapter-3-full-parameter-fine-tuning/managing-computational-resources" target="_blank" rel="noopener">Managing GPU Memory for Fine-Tuning — ApX ML (7B 메모리 계산)</a></li>
+</ul>

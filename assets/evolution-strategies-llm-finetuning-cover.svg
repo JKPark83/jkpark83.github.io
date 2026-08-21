@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="역전파 기반 RL 파인튜닝과 진화 전략 파인튜닝을 비교한 그림. 왼쪽에는 가중치, 그래디언트, 옵티마이저 상태, 활성값이 쌓여 약 88기가바이트에 이르는 역전파 파인튜닝 메모리 스택이 있다. 오른쪽에는 추론 메모리만 쓰는 작은 블록 여러 개가 병렬로 놓여 있고, 랜덤 시드로 모델을 흔들어 보상으로 고르는 진화 전략 구조를 나타낸다. 가운데에 역전파 없이, 포워드 패스만으로라는 문구가 있다.">
+  <defs>
+    <linearGradient id="esf-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#171d33"/>
+    </linearGradient>
+    <marker id="esf-ar" markerWidth="13" markerHeight="13" refX="9" refY="6.5" orient="auto">
+      <path d="M0,1 L12,6.5 L0,12 Z" fill="#4ade80"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#esf-bg)"/>
+
+  <text x="60" y="76" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">역전파 없이 파인튜닝한다</text>
+  <text x="60" y="116" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">진화 전략(Evolution Strategies)은 왜 에이전트 시대에 부활했나</text>
+
+  <!-- 왼쪽: 역전파 스택 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="255" y="180" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">RL 파인튜닝 (역전파)</text>
+    <rect x="130" y="470" width="250" height="60" rx="8" fill="#334155" stroke="#64748b"/>
+    <text x="255" y="507" text-anchor="middle" font-size="18" fill="#e2e8f0">가중치 14GB</text>
+    <rect x="130" y="402" width="250" height="60" rx="8" fill="#3f3352" stroke="#a78bfa"/>
+    <text x="255" y="439" text-anchor="middle" font-size="18" fill="#e2e8f0">그래디언트 14GB</text>
+    <rect x="130" y="240" width="250" height="154" rx="8" fill="#4c1d33" stroke="#fb7185"/>
+    <text x="255" y="308" text-anchor="middle" font-size="18" fill="#e2e8f0">옵티마이저 상태 56GB</text>
+    <text x="255" y="336" text-anchor="middle" font-size="14" fill="#94a3b8">(Adam 모멘트 × FP32)</text>
+    <rect x="130" y="196" width="250" height="36" rx="8" fill="#42350f" stroke="#fbbf24"/>
+    <text x="255" y="221" text-anchor="middle" font-size="15" fill="#e2e8f0">활성값 +α</text>
+    <text x="255" y="572" text-anchor="middle" font-size="20" font-weight="700" fill="#fb7185">7B 풀 파인튜닝 ≈ 88GB</text>
+  </g>
+
+  <!-- 가운데 화살표 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <line x1="450" y1="370" x2="600" y2="370" stroke="#4ade80" stroke-width="4" marker-end="url(#esf-ar)"/>
+    <text x="525" y="340" text-anchor="middle" font-size="18" font-weight="700" fill="#4ade80">역전파 없이,</text>
+    <text x="525" y="410" text-anchor="middle" font-size="18" font-weight="700" fill="#4ade80">forward pass만으로</text>
+  </g>
+
+  <!-- 오른쪽: ES 병렬 블록 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="890" y="180" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">진화 전략 (ES)</text>
+    <g>
+      <rect x="660" y="210" width="140" height="88" rx="10" fill="#123527" stroke="#4ade80"/>
+      <text x="730" y="248" text-anchor="middle" font-size="15" fill="#e2e8f0">θ + σε₁</text>
+      <text x="730" y="274" text-anchor="middle" font-size="13" fill="#94a3b8">seed 1 · 추론만</text>
+      <rect x="820" y="210" width="140" height="88" rx="10" fill="#123527" stroke="#4ade80"/>
+      <text x="890" y="248" text-anchor="middle" font-size="15" fill="#e2e8f0">θ + σε₂</text>
+      <text x="890" y="274" text-anchor="middle" font-size="13" fill="#94a3b8">seed 2 · 추론만</text>
+      <rect x="980" y="210" width="140" height="88" rx="10" fill="#123527" stroke="#4ade80"/>
+      <text x="1050" y="248" text-anchor="middle" font-size="15" fill="#e2e8f0">θ + σεₙ</text>
+      <text x="1050" y="274" text-anchor="middle" font-size="13" fill="#94a3b8">seed N · 추론만</text>
+    </g>
+    <line x1="730" y1="298" x2="880" y2="368" stroke="#64748b" stroke-width="2.5"/>
+    <line x1="890" y1="298" x2="890" y2="368" stroke="#64748b" stroke-width="2.5"/>
+    <line x1="1050" y1="298" x2="900" y2="368" stroke="#64748b" stroke-width="2.5"/>
+    <rect x="740" y="372" width="300" height="70" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+    <text x="890" y="402" text-anchor="middle" font-size="17" fill="#e2e8f0">보상 가중 평균으로 θ 업데이트</text>
+    <text x="890" y="428" text-anchor="middle" font-size="14" fill="#94a3b8">잘 나온 방향은 크게, 못 나온 방향은 반대로</text>
+    <text x="890" y="500" text-anchor="middle" font-size="20" font-weight="700" fill="#4ade80">추론 메모리 × N 병렬</text>
+    <text x="890" y="532" text-anchor="middle" font-size="16" fill="#94a3b8">그래디언트도, 옵티마이저 상태도 없음</text>
+    <text x="890" y="572" text-anchor="middle" font-size="16" fill="#64748b">노드 간 통신은 시드 + 보상 스칼라뿐</text>
+  </g>
+</svg>

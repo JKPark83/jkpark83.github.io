@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="440" fill="#f8fafc"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">이번 주의 오픈소스 하네스 두 갈래</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12.5" fill="#64748b">같은 질문("모델 바깥을 누가 감싸나")에 대한 서로 다른 답</text>
+
+  <!-- left card: dsh -->
+  <rect x="40" y="75" width="345" height="310" rx="12" fill="#f0fdf4" stroke="#22c55e" stroke-width="2"/>
+  <text x="212" y="103" text-anchor="middle" font-size="15" font-weight="700" fill="#15803d">DeepSeek Harness (dsh)</text>
+  <text x="212" y="122" text-anchor="middle" font-size="11" fill="#64748b">deepseek-ai/deepseek-harness · MIT · 개발자 프리뷰</text>
+
+  <text x="60" y="150" font-size="12" font-weight="700" fill="#334155">철학</text>
+  <text x="60" y="168" font-size="11.5" fill="#334155">"Everything is a Plugin" — 모델·도구·스킬·세션·</text>
+  <text x="60" y="184" font-size="11.5" fill="#334155">샌드박스·저장소·루프·스케줄·UI 전부 교체 가능</text>
+
+  <text x="60" y="212" font-size="12" font-weight="700" fill="#334155">코어</text>
+  <text x="60" y="230" font-size="11.5" fill="#334155">Cordis 커널이 플러그인 마운트·의존성 관리</text>
+
+  <text x="60" y="258" font-size="12" font-weight="700" fill="#334155">시작</text>
+  <text x="60" y="276" font-size="11.5" font-family="monospace" fill="#0f172a">npx @deepseek-ai/dsh web  (localhost:3080)</text>
+
+  <text x="60" y="304" font-size="12" font-weight="700" fill="#334155">어울리는 곳</text>
+  <text x="60" y="322" font-size="11.5" fill="#334155">자체 에이전트 제품의 런타임 뼈대,</text>
+  <text x="60" y="338" font-size="11.5" fill="#334155">모델 교체 실험(모델 비종속, 기본 DeepSeek V4)</text>
+
+  <text x="60" y="366" font-size="11" fill="#b45309">⚠ 프리뷰 단계 — 호환성 깨지는 변경 예고됨</text>
+
+  <!-- right card: prime agent -->
+  <rect x="415" y="75" width="345" height="310" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="587" y="103" text-anchor="middle" font-size="15" font-weight="700" fill="#1d4ed8">Prime Agent</text>
+  <text x="587" y="122" text-anchor="middle" font-size="11" fill="#64748b">PrimeIntellect-ai/prime-agent · arXiv 2608.23552</text>
+
+  <text x="435" y="150" font-size="12" font-weight="700" fill="#334155">철학</text>
+  <text x="435" y="168" font-size="11.5" fill="#334155">하네스 실패가 모델 실패로 보이지 않게 —</text>
+  <text x="435" y="184" font-size="11.5" fill="#334155">모델의 "진짜 최대 능력"을 측정하는 막(membrane)</text>
+
+  <text x="435" y="212" font-size="12" font-weight="700" fill="#334155">코어</text>
+  <text x="435" y="230" font-size="11.5" fill="#334155">영속 IPython REPL(RLM) + Continual Harness</text>
+  <text x="435" y="246" font-size="11.5" fill="#334155">(히스토리·메모리·스킬·서브에이전트 사양 보존)</text>
+
+  <text x="435" y="274" font-size="12" font-weight="700" fill="#334155">근거 수치</text>
+  <text x="435" y="292" font-size="11.5" fill="#334155">ARC-AGI-3 RHAE Best@1 30% → 95.5%</text>
+  <text x="435" y="308" font-size="11.5" fill="#334155">(모델 동일, 하네스만 교체)</text>
+
+  <text x="435" y="336" font-size="12" font-weight="700" fill="#334155">어울리는 곳</text>
+  <text x="435" y="354" font-size="11.5" fill="#334155">장기 태스크 평가, 자기 하네스의 상한 점검</text>
+
+  <text x="435" y="378" font-size="11" fill="#64748b">서브에이전트 간 직접 통신 + Agents View 데몬 관리</text>
+
+  <text x="400" y="416" text-anchor="middle" font-size="11.5" fill="#64748b">공통점: 둘 다 오픈소스이며, 기억·복구·검증을 모델 바깥 구조로 뺀다 — 스타 수는 본문 참조(서드파티 집계)</text>
+</svg>

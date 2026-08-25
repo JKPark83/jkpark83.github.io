@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="420" fill="#f8fafc"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">Thinkingbox-bench — 한 번의 성공과 신뢰성의 격차</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12.5" fill="#64748b">507개 정책 조건 워크플로 · 최종 백엔드 상태를 실행 가능한 체크로 채점 (arXiv 2608.19741)</text>
+
+  <!-- left: bar chart -->
+  <text x="215" y="92" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">최상위 모델 성적</text>
+
+  <!-- axis -->
+  <line x1="80" y1="320" x2="360" y2="320" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="80" y1="320" x2="80" y2="110" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="70" y="325" text-anchor="end" font-size="10.5" fill="#64748b">0%</text>
+  <line x1="76" y1="215" x2="360" y2="215" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="70" y="219" text-anchor="end" font-size="10.5" fill="#64748b">35%</text>
+  <line x1="76" y1="120" x2="360" y2="120" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="70" y="124" text-anchor="end" font-size="10.5" fill="#64748b">70%</text>
+
+  <!-- pass@1 bar: 65.36% of 70% scale => height = 200*65.36/70 = 186.7 -->
+  <rect x="120" y="133" width="90" height="187" fill="#3b82f6" rx="4"/>
+  <text x="165" y="125" text-anchor="middle" font-size="15" font-weight="700" fill="#1d4ed8">65.36%</text>
+  <text x="165" y="340" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">pass@1</text>
+  <text x="165" y="357" text-anchor="middle" font-size="10.5" fill="#64748b">20번 중 한 번이라도 성공</text>
+
+  <!-- pass^20 bar: 25.25/70 => 72.1 -->
+  <rect x="250" y="248" width="90" height="72" fill="#ef4444" rx="4"/>
+  <text x="295" y="240" text-anchor="middle" font-size="15" font-weight="700" fill="#b91c1c">25.25%</text>
+  <text x="295" y="340" text-anchor="middle" font-size="12.5" font-weight="600" fill="#334155">pass^20</text>
+  <text x="295" y="357" text-anchor="middle" font-size="10.5" fill="#64748b">20번 전부 성공</text>
+
+  <!-- gap annotation -->
+  <line x1="210" y1="133" x2="250" y2="248" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5,4"/>
+  <text x="215" y="190" font-size="11.5" font-weight="700" fill="#b45309">-40.1%p</text>
+
+  <!-- right: fact cards -->
+  <rect x="420" y="100" width="340" height="70" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="590" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">무엇을 재나</text>
+  <text x="590" y="146" text-anchor="middle" font-size="11.5" fill="#334155">리테일·보험·네오뱅크 IT 등에서 MCP 호환 도구 세션으로</text>
+  <text x="590" y="162" text-anchor="middle" font-size="11.5" fill="#334155">"최종 상태 전이"가 정확한지를 코드로 채점</text>
+
+  <rect x="420" y="185" width="340" height="70" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="590" y="211" text-anchor="middle" font-size="13" font-weight="700" fill="#b91c1c">함정</text>
+  <text x="590" y="231" text-anchor="middle" font-size="11.5" fill="#334155">실패 시행 다수가 "깨끗하게 종료 + 유효한 툴콜" 모습</text>
+  <text x="590" y="247" text-anchor="middle" font-size="11.5" fill="#334155">→ 응답·툴콜 수준 신호는 완료의 대리 지표가 아님</text>
+
+  <rect x="420" y="270" width="340" height="70" rx="10" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="590" y="296" text-anchor="middle" font-size="13" font-weight="700" fill="#15803d">빌더가 할 일</text>
+  <text x="590" y="316" text-anchor="middle" font-size="11.5" fill="#334155">데모 1회 성공으로 배포 판단 금지 —</text>
+  <text x="590" y="332" text-anchor="middle" font-size="11.5" fill="#334155">같은 태스크 k회 반복 + 상태 검증 체크를 CI에 넣기</text>
+
+  <text x="400" y="398" text-anchor="middle" font-size="11.5" fill="#64748b">수치 출처: 논문 초록(최상위 모델 기준). 모델별 세부 수치는 논문 본문 참조</text>
+</svg>

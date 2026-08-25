@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="한 번의 성공은 신뢰성이 아니라는 메시지를 담은 그림. 왼쪽에는 데모에서 한 번 성공해 큰 초록 체크가 표시된 에이전트가 있고 pass@1 65.4%라고 적혀 있다. 오른쪽에는 같은 과제를 20번 반복 실행한 결과가 격자로 표시되어 있는데 성공과 실패가 섞여 있고, 20번 모두 성공한 과제는 25.3%뿐이라고 적혀 있다. 아래에는 응답이 아니라 데이터베이스의 최종 상태를 검증한다는 문구가 있다.">
+  <defs>
+    <linearGradient id="tbx-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1a1d33"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#tbx-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">한 번의 성공은 신뢰성이 아니다</text>
+  <text x="60" y="118" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">ThinkingBox — 말이 아니라 DB 상태로 에이전트를 검증한다</text>
+
+  <!-- 왼쪽: 데모 1회 성공 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="280" y="185" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">데모에서는</text>
+    <rect x="150" y="215" width="260" height="200" rx="16" fill="#122b22" stroke="#4ade80" stroke-width="2"/>
+    <circle cx="280" cy="298" r="52" fill="none" stroke="#4ade80" stroke-width="7"/>
+    <path d="M252,298 L272,320 L310,276" fill="none" stroke="#4ade80" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="280" y="395" text-anchor="middle" font-size="17" fill="#94a3b8">1회 실행 · 성공</text>
+    <text x="280" y="465" text-anchor="middle" font-size="30" font-weight="700" fill="#4ade80">pass@1 65.4%</text>
+    <text x="280" y="497" text-anchor="middle" font-size="15" fill="#94a3b8">최강 모델 · 507개 업무 태스크</text>
+  </g>
+
+  <!-- 가운데 화살표 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="600" y="310" text-anchor="middle" font-size="24" font-weight="700" fill="#fbbf24">같은 과제를</text>
+    <text x="600" y="342" text-anchor="middle" font-size="24" font-weight="700" fill="#fbbf24">20번 돌리면?</text>
+  </g>
+
+  <!-- 오른쪽: 20회 반복 격자 (4x5), 성공/실패 혼재 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="920" y="185" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">반복해서 돌리면</text>
+    <g>
+      <!-- row1 -->
+      <rect x="790" y="215" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="854" y="215" width="52" height="52" rx="8" fill="#3a1424" stroke="#fb7185"/>
+      <rect x="918" y="215" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="982" y="215" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="1046" y="215" width="52" height="52" rx="8" fill="#3a1424" stroke="#fb7185"/>
+      <!-- row2 -->
+      <rect x="790" y="279" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="854" y="279" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="918" y="279" width="52" height="52" rx="8" fill="#3a1424" stroke="#fb7185"/>
+      <rect x="982" y="279" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="1046" y="279" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <!-- row3 -->
+      <rect x="790" y="343" width="52" height="52" rx="8" fill="#3a1424" stroke="#fb7185"/>
+      <rect x="854" y="343" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="918" y="343" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="982" y="343" width="52" height="52" rx="8" fill="#3a1424" stroke="#fb7185"/>
+      <rect x="1046" y="343" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <!-- row4 -->
+      <rect x="790" y="407" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="854" y="407" width="52" height="52" rx="8" fill="#3a1424" stroke="#fb7185"/>
+      <rect x="918" y="407" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="982" y="407" width="52" height="52" rx="8" fill="#122b22" stroke="#4ade80"/>
+      <rect x="1046" y="407" width="52" height="52" rx="8" fill="#3a1424" stroke="#fb7185"/>
+    </g>
+    <text x="920" y="500" text-anchor="middle" font-size="30" font-weight="700" fill="#fb7185">pass^20 25.3%</text>
+    <text x="920" y="532" text-anchor="middle" font-size="15" fill="#94a3b8">20번 전부 성공한 태스크는 4개 중 1개</text>
+  </g>
+
+  <text x="600" y="595" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="19" fill="#7dd3fc">Microsoft ThinkingBox · arXiv:2608.19741 — 에이전트의 "말"이 아니라 백엔드 DB의 최종 상태를 검증합니다</text>
+</svg>

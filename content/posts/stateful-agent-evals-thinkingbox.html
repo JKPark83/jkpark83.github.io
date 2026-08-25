@@ -1,0 +1,367 @@
+---
+title: "한 번 성공한 에이전트를 믿지 마세요: ThinkingBox가 보여준 '상태 기반 검증'"
+date: 2026-08-26T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "에이전트 평가", "agent evals", "ThinkingBox", "ThinkingBox-Bench", "신뢰성", "reliability", "pass^k", "pass@k", "상태 기반 검증", "state-based verification", "τ-bench", "tau-bench", "MCP", "user simulator", "유저 시뮬레이터", "샌드박스", "sandbox", "Microsoft", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "데모에서 한 번 성공한 에이전트가 실무에 투입되면 왜 무너질까요? 이번 주 Hugging Face 트렌딩에 오른 Microsoft의 ThinkingBox는 이 질문에 숫자로 답합니다. 507개 업무 태스크를 20번씩 반복 실행했더니, 최강 모델도 pass@1 65.36%가 pass^20에서는 25.25%로 떨어졌습니다. 더 무서운 건 실패의 80.88%가 '깨끗하게 종료하고 상태 변경 툴콜까지 성공한' 그럴듯한 실패였다는 점입니다. 에이전트의 말이 아니라 DB의 최종 상태를 검증하는 상태 기반 평가의 원리부터, 내 에이전트에 붙일 수 있는 미니 검증 하니스 코드까지 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "stateful-agent-evals-thinkingbox-cover.svg"
+  alt: "데모에서 한 번 성공한 에이전트(pass@1 65.4%)와 같은 과제를 20번 반복했을 때의 결과 격자(pass^20 25.3%)를 대비시킨 그림"
+  caption: "한 번의 성공은 능력(capability)의 증거일 뿐, 신뢰성(reliability)의 증거가 아닙니다. ThinkingBox는 이 간극을 20회 반복 실행과 DB 상태 검증으로 측정합니다."
+  relative: false
+---
+
+<style>
+/* ── ThinkingBox 상태 기반 평가 포스트 전용 스타일 (tbx- 접두사) ── */
+.tbx-fig{
+  --tbx-violet:#7c3aed; --tbx-sky:#0284c7; --tbx-green:#16a34a; --tbx-rose:#e11d48;
+  --tbx-amber:#d97706; --tbx-slate:#64748b; --tbx-teal:#0d9488; --tbx-blue:#2563eb;
+  --tbx-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .tbx-fig{
+  --tbx-violet:#a78bfa; --tbx-sky:#38bdf8; --tbx-green:#4ade80; --tbx-rose:#fb7185;
+  --tbx-amber:#fbbf24; --tbx-slate:#94a3b8; --tbx-teal:#2dd4bf; --tbx-blue:#60a5fa;
+  --tbx-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .tbx-fig{
+    --tbx-violet:#a78bfa; --tbx-sky:#38bdf8; --tbx-green:#4ade80; --tbx-rose:#fb7185;
+    --tbx-amber:#fbbf24; --tbx-slate:#94a3b8; --tbx-teal:#2dd4bf; --tbx-blue:#60a5fa;
+    --tbx-gray:#64748b;
+  }
+}
+.tbx-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.tbx-fig text{font-family:inherit}
+.tbx-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.tbx-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.tbx-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.tbx-toc ol{margin:0;padding-left:1.25rem}
+.tbx-toc li{margin:.22rem 0;font-size:.95rem}
+.tbx-toc a{text-decoration:none}
+.tbx-toc a:hover{text-decoration:underline}
+.tbx-pull{font-size:1.12rem;line-height:1.72}
+.tbx-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.tbx-note{border-left:4px solid var(--tbx-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.tbx-note strong{color:var(--tbx-blue,#2563eb)}
+.tbx-warn{border-left:4px solid var(--tbx-rose,#e11d48)}
+.tbx-warn strong{color:var(--tbx-rose,#e11d48)}
+.tbx-good{border-left:4px solid var(--tbx-teal,#0d9488)}
+.tbx-good strong{color:var(--tbx-teal,#0d9488)}
+.tbx-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.tbx-tbl th,.tbx-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.tbx-tbl th{background:var(--entry);font-weight:700}
+.tbx-tbl code{font-size:.86em}
+.tbx-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="tbx-pull">
+"에이전트가 태스크를 <strong>한 번</strong> 해내는 것과 <strong>매번</strong> 해내는 것은 완전히 다른 능력입니다."<br>
+Microsoft가 이번 주 공개한 에이전트 샌드박스 ThinkingBox의 결론은 제목 그대로입니다 — <strong>One Success Isn't Reliability.</strong> 최강 모델조차 507개 업무 태스크에서 pass@1 65.36%를 찍고도, 20번 전부 성공한 태스크는 <strong>25.25%</strong>에 그쳤습니다.
+<footer>— arXiv:2608.19741, "One Success Isn't Reliability: Thinkingbox, a Sandbox and Benchmark for Agents in Stateful Business Workflows"</footer>
+</blockquote>
+
+<div class="tbx-toc">
+  <div class="tbx-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 데모의 저주: 한 번은 되는데, 매일 돌리면 무너진다</a></li>
+    <li><a href="#sec-2">배경 — 에이전트 평가의 세 층위와 pass@k vs pass^k</a></li>
+    <li><a href="#sec-3">ThinkingBox 해부 — 말이 아니라 DB 상태를 검증하는 샌드박스</a></li>
+    <li><a href="#sec-4">숫자 읽기 — 65.36% vs 25.25%, 그리고 '그럴듯한 실패' 80.88%</a></li>
+    <li><a href="#sec-5">실전 — 내 에이전트에 상태 검증 하니스 붙이기</a></li>
+    <li><a href="#sec-6">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-7">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 데모의 저주: 한 번은 되는데, 매일 돌리면 무너진다</h2>
+
+<p>에이전트를 만들어 본 분이라면 이 장면이 낯설지 않을 겁니다. 시연에서는 환불 처리도, 예약 변경도 매끄럽게 해내던 에이전트가, 실제 운영에 들어가면 이틀에 한 번꼴로 이상한 짓을 합니다. 환불은 했는데 재고를 안 돌려놓거나, 예약을 바꾸랬더니 새 예약을 하나 더 만들어 놓거나. 그런데 로그를 열어 보면 에이전트는 매번 자신 있게 "처리 완료했습니다!"라고 말하고 깔끔하게 종료했습니다. 뭐가 문제였을까요?</p>
+
+<p>이번 주(8월 셋째~넷째 주) AI 엔지니어링 판에서 가장 화제가 된 결과물이 정확히 이 문제를 겨냥합니다. Microsoft가 8월 19일 블로그와 함께 공개하고 이튿날 arXiv에 올린 <a href="https://arxiv.org/abs/2608.19741" target="_blank" rel="noopener">ThinkingBox</a>(arXiv:2608.19741)는 에이전트를 <strong>업무 시나리오 샌드박스에서 반복 실행하고, 에이전트의 응답이 아니라 백엔드 데이터베이스의 최종 상태로 채점</strong>하는 오픈소스 프레임워크입니다. 함께 공개된 벤치마크 ThinkingBox-Bench는 Hugging Face 데일리 페이퍼 트렌딩 상위권에 올랐고, "신뢰성(reliability)이 이제 에이전트 도입의 구매 기준이 됐다"는 논평이 여러 매체와 커뮤니티에서 이어졌습니다.</p>
+
+<p>결과는 뼈아픕니다. 12개 모델을 507개 태스크에서 각 20번씩 돌렸더니, 가장 강한 모델도 첫 시도 성공률(pass@1)은 65.36%였지만 <strong>20번 전부 성공한 태스크는 25.25%</strong>뿐이었습니다. 그리고 실패한 시도의 <strong>80.88%는 에러 없이 깨끗하게 종료했고, 상태를 바꾸는 툴콜까지 성공적으로 날렸습니다</strong>. 즉 겉보기 신호만 보면 성공과 구분이 안 되는 "그럴듯한 실패"가 대부분이었다는 뜻입니다.</p>
+
+<div class="tbx-note"><strong>이 글에서 얻어 갈 것.</strong> ① 응답 평가·궤적 평가·상태 평가의 차이, ② pass@k와 pass^k가 왜 완전히 다른 질문인지, ③ ThinkingBox 샌드박스의 6가지 구성 요소와 검증 방식, ④ 65.36% → 25.25% 숫자를 해석하는 법(그리고 왜 이 숫자가 수학적으로 흥미로운지), ⑤ 내 에이전트에 바로 붙일 수 있는 sqlite 기반 미니 상태 검증 하니스 코드.</div>
+
+<h2 id="sec-2">2. 배경 — 에이전트 평가의 세 층위와 pass@k vs pass^k</h2>
+
+<p>에이전트 평가는 "무엇을 보고 채점하느냐"에 따라 세 층위로 나눌 수 있습니다.</p>
+
+<figure class="tbx-fig">
+<svg viewBox="0 0 900 340" role="img" aria-label="에이전트 평가의 세 층위를 나타낸 계단 그림. 1층은 응답 평가로 에이전트가 한 말을 채점하며 조작이 가장 쉽다. 2층은 궤적 평가로 툴 호출 순서와 인자를 채점한다. 3층은 상태 평가로 실행이 끝난 뒤 환경과 데이터베이스에 실제로 남은 변화를 채점하며 가장 조작이 어렵다.">
+  <g font-size="15">
+    <!-- 계단 -->
+    <rect x="30" y="230" width="260" height="80" rx="10" fill="none" stroke="var(--tbx-gray)" stroke-width="2"/>
+    <text x="160" y="262" text-anchor="middle" font-weight="700" fill="var(--tbx-slate)">① 응답 평가</text>
+    <text x="160" y="288" text-anchor="middle" font-size="13" fill="var(--tbx-gray)">에이전트가 한 "말"을 채점</text>
+
+    <rect x="320" y="160" width="260" height="150" rx="10" fill="none" stroke="var(--tbx-amber)" stroke-width="2"/>
+    <text x="450" y="192" text-anchor="middle" font-weight="700" fill="var(--tbx-amber)">② 궤적(trajectory) 평가</text>
+    <text x="450" y="218" text-anchor="middle" font-size="13" fill="var(--tbx-gray)">툴 호출 순서·인자를 채점</text>
+    <text x="450" y="240" text-anchor="middle" font-size="13" fill="var(--tbx-gray)">"과정"은 보지만</text>
+    <text x="450" y="260" text-anchor="middle" font-size="13" fill="var(--tbx-gray)">결과는 보장 못 함</text>
+
+    <rect x="610" y="70" width="260" height="240" rx="10" fill="none" stroke="var(--tbx-green)" stroke-width="3"/>
+    <text x="740" y="104" text-anchor="middle" font-weight="700" fill="var(--tbx-green)">③ 상태(state) 평가</text>
+    <text x="740" y="132" text-anchor="middle" font-size="13" fill="var(--tbx-gray)">실행이 끝난 뒤 DB·환경에</text>
+    <text x="740" y="152" text-anchor="middle" font-size="13" fill="var(--tbx-gray)">실제로 남은 변화를 채점</text>
+    <text x="740" y="182" text-anchor="middle" font-size="13" fill="var(--tbx-teal)">기대한 변화가 일어났는가 +</text>
+    <text x="740" y="202" text-anchor="middle" font-size="13" fill="var(--tbx-teal)">일어나면 안 될 변화가 없는가</text>
+    <text x="740" y="240" text-anchor="middle" font-size="14" font-weight="700" fill="var(--tbx-green)">τ-bench · ThinkingBox</text>
+
+    <!-- 아래 축 -->
+    <line x1="40" y1="325" x2="860" y2="325" stroke="var(--tbx-gray)" stroke-width="1"/>
+    <text x="60" y="320" font-size="12" fill="var(--tbx-gray)">채점 쉬움 · 속이기 쉬움</text>
+    <text x="700" y="320" font-size="12" fill="var(--tbx-gray)">채점 어려움 · 속이기 어려움</text>
+  </g>
+</svg>
+<figcaption>그림 1. 에이전트 평가의 세 층위. 오른쪽으로 갈수록 구축 비용은 커지지만, "그럴듯한 실패"에 속을 가능성은 줄어듭니다.</figcaption>
+</figure>
+
+<p><strong>① 응답 평가</strong>는 에이전트의 최종 답변 텍스트를 사람이나 LLM 심판(LLM-as-a-judge)이 채점합니다. 만들기 가장 쉽지만, 에이전트가 "처리 완료했습니다"라고 말만 잘하면 통과해 버립니다. <strong>② 궤적 평가</strong>는 툴 호출 로그를 봅니다. 올바른 툴을 올바른 순서로 불렀는지 확인할 수 있지만, "올바른 순서"가 여러 개인 태스크에서는 채점 기준을 정하기 어렵고, 툴콜이 성공했다고 태스크가 끝난 것도 아닙니다. <strong>③ 상태 평가</strong>는 실행이 끝난 뒤 환경 — 대개 데이터베이스 — 을 열어 보고, 기대한 변화가 실제로 일어났는지(그리고 일어나면 안 될 변화가 없는지) 확인합니다. 이 방식을 대중화한 것이 2024년 Sierra의 <a href="https://arxiv.org/abs/2406.12045" target="_blank" rel="noopener">τ-bench</a>입니다. 대화가 끝난 시점의 DB 상태를 정답 상태와 비교하고, 신뢰성을 재는 지표로 pass^k를 제안했습니다.</p>
+
+<p>여기서 pass@k와 pass^k를 확실히 구분하고 넘어가야 합니다. 생김새는 비슷하지만 완전히 다른 질문입니다.</p>
+
+<ul>
+  <li><strong>pass@k</strong> — k번 시도해서 <strong>적어도 한 번</strong> 성공할 확률. "이 모델이 이 태스크를 풀 수 <em>있는가</em>?"라는 <strong>능력(capability)</strong>의 질문입니다.</li>
+  <li><strong>pass^k</strong> — k번 시도해서 <strong>전부</strong> 성공할 확률. "이 모델에게 이 태스크를 <em>맡겨도 되는가</em>?"라는 <strong>신뢰성(reliability)</strong>의 질문입니다.</li>
+</ul>
+
+<p>시도가 독립이고 시도당 성공률이 p라면 pass^k는 p<sup>k</sup>로 떨어집니다. p=0.7인 에이전트도 세 번 연속 성공할 확률은 0.7³ = 34.3%뿐입니다. 데모(한 번 성공 = pass@1)와 운영(매일 성공 = pass^k)의 간극이 바로 이 지수 함수 안에 있습니다. 자동화의 가치는 대개 "같은 일을 반복해서 맡기는 것"에서 나오므로, 실무에서 의미 있는 지표는 pass^k 쪽입니다.</p>
+
+<h2 id="sec-3">3. ThinkingBox 해부 — 말이 아니라 DB 상태를 검증하는 샌드박스</h2>
+
+<p>ThinkingBox는 이 상태 평가를 "업무 워크플로" 규모로 확장한 <strong>도구-에이전트-유저 상호작용(tool-agent-user interaction) 샌드박스</strong>입니다. 태스크 하나가 어떻게 구성되는지 뜯어 보면 구조가 명확해집니다.</p>
+
+<figure class="tbx-fig">
+<svg viewBox="0 0 900 470" role="img" aria-label="ThinkingBox 샌드박스의 구조도. 왼쪽에 정보를 숨기고 있는 시뮬레이션 유저가 있고, 가운데 평가 대상 에이전트가 유저와 여러 턴 대화한다. 에이전트는 도메인 정책 문서와 지식 베이스를 참고하며, 격리된 MCP 호환 툴 세션을 통해 리셋 가능한 백엔드 데이터베이스를 조작한다. 실행이 끝나면 검증기가 데이터베이스의 최종 상태를 기대 상태와 비교하고 부수 효과까지 검사해 성공과 실패를 판정한다.">
+  <g font-size="14">
+    <!-- 유저 시뮬레이터 -->
+    <rect x="25" y="150" width="200" height="130" rx="12" fill="none" stroke="var(--tbx-violet)" stroke-width="2.5"/>
+    <text x="125" y="180" text-anchor="middle" font-weight="700" fill="var(--tbx-violet)">시뮬레이션 유저 (LLM)</text>
+    <text x="125" y="206" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">태스크 사실(fact)을 갖고 있지만</text>
+    <text x="125" y="226" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">먼저 다 말해주지 않음</text>
+    <text x="125" y="252" text-anchor="middle" font-size="12.5" fill="var(--tbx-rose)">→ 물어봐야 나온다</text>
+
+    <!-- 에이전트 -->
+    <rect x="330" y="150" width="220" height="130" rx="12" fill="none" stroke="var(--tbx-sky)" stroke-width="2.5"/>
+    <text x="440" y="182" text-anchor="middle" font-weight="700" fill="var(--tbx-sky)">평가 대상 에이전트</text>
+    <text x="440" y="208" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">여러 턴 대화로 정보 수집</text>
+    <text x="440" y="228" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">정책 준수 · 의존 툴 조율</text>
+    <text x="440" y="248" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">올바른 상태 전이 실행</text>
+
+    <!-- 대화 화살표 -->
+    <line x1="225" y1="200" x2="330" y2="200" stroke="var(--tbx-violet)" stroke-width="2"/>
+    <line x1="330" y1="235" x2="225" y2="235" stroke="var(--tbx-sky)" stroke-width="2"/>
+    <text x="277" y="192" text-anchor="middle" font-size="12" fill="var(--tbx-gray)">멀티턴 대화</text>
+
+    <!-- 정책/지식베이스 -->
+    <rect x="330" y="30" width="220" height="85" rx="12" fill="none" stroke="var(--tbx-amber)" stroke-width="2"/>
+    <text x="440" y="60" text-anchor="middle" font-weight="700" fill="var(--tbx-amber)">도메인 정책 문서 + 지식 베이스</text>
+    <text x="440" y="86" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">"환불은 30일 이내 · 등급 A만" 같은 규칙</text>
+    <line x1="440" y1="115" x2="440" y2="150" stroke="var(--tbx-amber)" stroke-width="2" stroke-dasharray="5 4"/>
+
+    <!-- MCP 툴 세션 -->
+    <rect x="640" y="150" width="230" height="130" rx="12" fill="none" stroke="var(--tbx-teal)" stroke-width="2.5"/>
+    <text x="755" y="180" text-anchor="middle" font-weight="700" fill="var(--tbx-teal)">격리된 MCP 호환 툴 세션</text>
+    <text x="755" y="206" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">조회 · 갱신 · 취소 등 도메인 툴</text>
+    <text x="755" y="226" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">실행 트레이스 전체 기록</text>
+    <line x1="550" y1="215" x2="640" y2="215" stroke="var(--tbx-teal)" stroke-width="2"/>
+    <text x="595" y="207" text-anchor="middle" font-size="12" fill="var(--tbx-gray)">툴콜</text>
+
+    <!-- DB -->
+    <g>
+      <ellipse cx="755" cy="330" rx="90" ry="18" fill="none" stroke="var(--tbx-blue)" stroke-width="2.5"/>
+      <path d="M665,330 v55 a90,18 0 0 0 180,0 v-55" fill="none" stroke="var(--tbx-blue)" stroke-width="2.5"/>
+      <text x="755" y="372" text-anchor="middle" font-size="13" font-weight="700" fill="var(--tbx-blue)">리셋 가능한 백엔드 DB</text>
+    </g>
+    <line x1="755" y1="280" x2="755" y2="312" stroke="var(--tbx-blue)" stroke-width="2"/>
+    <text x="800" y="300" font-size="12" fill="var(--tbx-gray)">상태 변경</text>
+
+    <!-- 검증기 -->
+    <rect x="330" y="330" width="220" height="110" rx="12" fill="none" stroke="var(--tbx-green)" stroke-width="3"/>
+    <text x="440" y="360" text-anchor="middle" font-weight="700" fill="var(--tbx-green)">검증기 (Verifier)</text>
+    <text x="440" y="386" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">최종 DB 상태 == 기대 상태?</text>
+    <text x="440" y="406" text-anchor="middle" font-size="12.5" fill="var(--tbx-rose)">+ 일어나면 안 될 변화(부수 효과) 검사</text>
+    <text x="440" y="428" text-anchor="middle" font-size="12.5" fill="var(--tbx-green)">→ 태스크별 성공/실패 판정</text>
+    <line x1="663" y1="385" x2="550" y2="385" stroke="var(--tbx-green)" stroke-width="2"/>
+    <text x="606" y="377" text-anchor="middle" font-size="12" fill="var(--tbx-gray)">종료 후 검사</text>
+  </g>
+</svg>
+<figcaption>그림 2. ThinkingBox 태스크 하나의 구성. 에이전트의 응답은 채점 대상이 아니라는 점이 핵심입니다 — 대화가 끝난 뒤 DB에 실제로 남은 것만 봅니다.</figcaption>
+</figure>
+
+<p>구성 요소는 여섯 가지입니다.</p>
+
+<ol>
+  <li><strong>리셋 가능한 백엔드 DB</strong> — 태스크마다 정해진 초기 상태(시드)로 되돌릴 수 있는 데이터베이스. 반복 실행의 전제 조건입니다.</li>
+  <li><strong>격리된 MCP 호환 툴 세션</strong> — 에이전트는 MCP(Model Context Protocol) 방식으로 노출된 도메인 툴로만 DB를 조작합니다. 세션이 격리되어 있어 시도끼리 상태가 새지 않고, 실행 트레이스가 전부 기록됩니다.</li>
+  <li><strong>도메인 정책 문서 + 지식 베이스</strong> — "30일 이내 구매 건만 환불 가능" 같은 업무 규칙. 태스크 대부분이 이 정책을 조건으로 겁니다(policy-conditioned).</li>
+  <li><strong>시뮬레이션 유저</strong> — LLM이 연기하는 고객/직원. 중요한 설계가 하나 있는데, <strong>유저는 태스크 해결에 필요한 사실을 처음부터 다 말해주지 않습니다</strong>. 에이전트가 물어봐야 나옵니다. 정보 수집 능력까지 시험하는 장치입니다.</li>
+  <li><strong>평가 대상 에이전트</strong> — 우리가 시험하려는 모델/시스템.</li>
+  <li><strong>검증기</strong> — 대화가 끝나면 DB의 최종 상태를 태스크별 기대 상태와 비교합니다. 여기에 더해 <strong>부수 효과(collateral effect)</strong>, 즉 일어나면 안 될 변화가 없는지도 검사합니다. 환불은 제대로 했지만 엉뚱한 주문을 하나 취소했다면 실패입니다.</li>
+</ol>
+
+<p>벤치마크인 ThinkingBox-Bench는 이런 태스크 507개를 다섯 도메인 — 리테일/이커머스, 여행·호스피탈리티, 자동차 보험, 네오뱅크 사내 IT 지원, 컨설팅사 IT/HR 지원 — 에 걸쳐 담았습니다. 다중 단계 트랜잭션, 정책 조건부 갱신, 유저 재질문, 레코드 조회, 그리고 <strong>되돌릴 수 없는 고위험 부수 효과</strong>처럼 실제 업무 지원에서 반복되는 패턴을 일부러 밟게 설계했습니다. τ-bench가 항공·리테일 2개 도메인으로 증명한 방법론을 도메인 다양성과 태스크 수 면에서 크게 확장한 셈입니다.</p>
+
+<div class="tbx-note"><strong>왜 "말"을 채점하면 안 될까?</strong> 상태를 바꾸는 태스크에서는 응답 텍스트가 성공의 증거가 아니기 때문입니다. 에이전트는 자기가 실패했다는 사실을 모른 채 성공 보고를 하는 경우가 많습니다. 반대로 정답 상태에 도달하는 경로는 여러 개일 수 있으므로, 궤적(툴 호출 순서)을 정답과 비교하는 방식은 멀쩡한 성공을 실패로 채점하기도 합니다. 최종 상태 비교는 두 문제를 동시에 피합니다.</div>
+
+<h2 id="sec-4">4. 숫자 읽기 — 65.36% vs 25.25%, 그리고 '그럴듯한 실패' 80.88%</h2>
+
+<p>Microsoft는 독점 모델과 오픈 웨이트 모델 12개를 507개 태스크 × 20회 반복으로 평가했습니다. 헤드라인 숫자 세 개만 기억하면 됩니다.</p>
+
+<figure class="tbx-fig">
+<svg viewBox="0 0 900 400" role="img" aria-label="ThinkingBox-Bench의 핵심 결과 세 가지를 보여주는 그림. 왼쪽 막대그래프는 최강 모델의 pass at 1이 65.36퍼센트인데 pass hat 20은 25.25퍼센트로 떨어짐을 보여준다. 가운데는 시도당 성공률이 균일하게 65퍼센트라면 20회 연속 성공률은 0.02퍼센트여야 하는데 실제로는 25.25퍼센트이므로, 태스크가 항상 되는 것과 가끔 되는 것으로 갈라져 있다는 해석을 보여준다. 오른쪽은 실패한 시도의 80.88퍼센트가 깨끗하게 종료하고 상태 변경 툴콜까지 성공한 그럴듯한 실패였음을 나타낸다.">
+  <g font-size="14">
+    <!-- 왼쪽: 막대 -->
+    <text x="150" y="40" text-anchor="middle" font-weight="700" fill="var(--tbx-sky)">discovery–reliability gap</text>
+    <rect x="60" y="90" width="80" height="230" rx="6" fill="var(--tbx-green)" opacity="0.85"/>
+    <text x="100" y="78" text-anchor="middle" font-weight="700" fill="var(--tbx-green)">65.36%</text>
+    <text x="100" y="345" text-anchor="middle" font-size="13" fill="var(--tbx-gray)">pass@1</text>
+    <rect x="180" y="231" width="80" height="89" rx="6" fill="var(--tbx-rose)" opacity="0.85"/>
+    <text x="220" y="219" text-anchor="middle" font-weight="700" fill="var(--tbx-rose)">25.25%</text>
+    <text x="220" y="345" text-anchor="middle" font-size="13" fill="var(--tbx-gray)">pass^20</text>
+    <text x="160" y="375" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">최강 모델 · 507개 태스크</text>
+
+    <!-- 가운데: 해석 -->
+    <rect x="330" y="60" width="250" height="280" rx="12" fill="none" stroke="var(--tbx-amber)" stroke-width="2"/>
+    <text x="455" y="92" text-anchor="middle" font-weight="700" fill="var(--tbx-amber)">이 숫자가 흥미로운 이유</text>
+    <text x="455" y="126" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">모든 태스크의 시도당 성공률이</text>
+    <text x="455" y="146" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">균일하게 65.36%라면:</text>
+    <text x="455" y="176" text-anchor="middle" font-size="14" fill="var(--tbx-rose)">0.6536²⁰ ≈ 0.02%</text>
+    <text x="455" y="206" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">그런데 실제 pass^20은 25.25%</text>
+    <text x="455" y="240" text-anchor="middle" font-size="12.5" fill="var(--tbx-teal)">→ 태스크가 두 부류로 갈라져 있다:</text>
+    <text x="455" y="266" text-anchor="middle" font-size="12.5" fill="var(--tbx-green)">거의 항상 되는 태스크 (p≈1)</text>
+    <text x="455" y="288" text-anchor="middle" font-size="12.5" fill="var(--tbx-rose)">가끔만 되는 태스크 (p 낮음)</text>
+    <text x="455" y="318" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">평균 성공률로는 이 구조가 안 보임</text>
+
+    <!-- 오른쪽: 그럴듯한 실패 -->
+    <text x="740" y="40" text-anchor="middle" font-weight="700" fill="var(--tbx-rose)">그럴듯한 실패</text>
+    <circle cx="740" cy="180" r="95" fill="none" stroke="var(--tbx-gray)" stroke-width="14" opacity="0.35"/>
+    <path d="M 740 85 A 95 95 0 1 1 655.6 224.4" fill="none" stroke="var(--tbx-rose)" stroke-width="14" stroke-linecap="round"/>
+    <text x="740" y="172" text-anchor="middle" font-size="26" font-weight="700" fill="var(--tbx-rose)">80.88%</text>
+    <text x="740" y="198" text-anchor="middle" font-size="12" fill="var(--tbx-gray)">실패 시도 중</text>
+    <text x="740" y="310" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">에러 없이 깨끗하게 종료 +</text>
+    <text x="740" y="330" text-anchor="middle" font-size="12.5" fill="var(--tbx-gray)">유효한 상태 변경 툴콜 성공</text>
+    <text x="740" y="356" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--tbx-rose)">겉보기 신호로는 성공과 구분 불가</text>
+  </g>
+</svg>
+<figcaption>그림 3. ThinkingBox-Bench 핵심 결과. 왼쪽: 한 번 찾는 것과 매번 해내는 것의 간극. 가운데: pass^20 25.25%가 말해주는 태스크 성공률의 양극화(필자 해석). 오른쪽: 실패의 대다수는 "조용한 오답"입니다.</figcaption>
+</figure>
+
+<p><strong>첫째, 65.36% → 25.25%.</strong> 논문이 <em>discovery–reliability gap</em>이라 부르는 간극입니다. 성공 궤적을 한 번 "발견"하는 능력과 그 궤적을 매번 재현하는 능력은 다르며, 현재 최강 모델도 업무 태스크 4개 중 1개에서만 20연속 성공을 해냈습니다.</p>
+
+<p><strong>둘째, 25.25%라는 값 자체가 시사하는 구조.</strong> 잠깐 계산해 보면 재미있는 게 보입니다. 만약 모든 태스크의 시도당 성공률이 균일하게 65.36%라면 pass^20은 0.6536²⁰ ≈ 0.02%여야 합니다. 실제로는 25.25%가 나왔다는 것은, 태스크 성공률이 평균 근처에 모여 있는 게 아니라 <strong>"거의 항상 되는 태스크"와 "가끔만 되는 태스크"로 양극화</strong>되어 있다는 뜻입니다(이 문단의 해석은 필자의 계산입니다). 실무적 함의는 분명합니다. 평균 성공률은 자동화 범위를 정하는 데 거의 쓸모가 없고, <strong>태스크 단위로 pass^k를 재서 "항상 되는 부류"만 골라 자동화</strong>해야 합니다.</p>
+
+<p><strong>셋째, 실패의 80.88%가 그럴듯한 실패.</strong> 실패한 시도의 대다수가 에러 없이 종료했고 유효한 상태 변경 툴콜까지 날렸습니다. 응답 수준·툴콜 수준의 신호는 태스크 완수의 프록시(대리 지표)가 못 된다는 뜻입니다. 여러분의 대시보드에 "툴콜 성공률 99%"가 찍혀 있어도, DB를 열어 보기 전까지는 에이전트가 일을 제대로 했는지 알 수 없습니다.</p>
+
+<p>도메인별 성적 변동도 컸고, 실패 유형에는 오류 후 복구 실패와 잘못된 상태 변경이 두드러졌습니다. 즉 모델이 "툴을 못 써서"가 아니라, <strong>여러 턴에 걸친 상태 관리와 회복에서</strong> 무너집니다.</p>
+
+<h2 id="sec-5">5. 실전 — 내 에이전트에 상태 검증 하니스 붙이기</h2>
+
+<p>ThinkingBox-Bench 자체는 벤치마크지만, 방법론은 그대로 훔쳐 올 수 있습니다. 필요한 건 세 가지입니다: <strong>리셋 가능한 시드 상태, 상태로 정의된 성공 기준, k회 반복 루프</strong>. sqlite로 만드는 최소 골격을 보겠습니다.</p>
+
+<p>먼저 태스크를 "기대 상태 + 금지 부수 효과"로 정의합니다. 자연어 채점 기준이 아니라 실행 가능한 assertion이라는 점이 핵심입니다.</p>
+
+{{< highlight python >}}
+# task_refund.py — 태스크를 '상태'로 정의한다
+TASK = {
+    "task_id": "refund-1042",
+    "prompt": "주문 1042번 환불해 주세요.",          # 시뮬레이션 유저의 첫 발화
+    "hidden_facts": {                               # 물어봐야 알려주는 정보
+        "reason": "defective",
+        "customer_id": "C-77",
+    },
+    # 성공 조건: 실행 후 DB가 만족해야 할 상태
+    "expected": [
+        ("SELECT status FROM orders WHERE id=1042",        [("refunded",)]),
+        ("SELECT amount FROM refunds WHERE order_id=1042", [(39000,)]),
+        ("SELECT qty FROM inventory WHERE sku='A-1'",      [(13,)]),  # 재고 복구 12→13
+    ],
+    # 금지 부수 효과: 건드리면 안 되는 것들
+    "forbidden": [
+        ("SELECT COUNT(*) FROM orders WHERE status='cancelled'", [(0,)]),  # 다른 주문 취소 금지
+        ("SELECT COUNT(*) FROM refunds",                          [(1,)]),  # 환불은 정확히 1건
+    ],
+}
+{{< /highlight >}}
+
+<p>다음은 하니스입니다. 시드 리셋 → 에이전트 실행 → 상태 검증을 k번 반복해 pass^k를 계산합니다.</p>
+
+{{< highlight python >}}
+# harness.py — 시드 리셋 → 실행 → 상태 검증 → k회 반복
+import shutil, sqlite3
+
+SEED_DB, RUN_DB = "seed.db", "run.db"
+
+def reset():
+    shutil.copy(SEED_DB, RUN_DB)      # 매 시도 전, 반드시 시드 상태로 복원
+
+def verify(task) -> tuple[bool, list[str]]:
+    con = sqlite3.connect(RUN_DB)
+    errors = []
+    for sql, want in task["expected"] + task["forbidden"]:
+        got = con.execute(sql).fetchall()
+        if got != want:
+            errors.append(f"{sql} → {got} (기대: {want})")
+    con.close()
+    return (not errors), errors
+
+def pass_hat_k(task, run_agent, k=10):
+    ok = 0
+    for i in range(k):
+        reset()
+        run_agent(task, db_path=RUN_DB)   # 에이전트의 '말'은 여기서 안 본다
+        passed, errors = verify(task)      # DB 최종 상태만 본다
+        ok += passed
+        if not passed:
+            print(f"[trial {i}] 실패: {errors[:2]}")
+    print(f"pass@1≈{ok/k:.0%}, pass^{k}={'성공' if ok == k else '실패'}")
+    return ok == k
+{{< /highlight >}}
+
+<p>여기서 <code>run_agent</code>는 여러분의 에이전트 루프입니다. 반환값(응답 텍스트)을 채점에 쓰지 않는다는 점, 그리고 <code>verify</code>가 기대 상태와 금지 부수 효과를 함께 검사한다는 점만 지키면, 이 30줄이 응답 채점 하니스보다 훨씬 정직한 신호를 줍니다. 유저와의 멀티턴이 필요하면 <code>run_agent</code> 안에서 <code>hidden_facts</code>를 가진 작은 유저 시뮬레이터 LLM을 붙이면 됩니다 — "묻기 전엔 답하지 말 것"이라는 시스템 프롬프트가 포인트입니다.</p>
+
+<p>실제 서비스 DB가 sqlite가 아니어도 원리는 같습니다. Postgres라면 템플릿 DB 복제나 트랜잭션 롤백으로 시드 리셋을 구현하고, 외부 SaaS 툴이라면 스테이징 테넌트를 하나 잡아 태스크 전후 스냅샷을 비교하면 됩니다. 더 크게 가고 싶다면 <a href="https://github.com/microsoft/thinkingbox" target="_blank" rel="noopener">ThinkingBox 공개 저장소</a>의 도메인 정의를 참고해 자기 도메인의 태스크를 작성하는 방법이 있습니다.</p>
+
+<div class="tbx-good"><strong>CI에 거는 법.</strong> 핵심 태스크 10~20개를 골라 pass^k(k=5~10)를 CI 게이트로 겁니다. 프롬프트나 툴 정의를 바꿨을 때 "평균 점수 1%p 하락"은 눈에 안 띄지만, "환불 태스크가 pass^5에서 탈락"은 바로 잡힙니다. 반복 비용이 부담되면, 항상 통과하던 태스크는 k를 줄이고 경계선 태스크에 k를 몰아주는 식으로 예산을 배분합니다.</div>
+
+<h2 id="sec-6">6. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>응답 텍스트로 채점하기.</strong> "처리 완료했습니다"는 증거가 아닙니다. 실패의 80.88%는 겉보기에 멀쩡했습니다. 상태를 바꾸는 태스크는 반드시 상태로 채점하세요.</li>
+  <li><strong>LLM 심판에게 DB를 안 보여주고 판정 맡기기.</strong> 심판 모델에게 대화 로그만 주면 에이전트와 같은 것에 속습니다. LLM 심판은 어조·정책 위반 같은 정성 평가에 쓰고, 상태 판정은 결정론적 쿼리로 하세요.</li>
+  <li><strong>1회 실행으로 결론 내리기.</strong> pass@1은 능력의 하한 증명일 뿐입니다. 자동화 여부를 정할 때는 태스크당 최소 5~10회 돌려 pass^k를 보세요. 온도를 0으로 내려도 툴 결과·유저 발화가 달라지면 궤적은 갈라집니다.</li>
+  <li><strong>시드 리셋을 빼먹기.</strong> 이전 시도가 남긴 상태 위에서 다음 시도를 돌리면 성공도 실패도 오염됩니다. "리셋 가능한 백엔드"가 ThinkingBox 설계의 출발점인 이유입니다. 리셋이 안 되는 실환경 테스트는 반복 평가가 아니라 도박입니다.</li>
+  <li><strong>부수 효과를 안 보기.</strong> 기대 상태 assertion만 있으면 "환불 성공 + 엉뚱한 주문 취소"가 통과합니다. 건드리면 안 되는 테이블의 불변 조건을 forbidden 목록으로 함께 거세요. 되돌릴 수 없는 고위험 액션일수록 중요합니다.</li>
+  <li><strong>과잉 친절한 유저 시뮬레이터.</strong> 시뮬레이터가 첫 턴에 정보를 다 쏟아내면 에이전트의 정보 수집 능력이 평가에서 빠집니다. 실제 유저는 그렇게 말해주지 않습니다. 사실을 숨겨 두고 물어야 답하게 만드세요.</li>
+  <li><strong>반복 비용 과소평가.</strong> 507개 태스크 × 20회 × 12개 모델이면 12만 회가 넘는 롤아웃입니다. 자체 평가에서는 태스크 수를 좁히고 k를 차등 배분해 비용을 통제하세요. 전수 × 고반복은 벤치마크 제작자의 사치입니다.</li>
+</ul>
+
+<h2 id="sec-7">7. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Microsoft가 8월 19일 공개한 <strong>ThinkingBox</strong>는 에이전트를 업무 시나리오 샌드박스에서 반복 실행하고, 응답이 아니라 <strong>백엔드 DB의 최종 상태</strong>로 채점하는 오픈소스 프레임워크입니다. 벤치마크 ThinkingBox-Bench는 5개 도메인 507개 태스크로 구성됩니다.</li>
+  <li>구성 요소는 여섯 가지: 리셋 가능한 DB, 격리된 MCP 호환 툴 세션, 정책 문서+지식 베이스, 정보를 숨기는 유저 시뮬레이터, 평가 대상 에이전트, 그리고 기대 상태와 <strong>부수 효과</strong>를 함께 검사하는 검증기.</li>
+  <li>핵심 결과: 최강 모델도 <strong>pass@1 65.36% vs pass^20 25.25%</strong> — 한 번 성공하는 능력과 매번 성공하는 신뢰성 사이의 discovery–reliability gap이 큽니다.</li>
+  <li>실패의 <strong>80.88%는 깨끗하게 종료하고 유효한 상태 변경 툴콜까지 성공한 "그럴듯한 실패"</strong>였습니다. 툴콜 성공률·응답 품질은 태스크 완수의 프록시가 아닙니다.</li>
+  <li>방법론은 오늘 훔칠 수 있습니다: <strong>시드 리셋 → 에이전트 실행 → 상태 assertion(기대 + 금지) → k회 반복</strong>. 핵심 태스크의 pass^k를 CI 게이트로 걸면 회귀를 즉시 잡습니다.</li>
+  <li>평균 성공률 말고 <strong>태스크 단위 pass^k</strong>를 보세요. 자동화할 태스크를 고르는 기준은 "가끔 되는 것"이 아니라 "항상 되는 것"입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2608.19741" target="_blank" rel="noopener">One Success Isn't Reliability: Thinkingbox, a Sandbox and Benchmark for Agents in Stateful Business Workflows (arXiv:2608.19741)</a> — 이번 주 Hugging Face 트렌딩 논문 · <a href="https://arxiv.org/html/2608.19741" target="_blank" rel="noopener">HTML 버전</a></li>
+  <li><a href="https://github.com/microsoft/thinkingbox" target="_blank" rel="noopener">ThinkingBox 공식 저장소 (GitHub)</a></li>
+  <li><a href="https://cryptobriefing.com/microsoft-thinkingbox-ai-agent-reliability/" target="_blank" rel="noopener">Microsoft introduces ThinkingBox to assess AI agent reliability</a> — 공개 소식과 배경 정리</li>
+  <li><a href="https://blog.pebblous.ai/blog/thinkingbox-stateful-agent-reliability/en/" target="_blank" rel="noopener">The Agent Benchmark Where Only One Task in Four Passed All 20 Runs — Pebblous</a> — 결과 상세 해설</li>
+  <li><a href="https://arxiv.org/abs/2406.12045" target="_blank" rel="noopener">τ-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains (arXiv:2406.12045)</a> — 상태 비교 채점과 pass^k를 제안한 선행 연구</li>
+  <li><a href="https://sierra.ai/blog/benchmarking-ai-agents" target="_blank" rel="noopener">τ-bench: Benchmarking AI agents for the real-world — Sierra 블로그</a></li>
+  <li><a href="https://github.com/sierra-research/tau2-bench" target="_blank" rel="noopener">tau2-bench 공식 저장소 (GitHub)</a></li>
+  <li><a href="https://aiagentstore.ai/ai-agent-news/this-week" target="_blank" rel="noopener">AI Agents News — Week of August 25, 2026</a> — "신뢰성이 구매 기준이 됐다"는 주간 논평</li>
+</ul>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="420" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="bold">AutoSaddler — 하네스를 코드처럼 자동 최적화하는 루프</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <!-- loop boxes -->
+  <rect x="40" y="70" width="160" height="58" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="120" y="94" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="bold">에이전트 실행</text>
+  <text x="120" y="113" text-anchor="middle" fill="#94a3b8" font-size="11.5">미니배치 태스크 트레이스</text>
+
+  <rect x="240" y="70" width="160" height="58" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="320" y="94" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="bold">실패 트레이스 진단</text>
+  <text x="320" y="113" text-anchor="middle" fill="#94a3b8" font-size="11.5">얕은 반성 X · 깊은 디버깅 O</text>
+
+  <rect x="440" y="70" width="160" height="58" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="520" y="94" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="bold">구조화 패치 생성</text>
+  <text x="520" y="113" text-anchor="middle" fill="#94a3b8" font-size="11.5">하네스 = 코드, 국소 수정</text>
+
+  <rect x="620" y="70" width="150" height="58" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="695" y="94" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="bold">검증 기반 채택</text>
+  <text x="695" y="113" text-anchor="middle" fill="#94a3b8" font-size="11.5">일반화 확인 후 반영</text>
+
+  <line x1="200" y1="99" x2="234" y2="99" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="400" y1="99" x2="434" y2="99" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="600" y1="99" x2="614" y2="99" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
+  <path d="M695,128 L695,160 L120,160 L120,134" fill="none" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="400" y="152" text-anchor="middle" fill="#38bdf8" font-size="12">개선된 하네스로 다음 배치 반복 (오프라인 학습)</text>
+
+  <!-- benchmark bars -->
+  <text x="60" y="215" fill="#f8fafc" font-size="14" font-weight="bold">기본 하네스 대비 성능 향상 (논문 보고치, %p)</text>
+
+  <text x="60" y="252" fill="#e2e8f0" font-size="13">GAIA2</text>
+  <rect x="230" y="238" width="405" height="20" rx="4" fill="#38bdf8"/>
+  <text x="645" y="253" fill="#38bdf8" font-size="13" font-weight="bold">+9.0</text>
+
+  <text x="60" y="292" fill="#e2e8f0" font-size="13">SWE-Bench Pro</text>
+  <rect x="230" y="278" width="432" height="20" rx="4" fill="#818cf8"/>
+  <text x="672" y="293" fill="#818cf8" font-size="13" font-weight="bold">+9.6</text>
+
+  <text x="60" y="332" fill="#e2e8f0" font-size="13">Terminal-Bench 2.0</text>
+  <rect x="230" y="318" width="450" height="20" rx="4" fill="#a78bfa"/>
+  <text x="690" y="333" fill="#a78bfa" font-size="13" font-weight="bold">+10.0</text>
+
+  <text x="60" y="380" fill="#94a3b8" font-size="12">성공 재료 3가지: ① 깊은 디버깅(얕은 반성 아님) ② 표적 수정(무제한 편집 아님)</text>
+  <text x="60" y="399" fill="#94a3b8" font-size="12">③ 일반화 인지 선택(트라젝토리 맞춤 수리 아님) — arXiv:2608.23041</text>
+</svg>

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="460" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">오늘의 AI 변화 지도 — 2026-08-27</text>
+
+  <!-- center node -->
+  <rect x="290" y="195" width="220" height="70" rx="12" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="400" y="223" text-anchor="middle" fill="#38bdf8" font-size="15" font-weight="bold">하네스·핸드오프를</text>
+  <text x="400" y="245" text-anchor="middle" fill="#38bdf8" font-size="15" font-weight="bold">코드처럼 다루기</text>
+
+  <!-- links -->
+  <line x1="215" y1="125" x2="330" y2="200" stroke="#475569" stroke-width="1.5"/>
+  <line x1="585" y1="125" x2="470" y2="200" stroke="#475569" stroke-width="1.5"/>
+  <line x1="215" y1="345" x2="330" y2="262" stroke="#475569" stroke-width="1.5"/>
+  <line x1="585" y1="345" x2="470" y2="262" stroke="#475569" stroke-width="1.5"/>
+
+  <!-- top-left: papers -->
+  <rect x="45" y="60" width="340" height="112" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="60" y="84" fill="#a78bfa" font-size="14" font-weight="bold">📚 논문</text>
+  <text x="60" y="107" fill="#e2e8f0" font-size="12.5">AutoSaddler — 실패 트레이스로 하네스 자동 패치</text>
+  <text x="60" y="126" fill="#94a3b8" font-size="12">GAIA2 +9.0pp · SWE-Bench Pro +9.6pp · T-Bench2 +10.0pp</text>
+  <text x="60" y="149" fill="#e2e8f0" font-size="12.5">Constraint Weakening — 핸드오프에서 MUST가 maybe로</text>
+  <text x="60" y="166" fill="#94a3b8" font-size="12">압축 핸드오프 → 차단 조건 100% 비활성화</text>
+
+  <!-- top-right: models -->
+  <rect x="415" y="60" width="340" height="112" rx="10" fill="#1e293b" stroke="#f472b6" stroke-width="1.5"/>
+  <text x="430" y="84" fill="#f472b6" font-size="14" font-weight="bold">🤖 모델 &amp; 릴리즈</text>
+  <text x="430" y="107" fill="#e2e8f0" font-size="12.5">OpenAI o3, ChatGPT에서 오늘 은퇴 (API는 12/11까지)</text>
+  <text x="430" y="126" fill="#94a3b8" font-size="12">90일 sunset 종료 · 대체: GPT-5.4 Thinking / o4</text>
+  <text x="430" y="149" fill="#e2e8f0" font-size="12.5">GPT-5.6 Sol API 20%+ 인하 (8/21)</text>
+  <text x="430" y="166" fill="#94a3b8" font-size="12">입력 $5→$4/M · 출력 $30→$20/M · 11/21까지</text>
+
+  <!-- bottom-left: open source -->
+  <rect x="45" y="290" width="340" height="112" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="60" y="314" fill="#34d399" font-size="14" font-weight="bold">🛠 오픈소스</text>
+  <text x="60" y="337" fill="#e2e8f0" font-size="12.5">TencentDB-Agent-Memory — 팀 단위 메모리 허브</text>
+  <text x="60" y="356" fill="#94a3b8" font-size="12">대화·문서·코드 → 재사용 메모리 자산 4종</text>
+  <text x="60" y="379" fill="#e2e8f0" font-size="12.5">oh-my-pi — LSP·DAP 내장 터미널 코딩 에이전트</text>
+  <text x="60" y="396" fill="#94a3b8" font-size="12">Rust 코어 ~80k 라인 · 60+ 프로바이더 · 31 도구</text>
+
+  <!-- bottom-right: tips -->
+  <rect x="415" y="290" width="340" height="112" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+  <text x="430" y="314" fill="#fbbf24" font-size="14" font-weight="bold">🧑‍💻 오늘의 실전 팁</text>
+  <text x="430" y="337" fill="#e2e8f0" font-size="12.5">🟦 규칙은 CLAUDE.md 대신 Hook으로 보증하기</text>
+  <text x="430" y="358" fill="#e2e8f0" font-size="12.5">🟩 AGENTS.md는 계층으로: 규칙·절차·자동화 분리</text>
+  <text x="430" y="379" fill="#e2e8f0" font-size="12.5">🟪 핸드오프 문서에 차단 조건 4필드 강제하기</text>
+  <text x="430" y="396" fill="#94a3b8" font-size="12">전제조건 · 권한 · 폴백 · 실행 결과</text>
+</svg>

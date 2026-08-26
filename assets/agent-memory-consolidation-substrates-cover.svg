@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트 기억은 쌓는 게 아니라 정리하는 것이라는 메시지를 담은 그림. 왼쪽에는 모든 대화를 그대로 쌓아 둔 건초더미 모양의 메모리가 있고 검색 실패와 비용 증가라고 적혀 있다. 오른쪽에는 추출, 융합, 퇴역을 거쳐 정리된 계층형 메모리 트리가 있고 토큰 약 71퍼센트 절감이라고 적혀 있다. 아래에는 통합이 없는 메모리는 건초더미가 된다는 문구가 있다.">
+  <defs>
+    <linearGradient id="amc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1c1a33"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#amc-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">기억은 쌓는 게 아니라 정리하는 것</text>
+  <text x="60" y="118" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">에이전트 메모리 통합(consolidation)과 substrate 선택의 엔지니어링</text>
+
+  <!-- 왼쪽: 다 쌓아 두면 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="280" y="185" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">다 쌓아 두면</text>
+    <rect x="130" y="210" width="300" height="230" rx="16" fill="#2b1622" stroke="#fb7185" stroke-width="2"/>
+    <!-- 건초더미: 어지럽게 쌓인 레코드 조각들 -->
+    <g stroke-width="4" stroke-linecap="round">
+      <line x1="180" y1="400" x2="235" y2="384" stroke="#f59e0b"/>
+      <line x1="220" y1="404" x2="286" y2="398" stroke="#fbbf24"/>
+      <line x1="270" y1="392" x2="336" y2="404" stroke="#f59e0b"/>
+      <line x1="320" y1="398" x2="382" y2="386" stroke="#fbbf24"/>
+      <line x1="196" y1="376" x2="262" y2="366" stroke="#fbbf24"/>
+      <line x1="252" y1="372" x2="312" y2="378" stroke="#f59e0b"/>
+      <line x1="300" y1="366" x2="364" y2="372" stroke="#fbbf24"/>
+      <line x1="216" y1="350" x2="276" y2="342" stroke="#f59e0b"/>
+      <line x1="268" y1="346" x2="330" y2="352" stroke="#fbbf24"/>
+      <line x1="240" y1="326" x2="300" y2="320" stroke="#f59e0b"/>
+      <line x1="286" y1="318" x2="338" y2="328" stroke="#fbbf24"/>
+      <line x1="258" y1="300" x2="316" y2="296" stroke="#f59e0b"/>
+      <line x1="272" y1="278" x2="322" y2="284" stroke="#fbbf24"/>
+    </g>
+    <text x="280" y="252" text-anchor="middle" font-size="16" fill="#94a3b8">중복 · 모순 · 잡동사니 레코드</text>
+    <text x="280" y="470" text-anchor="middle" font-size="24" font-weight="700" fill="#fb7185">기억의 건초더미</text>
+    <text x="280" y="500" text-anchor="middle" font-size="15" fill="#94a3b8">검색은 흐려지고 비용은 커진다</text>
+  </g>
+
+  <!-- 가운데 화살표 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="600" y="296" text-anchor="middle" font-size="23" font-weight="700" fill="#fbbf24">추출 → 융합</text>
+    <text x="600" y="328" text-anchor="middle" font-size="23" font-weight="700" fill="#fbbf24">→ 퇴역</text>
+    <path d="M520,352 L680,352" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"/>
+    <path d="M660,338 L684,352 L660,366" fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- 오른쪽: 정리하면 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="920" y="185" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">통합(consolidation)하면</text>
+    <rect x="770" y="210" width="300" height="230" rx="16" fill="#122820" stroke="#4ade80" stroke-width="2"/>
+    <!-- 계층형 메모리 트리 -->
+    <g stroke="#4ade80" stroke-width="3" fill="none">
+      <line x1="920" y1="268" x2="850" y2="330"/>
+      <line x1="920" y1="268" x2="920" y2="330"/>
+      <line x1="920" y1="268" x2="990" y2="330"/>
+      <line x1="850" y1="346" x2="826" y2="392"/>
+      <line x1="850" y1="346" x2="874" y2="392"/>
+      <line x1="990" y1="346" x2="966" y2="392"/>
+      <line x1="990" y1="346" x2="1014" y2="392"/>
+    </g>
+    <circle cx="920" cy="258" r="17" fill="#166534" stroke="#4ade80" stroke-width="3"/>
+    <circle cx="850" cy="338" r="13" fill="#166534" stroke="#4ade80" stroke-width="3"/>
+    <circle cx="920" cy="338" r="13" fill="#166534" stroke="#4ade80" stroke-width="3"/>
+    <circle cx="990" cy="338" r="13" fill="#166534" stroke="#4ade80" stroke-width="3"/>
+    <circle cx="826" cy="400" r="9" fill="#0f172a" stroke="#4ade80" stroke-width="3"/>
+    <circle cx="874" cy="400" r="9" fill="#0f172a" stroke="#4ade80" stroke-width="3"/>
+    <circle cx="966" cy="400" r="9" fill="#0f172a" stroke="#4ade80" stroke-width="3"/>
+    <circle cx="1014" cy="400" r="9" fill="#0f172a" stroke="#4ade80" stroke-width="3"/>
+    <text x="920" y="470" text-anchor="middle" font-size="24" font-weight="700" fill="#4ade80">토큰 약 71% 절감</text>
+    <text x="920" y="500" text-anchor="middle" font-size="15" fill="#94a3b8">LycheeMemory · 정확도는 오히려 상승</text>
+  </g>
+
+  <text x="600" y="580" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="22" fill="#cbd5e1">통합이 없는 메모리는 <tspan fill="#fb7185" font-weight="700">건초더미</tspan>가 된다 — 무엇을 남기고, 합치고, 버릴 것인가</text>
+</svg>

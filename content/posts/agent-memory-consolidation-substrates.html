@@ -1,0 +1,426 @@
+---
+title: "다 기억하는 에이전트가 오히려 멍청해진다: 메모리 통합과 substrate 선택의 엔지니어링"
+date: 2026-08-27T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "에이전트 메모리", "agent memory", "메모리 통합", "memory consolidation", "memory substrate", "LycheeMemory", "MemoryAgentBench", "RoMeRL", "장기 기억", "long-term memory", "컨텍스트 엔지니어링", "context engineering", "RAG", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트에 메모리를 붙였는데 오히려 더 헷갈려하고, 토큰 비용만 커진 경험이 있으신가요? 이번 달 Hugging Face 트렌딩을 달군 두 논문이 그 이유를 숫자로 보여 줍니다. 'Harness the Memory'는 7가지 메모리 substrate를 한 하네스에서 비교해 '모든 태스크를 이기는 저장 방식은 없다'는 결론을 냈고, LycheeMemory는 기억을 쌓는 대신 추출·융합·퇴역으로 '정리'해서 토큰을 약 71% 줄이면서 정확도를 올렸습니다. 기억의 건초더미 문제부터 통합(consolidation) 라이프사이클, substrate 선택 기준, 그리고 sqlite로 만드는 미니 통합 파이프라인 코드까지 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-memory-consolidation-substrates-cover.svg"
+  alt: "모든 대화를 그대로 쌓아 둔 건초더미 메모리와, 추출·융합·퇴역을 거쳐 정리된 계층형 메모리 트리를 대비시킨 그림"
+  caption: "통합(consolidation)이 없는 메모리는 건초더미가 됩니다. 기억 엔지니어링의 핵심은 '무엇을 저장하느냐'가 아니라 '무엇을 남기고, 합치고, 버리느냐'입니다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 메모리 통합 포스트 전용 스타일 (amc- 접두사) ── */
+.amc-fig{
+  --amc-violet:#7c3aed; --amc-sky:#0284c7; --amc-green:#16a34a; --amc-rose:#e11d48;
+  --amc-amber:#d97706; --amc-slate:#64748b; --amc-teal:#0d9488; --amc-blue:#2563eb;
+  --amc-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .amc-fig{
+  --amc-violet:#a78bfa; --amc-sky:#38bdf8; --amc-green:#4ade80; --amc-rose:#fb7185;
+  --amc-amber:#fbbf24; --amc-slate:#94a3b8; --amc-teal:#2dd4bf; --amc-blue:#60a5fa;
+  --amc-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .amc-fig{
+    --amc-violet:#a78bfa; --amc-sky:#38bdf8; --amc-green:#4ade80; --amc-rose:#fb7185;
+    --amc-amber:#fbbf24; --amc-slate:#94a3b8; --amc-teal:#2dd4bf; --amc-blue:#60a5fa;
+    --amc-gray:#64748b;
+  }
+}
+.amc-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.amc-fig text{font-family:inherit}
+.amc-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.amc-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.amc-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.amc-toc ol{margin:0;padding-left:1.25rem}
+.amc-toc li{margin:.22rem 0;font-size:.95rem}
+.amc-toc a{text-decoration:none}
+.amc-toc a:hover{text-decoration:underline}
+.amc-pull{font-size:1.12rem;line-height:1.72}
+.amc-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.amc-note{border-left:4px solid var(--amc-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.amc-note strong{color:var(--amc-blue,#2563eb)}
+.amc-warn{border-left:4px solid var(--amc-rose,#e11d48)}
+.amc-warn strong{color:var(--amc-rose,#e11d48)}
+.amc-good{border-left:4px solid var(--amc-teal,#0d9488)}
+.amc-good strong{color:var(--amc-teal,#0d9488)}
+.amc-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.amc-tbl th,.amc-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.amc-tbl th{background:var(--entry);font-weight:700}
+.amc-tbl code{font-size:.86em}
+.amc-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="amc-pull">
+"어떤 substrate도 모든 상황을 일관되게 이기지 못했습니다. 폭넓은 검색은 장문 컨텍스트 사실 QA에는 도움이 되지만, <strong>과도한 검색은 행동에 필요한 컨텍스트에서 주의를 빼앗아 순차적 의사결정을 오히려 해칩니다.</strong>"
+<footer>— arXiv:2608.15008, "Harness the Memory: A Holistic Evaluation of Memory Substrates in Memory Agents" 핵심 결론</footer>
+</blockquote>
+
+<div class="amc-toc">
+  <div class="amc-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 메모리를 붙였더니 에이전트가 더 헷갈려한다?</a></li>
+    <li><a href="#sec-2">배경 — 기억 파이프라인 복습: 병목은 '저장'이 아니라 '정리'</a></li>
+    <li><a href="#sec-3">substrate 지형도 — 기억을 '어디에, 어떤 모양으로' 둘 것인가</a></li>
+    <li><a href="#sec-4">통합(consolidation) — 기억의 라이프사이클을 설계한다</a></li>
+    <li><a href="#sec-5">숫자 읽기 — 71% 토큰 절감, 그리고 메모리-보상 함정</a></li>
+    <li><a href="#sec-6">실전 — sqlite로 만드는 미니 통합 파이프라인</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 메모리를 붙였더니 에이전트가 더 헷갈려한다?</h2>
+
+<p>에이전트에 장기 기억을 붙여 본 분이라면 한 번쯤 겪는 시나리오입니다. Mem0 같은 메모리 라이브러리를 연결하고, 대화가 끝날 때마다 기억을 차곡차곡 저장했습니다. 처음 며칠은 훌륭합니다. 사용자 이름도 기억하고, 지난주에 정한 규칙도 지킵니다. 그런데 한 달쯤 지나자 이상해집니다. 석 달 전에 바뀐 옛날 설정을 꺼내 오고, 비슷한 기억 다섯 개를 한꺼번에 검색해 와서는 컨텍스트만 부풀리고, 정작 지금 하던 작업의 핵심은 놓칩니다. 기억이 늘었는데 왜 더 멍청해질까요?</p>
+
+<p>8월의 AI 엔지니어링 커뮤니티가 정확히 이 질문을 붙들고 있습니다. 8월 중순 공개된 <a href="https://arxiv.org/abs/2608.15008" target="_blank" rel="noopener">Harness the Memory</a>(arXiv:2608.15008)는 7가지 메모리 substrate를 하나의 통제된 하네스에서 비교해 지난주까지 Hugging Face 데일리 페이퍼에서 화제가 됐고, 같은 시기 공개된 <a href="https://arxiv.org/abs/2608.12990" target="_blank" rel="noopener">LycheeMemory V2</a>(arXiv:2608.12990)는 기억을 '정리'하는 통합 파이프라인으로 토큰을 약 71% 줄이면서 정확도를 올려 트렌딩 상위권에 올랐습니다. 여기에 Mem0의 <a href="https://mem0.ai/blog/state-of-ai-agent-memory-2026" target="_blank" rel="noopener">State of AI Agent Memory 2026</a> 리포트까지 겹치면서, "메모리는 이제 저장 문제가 아니라 라이프사이클 문제"라는 논의가 주간 뉴스레터마다 이어졌습니다.</p>
+
+<p>결론부터 말하면 이렇습니다. <strong>기억은 쌓는 게 아니라 정리하는 것입니다.</strong> 무엇을 남기고(추출), 겹치는 것을 어떻게 합치고(융합), 낡은 것을 언제 버릴지(퇴역)를 설계하지 않으면, 메모리 저장소는 필요한 바늘 하나를 찾기 위해 전체를 뒤져야 하는 <strong>건초더미(haystack)</strong>가 됩니다. 이 글에서는 그 정리의 원리를 이번 달 화제가 된 연구들의 숫자와 함께 뜯어봅니다.</p>
+
+<div class="amc-note"><strong>이 글에서 얻어 갈 것.</strong> ① 메모리 substrate 7가지 분류와 "만능 저장 방식은 없다"는 벤치마크 결론, ② 통합(consolidation) 라이프사이클 — 추출·융합·승격·퇴역의 설계법, ③ LycheeMemory의 71% 토큰 절감이 어디서 나오는지, ④ 기억이 많을수록 학습이 망가지는 '메모리-보상 함정', ⑤ sqlite만으로 만들어 보는 미니 통합 파이프라인 코드.</div>
+
+<h2 id="sec-2">2. 배경 — 기억 파이프라인 복습: 병목은 '저장'이 아니라 '정리'</h2>
+
+<p>이 블로그에서 <a href="/posts/agent-memory-engineering/">에이전트 메모리 기초</a>를 다룬 적이 있습니다. 짧게 복습하면, LLM은 상태가 없어서(stateless) 컨텍스트 윈도우 밖의 일은 전부 잊습니다. 그래서 기억을 모델 바깥에 두고, 세 단계 파이프라인으로 관리합니다. 대화에서 기억할 가치가 있는 것을 뽑아 저장하는 <strong>쓰기(write)</strong>, 저장된 기억을 정리하는 <strong>통합(consolidation)</strong>, 필요할 때 골라 꺼내는 <strong>읽기(read)</strong>입니다.</p>
+
+<p>주니어 시절에는 대부분 쓰기와 읽기만 만들고 끝냅니다. "저장하고 검색하면 되지, 정리가 왜 필요해?"라고 생각하기 쉽습니다. 사람으로 비유하면 이렇습니다. 매일 겪은 일을 전부 일기장에 적기만 하고 한 번도 정리하지 않는 사람과, 주말마다 중요한 것만 노트에 옮기고 낡은 메모를 버리는 사람이 있습니다. 1년 뒤 "내가 작년에 정한 원칙이 뭐였지?"라는 질문에 누가 빨리 정확히 답할까요? 뇌과학에서도 자는 동안 해마의 단기 기억을 장기 기억으로 옮겨 정리하는 과정을 consolidation이라고 부릅니다. 에이전트도 똑같은 단계가 필요합니다.</p>
+
+<p>정리를 건너뛰면 세 가지 문제가 누적됩니다. 첫째, <strong>중복</strong> — "사용자는 Python을 선호한다"는 기억이 표현만 다르게 열 개 쌓입니다. 둘째, <strong>모순</strong> — "배포는 금요일에 한다"와 "배포는 금요일에 하지 않기로 했다"가 공존하고, 검색 순위에 따라 아무거나 걸립니다. 셋째, <strong>희석</strong> — 저장소가 커질수록 검색 결과에 잡동사니가 섞여 들어와, 정작 필요한 기억의 신호가 흐려집니다. Vektor Memory의 <a href="https://medium.com/@vektormemory/the-state-of-ai-agent-memory-in-2026-what-the-research-actually-shows-0b77063c2c2b" target="_blank" rel="noopener">2026년 연구 동향 정리</a>는 "기억이 통합되고, 승격되고, 강등되고, 퇴역하는 라이프사이클이야말로 현재 메모리 도구들이 가장 덜 다룬 차원이며, 이것이 없으면 저장소는 건초더미가 된다"고 지적합니다.</p>
+
+<h2 id="sec-3">3. substrate 지형도 — 기억을 '어디에, 어떤 모양으로' 둘 것인가</h2>
+
+<p>정리 이야기를 하기 전에, 먼저 기억을 담는 그릇부터 봅시다. 메모리 substrate는 기억을 저장하고 꺼내는 물리적 방식, 쉽게 말해 <strong>기억의 그릇</strong>입니다. 위에 어떤 메모리 프레임워크를 얹든, 바닥에서는 결국 이 그릇 중 하나(또는 조합)를 씁니다. Harness the Memory 논문은 이 그릇들을 7가지로 나눠 같은 조건에서 비교했습니다.</p>
+
+<figure class="amc-fig">
+<svg viewBox="0 0 900 430" role="img" aria-label="메모리 substrate 7가지를 두 축으로 배치한 지도. 가로축은 원문을 그대로 보존하는 방식에서 가공과 압축이 많은 방식으로, 세로축은 모델 바깥 저장에서 모델 내부 저장으로 이어진다. 바깥 저장에는 텍스트 레코드, 희소 인덱스, 밀집 인덱스, 구조적 저장소, 계층형 저장소, 정제 기반 메모리가 있고, 모델 내부에는 파라미터 업데이트와 활성값 호환 컨텍스트가 있다.">
+  <g font-size="14">
+    <!-- 축 -->
+    <line x1="70" y1="370" x2="860" y2="370" stroke="var(--amc-gray)" stroke-width="1.5"/>
+    <line x1="70" y1="370" x2="70" y2="40" stroke="var(--amc-gray)" stroke-width="1.5"/>
+    <text x="120" y="395" font-size="12.5" fill="var(--amc-gray)">원문 그대로 보존 ←</text>
+    <text x="640" y="395" font-size="12.5" fill="var(--amc-gray)">→ 가공·압축·학습 많음</text>
+    <text x="30" y="360" font-size="12.5" fill="var(--amc-gray)" transform="rotate(-90 30 360)">모델 바깥(비파라미터) ←&#160;&#160;&#160;&#160;→ 모델 내부</text>
+
+    <!-- 모델 바깥 그룹 -->
+    <rect x="95" y="200" width="150" height="64" rx="10" fill="none" stroke="var(--amc-sky)" stroke-width="2"/>
+    <text x="170" y="227" text-anchor="middle" font-weight="700" fill="var(--amc-sky)">텍스트 레코드</text>
+    <text x="170" y="248" text-anchor="middle" font-size="12" fill="var(--amc-gray)">사실을 문장으로 저장</text>
+
+    <rect x="95" y="285" width="150" height="64" rx="10" fill="none" stroke="var(--amc-sky)" stroke-width="2"/>
+    <text x="170" y="312" text-anchor="middle" font-weight="700" fill="var(--amc-sky)">희소 인덱스</text>
+    <text x="170" y="333" text-anchor="middle" font-size="12" fill="var(--amc-gray)">키워드 검색 (BM25 등)</text>
+
+    <rect x="270" y="285" width="150" height="64" rx="10" fill="none" stroke="var(--amc-sky)" stroke-width="2"/>
+    <text x="345" y="312" text-anchor="middle" font-weight="700" fill="var(--amc-sky)">밀집 인덱스</text>
+    <text x="345" y="333" text-anchor="middle" font-size="12" fill="var(--amc-gray)">임베딩 벡터 검색</text>
+
+    <rect x="270" y="200" width="150" height="64" rx="10" fill="none" stroke="var(--amc-teal)" stroke-width="2"/>
+    <text x="345" y="227" text-anchor="middle" font-weight="700" fill="var(--amc-teal)">구조적 저장소</text>
+    <text x="345" y="248" text-anchor="middle" font-size="12" fill="var(--amc-gray)">그래프·테이블·타입 스키마</text>
+
+    <rect x="445" y="200" width="150" height="64" rx="10" fill="none" stroke="var(--amc-teal)" stroke-width="2"/>
+    <text x="520" y="227" text-anchor="middle" font-weight="700" fill="var(--amc-teal)">계층형 저장소</text>
+    <text x="520" y="248" text-anchor="middle" font-size="12" fill="var(--amc-gray)">요약 트리·다단계 추상화</text>
+
+    <rect x="445" y="285" width="150" height="64" rx="10" fill="none" stroke="var(--amc-teal)" stroke-width="2"/>
+    <text x="520" y="312" text-anchor="middle" font-weight="700" fill="var(--amc-teal)">정제 기반 메모리</text>
+    <text x="520" y="333" text-anchor="middle" font-size="12" fill="var(--amc-gray)">기억을 계속 고쳐 쓰기</text>
+
+    <!-- 모델 내부 그룹 -->
+    <rect x="640" y="70" width="180" height="64" rx="10" fill="none" stroke="var(--amc-violet)" stroke-width="2"/>
+    <text x="730" y="97" text-anchor="middle" font-weight="700" fill="var(--amc-violet)">파라미터 업데이트</text>
+    <text x="730" y="118" text-anchor="middle" font-size="12" fill="var(--amc-gray)">가중치에 기억을 새김</text>
+
+    <rect x="640" y="155" width="180" height="64" rx="10" fill="none" stroke="var(--amc-violet)" stroke-width="2"/>
+    <text x="730" y="182" text-anchor="middle" font-weight="700" fill="var(--amc-violet)">활성값 호환 컨텍스트</text>
+    <text x="730" y="203" text-anchor="middle" font-size="12" fill="var(--amc-gray)">KV 캐시 등 내부 상태 재활용</text>
+
+    <!-- 그룹 라벨 -->
+    <text x="170" y="70" font-size="13" font-weight="700" fill="var(--amc-sky)">검색형 (원문·인덱스)</text>
+    <text x="345" y="180" font-size="13" font-weight="700" fill="var(--amc-teal)">가공형 (구조화·요약)</text>
+    <text x="730" y="55" text-anchor="middle" font-size="13" font-weight="700" fill="var(--amc-violet)">모델 내부형</text>
+  </g>
+</svg>
+<figcaption>그림 1. Harness the Memory(arXiv:2608.15008)가 비교한 메모리 substrate 7가지. 왼쪽 아래로 갈수록 원문을 그대로 두고 검색으로 해결하는 방식, 오른쪽 위로 갈수록 기억을 가공하거나 모델 내부에 새기는 방식입니다.</figcaption>
+</figure>
+
+<p>이 논문이 흥미로운 이유는 규모입니다. 백본 모델 3종, 사용자 중심 QA부터 에이전트 중심 의사결정까지 벤치마크 스위트 4종, 성능·효율 지표 26개를 <strong>하나의 통제된 하네스</strong>에서 돌렸습니다. 그동안 메모리 시스템들은 저마다 다른 벤치마크에서 자기가 최고라고 주장해 왔는데, 같은 링에 올려 본 겁니다. 결과는 세 문장으로 요약됩니다.</p>
+
+<ul>
+  <li><strong>모든 상황을 이기는 substrate는 없습니다.</strong> 태스크 종류, 히스토리 길이, 운영 조건에 따라 승자가 바뀝니다.</li>
+  <li><strong>폭넓은 검색은 양날의 검입니다.</strong> 장문 컨텍스트에서 사실을 찾는 QA에는 기억을 많이 꺼내 올수록 유리하지만, 순차적 의사결정 태스크에서는 과도한 검색이 행동에 필요한 핵심 컨텍스트에서 주의를 빼앗아 성능을 떨어뜨립니다.</li>
+  <li><strong>규모가 또 하나의 축입니다.</strong> 중간 길이 히스토리에서 잘 동작하던 substrate가 히스토리가 길어지면 비용이 폭증하거나 취약해집니다. 그래서 논문은 상황에 따라 그릇을 바꿔 끼우는 <strong>substrate 라우팅(routing)</strong>을 다음 과제로 제시합니다.</li>
+</ul>
+
+<figure class="amc-fig">
+<svg viewBox="0 0 900 330" role="img" aria-label="검색해 오는 기억의 양과 태스크 성능의 관계를 나타낸 개념 그래프. 사실 QA 곡선은 검색량이 늘수록 성능이 오르다가 완만해진다. 순차적 의사결정 곡선은 초반에 오르다가 검색량이 일정 수준을 넘으면 행동에 필요한 컨텍스트가 희석되어 성능이 떨어진다.">
+  <g font-size="14">
+    <line x1="80" y1="270" x2="840" y2="270" stroke="var(--amc-gray)" stroke-width="1.5"/>
+    <line x1="80" y1="270" x2="80" y2="40" stroke="var(--amc-gray)" stroke-width="1.5"/>
+    <text x="460" y="300" text-anchor="middle" font-size="13" fill="var(--amc-gray)">검색해 오는 기억의 양 →</text>
+    <text x="40" y="160" font-size="13" fill="var(--amc-gray)" transform="rotate(-90 40 160)">태스크 성능 →</text>
+
+    <!-- QA 곡선: 상승 후 완만 -->
+    <path d="M80,255 C240,140 420,90 820,75" fill="none" stroke="var(--amc-sky)" stroke-width="4" stroke-linecap="round"/>
+    <text x="700" y="60" font-size="14" font-weight="700" fill="var(--amc-sky)">사실 QA — 많이 꺼낼수록 유리</text>
+
+    <!-- 의사결정 곡선: 상승 후 하락 -->
+    <path d="M80,255 C220,130 330,110 430,130 C550,155 680,215 820,245" fill="none" stroke="var(--amc-rose)" stroke-width="4" stroke-linecap="round"/>
+    <text x="600" y="255" font-size="14" font-weight="700" fill="var(--amc-rose)">순차적 의사결정 — 과하면 오히려 하락</text>
+
+    <!-- 정점 표시 -->
+    <circle cx="370" cy="117" r="6" fill="var(--amc-amber)"/>
+    <line x1="370" y1="117" x2="370" y2="270" stroke="var(--amc-amber)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="370" y="105" text-anchor="middle" font-size="12.5" fill="var(--amc-amber)" font-weight="700">적정 검색량</text>
+    <text x="500" y="90" font-size="12.5" fill="var(--amc-gray)">이 지점을 넘으면 행동에 필요한</text>
+    <text x="500" y="108" font-size="12.5" fill="var(--amc-gray)">컨텍스트가 잡동사니에 희석됨</text>
+  </g>
+</svg>
+<figcaption>그림 2. 검색량과 성능의 관계 개념도(arXiv:2608.15008의 결론을 도식화). "기억을 많이 넣어 줄수록 좋다"는 직관은 사실 QA에서만 통합니다. 행동을 이어 가야 하는 에이전트 태스크에서는 과도한 검색이 독이 됩니다.</figcaption>
+</figure>
+
+<p>주니어 입장에서 실용적인 해석은 이렇습니다. 벡터 DB 하나 붙여 놓고 "메모리 완성"이라고 부르는 순간, 밀집 인덱스라는 그릇 하나에 모든 태스크를 밀어 넣은 셈입니다. 챗봇처럼 "지난번에 뭐라고 했더라?"를 찾는 서비스라면 그걸로 충분할 수 있습니다. 하지만 여러 단계 작업을 이어 가는 에이전트라면, 검색을 늘리는 것보다 <strong>꺼내 오는 양을 통제하고 저장소를 정리하는 쪽</strong>이 성능을 올립니다. 그 정리가 다음 섹션의 주제입니다.</p>
+
+<h2 id="sec-4">4. 통합(consolidation) — 기억의 라이프사이클을 설계한다</h2>
+
+<p>통합은 저장된 기억을 배경에서 정리하는 모든 작업을 묶어 부르는 말입니다. 구체적으로는 네 단계 라이프사이클로 나눌 수 있습니다. 이 라이프사이클을 실제 오픈소스로 구현해 이번에 화제가 된 것이 <a href="https://github.com/LycheeMem/LycheeMem" target="_blank" rel="noopener">LycheeMemory</a>(GitHub 1.2k 스타, Apache-2.0)입니다. 구조를 보면서 단계를 따라가 봅시다.</p>
+
+<figure class="amc-fig">
+<svg viewBox="0 0 900 480" role="img" aria-label="LycheeMemory 스타일 통합 파이프라인. 대화 턴이 워킹 메모리에 쌓이고, 토큰 예산의 70퍼센트에서 배경 압축이 시작되며 90퍼센트에서 오래된 턴을 요약으로 밀어낸다. 배경의 통합 에이전트가 추출, 탈맥락화, 융합, 승격을 수행해 타입이 붙은 레코드 저장소에 기록한다. 저장소의 기억은 후보에서 활성으로 승격되고 쓰이지 않으면 퇴역한다. 읽기 경로는 예산 안에서만 기억을 골라 컨텍스트에 넣는다.">
+  <g font-size="14">
+    <!-- 워킹 메모리 -->
+    <rect x="30" y="40" width="250" height="150" rx="12" fill="none" stroke="var(--amc-sky)" stroke-width="2.5"/>
+    <text x="155" y="68" text-anchor="middle" font-weight="700" fill="var(--amc-sky)">워킹 메모리 (세션 안)</text>
+    <text x="155" y="94" text-anchor="middle" font-size="12.5" fill="var(--amc-gray)">최근 대화 턴 + 요약 앵커</text>
+    <!-- 게이지 -->
+    <rect x="55" y="110" width="200" height="20" rx="6" fill="none" stroke="var(--amc-gray)" stroke-width="1.5"/>
+    <rect x="55" y="110" width="150" height="20" rx="6" fill="var(--amc-amber)" opacity="0.55"/>
+    <line x1="195" y1="103" x2="195" y2="137" stroke="var(--amc-amber)" stroke-width="2.5"/>
+    <line x1="235" y1="103" x2="235" y2="137" stroke="var(--amc-rose)" stroke-width="2.5"/>
+    <text x="195" y="155" text-anchor="middle" font-size="12" fill="var(--amc-amber)">70% 배경 압축 시작</text>
+    <text x="235" y="175" text-anchor="middle" font-size="12" fill="var(--amc-rose)">90% 오래된 턴 방출</text>
+
+    <!-- 통합 에이전트 -->
+    <rect x="340" y="40" width="230" height="150" rx="12" fill="none" stroke="var(--amc-violet)" stroke-width="2.5"/>
+    <text x="455" y="68" text-anchor="middle" font-weight="700" fill="var(--amc-violet)">통합 에이전트 (배경 실행)</text>
+    <text x="455" y="96" text-anchor="middle" font-size="13" fill="var(--amc-gray)">① 추출 — 기억할 가치 선별</text>
+    <text x="455" y="120" text-anchor="middle" font-size="13" fill="var(--amc-gray)">② 탈맥락화 — 혼자 읽혀도 이해되게</text>
+    <text x="455" y="144" text-anchor="middle" font-size="13" fill="var(--amc-gray)">③ 융합 — 중복·모순 정리</text>
+    <text x="455" y="168" text-anchor="middle" font-size="13" fill="var(--amc-gray)">④ 승격 — 절차는 스킬로 추출</text>
+
+    <!-- 저장소 -->
+    <rect x="630" y="40" width="240" height="150" rx="12" fill="none" stroke="var(--amc-teal)" stroke-width="2.5"/>
+    <text x="750" y="68" text-anchor="middle" font-weight="700" fill="var(--amc-teal)">타입 있는 레코드 저장소</text>
+    <text x="750" y="94" text-anchor="middle" font-size="12.5" fill="var(--amc-gray)">fact · preference · event · constraint</text>
+    <text x="750" y="114" text-anchor="middle" font-size="12.5" fill="var(--amc-gray)">procedure · failure_pattern · tool_affordance</text>
+    <text x="750" y="146" text-anchor="middle" font-size="12.5" fill="var(--amc-gray)">SQLite(FTS5) + 벡터 인덱스</text>
+    <text x="750" y="166" text-anchor="middle" font-size="12.5" fill="var(--amc-gray)">계층형 메모리 트리로 조직</text>
+
+    <!-- 화살표 -->
+    <path d="M280,115 L335,115" stroke="var(--amc-gray)" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M325,107 L339,115 L325,123" fill="none" stroke="var(--amc-gray)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M570,115 L625,115" stroke="var(--amc-gray)" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M615,107 L629,115 L615,123" fill="none" stroke="var(--amc-gray)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- 라이프사이클 -->
+    <text x="450" y="245" text-anchor="middle" font-size="15" font-weight="700" fill="var(--amc-amber)">기억 하나의 라이프사이클</text>
+    <rect x="120" y="270" width="150" height="56" rx="10" fill="none" stroke="var(--amc-gray)" stroke-width="2"/>
+    <text x="195" y="295" text-anchor="middle" font-weight="700" fill="var(--amc-slate)">후보</text>
+    <text x="195" y="316" text-anchor="middle" font-size="12" fill="var(--amc-gray)">방금 추출됨 · 수습 기간</text>
+
+    <rect x="375" y="270" width="150" height="56" rx="10" fill="none" stroke="var(--amc-green)" stroke-width="2.5"/>
+    <text x="450" y="295" text-anchor="middle" font-weight="700" fill="var(--amc-green)">활성</text>
+    <text x="450" y="316" text-anchor="middle" font-size="12" fill="var(--amc-gray)">재확인·재사용으로 승격</text>
+
+    <rect x="630" y="270" width="150" height="56" rx="10" fill="none" stroke="var(--amc-rose)" stroke-width="2"/>
+    <text x="705" y="295" text-anchor="middle" font-weight="700" fill="var(--amc-rose)">퇴역</text>
+    <text x="705" y="316" text-anchor="middle" font-size="12" fill="var(--amc-gray)">오래 안 쓰이면 강등·삭제</text>
+
+    <path d="M270,298 L370,298" stroke="var(--amc-green)" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M360,290 L374,298 L360,306" fill="none" stroke="var(--amc-green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="320" y="288" text-anchor="middle" font-size="12" fill="var(--amc-green)">쓰일수록 ↑</text>
+    <path d="M525,298 L625,298" stroke="var(--amc-rose)" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M615,290 L629,298 L615,306" fill="none" stroke="var(--amc-rose)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="575" y="288" text-anchor="middle" font-size="12" fill="var(--amc-rose)">안 쓰이면 ↓</text>
+
+    <!-- 읽기 경로 -->
+    <rect x="200" y="380" width="500" height="60" rx="12" fill="none" stroke="var(--amc-blue)" stroke-width="2.5"/>
+    <text x="450" y="405" text-anchor="middle" font-weight="700" fill="var(--amc-blue)">읽기 경로 — 예산 안에서만 꺼낸다</text>
+    <text x="450" y="427" text-anchor="middle" font-size="12.5" fill="var(--amc-gray)">토큰 예산 상한 + 관련도·신선도·사용 빈도로 선별 → 컨텍스트 주입</text>
+  </g>
+</svg>
+<figcaption>그림 3. LycheeMemory 스타일의 통합 파이프라인. 핵심은 배경에서 도는 통합 에이전트(추출→탈맥락화→융합→승격)와, 기억 하나하나가 후보→활성→퇴역을 거치는 라이프사이클입니다.</figcaption>
+</figure>
+
+<p>각 단계를 뜯어보면 이렇습니다.</p>
+
+<p><strong>① 추출(extraction).</strong> 대화 원문을 통째로 저장하지 않고, 기억할 가치가 있는 조각만 뽑아 <strong>타입을 붙여</strong> 저장합니다. LycheeMemory는 레코드를 fact(사실), preference(선호), event(사건), constraint(제약), procedure(절차), failure_pattern(실패 패턴), tool_affordance(툴 사용법) 7가지 타입으로 나눕니다. 타입이 있으면 나중에 "제약 조건만 전부", "이 툴 관련 실패 패턴만" 같은 선별 검색이 가능해집니다.</p>
+
+<p><strong>② 탈맥락화(decontextualization).</strong> "그거 어제 말한 대로 바꿔 줘"에서 추출한 기억이 "그거"와 "어제"를 그대로 담고 있으면, 석 달 뒤에 꺼냈을 때 아무 의미가 없습니다. 대명사와 상대적 시간 표현을 풀어서, 기억 혼자 읽혀도 이해되는 문장으로 고쳐 씁니다. "사용자는 2026-08-26에 배포 스크립트의 타임아웃을 30초에서 120초로 늘리기로 결정했다"처럼요.</p>
+
+<p><strong>③ 융합(fusion).</strong> 새 기억을 넣기 전에 비슷한 기존 기억을 찾아, 중복이면 합치고 모순이면 최신 정보로 갱신합니다. 갱신하되 이전 값을 이력으로 남기면, "원래는 30초였는데 언제 바뀌었지?" 같은 질문에도 답할 수 있습니다. 이 충돌 처리는 벤치마크에서도 별도 역량으로 잴 만큼 중요합니다. ICLR 2026의 <a href="https://arxiv.org/abs/2507.05257" target="_blank" rel="noopener">MemoryAgentBench</a>는 메모리 시스템의 역량을 정확한 검색(accurate retrieval), 테스트 시점 학습(test-time learning), 장거리 이해(long-range understanding), <strong>충돌 해소(conflict resolution)</strong> 4가지로 나눠 평가하는데, 나중에 들어온 정보가 이전 정보를 이기는지를 반사실(counterfactual) 편집으로 직접 테스트합니다.</p>
+
+<p><strong>④ 승격과 퇴역(promotion &amp; retirement).</strong> 반복해서 확인되는 기억은 신뢰 점수를 올려 검색에서 우대하고, 반복 등장하는 절차는 아예 스킬 문서로 승격합니다. 반대로 오래 안 쓰이는 기억은 점수를 낮추다가 결국 내립니다. LycheeMemory는 시각 기억에 에빙하우스 망각 곡선을 본뜬 7~30일 반감기를 적용합니다. 사람이 안 쓰는 기억을 잊는 것처럼, 에이전트도 <strong>잊는 능력</strong>이 있어야 저장소가 건초더미가 되지 않습니다.</p>
+
+<div class="amc-note"><strong>어디서 많이 본 구조 아닌가요?</strong> 맞습니다. 컨텍스트 엔지니어링의 압축(compaction)과 원리가 같습니다. 컨텍스트 압축이 세션 '안'에서 창이 넘치지 않게 정리하는 일이라면, 메모리 통합은 세션 '밖' 저장소를 정리하는 일입니다. LycheeMemory의 워킹 메모리가 예산 70%에서 배경 압축을 시작하고 90%에서 오래된 턴을 요약으로 방출하는 이중 임계값 설계는, 두 세계가 같은 문제의식으로 수렴하고 있다는 좋은 증거입니다.</div>
+
+<h2 id="sec-5">5. 숫자 읽기 — 71% 토큰 절감, 그리고 메모리-보상 함정</h2>
+
+<p>정리에 이만큼 공을 들이면 뭐가 좋아질까요? 이번 달 논의에서 자주 인용된 숫자 세 묶음을 보겠습니다.</p>
+
+<div class="amc-tblwrap">
+<table class="amc-tbl">
+  <thead>
+    <tr><th>출처</th><th>무엇을 했나</th><th>결과</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>LycheeMemory<br>(GitHub 저장소 보고)</td>
+      <td>통합 파이프라인(타입 추출·융합·계층 조직)을 코딩 에이전트 플러그인으로 연결, 자체 벤치마크에서 기본 메모리와 비교</td>
+      <td>점수 <strong>약 +6%</strong>, 토큰 소비 <strong>약 −71%</strong>, 비용 <strong>약 −55%</strong></td>
+    </tr>
+    <tr>
+      <td>Harness the Memory<br>(arXiv:2608.15008)</td>
+      <td>substrate 7종 × 백본 3종 × 벤치마크 스위트 4종, 26개 지표로 통제 비교</td>
+      <td>만능 substrate 없음 · 과도한 검색은 순차 의사결정 성능을 하락시킴 · 긴 히스토리에서 비용·안정성 역전 발생</td>
+    </tr>
+    <tr>
+      <td>RoMeRL<br>(arXiv:2608.02508)</td>
+      <td>스스로 기억을 쌓는 에이전트의 메모리를 고정된 의미 좌표로 묶어, 무한히 자라는 대신 갱신·교체하게 제한</td>
+      <td>ALFWorld·LifelongAgentBench에서 성능 향상, 유지 메모리 크기 <strong>−84.4%</strong>, LLM 호출 <strong>−21.1%</strong>, 피드백 밀도 <strong>약 6배</strong></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>첫 줄부터 봅시다. 토큰 71% 절감이 어떻게 정확도 상승과 <em>동시에</em> 나올 수 있을까요? 비결은 마법이 아니라 그림 2에서 본 원리입니다. 정리된 저장소에서 예산 안에서만 골라 꺼내면, 컨텍스트에 들어가는 기억의 양은 줄고 밀도는 올라갑니다. 모델 입장에서는 읽을 것이 줄어드니 비용이 내려가고, 잡동사니가 빠지니 답은 좋아집니다. <a href="/posts/less-context-better-agents/">적은 컨텍스트가 더 나은 에이전트를 만든다</a>에서 다룬 원리가 메모리에서도 그대로 통하는 셈입니다.</p>
+
+<p>셋째 줄 RoMeRL은 다른 각도에서 같은 교훈을 줍니다. 이 논문이 <strong>메모리-보상 함정(memory-reward trap)</strong>이라 부르는 현상은, 경험에서 배우며 스스로 기억을 늘려 가는 에이전트에서 생깁니다. 기억 항목이 무한정 늘어나면 각 항목이 실제로 쓰이고 피드백을 받는 빈도가 점점 희박해져서, 검증도 정리도 안 된 기억이 산처럼 쌓입니다. RoMeRL의 처방은 통합의 극단형입니다. 기억 슬롯을 고정된 의미 좌표 집합으로 묶고, 새 경험은 새 슬롯을 만드는 대신 기존 슬롯의 내용을 갱신·교체합니다. 그 결과 유지하는 메모리가 84.4% 줄었는데 성능은 올랐습니다. <strong>기억의 가치는 개수가 아니라, 각 기억이 얼마나 자주 검증되고 쓰이느냐에서 나온다</strong>는 뜻입니다.</p>
+
+<div class="amc-warn amc-note"><strong>주의해서 읽을 부분.</strong> LycheeMemory의 71%·55% 숫자는 저장소가 자체 벤치마크 환경에서 보고한 값입니다. 방향은 다른 연구들과 일치하지만, 정확한 크기는 여러분의 워크로드에서 다시 재야 합니다. 그리고 Harness the Memory의 결론이 말해 주듯, 어떤 메모리 구성이든 "우리 태스크 믹스에서" 측정하기 전까지는 남의 벤치마크 순위표를 그대로 믿지 않는 게 안전합니다.</div>
+
+<h2 id="sec-6">6. 실전 — sqlite로 만드는 미니 통합 파이프라인</h2>
+
+<p>원리를 확인했으니 최소 구현을 만들어 봅시다. 외부 라이브러리 없이 Python 표준 라이브러리의 <code>sqlite3</code>만으로, ① 타입 있는 레코드 저장, ② 융합(중복 병합·모순 갱신), ③ 사용 기반 승격·퇴역, ④ 예산 안 읽기까지 넣습니다. 실제 서비스에서는 임베딩 검색을 더하겠지만, 라이프사이클의 뼈대는 이 코드 그대로입니다.</p>
+
+{{< highlight python >}}
+import sqlite3, time, json
+
+DB = sqlite3.connect("memory.db")
+DB.executescript("""
+CREATE TABLE IF NOT EXISTS mem(
+  id INTEGER PRIMARY KEY,
+  type TEXT NOT NULL,          -- fact/preference/constraint/procedure/...
+  text TEXT NOT NULL,          -- 탈맥락화된 문장
+  status TEXT DEFAULT 'candidate',  -- candidate/active/retired
+  confirms INTEGER DEFAULT 1,  -- 재확인 횟수 (승격 근거)
+  uses INTEGER DEFAULT 0,      -- 검색돼 쓰인 횟수
+  updated REAL,                -- 마지막 갱신 시각
+  history TEXT DEFAULT '[]'    -- 갱신 전 이전 값들
+);
+-- 데모용 standalone FTS 테이블 (content= 외부 참조 방식은 직접 UPDATE 불가)
+CREATE VIRTUAL TABLE IF NOT EXISTS mem_fts USING fts5(text);
+""")
+
+def write(mtype: str, text: str):
+    """쓰기 경로: 저장 전에 반드시 융합을 시도한다."""
+    now = time.time()
+    # 1) 비슷한 기존 기억 검색 (실전에서는 임베딩 유사도 병용)
+    dup = DB.execute(
+        "SELECT rowid, * FROM mem WHERE id IN "
+        "(SELECT rowid FROM mem_fts WHERE mem_fts MATCH ?) AND type=? "
+        "AND status != 'retired' LIMIT 1",
+        (' OR '.join(text.split()[:5]), mtype)).fetchone()
+    if dup is None:                      # 신규 → 후보로 입장
+        cur = DB.execute(
+            "INSERT INTO mem(type,text,updated) VALUES(?,?,?)",
+            (mtype, text, now))
+        DB.execute("INSERT INTO mem_fts(rowid,text) VALUES(?,?)",
+                   (cur.lastrowid, text))
+    else:                                # 융합: 갱신 + 이전 값은 이력으로
+        mid, _, old_text = dup[0], dup[1], dup[3]
+        hist = json.loads(dup[8]) + [old_text]
+        DB.execute(
+            "UPDATE mem SET text=?, confirms=confirms+1, updated=?, "
+            "history=?, status=CASE WHEN confirms+1>=3 "
+            "THEN 'active' ELSE status END WHERE id=?",
+            (text, now, json.dumps(hist, ensure_ascii=False), mid))
+        DB.execute("UPDATE mem_fts SET text=? WHERE rowid=?", (text, mid))
+    DB.commit()
+{{< /highlight >}}
+
+<p>포인트는 <code>write()</code>가 저장 전에 <strong>반드시 융합을 시도</strong>한다는 것, 그리고 세 번 이상 재확인된 기억만 <code>active</code>로 승격한다는 것입니다. 이제 읽기와 퇴역입니다.</p>
+
+{{< highlight python >}}
+def read(query: str, token_budget: int = 800) -> list[str]:
+    """읽기 경로: 관련도 순으로 훑되, 예산이 차면 즉시 멈춘다."""
+    rows = DB.execute(
+        "SELECT m.id, m.text FROM mem m "
+        "JOIN mem_fts ON mem_fts.rowid=m.id "
+        "WHERE mem_fts MATCH ? AND m.status='active' "
+        "ORDER BY bm25(mem_fts), m.uses DESC LIMIT 20",
+        (' OR '.join(query.split()),)).fetchall()
+    picked, spent = [], 0
+    for mid, text in rows:
+        cost = len(text) // 3            # 대략적 토큰 추정
+        if spent + cost > token_budget:  # 예산 초과 → 더 안 꺼낸다
+            break
+        picked.append(text); spent += cost
+        DB.execute("UPDATE mem SET uses=uses+1 WHERE id=?", (mid,))
+    DB.commit()
+    return picked
+
+def retire(days: int = 30):
+    """배경 통합 작업: 오래 안 쓰인 후보·저사용 기억을 퇴역시킨다."""
+    cutoff = time.time() - days * 86400
+    DB.execute(
+        "UPDATE mem SET status='retired' "
+        "WHERE updated < ? AND uses < 2 AND status != 'retired'",
+        (cutoff,))
+    DB.commit()
+{{< /highlight >}}
+
+<p><code>read()</code>의 <code>token_budget</code>이 그림 2의 '적정 검색량'을 코드로 옮긴 것입니다. 관련도가 높아도 예산이 차면 더 꺼내지 않습니다. <code>retire()</code>는 cron이나 세션 종료 훅에서 주기적으로 돌리면 됩니다. 여기에 LLM을 이용한 추출·탈맥락화 단계(대화 턴을 넣고 타입 있는 JSON 레코드를 받는 프롬프트)를 앞단에 붙이면, 그림 3의 파이프라인이 완성됩니다. 완성형이 궁금하다면 LycheeMemory를 <code>pip install "lycheemem[rerank]"</code>로 설치해 구조를 뜯어보는 것도 좋은 공부입니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>대화 원문을 통째로 저장한다.</strong> 가장 흔한 첫 실수입니다. 원문은 검색 노이즈 덩어리입니다. 추출·탈맥락화를 거친 레코드만 장기 저장소에 넣고, 원문이 정말 필요하면 별도 아카이브에 두고 링크만 남기세요.</li>
+  <li><strong>지우는 기능을 안 만든다.</strong> 쓰기·읽기만 있고 퇴역이 없는 메모리는 시간문제일 뿐 반드시 건초더미가 됩니다. 첫날부터 <code>retire()</code>에 해당하는 경로를 만들고, 지표(저장소 크기, 검색 정밀도)를 함께 보세요.</li>
+  <li><strong>모순 처리 정책 없이 융합한다.</strong> "최신이 이긴다"는 기본값일 뿐 만능이 아닙니다. constraint 타입처럼 안전에 관련된 기억은 자동 갱신 대신 사람 확인을 거치게 하고, 이전 값을 이력으로 보존하세요. 반사실 편집 테스트(MemoryAgentBench 방식)를 자체 평가에 한두 개 넣어 두면 회귀를 빨리 잡습니다.</li>
+  <li><strong>검색량을 늘려서 품질 문제를 풀려고 한다.</strong> top-k를 5에서 20으로 올리면 QA는 좋아질 수 있지만 에이전트 태스크는 나빠질 수 있습니다. 검색량을 늘리기 전에 저장소 정리가 먼저입니다. top-k 대신 토큰 예산으로 상한을 거는 것도 좋은 습관입니다.</li>
+  <li><strong>메모리 평가를 "잘 기억하나?"로만 한다.</strong> 4역량(정확한 검색·테스트 시점 학습·장거리 이해·충돌 해소)을 나눠 재야 어디가 병목인지 보입니다. 특히 충돌 해소는 통합 로직의 버그가 그대로 드러나는 지점입니다.</li>
+  <li><strong>남의 벤치마크 순위표로 substrate를 고른다.</strong> 만능 substrate는 없다는 게 이번 달의 결론입니다. 여러분의 태스크 믹스(QA 비중, 의사결정 비중, 히스토리 길이)로 두세 가지 구성을 직접 비교한 뒤 고르세요.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>에이전트 메모리의 병목은 저장이 아니라 <strong>정리(consolidation)</strong>입니다. 통합 없는 저장소는 중복·모순·희석이 쌓여 건초더미가 됩니다.</li>
+  <li><a href="https://arxiv.org/abs/2608.15008" target="_blank" rel="noopener">Harness the Memory</a>는 substrate 7종을 통제 비교해 <strong>만능 그릇은 없다</strong>는 결론을 냈습니다. 특히 과도한 검색은 순차적 의사결정 성능을 오히려 떨어뜨립니다.</li>
+  <li>통합은 <strong>추출 → 탈맥락화 → 융합 → 승격/퇴역</strong>의 라이프사이클입니다. LycheeMemory는 이 파이프라인으로 토큰 약 71%, 비용 약 55%를 줄이며 정확도를 올렸다고 보고합니다.</li>
+  <li>RoMeRL의 <strong>메모리-보상 함정</strong>은 기억이 무한정 자라면 각 기억이 받는 피드백이 희석돼 학습이 망가진다는 것을 보여 줍니다. 유지 메모리를 84.4% 줄이고도 성능이 올랐습니다.</li>
+  <li>실전 원칙 세 가지: 타입 붙여 추출하고, 저장 전에 융합하고, 읽을 때는 토큰 예산으로 상한을 거세요. sqlite 하나로도 뼈대는 만들 수 있습니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2608.15008" target="_blank" rel="noopener">Harness the Memory: A Holistic Evaluation of Memory Substrates in Memory Agents (arXiv:2608.15008)</a> — substrate 7종 통제 비교 · <a href="https://huggingface.co/papers/2608.15008" target="_blank" rel="noopener">Hugging Face 페이퍼 페이지</a></li>
+  <li><a href="https://arxiv.org/abs/2608.12990" target="_blank" rel="noopener">LycheeMemory V2: Efficient Long-Term Memory for LLM Agents via Semantic Segment-Level Consolidation (arXiv:2608.12990)</a></li>
+  <li><a href="https://github.com/LycheeMem/LycheeMem" target="_blank" rel="noopener">LycheeMemory 공식 저장소 (GitHub)</a> — 타입 레코드 · 통합 파이프라인 · 벤치마크 수치 출처</li>
+  <li><a href="https://arxiv.org/abs/2507.05257" target="_blank" rel="noopener">Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions — MemoryAgentBench (arXiv:2507.05257, ICLR 2026)</a> · <a href="https://github.com/HUST-AI-HYZ/MemoryAgentBench" target="_blank" rel="noopener">공식 저장소</a></li>
+  <li><a href="https://arxiv.org/abs/2608.02508" target="_blank" rel="noopener">RoMeRL: Balancing Feedback Coverage and the Memory-Reward Trap in Self-Evolving Agent Memory (arXiv:2608.02508)</a></li>
+  <li><a href="https://mem0.ai/blog/state-of-ai-agent-memory-2026" target="_blank" rel="noopener">State of AI Agent Memory 2026 — Mem0</a> — 메모리 벤치마크·트렌드 리포트</li>
+  <li><a href="https://medium.com/@vektormemory/the-state-of-ai-agent-memory-in-2026-what-the-research-actually-shows-0b77063c2c2b" target="_blank" rel="noopener">The State of AI Agent Memory in 2026: What the Research Actually Shows — Vektor Memory</a> — 라이프사이클이 가장 덜 다뤄진 차원이라는 지적</li>
+  <li><a href="/posts/agent-memory-engineering/">에이전트에게 '기억'을 붙이는 법 — 본 블로그의 메모리 기초 편</a> (한국어)</li>
+  <li><a href="/posts/less-context-better-agents/">적은 컨텍스트가 더 나은 에이전트를 만든다 — 본 블로그</a> (한국어)</li>
+</ul>

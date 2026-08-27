@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="bold">EVOMAL — 자기진화 에이전트의 스킬 자기중독 루프</text>
+
+  <!-- loop boxes -->
+  <rect x="40" y="70" width="220" height="86" rx="10" fill="#1e293b" stroke="#f87171" stroke-width="1.5"/>
+  <text x="150" y="96" text-anchor="middle" fill="#f87171" font-size="13.5" font-weight="bold">① 악성 스킬 주입</text>
+  <text x="150" y="119" text-anchor="middle" fill="#e2e8f0" font-size="12">공유 스킬 라이브러리에</text>
+  <text x="150" y="137" text-anchor="middle" fill="#94a3b8" font-size="11.5">페이로드를 숨긴 스킬 심기</text>
+
+  <rect x="290" y="70" width="220" height="86" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+  <text x="400" y="96" text-anchor="middle" fill="#fbbf24" font-size="13.5" font-weight="bold">② 검색 → 템플릿화</text>
+  <text x="400" y="119" text-anchor="middle" fill="#e2e8f0" font-size="12">에이전트가 스킬을 검색해</text>
+  <text x="400" y="137" text-anchor="middle" fill="#94a3b8" font-size="11.5">새 스킬 작성의 템플릿으로 사용</text>
+
+  <rect x="540" y="70" width="220" height="86" rx="10" fill="#1e293b" stroke="#f87171" stroke-width="1.5"/>
+  <text x="650" y="96" text-anchor="middle" fill="#f87171" font-size="13.5" font-weight="bold">③ 페이로드 증식</text>
+  <text x="650" y="119" text-anchor="middle" fill="#e2e8f0" font-size="12">새 스킬이 페이로드를 보존</text>
+  <text x="650" y="137" text-anchor="middle" fill="#94a3b8" font-size="11.5">심은 것의 4.9~9.0배로 증가</text>
+
+  <!-- arrows -->
+  <line x1="260" y1="113" x2="283" y2="113" stroke="#64748b" stroke-width="2"/>
+  <polygon points="283,108 292,113 283,118" fill="#64748b"/>
+  <line x1="510" y1="113" x2="533" y2="113" stroke="#64748b" stroke-width="2"/>
+  <polygon points="533,108 542,113 533,118" fill="#64748b"/>
+  <path d="M 650 156 L 650 184 L 150 184 L 150 156" fill="none" stroke="#f87171" stroke-width="1.5" stroke-dasharray="5,4"/>
+  <text x="400" y="200" text-anchor="middle" fill="#f87171" font-size="11.5">라이브러리가 스스로를 계속 오염시키는 루프</text>
+
+  <!-- numbers -->
+  <text x="60" y="244" fill="#f8fafc" font-size="14" font-weight="bold">에이전트 자기중독률 (모델별 범위, 논문 초록 기준)</text>
+
+  <text x="60" y="276" fill="#e2e8f0" font-size="12.5">방어 없음</text>
+  <rect x="200" y="262" width="500" height="20" rx="4" fill="#1e293b"/>
+  <rect x="200" y="262" width="209" height="20" rx="4" fill="#f87171" opacity="0.55"/>
+  <rect x="200" y="262" width="102" height="20" rx="4" fill="#f87171"/>
+  <text x="415" y="277" fill="#f87171" font-size="12.5" font-weight="bold">20.3% ~ 41.8%</text>
+
+  <text x="60" y="310" fill="#e2e8f0" font-size="12.5">counter-prompt 방어</text>
+  <rect x="200" y="296" width="500" height="20" rx="4" fill="#1e293b"/>
+  <rect x="200" y="296" width="34" height="20" rx="4" fill="#34d399"/>
+  <text x="242" y="311" fill="#34d399" font-size="12.5" font-weight="bold">6.7%</text>
+
+  <text x="60" y="348" fill="#94a3b8" font-size="12">교훈: 스킬을 "학습된 자산"으로 자동 저장하는 에이전트라면,</text>
+  <text x="60" y="366" fill="#94a3b8" font-size="12">저장 직전 검증 게이트(정적 검사 + 출처 확인)가 없는 라이브러리는 감염 경로다.</text>
+
+  <text x="400" y="390" text-anchor="middle" fill="#64748b" font-size="11">arXiv 2608.25776 (cs.CR) · Queen's University 중심 · 자체 제작</text>
+</svg>

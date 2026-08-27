@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="460" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">오늘의 AI 변화 지도 — 2026-08-28</text>
+
+  <!-- center node -->
+  <rect x="280" y="195" width="240" height="70" rx="12" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="400" y="223" text-anchor="middle" fill="#38bdf8" font-size="15" font-weight="bold">컨텍스트·스킬도</text>
+  <text x="400" y="245" text-anchor="middle" fill="#38bdf8" font-size="15" font-weight="bold">관리 대상 자산이다</text>
+
+  <!-- links -->
+  <line x1="215" y1="125" x2="330" y2="200" stroke="#475569" stroke-width="1.5"/>
+  <line x1="585" y1="125" x2="470" y2="200" stroke="#475569" stroke-width="1.5"/>
+  <line x1="215" y1="345" x2="330" y2="262" stroke="#475569" stroke-width="1.5"/>
+  <line x1="585" y1="345" x2="470" y2="262" stroke="#475569" stroke-width="1.5"/>
+
+  <!-- top-left: papers -->
+  <rect x="45" y="60" width="340" height="112" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="60" y="84" fill="#a78bfa" font-size="14" font-weight="bold">📚 논문</text>
+  <text x="60" y="107" fill="#e2e8f0" font-size="12.5">Scroll — 컨텍스트 관리를 코드 실행으로</text>
+  <text x="60" y="126" fill="#94a3b8" font-size="12">LongMemEval_S 94.8% · LOCA_256K 86.7% (+37.4pt)</text>
+  <text x="60" y="149" fill="#e2e8f0" font-size="12.5">EVOMAL — 자기진화 에이전트의 스킬 자기중독</text>
+  <text x="60" y="166" fill="#94a3b8" font-size="12">중독률 20.3~41.8% · 방어 프롬프트로 6.7%까지</text>
+
+  <!-- top-right: models -->
+  <rect x="415" y="60" width="340" height="112" rx="10" fill="#1e293b" stroke="#f472b6" stroke-width="1.5"/>
+  <text x="430" y="84" fill="#f472b6" font-size="14" font-weight="bold">🤖 모델 &amp; 릴리즈</text>
+  <text x="430" y="107" fill="#e2e8f0" font-size="12.5">GLM-5.3-Flash — 320B-A18B 멀티모달 MoE (8/26)</text>
+  <text x="430" y="126" fill="#94a3b8" font-size="12">1M 컨텍스트 · MIT 오픈 웨이트 · $0.15/$0.50 per M</text>
+  <text x="430" y="149" fill="#e2e8f0" font-size="12.5">Codex CLI 0.150.1 — 컴팩션이 이미지도 예산에 포함</text>
+  <text x="430" y="166" fill="#94a3b8" font-size="12">이미지 무거운 세션의 컨텍스트 초과 방지 (8/27)</text>
+
+  <!-- bottom-left: repos -->
+  <rect x="45" y="288" width="340" height="112" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="60" y="312" fill="#34d399" font-size="14" font-weight="bold">🛠 오픈소스</text>
+  <text x="60" y="335" fill="#e2e8f0" font-size="12.5">video-use — Claude Code로 영상 편집 (스킬 방식)</text>
+  <text x="60" y="354" fill="#94a3b8" font-size="12">전사 기반 컷 편집 · 병렬 서브에이전트 오버레이</text>
+  <text x="60" y="377" fill="#e2e8f0" font-size="12.5">Ante — 15MB 단일 바이너리 오프라인 코딩 에이전트</text>
+  <text x="60" y="394" fill="#94a3b8" font-size="12">Rust · llama.cpp 내장 · Terminal-Bench 2.1 공개 평가</text>
+
+  <!-- bottom-right: tips -->
+  <rect x="415" y="288" width="340" height="112" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+  <text x="430" y="312" fill="#fbbf24" font-size="14" font-weight="bold">🧑‍💻 실전 팁</text>
+  <text x="430" y="335" fill="#e2e8f0" font-size="12.5">Codex: 이미지 많은 세션은 0.150.1로 올릴 것</text>
+  <text x="430" y="354" fill="#94a3b8" font-size="12">Claude Code: keybindings.json으로 단축키 커스텀</text>
+  <text x="430" y="377" fill="#e2e8f0" font-size="12.5">공통: 스킬 저장 전 검증 게이트를 두자</text>
+  <text x="430" y="394" fill="#94a3b8" font-size="12">EVOMAL이 보여준 스킬 라이브러리 오염 경로 차단</text>
+</svg>

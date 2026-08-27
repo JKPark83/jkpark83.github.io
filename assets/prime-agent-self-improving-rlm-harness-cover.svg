@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="모델은 그대로 두고 하네스만 바꿨더니 ARC-AGI-3 점수가 30퍼센트에서 95.5퍼센트로 올랐다는 메시지를 담은 그림. 왼쪽에는 매 턴 리셋되는 고정된 하네스가 있고, 오른쪽에는 파이썬 커널과 재귀 서브에이전트, 스스로 다듬는 상태를 가진 RLM 하네스가 있다. 아래에는 이제 하네스도 학습한다는 문구가 있다.">
+  <defs>
+    <linearGradient id="pah-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#14203a"/>
+    </linearGradient>
+    <marker id="pah-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#pah-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">모델은 그대로, 하네스만 바꿨다</text>
+  <text x="60" y="118" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">Prime Agent — self-improving RLM 하네스와 ARC-AGI-3 30% → 95.5%</text>
+
+  <!-- 왼쪽: 고정된 하네스 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="280" y="180" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">고정된 하네스</text>
+    <rect x="120" y="200" width="320" height="250" rx="16" fill="#2b1622" stroke="#fb7185" stroke-width="2"/>
+    <!-- 툴콜 결과가 컨텍스트에 그대로 쌓임 -->
+    <g font-size="15" fill="#fda4af">
+      <rect x="150" y="225" width="260" height="30" rx="6" fill="#3f1d2b"/>
+      <text x="164" y="245">tool_call → 결과 34,000 tokens</text>
+      <rect x="150" y="262" width="260" height="30" rx="6" fill="#3f1d2b"/>
+      <text x="164" y="282">tool_call → 결과 51,000 tokens</text>
+      <rect x="150" y="299" width="260" height="30" rx="6" fill="#3f1d2b"/>
+      <text x="164" y="319">tool_call → 결과 47,000 tokens</text>
+      <rect x="150" y="336" width="260" height="30" rx="6" fill="#3f1d2b"/>
+      <text x="164" y="356">… 컨텍스트 창 초과</text>
+    </g>
+    <text x="280" y="405" text-anchor="middle" font-size="17" fill="#fb7185">프롬프트·스킬은 설계 때 고정</text>
+    <text x="280" y="430" text-anchor="middle" font-size="17" fill="#fb7185">세션이 끝나면 배운 것도 증발</text>
+    <text x="280" y="490" text-anchor="middle" font-size="30" font-weight="700" fill="#fb7185">30%</text>
+  </g>
+
+  <!-- 가운데 화살표 -->
+  <line x1="470" y1="330" x2="580" y2="330" stroke="#4ade80" stroke-width="4" marker-end="url(#pah-arrow)"/>
+
+  <!-- 오른쪽: RLM 하네스 -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="880" y="180" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">self-improving RLM 하네스</text>
+    <rect x="620" y="200" width="520" height="250" rx="16" fill="#122b1d" stroke="#4ade80" stroke-width="2"/>
+    <!-- 커널 -->
+    <rect x="645" y="228" width="220" height="90" rx="10" fill="#173a27" stroke="#34d399" stroke-width="1.5"/>
+    <text x="755" y="255" text-anchor="middle" font-size="16" font-weight="700" fill="#6ee7b7">Python 커널 (지속)</text>
+    <text x="755" y="278" text-anchor="middle" font-size="14" fill="#a7f3d0">결과는 변수로: logs, diffs</text>
+    <text x="755" y="298" text-anchor="middle" font-size="14" fill="#a7f3d0">rlm("...") → 서브에이전트</text>
+    <!-- 하네스 상태 -->
+    <rect x="895" y="228" width="220" height="90" rx="10" fill="#173a27" stroke="#34d399" stroke-width="1.5"/>
+    <text x="1005" y="255" text-anchor="middle" font-size="16" font-weight="700" fill="#6ee7b7">하네스 상태 (CRUD)</text>
+    <text x="1005" y="278" text-anchor="middle" font-size="14" fill="#a7f3d0">프롬프트 · 스킬 · 메모리</text>
+    <text x="1005" y="298" text-anchor="middle" font-size="14" fill="#a7f3d0">서브에이전트 스펙</text>
+    <!-- refine 루프 -->
+    <path d="M 755 330 C 755 380, 1005 380, 1005 330" fill="none" stroke="#fbbf24" stroke-width="3" marker-end="url(#pah-arrow)"/>
+    <text x="880" y="402" text-anchor="middle" font-size="16" fill="#fbbf24">/refine — 트래젝터리에서 배운 것을 상태로 반영, 스냅숏으로 롤백</text>
+    <text x="880" y="430" text-anchor="middle" font-size="15" fill="#86efac">세션이 끝나도 하네스는 남는다</text>
+    <text x="880" y="493" text-anchor="middle" font-size="30" font-weight="700" fill="#4ade80">95.5%</text>
+  </g>
+
+  <text x="600" y="570" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="24" font-weight="700" fill="#e2e8f0">모델 훈련 없이, 이제 하네스가 학습한다</text>
+  <text x="600" y="600" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="16" fill="#94a3b8">Prime Intellect · Prime Agent (arXiv:2608.23552) — jkpark83.github.io</text>
+</svg>

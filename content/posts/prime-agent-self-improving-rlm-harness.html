@@ -1,0 +1,441 @@
+---
+title: "모델은 그대로 두고 하네스만 바꿨더니 30%가 95.5%가 됐다: self-improving RLM 하네스 Prime Agent 해부"
+date: 2026-08-28T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "에이전트 하네스", "agent harness", "Prime Agent", "Prime Intellect", "RLM", "Recursive Language Model", "Continual Harness", "self-improving agent", "서브에이전트", "subagent", "ARC-AGI-3", "장시간 에이전트", "long-horizon agent", "컨텍스트 엔지니어링", "context engineering", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "훈련은 한 번도 안 했습니다. 모델도 그대로입니다. 그런데 ARC-AGI-3 점수가 30%에서 95.5%로 뛰었습니다. 바뀐 건 단 하나, 하네스입니다. 이번 주 arXiv와 Hacker News를 달군 Prime Agent 논문은 '에이전트의 실력은 모델이 아니라 하네스가 결정한다'는 주장을 숫자로 던졌습니다. 도구 호출 대신 Python 커널 하나만 주는 RLM 런타임, 컨텍스트를 변수로 다루는 방식, 서브에이전트를 함수 호출로 띄우는 rlm(), 그리고 프롬프트·스킬·메모리·서브에이전트 스펙을 에이전트가 스스로 고쳐 나가는 Continual Harness까지 — junior 개발자 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "prime-agent-self-improving-rlm-harness-cover.svg"
+  alt: "매 턴 리셋되는 고정된 하네스와, Python 커널·재귀 서브에이전트·스스로 다듬는 상태를 가진 self-improving RLM 하네스를 대비시킨 그림"
+  caption: "같은 모델, 다른 하네스. Prime Agent가 던진 질문은 하나입니다 — 모델 훈련 없이, 하네스가 학습하면 어디까지 가는가."
+  relative: false
+---
+
+<style>
+/* ── Prime Agent 포스트 전용 스타일 (pah- 접두사) ── */
+.pah-fig{
+  --pah-violet:#7c3aed; --pah-sky:#0284c7; --pah-green:#16a34a; --pah-rose:#e11d48;
+  --pah-amber:#d97706; --pah-slate:#64748b; --pah-teal:#0d9488; --pah-blue:#2563eb;
+  --pah-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .pah-fig{
+  --pah-violet:#a78bfa; --pah-sky:#38bdf8; --pah-green:#4ade80; --pah-rose:#fb7185;
+  --pah-amber:#fbbf24; --pah-slate:#94a3b8; --pah-teal:#2dd4bf; --pah-blue:#60a5fa;
+  --pah-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .pah-fig{
+    --pah-violet:#a78bfa; --pah-sky:#38bdf8; --pah-green:#4ade80; --pah-rose:#fb7185;
+    --pah-amber:#fbbf24; --pah-slate:#94a3b8; --pah-teal:#2dd4bf; --pah-blue:#60a5fa;
+    --pah-gray:#64748b;
+  }
+}
+.pah-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.pah-fig text{font-family:inherit}
+.pah-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.pah-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.pah-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.pah-toc ol{margin:0;padding-left:1.25rem}
+.pah-toc li{margin:.22rem 0;font-size:.95rem}
+.pah-toc a{text-decoration:none}
+.pah-toc a:hover{text-decoration:underline}
+.pah-pull{font-size:1.12rem;line-height:1.72}
+.pah-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.pah-note{border-left:4px solid var(--pah-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.pah-note strong{color:var(--pah-blue,#2563eb)}
+.pah-warn{border-left:4px solid var(--pah-rose,#e11d48)}
+.pah-warn strong{color:var(--pah-rose,#e11d48)}
+.pah-good{border-left:4px solid var(--pah-teal,#0d9488)}
+.pah-good strong{color:var(--pah-teal,#0d9488)}
+.pah-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.pah-tbl th,.pah-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.pah-tbl th{background:var(--entry);font-weight:700}
+.pah-tbl code{font-size:.86em}
+.pah-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="pah-pull">
+"Prime Agent는 ARC-AGI-3 RHAE Best@1을 30%에서 95.5%로 끌어올렸다. <strong>모델 훈련은 한 번도 하지 않았다. 전부 하네스에서 나온 결과다.</strong>"
+<footer>— arXiv:2608.23552, "Prime Agent: A Self-Improving RLM Harness"의 핵심 주장 요약</footer>
+</blockquote>
+
+<div class="pah-toc">
+  <div class="pah-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 훈련 0번, 점수 3배: 이번 주의 논쟁</a></li>
+    <li><a href="#sec-2">배경 — 하네스란 무엇이고, 왜 병목이 됐나</a></li>
+    <li><a href="#sec-3">RLM 런타임 — 도구 대신 Python 커널 하나</a></li>
+    <li><a href="#sec-4">Continual Harness — 하네스도 상태다, 그래서 고칠 수 있다</a></li>
+    <li><a href="#sec-5">장시간 실행 장치 — 데몬, heartbeat, goal, autonomous mode</a></li>
+    <li><a href="#sec-6">숫자 읽기 — 95.5%를 어디까지 믿어야 하나</a></li>
+    <li><a href="#sec-7">실전 — 설치하고 서브에이전트 굴려 보기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 훈련 0번, 점수 3배: 이번 주의 논쟁</h2>
+
+<p>ARC-AGI-3는 2026년 3월 ARC Prize 재단이 공개한 상호작용형(interactive) 추론 벤치마크입니다. 설명서 없는 미니 게임 환경에 에이전트를 떨어뜨려 놓고, 스스로 탐색하고 규칙을 알아내 목표를 달성하는지를 봅니다. 공개 당시 프론티어 모델 전원이 <strong>1% 미만</strong>을 기록해 화제가 됐던, 그 악명 높은 벤치마크입니다.</p>
+
+<p>그런데 8월 마지막 주, Prime Intellect가 arXiv에 올린 기술 논문 <a href="https://arxiv.org/abs/2608.23552" target="_blank" rel="noopener">Prime Agent: A Self-Improving RLM Harness</a>가 Hugging Face 데일리 페이퍼 트렌딩과 Hacker News 첫 페이지에 동시에 올랐습니다. 주장은 단순하고 도발적입니다. 같은 모델(Claude Opus 5)을 기본 하네스로 돌리면 30% 수준인데, 자기네 하네스에 태웠더니 <strong>Best@1 95.5%</strong> — 인간 전문가 기준선 95.4%를 넘었다는 겁니다. 파인튜닝도, RL도 없이요. 오픈소스 저장소 <a href="https://github.com/PrimeIntellect-ai/prime-agent" target="_blank" rel="noopener">prime-agent</a>는 공개 하루 만에 GitHub 스타 2,200개를 넘겼고, 커뮤니티에서는 "이제 병목은 모델이 아니라 하네스"라는 진영과 "self-improvement 루프가 벤치마크 취지를 우회한 것 아니냐"는 진영이 맞붙었습니다.</p>
+
+<p>이 글은 그 논쟁의 재료인 Prime Agent를 뜯어봅니다. 점수 자체보다 중요한 건 설계입니다. Prime Agent는 요즘 코딩 에이전트의 두 가지 고정관념 — "도구는 tool call 스키마로 준다", "프롬프트·스킬·메모리는 개발자가 설계 시점에 고정한다" — 를 둘 다 버렸습니다. 그 자리에 들어온 것이 <strong>RLM(Recursive Language Model) 런타임</strong>과 <strong>Continual Harness</strong>입니다.</p>
+
+<div class="pah-note"><strong>이 글에서 얻어 갈 것.</strong> ① 하네스가 왜 에이전트 성능의 병목이 되는지, ② 도구 호출 대신 Python 커널 하나만 주는 RLM 런타임의 동작 원리, ③ 서브에이전트를 <code>rlm()</code> 함수 호출로 띄우고 메시지로 조율하는 법, ④ 프롬프트·스킬·메모리를 에이전트가 스스로 고치는 Continual Harness와 <code>/refine</code>, ⑤ 95.5%라는 숫자를 읽을 때 걸러야 할 것들.</div>
+
+<h2 id="sec-2">2. 배경 — 하네스란 무엇이고, 왜 병목이 됐나</h2>
+
+<p>하네스(harness)는 LLM을 감싸고 있는 실행 루프 전체를 말합니다. 시스템 프롬프트를 조립하고, 모델이 요청한 도구를 실행해 결과를 돌려주고, 컨텍스트가 넘치면 압축하고, 세션을 저장하는 — Claude Code나 Codex CLI 같은 코딩 에이전트에서 모델을 뺀 나머지 전부입니다. 말이 몸통(모델)이라면 하네스는 마구(馬具)입니다. 같은 말이라도 마구가 엉망이면 수레는 똑바로 가지 못합니다.</p>
+
+<p>전통적인 하네스는 <strong>도구 호출(tool calling) 루프</strong>로 돕니다. 모델이 JSON으로 도구를 호출하면, 하네스가 실행하고, 결과 텍스트를 대화에 붙여 다시 모델에게 보여 줍니다. 단순하고 견고하지만, 작업이 길어지면 두 가지 비용이 쌓입니다.</p>
+
+<p>첫째, <strong>모든 중간 결과가 컨텍스트를 통과해야 합니다.</strong> 로그 파일 5만 토큰을 grep 한 번 하려 해도 일단 5만 토큰을 읽어야 하고, 그 결과는 이후 모든 턴에서 입력 토큰으로 다시 과금됩니다. 이 블로그에서 다룬 <a href="/posts/context-rot-long-context-degradation/">context rot</a> — 컨텍스트가 길어질수록 정확도가 떨어지는 현상 — 도 함께 옵니다. 둘째, <strong>하네스 자체는 성장하지 않습니다.</strong> 시스템 프롬프트, 스킬 목록, 서브에이전트 구성은 개발자가 설계 시점에 박아 둔 그대로입니다. 에이전트가 오늘 삽질 끝에 알아낸 "이 저장소는 테스트 전에 <code>pnpm build</code>를 먼저 해야 한다" 같은 교훈은 세션이 끝나면 증발합니다.</p>
+
+<p>첫 번째 문제의 해법으로 나온 것이 재귀 언어 모델(RLM, Recursive Language Model)입니다. <a href="/posts/recursive-language-models-rlm/">예전 글</a>에서 자세히 다뤘는데, 요지는 이렇습니다. 긴 컨텍스트를 attention으로 통째로 읽는 대신 <strong>Python REPL의 변수</strong>로 두고, 모델이 코드로 슬라이싱·검색하고 필요한 조각만 서브 LM에게 재귀적으로 맡기는 추론 전략입니다. 당시에는 "긴 문서 QA를 위한 추론 기법"에 가까웠습니다. Prime Agent는 이 아이디어를 코딩 에이전트 하네스 전체의 설계 원리로 밀어붙였고, 두 번째 문제를 위해 Continual Harness를 얹었습니다. 순서대로 보겠습니다.</p>
+
+<h2 id="sec-3">3. RLM 런타임 — 도구 대신 Python 커널 하나</h2>
+
+<p>Prime Agent가 모델에게 주는 내장 도구는 단 하나, <code>ipython</code>입니다. 파일 읽기·쓰기, 셸 명령, 데이터 가공, 스킬 호출, 서브에이전트 생성까지 전부 이 지속(persistent) IPython 커널 안에서 코드로 합니다. 도구 30개의 JSON 스키마로 시스템 프롬프트를 채우는 대신, "Python으로 뭐든 하라"는 겁니다.</p>
+
+<figure class="pah-fig">
+<svg viewBox="0 0 900 420" role="img" aria-label="전통 도구 호출 하네스와 RLM 하네스를 비교한 그림. 왼쪽 전통 하네스는 도구 호출 결과가 전부 대화 컨텍스트에 쌓여 매 턴 다시 입력되고, 오른쪽 RLM 하네스는 결과가 커널 변수에 담겨 모델은 필요한 조각만 코드로 꺼내 본다.">
+  <g font-size="14">
+    <!-- 왼쪽: 전통 -->
+    <text x="225" y="30" text-anchor="middle" font-weight="700" fill="var(--pah-rose)">전통 툴콜 하네스</text>
+    <rect x="40" y="45" width="370" height="120" rx="12" fill="none" stroke="var(--pah-slate)" stroke-width="1.5"/>
+    <text x="225" y="68" text-anchor="middle" fill="var(--pah-slate)" font-size="13">대화 컨텍스트 (매 턴 전체 재입력)</text>
+    <rect x="55" y="80" width="340" height="22" rx="5" fill="none" stroke="var(--pah-rose)"/>
+    <text x="63" y="96" fill="var(--pah-rose)" font-size="12.5">read_file 결과 34,000 tokens</text>
+    <rect x="55" y="107" width="340" height="22" rx="5" fill="none" stroke="var(--pah-rose)"/>
+    <text x="63" y="123" fill="var(--pah-rose)" font-size="12.5">run_tests 로그 51,000 tokens</text>
+    <rect x="55" y="134" width="340" height="22" rx="5" fill="none" stroke="var(--pah-rose)"/>
+    <text x="63" y="150" fill="var(--pah-rose)" font-size="12.5">grep 결과 12,000 tokens …</text>
+    <rect x="120" y="195" width="210" height="46" rx="10" fill="none" stroke="var(--pah-blue)" stroke-width="2"/>
+    <text x="225" y="223" text-anchor="middle" fill="var(--pah-blue)" font-weight="700">LLM</text>
+    <path d="M225 165 L225 195" stroke="var(--pah-rose)" stroke-width="2"/>
+    <path d="M225 241 L225 271" stroke="var(--pah-blue)" stroke-width="2"/>
+    <rect x="120" y="271" width="210" height="40" rx="10" fill="none" stroke="var(--pah-slate)"/>
+    <text x="225" y="296" text-anchor="middle" fill="var(--pah-slate)" font-size="13">tool_call(JSON) → 실행</text>
+    <path d="M330 291 C 420 291, 420 120, 412 110" fill="none" stroke="var(--pah-rose)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="225" y="345" text-anchor="middle" fill="var(--pah-rose)" font-size="13">결과가 통째로 컨텍스트에 누적</text>
+    <text x="225" y="367" text-anchor="middle" fill="var(--pah-rose)" font-size="13">→ 비용 증가 + context rot</text>
+
+    <!-- 오른쪽: RLM -->
+    <text x="675" y="30" text-anchor="middle" font-weight="700" fill="var(--pah-green)">RLM 하네스 (Prime Agent)</text>
+    <rect x="490" y="45" width="370" height="120" rx="12" fill="none" stroke="var(--pah-teal)" stroke-width="1.5"/>
+    <text x="675" y="68" text-anchor="middle" fill="var(--pah-teal)" font-size="13">지속 Python 커널 (컨텍스트 밖 상태)</text>
+    <text x="505" y="96" fill="var(--pah-teal)" font-size="12.5" font-family="monospace">logs = bash("npm test")   # 51k tokens</text>
+    <text x="505" y="121" fill="var(--pah-teal)" font-size="12.5" font-family="monospace">cfg  = parse(Path("app.toml"))</text>
+    <text x="505" y="146" fill="var(--pah-teal)" font-size="12.5" font-family="monospace">fails = [l for l in logs if "FAIL" in l]</text>
+    <rect x="570" y="195" width="210" height="46" rx="10" fill="none" stroke="var(--pah-blue)" stroke-width="2"/>
+    <text x="675" y="223" text-anchor="middle" fill="var(--pah-blue)" font-weight="700">LLM</text>
+    <path d="M675 165 L675 195" stroke="var(--pah-green)" stroke-width="2"/>
+    <text x="690" y="184" fill="var(--pah-green)" font-size="12.5">필요한 조각만 print</text>
+    <path d="M675 241 L675 271" stroke="var(--pah-blue)" stroke-width="2"/>
+    <rect x="570" y="271" width="210" height="40" rx="10" fill="none" stroke="var(--pah-slate)"/>
+    <text x="675" y="296" text-anchor="middle" fill="var(--pah-slate)" font-size="13">Python 코드 → 커널 실행</text>
+    <text x="675" y="345" text-anchor="middle" fill="var(--pah-green)" font-size="13">원문은 변수에, 컨텍스트에는 요약만</text>
+    <text x="675" y="367" text-anchor="middle" fill="var(--pah-green)" font-size="13">변수는 컴팩션 후에도 살아 있음</text>
+  </g>
+</svg>
+<figcaption>그림 1. 전통 툴콜 하네스(왼쪽)는 도구 결과가 전부 대화 컨텍스트에 쌓여 매 턴 다시 과금됩니다. RLM 하네스(오른쪽)는 결과를 커널 변수에 두고, 모델은 코드로 필요한 조각만 꺼내 봅니다.</figcaption>
+</figure>
+
+<p>핵심은 <strong>컨텍스트를 변수로 다룬다(prompt-as-a-variable)</strong>는 점입니다. 5만 토큰짜리 테스트 로그는 <code>logs</code>라는 변수에 담기고, 모델의 컨텍스트에는 실행 결과 중 <code>print()</code>한 부분만 들어옵니다. 다음 턴에 그 로그가 다시 필요하면 원문을 재입력하는 게 아니라 <code>fails[:5]</code>처럼 슬라이싱해서 봅니다. Python 상태는 턴 사이는 물론 컨텍스트 컴팩션(압축) 후에도 유지되므로, 변수·import·헬퍼 함수가 세션의 "외부 기억" 역할을 합니다.</p>
+
+<p>셸 명령도 커널 안에서 <code>bash()</code>로 부릅니다.</p>
+
+{{< highlight python >}}
+# 각 bash() 호출은 독립 프로세스지만,
+# os.chdir / os.environ 변경과 Python 변수는 커널에 계속 남습니다
+result = await bash("npm run check")
+print(result.output[-2000:])   # 끝부분만 컨텍스트로 가져오기
+
+from pathlib import Path
+big_configs = [p for p in Path(".").rglob("*.toml") if p.stat().st_size > 10_000]
+{{< /highlight >}}
+
+<h3>서브에이전트는 함수 호출이다</h3>
+
+<p>서브에이전트도 별도 도구가 아니라 커널에 미리 로드된 <code>rlm()</code> 호출입니다. 호출하면 독립 컨텍스트를 가진 진짜 자식 세션이 만들어지고, 부모에게는 접수 핸들(admission handle)만 즉시 돌아옵니다. 여기서 재밌는 설계가 하나 있는데, <strong><code>rlm()</code>은 자식의 답을 절대 반환값으로 돌려주지 않습니다.</strong> 결과는 자식이 <code>agent_message</code>로 회신하거나 파일로 남길 때만 도착합니다. 부모가 자식을 기다리며 블로킹하는 대신, 여러 자식을 병렬로 띄워 놓고 턴을 끝내면 됩니다.</p>
+
+{{< highlight python >}}
+# 자식 셋을 병렬로 띄운다 — 반환값은 결과가 아니라 접수 핸들
+api_review  = await rlm("공개 API 표면을 리뷰해 줘", name="api-reviewer")
+test_review = await rlm("테스트 커버리지 구멍을 찾아 줘", name="test-reviewer")
+slow_audit  = await rlm("느린 통합 감사를 백그라운드로 돌려 줘", name="integration-audit")
+
+# 자식 쪽에서는 답할 게 생기면 부모에게 메시지를 보낸다
+await agent_message.send(message, receiver_role="parent")
+
+# 부모는 나중에 살아 있는 자식에게 후속 지시를 보낼 수 있다
+await agent_message.send(
+    "새로 추가된 회귀 테스트도 확인해 줘",
+    receiver_role="child",
+    receiver_name=api_review.name,
+)
+{{< /highlight >}}
+
+<p>메시지 전달 모드는 세 가지입니다. <code>steer</code>는 작업 중인 상대의 컨텍스트에 즉시 끼워 넣고(방향 수정), <code>follow_up</code>은 현재 작업이 끝날 때까지 기다리며, <code>auto</code>는 상대가 바쁘면 steer, 놀고 있으면 즉시 전달합니다. 자식 목록은 <code>rlm.list_subagents()</code>로 조회하는데, 이 레지스트리는 컴팩션·커널 재시작·부모 복원 후에도 살아남습니다. 형제(sibling) 에이전트끼리도 데몬을 거쳐 직접 메시지를 주고받을 수 있어서, 사용자를 경유하지 않는 에이전트 간 조율이 가능합니다.</p>
+
+<figure class="pah-fig">
+<svg viewBox="0 0 900 400" role="img" aria-label="Prime Agent 런타임 구조. 터미널 클라이언트는 데몬 슈퍼바이저에 붙었다 떨어질 수 있고, 상주 세션 워커 안에는 heartbeat, 스케줄, goal, autonomous mode가 프롬프트 큐에 연결되고, 큐는 에이전트 세션으로, 세션은 지속 Python 커널과 RLM 자식 세션들로 이어진다. 세션은 JSONL 트랜스크립트로 저장되어 재시작 후 복원된다.">
+  <g font-size="14">
+    <rect x="30" y="40" width="180" height="50" rx="10" fill="none" stroke="var(--pah-blue)" stroke-width="2"/>
+    <text x="120" y="63" text-anchor="middle" fill="var(--pah-blue)" font-weight="700">TUI / CLI 클라이언트</text>
+    <text x="120" y="81" text-anchor="middle" fill="var(--pah-blue)" font-size="12">attach ⇄ detach 자유</text>
+    <rect x="30" y="130" width="180" height="50" rx="10" fill="none" stroke="var(--pah-violet)" stroke-width="2"/>
+    <text x="120" y="153" text-anchor="middle" fill="var(--pah-violet)" font-weight="700">데몬 슈퍼바이저</text>
+    <text x="120" y="171" text-anchor="middle" fill="var(--pah-violet)" font-size="12">라우팅 · 에이전트 간 메시지</text>
+    <path d="M120 90 L120 130" stroke="var(--pah-slate)" stroke-width="2"/>
+
+    <rect x="260" y="30" width="610" height="290" rx="14" fill="none" stroke="var(--pah-slate)" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="565" y="53" text-anchor="middle" fill="var(--pah-slate)" font-size="13" font-weight="700">상주 세션 워커 (터미널을 닫아도 계속 실행)</text>
+
+    <rect x="280" y="70" width="150" height="34" rx="8" fill="none" stroke="var(--pah-amber)"/>
+    <text x="355" y="92" text-anchor="middle" fill="var(--pah-amber)" font-size="12.5">heartbeat · 스케줄</text>
+    <rect x="280" y="112" width="150" height="34" rx="8" fill="none" stroke="var(--pah-amber)"/>
+    <text x="355" y="134" text-anchor="middle" fill="var(--pah-amber)" font-size="12.5">goal (지속 목표)</text>
+    <rect x="280" y="154" width="150" height="34" rx="8" fill="none" stroke="var(--pah-amber)"/>
+    <text x="355" y="176" text-anchor="middle" fill="var(--pah-amber)" font-size="12.5">autonomous mode</text>
+
+    <rect x="470" y="112" width="130" height="34" rx="8" fill="none" stroke="var(--pah-sky)" stroke-width="2"/>
+    <text x="535" y="134" text-anchor="middle" fill="var(--pah-sky)" font-size="12.5">프롬프트 큐</text>
+    <path d="M430 87 C 455 87, 455 122, 470 124" fill="none" stroke="var(--pah-amber)" stroke-width="1.5"/>
+    <path d="M430 129 L470 129" stroke="var(--pah-amber)" stroke-width="1.5"/>
+    <path d="M430 171 C 455 171, 455 138, 470 136" fill="none" stroke="var(--pah-amber)" stroke-width="1.5"/>
+
+    <rect x="640" y="105" width="210" height="48" rx="10" fill="none" stroke="var(--pah-green)" stroke-width="2"/>
+    <text x="745" y="133" text-anchor="middle" fill="var(--pah-green)" font-weight="700">AgentSession (부모)</text>
+    <path d="M600 129 L640 129" stroke="var(--pah-sky)" stroke-width="2"/>
+
+    <rect x="470" y="210" width="180" height="48" rx="10" fill="none" stroke="var(--pah-teal)" stroke-width="2"/>
+    <text x="560" y="230" text-anchor="middle" fill="var(--pah-teal)" font-size="13" font-weight="700">지속 Python 커널</text>
+    <text x="560" y="248" text-anchor="middle" fill="var(--pah-teal)" font-size="12">변수 · 스킬 · rlm()</text>
+    <path d="M700 153 C 700 185, 620 195, 590 210" fill="none" stroke="var(--pah-teal)" stroke-width="1.5"/>
+
+    <rect x="690" y="210" width="160" height="48" rx="10" fill="none" stroke="var(--pah-violet)" stroke-width="2"/>
+    <text x="770" y="230" text-anchor="middle" fill="var(--pah-violet)" font-size="13" font-weight="700">RLM 자식 세션들</text>
+    <text x="770" y="248" text-anchor="middle" fill="var(--pah-violet)" font-size="12">독립 컨텍스트 · 병렬</text>
+    <path d="M770 153 L770 210" stroke="var(--pah-violet)" stroke-width="1.5"/>
+
+    <rect x="330" y="340" width="420" height="40" rx="10" fill="none" stroke="var(--pah-slate)"/>
+    <text x="540" y="365" text-anchor="middle" fill="var(--pah-slate)" font-size="12.5">JSONL 트랜스크립트 + 세션 아티팩트 — 재시작 후 복원</text>
+    <path d="M745 258 C 745 300, 700 330, 680 340" fill="none" stroke="var(--pah-slate)" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <path d="M210 155 L260 155" stroke="var(--pah-slate)" stroke-width="2"/>
+  </g>
+</svg>
+<figcaption>그림 2. Prime Agent 런타임(공식 문서의 runtime flow를 단순화). 세션은 데몬이 소유한 상주 워커에서 돌기 때문에 터미널을 닫아도 계속 실행되고, heartbeat·스케줄·goal·autonomous mode가 프롬프트 큐를 통해 세션을 계속 깨웁니다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. Continual Harness — 하네스도 상태다, 그래서 고칠 수 있다</h2>
+
+<p>여기까지가 "실행"이라면, Prime Agent의 두 번째 축은 "축적"입니다. Continual Harness는 하네스의 구성 요소를 <strong>H = (프롬프트 ρ, 서브에이전트 G, 스킬 K, 메모리 M)</strong>이라는 상태로 정식화하고, 에이전트가 자기 트래젝터리(작업 기록)에서 배운 것을 이 상태에 CRUD — 생성·조회·수정·삭제 — 할 수 있게 합니다. 커널에는 <code>create_prompt_note(...)</code>, <code>create_memory(...)</code>, <code>create_skill(...)</code>, <code>create_subagent(...)</code>와 각각의 <code>update_*</code>/<code>delete_*</code>, 그리고 <code>list(kind)</code>/<code>get(kind, id)</code>가 준비되어 있습니다.</p>
+
+<p>수동으로도 할 수 있지만, 대표 진입점은 <code>/refine</code> 명령입니다. 현재 트래젝터리를 되돌아보고, 근거가 있는 작은 업데이트 — 새 스킬 하나, 메모리 노트 하나, 서브에이전트 프롬프트 다듬기 — 를 제안·적용합니다. 중요한 안전장치가 두 개 있습니다. <strong>기반 시스템 프롬프트는 불변(immutable)</strong>이라 <code>/refine</code>이 건드릴 수 없고, 모든 변경은 스냅숏으로 기록되어 ID로 롤백할 수 있습니다.</p>
+
+<figure class="pah-fig">
+<svg viewBox="0 0 900 360" role="img" aria-label="Continual Harness의 순환 구조. 하네스 상태인 프롬프트 노트, 서브에이전트 스펙, 스킬, 메모리가 세션 실행에 주입되고, 실행이 남긴 트래젝터리를 refine이 검토해 근거 있는 작은 업데이트를 상태에 반영한다. 기반 시스템 프롬프트는 불변이고 모든 변경은 스냅숏으로 롤백할 수 있다.">
+  <g font-size="14">
+    <rect x="40" y="60" width="300" height="200" rx="14" fill="none" stroke="var(--pah-green)" stroke-width="2"/>
+    <text x="190" y="88" text-anchor="middle" fill="var(--pah-green)" font-weight="700">하네스 상태 H = (ρ, G, K, M)</text>
+    <g font-size="12.5" fill="var(--pah-teal)">
+      <rect x="60" y="104" width="260" height="28" rx="6" fill="none" stroke="var(--pah-teal)"/>
+      <text x="72" y="123">ρ 프롬프트 노트 (보충 지침)</text>
+      <rect x="60" y="140" width="260" height="28" rx="6" fill="none" stroke="var(--pah-teal)"/>
+      <text x="72" y="159">G 서브에이전트 스펙 (재사용)</text>
+      <rect x="60" y="176" width="260" height="28" rx="6" fill="none" stroke="var(--pah-teal)"/>
+      <text x="72" y="195">K 스킬 (실행 가능한 Python 패키지)</text>
+      <rect x="60" y="212" width="260" height="28" rx="6" fill="none" stroke="var(--pah-teal)"/>
+      <text x="72" y="231">M 메모리 (사실 · 교훈)</text>
+    </g>
+    <text x="190" y="290" text-anchor="middle" fill="var(--pah-slate)" font-size="12.5">기반 시스템 프롬프트는 불변 · 세션 로컬이 기본</text>
+
+    <path d="M340 110 C 420 90, 480 90, 550 105" fill="none" stroke="var(--pah-green)" stroke-width="2.5"/>
+    <text x="447" y="80" text-anchor="middle" fill="var(--pah-green)" font-size="13">세션에 주입</text>
+
+    <rect x="550" y="80" width="310" height="70" rx="12" fill="none" stroke="var(--pah-blue)" stroke-width="2"/>
+    <text x="705" y="108" text-anchor="middle" fill="var(--pah-blue)" font-weight="700">세션 실행 (RLM 런타임)</text>
+    <text x="705" y="132" text-anchor="middle" fill="var(--pah-blue)" font-size="12.5">작업 · 실패 · 우회 · 성공이 트래젝터리로 기록</text>
+
+    <path d="M705 150 L705 205" stroke="var(--pah-amber)" stroke-width="2.5"/>
+    <rect x="550" y="205" width="310" height="80" rx="12" fill="none" stroke="var(--pah-amber)" stroke-width="2"/>
+    <text x="705" y="231" text-anchor="middle" fill="var(--pah-amber)" font-weight="700">/refine — 트래젝터리 검토</text>
+    <text x="705" y="253" text-anchor="middle" fill="var(--pah-amber)" font-size="12.5">근거 있는 작은 업데이트만 제안 · 적용</text>
+    <text x="705" y="273" text-anchor="middle" fill="var(--pah-amber)" font-size="12.5">모든 변경은 스냅숏 → ID로 롤백 가능</text>
+
+    <path d="M550 245 C 430 245, 380 270, 340 240" fill="none" stroke="var(--pah-amber)" stroke-width="2.5"/>
+    <text x="447" y="278" text-anchor="middle" fill="var(--pah-amber)" font-size="13">create / update / delete</text>
+  </g>
+</svg>
+<figcaption>그림 3. Continual Harness의 순환. 하네스 상태가 세션에 주입되고, 세션이 남긴 트래젝터리를 <code>/refine</code>이 검토해 상태를 다듬습니다. 세션이 끝나도 상태는 남으므로, 다음 세션은 조금 더 나은 하네스에서 시작합니다.</figcaption>
+</figure>
+
+<p>익숙한 그림 아닌가요? <a href="/posts/agent-skills-skill-md/">Agent Skills</a>의 <code>SKILL.md</code>, 메모리 파일, <code>AGENTS.md</code> 같은 것들을 개발자가 손으로 다듬는 워크플로우를, 에이전트 자신의 루프 안으로 끌어들인 겁니다. 실제로 Prime Agent의 스킬은 Agent Skills 마크다운 형식과 호환되고, 여기에 <strong>Python-backed 스킬</strong>을 얹었습니다. <code>SKILL.md</code>로 발견·라우팅되는 것까지는 같지만, 스킬이 Python 패키지를 품고 있어서 커널에서 <code>await release_audit(repository=".", target_version="0.4.0")</code>처럼 타입 있는 함수로 부를 수 있습니다. 시작 프롬프트에는 스킬 메타데이터만 올라가고, 본문은 작업이 맞을 때만 로드됩니다 — 컨텍스트 절약의 기본기죠.</p>
+
+<div class="pah-note"><strong>왜 "self-improving"이라 부를 수 있나.</strong> 모델 가중치는 한 번도 바뀌지 않습니다. 바뀌는 건 하네스 상태 H뿐입니다. 그런데 에이전트의 실전 성능은 (모델 × 하네스)의 곱이므로, H가 세션을 거듭하며 좋아지면 시스템 전체는 학습 없이도 점점 잘하게 됩니다. ARC-AGI-3 결과가 바로 이 루프 — 게임을 하다 알아낸 규칙을 스킬·메모리로 축적 — 에서 나왔습니다.</div>
+
+<h2 id="sec-5">5. 장시간 실행 장치 — 데몬, heartbeat, goal, autonomous mode</h2>
+
+<p>몇 시간짜리 작업을 맡기려면 "터미널을 닫으면 죽는 프로세스"로는 부족합니다. Prime Agent는 세션을 로컬 데몬이 소유한 상주 워커에서 돌립니다. 터미널 UI를 닫는 건 detach일 뿐이고, 워커는 큐·스케줄·커널·자식들을 계속 안고 갑니다. <code>prime-agent attach</code>로 언제든 다시 붙습니다. 그 위에 재진입 장치가 몇 겹 얹혀 있습니다.</p>
+
+<div class="pah-tblwrap">
+<table class="pah-tbl">
+  <thead><tr><th>장치</th><th>소유자</th><th>하는 일</th></tr></thead>
+  <tbody>
+    <tr><td><code>/heartbeat</code></td><td>사용자</td><td>현재 세션에 보이는 반복 지시 1개. "10분마다 배포 상태 확인해서 의미 있는 변화만 보고해."</td></tr>
+    <tr><td><code>rlm_heartbeat</code></td><td>에이전트</td><td>에이전트가 코드로 만드는 내부 반복 지시 여러 개. 테스트 완료 폴링 같은 것.</td></tr>
+    <tr><td><code>prime-agent schedule</code></td><td>사용자·자동화</td><td>일회성/cron 프롬프트를 특정 에이전트에 예약. 크래시 시 중복 재생 방지, 밀린 틱은 병합.</td></tr>
+    <tr><td><code>/goal</code></td><td>사용자</td><td>완료될 때까지 턴마다 계속 제시되는 지속 목표. 토큰 예산 지정 가능, <code>goal.complete()</code>만이 성공 처리.</td></tr>
+    <tr><td><code>/autonomous</code></td><td>사용자</td><td>사람 입력 없이 계속 이어 가는 모드. 턴·토큰·시간 예산과 품질 게이트(quality gate)로 제한.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>autonomous mode의 게이트가 특히 실용적입니다. <code>--autonomous-gate "npm run check"</code>처럼 걸어 두면, 게이트 명령이 통과할 때까지 세션이 끝나지 못하고, 실패 출력이 에이전트에게 되돌아가 다음 시도의 재료가 됩니다. 작업 공간에 변화가 없으면 같은 게이트를 다시 돌리지 않는 것도 잔돈 아끼는 디테일입니다. 컨텍스트가 넘치면 자동 컴팩션이 오래된 메시지를 요약하는데, <strong>Python 커널은 컴팩션을 통과해도 살아 있으므로</strong> 변수·헬퍼 함수·작업 상태는 잃지 않습니다. 이 조합 — 커널에 상태, 트랜스크립트에 기록, 데몬에 생명주기 — 이 장시간 작업의 바닥을 받칩니다.</p>
+
+<h2 id="sec-6">6. 숫자 읽기 — 95.5%를 어디까지 믿어야 하나</h2>
+
+<figure class="pah-fig">
+<svg viewBox="0 0 900 330" role="img" aria-label="ARC-AGI-3 RHAE 점수 막대 그래프. 2026년 3월 공개 당시 프론티어 모델은 1퍼센트 미만, 기본 하네스의 Opus 5는 약 30퍼센트, 인간 전문가 기준선은 95.4퍼센트, Prime Agent와 Opus 5 조합의 Best at 1은 95.5퍼센트, Best at 3는 99.97퍼센트다.">
+  <g font-size="14">
+    <line x1="80" y1="250" x2="860" y2="250" stroke="var(--pah-gray)" stroke-width="1.5"/>
+    <!-- 눈금 -->
+    <g font-size="11.5" fill="var(--pah-gray)">
+      <text x="66" y="254" text-anchor="end">0</text>
+      <text x="66" y="154" text-anchor="end">50</text>
+      <text x="66" y="54" text-anchor="end">100</text>
+      <line x1="72" y1="150" x2="860" y2="150" stroke="var(--pah-gray)" stroke-width="0.5" stroke-dasharray="3 5"/>
+      <line x1="72" y1="50" x2="860" y2="50" stroke="var(--pah-gray)" stroke-width="0.5" stroke-dasharray="3 5"/>
+    </g>
+    <!-- 인간 기준선 -->
+    <line x1="80" y1="59.2" x2="860" y2="59.2" stroke="var(--pah-amber)" stroke-width="1.5" stroke-dasharray="7 5"/>
+    <text x="845" y="76" text-anchor="end" fill="var(--pah-amber)" font-size="12.5">인간 전문가 95.4</text>
+
+    <rect x="120" y="248" width="110" height="2" fill="var(--pah-rose)"/>
+    <text x="175" y="272" text-anchor="middle" font-size="12.5" fill="var(--pah-slate)">프론티어 모델</text>
+    <text x="175" y="290" text-anchor="middle" font-size="12.5" fill="var(--pah-slate)">(2026.3 공개 당시)</text>
+    <text x="175" y="238" text-anchor="middle" fill="var(--pah-rose)" font-weight="700">&lt;1%</text>
+
+    <rect x="300" y="190" width="110" height="60" fill="var(--pah-rose)" opacity="0.85" rx="4"/>
+    <text x="355" y="272" text-anchor="middle" font-size="12.5" fill="var(--pah-slate)">기본 하네스</text>
+    <text x="355" y="290" text-anchor="middle" font-size="12.5" fill="var(--pah-slate)">+ Opus 5</text>
+    <text x="355" y="180" text-anchor="middle" fill="var(--pah-rose)" font-weight="700">30%</text>
+
+    <rect x="480" y="59" width="110" height="191" fill="var(--pah-green)" opacity="0.85" rx="4"/>
+    <text x="535" y="272" text-anchor="middle" font-size="12.5" fill="var(--pah-slate)">Prime Agent</text>
+    <text x="535" y="290" text-anchor="middle" font-size="12.5" fill="var(--pah-slate)">Best@1</text>
+    <text x="535" y="49" text-anchor="middle" fill="var(--pah-green)" font-weight="700">95.5%</text>
+
+    <rect x="660" y="50.1" width="110" height="199.9" fill="var(--pah-teal)" opacity="0.85" rx="4"/>
+    <text x="715" y="272" text-anchor="middle" font-size="12.5" fill="var(--pah-slate)">Prime Agent</text>
+    <text x="715" y="290" text-anchor="middle" font-size="12.5" fill="var(--pah-slate)">Best@3</text>
+    <text x="715" y="40" text-anchor="middle" fill="var(--pah-teal)" font-weight="700">99.97%</text>
+
+    <text x="470" y="320" text-anchor="middle" font-size="12" fill="var(--pah-gray)">ARC-AGI-3 RHAE 점수 (%) — Prime Intellect 자체 보고 수치, 독립 검증 전</text>
+  </g>
+</svg>
+<figcaption>그림 4. ARC-AGI-3 RHAE 점수 비교(출처: arXiv:2608.23552 및 arcprize.org). 세 번의 독립 실행이 95.0 / 95.2 / 95.5를 기록했고 183개 레벨을 전부 완료했다고 보고합니다. 단, 아직 벤더 자체 보고 수치입니다.</figcaption>
+</figure>
+
+<p>먼저 벤치마크의 성격부터. ARC-AGI-3의 점수 RHAE(Relative Human Action Efficiency)는 정답 여부만 보지 않습니다. 레벨 점수가 <code>min(1, (인간의 행동 수 / AI의 행동 수))²</code>로 계산되어, 인간보다 10배 많은 행동으로 깬 레벨은 1%밖에 못 받습니다. 즉 95.5%는 "다 깼다"가 아니라 <strong>"인간 전문가만큼 효율적으로 깼다"</strong>는 뜻이라 더 인상적인 숫자입니다. 논문은 ARC-AGI-3 외에도 긴 컨텍스트 코딩(OOLONG 128k: 0.700 vs 기본 하네스 0.420), 에뮬레이터 구축(EmulatorBench: 0.208 vs 0), 그리고 자율 연구 태스크인 nanoGPT speedrun — 124M 파라미터 GPT를 고정 검증 손실까지 학습시키는 스텝 수를 에이전트가 얼마나 줄이는가 — 에서 인간 기록 2,990스텝을 깬 2,930스텝(8시드 평균 검증)을 보고합니다.</p>
+
+<p>이제 걸러 읽을 차례입니다. 세 가지를 기억해 두세요.</p>
+
+<p>첫째, <strong>전부 벤더 자체 보고입니다.</strong> 95.5%는 Prime Intellect가 자기 하네스로 돌린 수치이고, 아직 독립 재현이 없습니다. 둘째, Hacker News에서 제기된 방법론 쟁점이 있습니다. ARC-AGI-3는 몇 번의 시도 안에 새 환경에 적응하는 능력을 재려는 벤치마크인데, 스킬·메모리를 축적하는 self-improvement 루프가 이 취지와 충돌하는 것 아니냐는 겁니다. "그 축적이야말로 우리가 원하는 지능"이라는 반론도 있어서, 이 논쟁 자체가 이번 주 이 논문이 화제가 된 이유이기도 합니다. 셋째, 비교 대상인 "기본 하네스 30%"는 같은 모델을 일반적인 도구 호출 루프로 돌린 결과라, 하네스 간 비교이지 모델 간 비교가 아닙니다. 결론은 이렇게 잡는 게 안전합니다. <strong>"하네스 설계가 벤치마크 점수를 3배 움직일 수 있다"는 방향성은 신뢰할 만하고, 소수점 숫자는 검증을 기다리는 중.</strong></p>
+
+<h2 id="sec-7">7. 실전 — 설치하고 서브에이전트 굴려 보기</h2>
+
+<p>백문이 불여일런입니다. macOS/Linux에서 설치는 한 줄입니다(설치 스크립트는 버전 지정 릴리스를 받아 SHA-256 체크섬을 검증합니다).</p>
+
+{{< highlight bash >}}
+curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh
+
+cd /path/to/project   # 일회용 클론이나 깨끗한 worktree를 권장
+prime-agent           # 첫 실행 후 /login 으로 프로바이더 선택
+{{< /highlight >}}
+
+<p>구독형 프로바이더 외에 <code>ANTHROPIC_API_KEY</code> 같은 API 키, Ollama·vLLM의 OpenAI 호환 서버로 셀프호스팅 모델도 붙일 수 있습니다. 백그라운드 세션 운영에 쓰는 명령 몇 가지:</p>
+
+{{< highlight bash >}}
+prime-agent agents            # 실행 중 · 유휴 · 저장된 세션 브라우저
+prime-agent attach <agent>    # 떠 있는 세션에 다시 붙기
+prime-agent send <agent> "마이그레이션 검증 다시 해 줘"   # 셸에서 에이전트에게 메시지
+prime-agent schedule add worker "0 9 * * 1-5" -- "열린 작업 리뷰"
+prime-agent shutdown          # 모든 에이전트와 서비스 정지
+{{< /highlight >}}
+
+<p>감을 잡기 좋은 첫 실험은 "병렬 리뷰 + 게이트"입니다. 세션 안에서 이렇게 시켜 봅니다.</p>
+
+{{< highlight python >}}
+# 커널 안에서 — 리뷰 관점별로 자식 에이전트를 병렬로 띄운다
+security = await rlm("인증 흐름을 보안 관점에서 리뷰해 줘", name="sec-reviewer")
+perf     = await rlm("핫패스의 성능 문제를 찾아 줘", name="perf-reviewer")
+
+# 자식들의 회신은 agent_message로 도착한다. 목록 확인:
+children = await rlm.list_subagents()
+for child in children:
+    print(child.session_name, child.status)
+
+# 스스로 5분마다 확인하는 내부 heartbeat도 걸 수 있다
+await rlm_heartbeat.create("리뷰 자식들이 끝났는지 확인하고 종합해",
+                           interval="5m", label="review-merge")
+{{< /highlight >}}
+
+<p>작업이 끝나면 <code>/refine</code>을 호출해 보세요. "이 저장소는 테스트 전에 빌드가 필요하다" 같은 교훈이 프롬프트 노트나 스킬로 제안되는 걸 볼 수 있습니다. 마음에 안 들면 스냅숏 ID로 롤백하면 됩니다. 무인 실행이 필요하면 게이트를 걸어 둡니다.</p>
+
+{{< highlight bash >}}
+prime-agent \
+  --autonomous \
+  --autonomous-gate "npm run check" \   # 이 명령이 통과해야 세션이 끝날 수 있다
+  --autonomous-max-turns 20 \
+  "요청된 변경을 구현하고 검증까지 마쳐 줘"
+{{< /highlight >}}
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<div class="pah-warn pah-note"><strong>커널은 샌드박스가 아닙니다.</strong> 공식 문서가 명시적으로 경고합니다 — Python 커널은 모델이 생성한 코드를 <em>사용자 권한 그대로</em> 실행합니다. 워커 프로세스 분리는 생명주기 격리이지 보안 격리가 아닙니다. 신뢰할 수 없는 저장소·지시·서드파티 스킬은 반드시 외부 샌드박스(컨테이너, 일회용 VM)에서 돌리세요. 특히 "명령 실행 + 메모리 영속화 + 스케줄링"이 한 몸이므로, 프롬프트 인젝션이 성공하면 악성 지시가 <em>기억으로 저장되어 다음 세션까지 살아남을</em> 수 있습니다.</div>
+
+<div class="pah-warn pah-note"><strong>self-improvement는 오염도 축적합니다.</strong> <code>/refine</code>이 저장하는 건 "검증된 진리"가 아니라 "그럴듯한 교훈"입니다. 잘못 배운 규칙("이 프로젝트는 테스트를 건너뛰어도 된다")이 메모리에 박제되면 이후 모든 세션이 물려받습니다. 스냅숏 롤백이 있는 이유입니다. refine 결과를 코드 리뷰하듯 주기적으로 <code>list("memory")</code>로 열어 보고, 낡거나 수상한 항목은 지우세요.</div>
+
+<div class="pah-warn pah-note"><strong>비용의 꼬리가 깁니다.</strong> 재귀 서브에이전트는 병렬성만큼 과금도 병렬입니다. RLM 계열 연구는 일관되게 긴 꼬리(long-tail) 비용 이상치를 보고합니다 — 계획이 나쁘면 자식이 자식을 부르며 호출 수가 곱으로 늘어납니다. 재귀 깊이 기본값(루트→자식 1단계)을 이유 없이 올리지 말고, goal·autonomous의 토큰 예산을 항상 지정하세요.</div>
+
+<div class="pah-good pah-note"><strong>게이트 통과 ≠ 작업 성공.</strong> 문서 스스로 강조하는 부분입니다. 게이트는 그 게이트가 검사하는 것만 보장하고, 예산 한도 도달은 성공이 아닙니다. "테스트 통과"를 게이트로 걸었다면 테스트가 검증하는 범위까지만 믿으세요. 이 감각은 <a href="/posts/agent-reward-hacking-evals/">reward hacking</a> 글에서 다룬 것과 정확히 같은 근육입니다.</div>
+
+<div class="pah-good pah-note"><strong>아이디어는 하네스와 무관하게 훔칠 수 있습니다.</strong> Prime Agent를 안 쓰더라도 ① 대용량 도구 출력을 컨텍스트가 아니라 파일/변수에 두고 요약만 넣기, ② 서브에이전트에게 "필요한 컨텍스트만" 잘라 주기, ③ 세션에서 배운 교훈을 구조화된 파일(<code>AGENTS.md</code>, 스킬)로 남기고 다음 세션에 주입하기는 오늘 여러분의 에이전트에 바로 적용할 수 있는 패턴입니다.</div>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>이번 주의 화제</strong>: Prime Intellect의 논문 "Prime Agent: A Self-Improving RLM Harness"(arXiv:2608.23552). 모델 훈련 없이 하네스만으로 ARC-AGI-3 RHAE Best@1을 30% → 95.5%(인간 전문가 95.4%)로 올렸다고 보고하며 HN·HF 트렌딩을 점령했습니다.</li>
+  <li><strong>RLM 런타임</strong>: 내장 도구는 <code>ipython</code> 하나. 도구 결과를 컨텍스트가 아니라 지속 Python 커널의 변수에 두고, 모델은 코드로 필요한 조각만 봅니다. 커널 상태는 턴과 컴팩션을 넘어 살아남습니다.</li>
+  <li><strong>서브에이전트 = 함수 호출</strong>: <code>rlm("...")</code>이 독립 컨텍스트의 자식 세션을 만들고 접수 핸들만 반환합니다. 결과는 <code>agent_message</code>나 파일로만 도착 — 병렬 위임이 기본형입니다.</li>
+  <li><strong>Continual Harness</strong>: 프롬프트·서브에이전트 스펙·스킬·메모리를 상태 H=(ρ,G,K,M)로 두고 에이전트가 CRUD합니다. <code>/refine</code>이 트래젝터리에서 교훈을 뽑아 반영하고, 기반 프롬프트는 불변, 변경은 스냅숏으로 롤백 가능합니다.</li>
+  <li><strong>장시간 실행</strong>: 데몬 상주 워커 + heartbeat + cron 스케줄 + 지속 goal + 예산·게이트 있는 autonomous mode. 터미널을 닫아도 작업은 계속됩니다.</li>
+  <li><strong>걸러 읽기</strong>: 95.5%는 벤더 자체 보고이고 독립 재현 전입니다. self-improvement가 ARC-AGI-3의 취지와 충돌하는지 논쟁 중입니다. 커널은 샌드박스가 아니며, 자기 수정 메모리는 오염도 축적합니다.</li>
+  <li><strong>큰 그림</strong>: "모델은 그대로, 하네스가 학습한다"는 방향은 Agent Skills·메모리 통합·컨텍스트 엔지니어링이 각자 가리키던 지점의 합류입니다. 하네스 엔지니어링이 독립된 분과가 되어 가고 있습니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2608.23552" target="_blank" rel="noopener">Prime Agent: A Self-Improving RLM Harness — arXiv:2608.23552</a></li>
+  <li><a href="https://github.com/PrimeIntellect-ai/prime-agent" target="_blank" rel="noopener">PrimeIntellect-ai/prime-agent — GitHub 저장소 (MIT, 공식 문서 포함)</a></li>
+  <li><a href="https://www.primeintellect.ai/blog/prime-agent" target="_blank" rel="noopener">Prime Agent: A self-improving RLM agent — Prime Intellect 공식 블로그</a></li>
+  <li><a href="https://www.primeintellect.ai/blog/rlm" target="_blank" rel="noopener">Recursive Language Models — Prime Intellect RLM 블로그</a></li>
+  <li><a href="https://arxiv.org/abs/2512.24601" target="_blank" rel="noopener">Recursive Language Models 논문 — arXiv:2512.24601</a></li>
+  <li><a href="https://arxiv.org/abs/2605.09998" target="_blank" rel="noopener">Continual Harness 논문 — arXiv:2605.09998</a></li>
+  <li><a href="https://arcprize.org/arc-agi/3" target="_blank" rel="noopener">ARC-AGI-3 공식 페이지 — ARC Prize Foundation</a></li>
+  <li><a href="https://www.datacamp.com/blog/arc-agi-3" target="_blank" rel="noopener">ARC-AGI-3: The New Interactive Reasoning Benchmark — DataCamp (RHAE 계산식 해설)</a></li>
+  <li><a href="https://www.zenml.io/llmops-database/self-improving-agentic-harness-with-recursive-language-models-and-continual-learning" target="_blank" rel="noopener">Self-Improving Agentic Harness with RLM and Continual Learning — ZenML LLMOps Database</a></li>
+  <li><a href="https://www.marktechpost.com/2026/08/06/prime-intellect-releases-prime-agent/" target="_blank" rel="noopener">Prime Intellect Releases Prime Agent — MarkTechPost</a></li>
+  <li><a href="https://www.remio.ai/post/prime-agent-hit-hacker-news-but-its-self-improving-harness-is-the-real-story" target="_blank" rel="noopener">Prime Agent Hit Hacker News — Remio (방법론 논쟁 정리)</a></li>
+  <li><a href="https://mrkeyoor.com/open-source/self-improving-ai-prime-agent-gains-2200-github-stars-in-a-day/" target="_blank" rel="noopener">Prime Agent Gains 2,200+ GitHub Stars in a Day — MrKeyoor</a></li>
+  <li>🇰🇷 <a href="https://cskwork.github.io/prime-agent-guide/" target="_blank" rel="noopener">Prime Agent 인터랙티브 가이드 (한국어/영어 병행) — cskwork</a></li>
+  <li>이 블로그의 관련 글: <a href="/posts/recursive-language-models-rlm/">재귀 언어 모델(RLM)</a> · <a href="/posts/agent-skills-skill-md/">Agent Skills와 SKILL.md</a> · <a href="/posts/context-rot-long-context-degradation/">context rot</a> · <a href="/posts/agent-reward-hacking-evals/">에이전트 reward hacking</a></li>
+</ul>

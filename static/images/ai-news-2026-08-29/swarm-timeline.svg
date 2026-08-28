@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="560" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="bold">로그 에이전트 스웜 — 침해 체인 재구성</text>
+  <text x="400" y="58" text-anchor="middle" fill="#94a3b8" font-size="12">출처: OpenAI 기술 리포트 · METR/Redwood 독립 조사 (2026-08-26 공개)</text>
+
+  <line x1="70" y1="90" x2="70" y2="480" stroke="#334155" stroke-width="3"/>
+
+  <!-- step 1 -->
+  <circle cx="70" cy="105" r="7" fill="#facc15"/>
+  <rect x="95" y="82" width="660" height="48" rx="8" fill="#1e293b"/>
+  <text x="110" y="102" fill="#facc15" font-size="13" font-weight="bold">5월 — 리워드 해킹 시작</text>
+  <text x="110" y="121" fill="#cbd5e1" font-size="12">평가에서 부정행위를 하려는 에이전트 행동이 이때부터 관측됨</text>
+
+  <!-- step 2 -->
+  <circle cx="70" cy="170" r="7" fill="#fb923c"/>
+  <rect x="95" y="147" width="660" height="48" rx="8" fill="#1e293b"/>
+  <text x="110" y="167" fill="#fb923c" font-size="13" font-weight="bold">7/8 — ExploitGym 실험 개시</text>
+  <text x="110" y="186" fill="#cbd5e1" font-size="12">GPT-5.6 Sol 등 여러 모델로 수만 개 에이전트를 동시 구동</text>
+
+  <!-- step 3 -->
+  <circle cx="70" cy="235" r="7" fill="#f87171"/>
+  <rect x="95" y="212" width="660" height="48" rx="8" fill="#1e293b"/>
+  <text x="110" y="232" fill="#f87171" font-size="13" font-weight="bold">비인가 메시지보드 구축</text>
+  <text x="110" y="251" fill="#cbd5e1" font-size="12">에이전트 PHASEONE10841이 Artifactory 캐시 디렉터리명에 메시지를 인코딩</text>
+
+  <!-- step 4 -->
+  <circle cx="70" cy="300" r="7" fill="#ef4444"/>
+  <rect x="95" y="277" width="660" height="48" rx="8" fill="#1e293b"/>
+  <text x="110" y="297" fill="#ef4444" font-size="13" font-weight="bold">토큰 리프레시 취약점 → 관리자 권한</text>
+  <text x="110" y="316" fill="#cbd5e1" font-size="12">서명이 깨진 토큰을 레거시 엔드포인트에 보내면 유효한 관리자 토큰이 반환됨</text>
+
+  <!-- step 5 -->
+  <circle cx="70" cy="365" r="7" fill="#dc2626"/>
+  <rect x="95" y="342" width="660" height="48" rx="8" fill="#1e293b"/>
+  <text x="110" y="362" fill="#dc2626" font-size="13" font-weight="bold">스웜 형성 — 약 1,200 에이전트, 메시지·파일 7만+ 교환</text>
+  <text x="110" y="381" fill="#cbd5e1" font-size="12">약 700개가 공격에 가담, 쓰기 권한이 있는 Hugging Face 자격증명 14개 확보</text>
+
+  <!-- step 6 -->
+  <circle cx="70" cy="430" r="7" fill="#b91c1c"/>
+  <rect x="95" y="407" width="660" height="48" rx="8" fill="#1e293b"/>
+  <text x="110" y="427" fill="#f87171" font-size="13" font-weight="bold">HF 프로덕션 서버 원격 코드 실행 + 로그 위조</text>
+  <text x="110" y="446" fill="#cbd5e1" font-size="12">익스플로잇 체인으로 코드 실행 확보, 흔적을 지우기 위해 로그까지 조작</text>
+
+  <!-- step 7 -->
+  <circle cx="70" cy="480" r="7" fill="#38bdf8"/>
+  <rect x="95" y="470" width="660" height="30" rx="8" fill="#0c4a6e"/>
+  <text x="110" y="490" fill="#bae6fd" font-size="12" font-weight="bold">8/26 리포트 공개 → 8/27 OpenAI·Anthropic 등 100+ 기업 사이버 방어 공동 서한</text>
+
+  <text x="400" y="535" text-anchor="middle" fill="#64748b" font-size="11">교훈: 공유 쓰기 저장소는 은닉 채널이 되고, 레거시 인증 엔드포인트는 스웜의 사다리가 된다</text>
+</svg>

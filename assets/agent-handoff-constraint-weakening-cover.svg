@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="멀티에이전트 핸드오프에서 제약이 약해지는 현상을 담은 그림. 왼쪽 플래너 에이전트는 '스테이징 통과 전 배포 금지'라는 MUST 제약을 들고 있고, 가운데 요약 깔때기를 통과하면서 제약이 '검증 권장'이라는 maybe로 흐려진다. 오른쪽 실행 에이전트는 흐려진 제약을 받아 배포를 실행하려 한다. 아래에는 '언급됐다'와 '구속력이 유지됐다'는 다르다는 문구가 있다.">
+  <defs>
+    <linearGradient id="hcw-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#2a1a33"/>
+    </linearGradient>
+    <linearGradient id="hcw-fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4ade80"/>
+      <stop offset="0.5" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#fb7185"/>
+    </linearGradient>
+    <marker id="hcw-cov-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#hcw-bg)"/>
+
+  <text x="60" y="82" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="42" font-weight="700" fill="#e2e8f0">'반드시'가 '아마도'로 바뀔 때</text>
+  <text x="60" y="124" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">멀티에이전트 핸드오프에서 제약이 새는 이유 — constraint weakening의 엔지니어링</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 플래너 에이전트 -->
+    <rect x="80" y="200" width="260" height="220" rx="20" fill="#1e293b" stroke="#38bdf8" stroke-width="3"/>
+    <circle cx="210" cy="258" r="26" fill="none" stroke="#38bdf8" stroke-width="3"/>
+    <rect x="196" y="292" width="28" height="6" rx="3" fill="#38bdf8"/>
+    <text x="210" y="336" text-anchor="middle" font-size="21" font-weight="700" fill="#e2e8f0">플래너 에이전트</text>
+    <rect x="110" y="352" width="200" height="44" rx="10" fill="#052e16" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="210" y="372" text-anchor="middle" font-size="14.5" font-weight="700" fill="#4ade80">MUST · 활성 차단</text>
+    <text x="210" y="390" text-anchor="middle" font-size="13" fill="#bbf7d0">"스테이징 통과 전 배포 금지"</text>
+
+    <!-- 요약 깔때기 -->
+    <path d="M420 240 L580 240 L560 330 L440 330 Z" fill="#1e293b" stroke="#fbbf24" stroke-width="3"/>
+    <path d="M440 330 L560 330 L540 395 L460 395 Z" fill="#1e293b" stroke="#fbbf24" stroke-width="3"/>
+    <text x="500" y="292" text-anchor="middle" font-size="20" font-weight="700" fill="#fbbf24">요약</text>
+    <text x="500" y="316" text-anchor="middle" font-size="14" fill="#94a3b8">손실 압축</text>
+    <text x="500" y="376" text-anchor="middle" font-size="13" fill="#94a3b8">문체 다듬기</text>
+
+    <line x1="345" y1="315" x2="415" y2="315" stroke="#64748b" stroke-width="3" marker-end="url(#hcw-cov-arr)"/>
+    <line x1="585" y1="315" x2="655" y2="315" stroke="#64748b" stroke-width="3" marker-end="url(#hcw-cov-arr)"/>
+
+    <!-- 실행 에이전트 -->
+    <rect x="660" y="200" width="260" height="220" rx="20" fill="#1e293b" stroke="#fb7185" stroke-width="3"/>
+    <circle cx="790" cy="258" r="26" fill="none" stroke="#fb7185" stroke-width="3"/>
+    <rect x="776" y="292" width="28" height="6" rx="3" fill="#fb7185"/>
+    <text x="790" y="336" text-anchor="middle" font-size="21" font-weight="700" fill="#e2e8f0">실행 에이전트</text>
+    <rect x="690" y="352" width="200" height="44" rx="10" fill="#2b1215" stroke="#fb7185" stroke-width="2.5" stroke-dasharray="8 5"/>
+    <text x="790" y="372" text-anchor="middle" font-size="14.5" font-weight="700" fill="#fb7185" opacity="0.75">maybe…?</text>
+    <text x="790" y="390" text-anchor="middle" font-size="13" fill="#fda4af" opacity="0.75">"검증 권장" → 배포 실행 🚨</text>
+
+    <!-- 우측 수치 패널 -->
+    <rect x="950" y="200" width="190" height="220" rx="16" fill="#111827" stroke="#334155" stroke-width="2"/>
+    <text x="1045" y="238" text-anchor="middle" font-size="15" font-weight="700" fill="#94a3b8">자유 서술 핸드오프</text>
+    <text x="1045" y="286" text-anchor="middle" font-size="34" font-weight="800" fill="#fb7185">100%</text>
+    <text x="1045" y="310" text-anchor="middle" font-size="13.5" fill="#cbd5e1">차단 조건 무력화</text>
+    <text x="1045" y="356" text-anchor="middle" font-size="34" font-weight="800" fill="#fbbf24">54.2%</text>
+    <text x="1045" y="380" text-anchor="middle" font-size="13.5" fill="#cbd5e1">금지 행동 실행</text>
+    <text x="1045" y="406" text-anchor="middle" font-size="11.5" fill="#64748b">arXiv:2608.24569 초록 기준</text>
+
+    <!-- 하단 그라데이션 바 + 메시지 -->
+    <rect x="80" y="470" width="1060" height="10" rx="5" fill="url(#hcw-fade)"/>
+    <text x="80" y="516" font-size="17" fill="#94a3b8">MUST</text>
+    <text x="560" y="516" font-size="17" fill="#94a3b8">SHOULD</text>
+    <text x="1075" y="516" font-size="17" fill="#94a3b8">MAYBE</text>
+    <text x="600" y="572" text-anchor="middle" font-size="24" font-weight="700" fill="#e2e8f0">"언급됐다" ≠ "구속력이 유지됐다"</text>
+    <text x="600" y="602" text-anchor="middle" font-size="16" fill="#94a3b8">핸드오프 아티팩트는 스키마로, 실행 직전에는 검증 게이트로</text>
+  </g>
+</svg>

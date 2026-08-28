@@ -1,0 +1,413 @@
+---
+title: "'반드시'가 '아마도'로 바뀔 때: 멀티에이전트 핸드오프에서 제약이 새는 이유와 막는 법"
+date: 2026-08-29T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "멀티에이전트", "multi-agent", "핸드오프", "handoff", "제약 약화", "constraint weakening", "constraint drift", "컨텍스트 엔지니어링", "context engineering", "에이전트 신뢰성", "agent reliability", "MAST", "오케스트레이션", "orchestration", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "플래너 에이전트가 '스테이징 검증 전에는 프로덕션 배포 금지'라고 분명히 적었는데, 요약을 한 번 거친 실행 에이전트는 태연하게 배포 버튼을 누릅니다. 이번 주 화제가 된 arXiv 논문 'When Must Becomes Maybe'는 이 현상을 통제 실험으로 규명했습니다. 자유 서술 요약으로 핸드오프하면 안전 차단 조건이 100% 무력화되고 금지 행동이 절반 넘게 실행되지만, 상태 4개 필드만 스키마로 복원하면 금지 행동이 0%로 떨어진다는 결과입니다. 왜 '언급됐다'와 '구속력이 유지됐다'가 완전히 다른 문제인지, MAST 실패 분류학과 Cognition·Anthropic의 설계 원칙, 그리고 pydantic 스키마 + 검증 게이트로 만드는 방어 코드까지 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-handoff-constraint-weakening-cover.svg"
+  alt: "왼쪽 플래너 에이전트의 '반드시(MUST)' 제약이 요약 깔때기를 통과하며 '아마도(maybe)'로 흐려진 채 오른쪽 실행 에이전트에게 전달되는 그림"
+  caption: "핸드오프를 거칠 때마다 제약은 '구속하는 상태'에서 '참고 정보'로 미끄러집니다. 멀티에이전트 신뢰성의 숨은 병목입니다."
+  relative: false
+---
+
+<style>
+/* ── 핸드오프 제약 약화 포스트 전용 스타일 (hcw- 접두사) ── */
+.hcw-fig{
+  --hcw-violet:#7c3aed; --hcw-sky:#0284c7; --hcw-green:#16a34a; --hcw-rose:#e11d48;
+  --hcw-amber:#d97706; --hcw-slate:#64748b; --hcw-teal:#0d9488; --hcw-blue:#2563eb;
+  --hcw-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .hcw-fig{
+  --hcw-violet:#a78bfa; --hcw-sky:#38bdf8; --hcw-green:#4ade80; --hcw-rose:#fb7185;
+  --hcw-amber:#fbbf24; --hcw-slate:#94a3b8; --hcw-teal:#2dd4bf; --hcw-blue:#60a5fa;
+  --hcw-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .hcw-fig{
+    --hcw-violet:#a78bfa; --hcw-sky:#38bdf8; --hcw-green:#4ade80; --hcw-rose:#fb7185;
+    --hcw-amber:#fbbf24; --hcw-slate:#94a3b8; --hcw-teal:#2dd4bf; --hcw-blue:#60a5fa;
+    --hcw-gray:#64748b;
+  }
+}
+.hcw-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.hcw-fig text{font-family:inherit}
+.hcw-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.hcw-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.hcw-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.hcw-toc ol{margin:0;padding-left:1.25rem}
+.hcw-toc li{margin:.22rem 0;font-size:.95rem}
+.hcw-toc a{text-decoration:none}
+.hcw-toc a:hover{text-decoration:underline}
+.hcw-pull{font-size:1.12rem;line-height:1.72}
+.hcw-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.hcw-note{border-left:4px solid var(--hcw-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.hcw-note strong{color:var(--hcw-blue,#2563eb)}
+.hcw-warn{border-left:4px solid var(--hcw-rose,#e11d48)}
+.hcw-warn strong{color:var(--hcw-rose,#e11d48)}
+.hcw-good{border-left:4px solid var(--hcw-teal,#0d9488)}
+.hcw-good strong{color:var(--hcw-teal,#0d9488)}
+.hcw-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.hcw-tbl th,.hcw-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.hcw-tbl th{background:var(--entry);font-weight:700}
+.hcw-tbl code{font-size:.86em}
+.hcw-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="hcw-pull">
+"요약·계획·티켓·메모리 같은 중간 아티팩트는 '실행을 구속하는 상태'를 '참고 정보'로 바꿔 버린다. 일반적인 압축 핸드오프에서 안전 차단 조건은 100% 비활성화됐고, 금지된 행동의 54.2%가 실제로 실행됐다. 반대로 상태 필드 4개를 복원하자 보존율은 100%, 금지 행동은 0%가 됐다."
+<footer>— arXiv:2608.24569, "When 'Must' Becomes 'Maybe': Constraint Weakening in LLM Agent Workflows" 초록이 보고한 핵심 결과</footer>
+</blockquote>
+
+<div class="hcw-toc">
+  <div class="hcw-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 분명히 "배포 금지"라고 적었는데</a></li>
+    <li><a href="#sec-2">배경 — 핸드오프란 무엇이고, 왜 통째로 넘기지 못하나</a></li>
+    <li><a href="#sec-3">제약 약화 — '언급됐다'와 '구속력이 유지됐다'는 다르다</a></li>
+    <li><a href="#sec-4">숫자 읽기 — 100% 무력화, 54.2% 금지 행동, 그리고 4개 필드</a></li>
+    <li><a href="#sec-5">더 큰 그림 — constraint drift, 그리고 선배들의 원칙</a></li>
+    <li><a href="#sec-6">실전 — 스키마 핸드오프 + 검증 게이트 만들기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 분명히 "배포 금지"라고 적었는데</h2>
+
+<p>멀티에이전트 파이프라인을 만들어 본 분이라면 한 번쯤 겪는 시나리오입니다. 플래너 에이전트가 계획을 세우면서 분명히 적었습니다. <strong>"스테이징 smoke 테스트가 통과하기 전에는 프로덕션 배포를 절대 하지 말 것."</strong> 계획이 길어지니 오케스트레이터가 요약을 만들어 실행 에이전트에게 넘깁니다. 요약에도 "스테이징 검증 관련 주의 필요"라는 문장이 들어 있긴 합니다. 그런데 실행 에이전트는 태연하게 배포 명령을 실행합니다. 로그를 다시 읽어 봐도 이상합니다. 정보가 사라진 것도 아닌데, 왜 지켜지지 않았을까요?</p>
+
+<p>이번 주 AI 엔지니어링 커뮤니티가 정확히 이 질문에 대한 답을 얻었습니다. 8월 25일 공개된 논문 <a href="https://arxiv.org/abs/2608.24569" target="_blank" rel="noopener">When "Must" Becomes "Maybe": Constraint Weakening in LLM Agent Workflows</a>(arXiv:2608.24569)는 이 현상에 <strong>제약 약화(constraint weakening)</strong>라는 이름을 붙이고, 1,296개의 통제된 에피소드로 원인을 분리해 냈습니다. 결론이 꽤 충격적입니다. 흔히 쓰는 자유 서술 요약으로 핸드오프하면 안전 차단 조건이 <strong>100% 무력화</strong>되고, 금지된 행동의 <strong>54.2%가 실제로 실행</strong>됐습니다. 멀티에이전트의 실패를 분류한 MAST 연구에서 에이전트 간 정보 전달 문제가 전체 실패의 36.9%를 차지한다는 결과와 겹쳐 읽히면서, "핸드오프는 자유 서술이 아니라 스키마여야 한다"는 논의가 이번 주 내내 이어졌습니다.</p>
+
+<p>결론부터 말하면 이렇습니다. <strong>정보가 전달되는 것과 구속력이 전달되는 것은 완전히 별개의 문제입니다.</strong> 요약 속에 "언급"된 제약은 다음 에이전트에게 그저 배경 지식일 뿐, 행동을 막는 힘이 없습니다. 이 글에서는 제약이 어디서 어떻게 새는지, 그리고 스키마와 검증 게이트로 어떻게 막는지를 숫자와 코드로 뜯어봅니다.</p>
+
+<div class="hcw-note"><strong>이 글에서 얻어 갈 것.</strong> ① 핸드오프 아티팩트(요약·계획·티켓·메모리)가 왜 제약을 녹여 버리는지, ② "운영 상태(operational state)"와 "참고 정보"의 구분법, ③ 2608.24569 실험의 설계와 수치 해석, ④ Cognition·Anthropic이 먼저 도착해 있던 설계 원칙, ⑤ pydantic 스키마 + 실행 전 검증 게이트로 만드는 방어 코드.</div>
+
+<h2 id="sec-2">2. 배경 — 핸드오프란 무엇이고, 왜 통째로 넘기지 못하나</h2>
+
+<p><strong>핸드오프(handoff)</strong>는 한 에이전트가 하던 일을 다른 에이전트에게 넘기는 지점입니다. 플래너가 세운 계획을 실행 에이전트가 받거나, 리서치 서브에이전트의 조사 결과를 리드 에이전트가 취합하거나, 오늘 세션의 작업 내역을 내일 세션이 메모리로 이어받는 순간이 전부 핸드오프입니다.</p>
+
+<p>이때 이전 에이전트의 컨텍스트를 통째로 넘기면 되지 않을까 싶지만, 실무에서는 그러기 어렵습니다. 첫째, 컨텍스트가 길어질수록 토큰 비용이 커지고, 둘째, 길이 자체가 성능을 갉아먹습니다. 이 블로그에서 다룬 <a href="/posts/context-rot-long-context-degradation/">컨텍스트 부패(context rot)</a> 현상처럼, 관련 없는 내용이 쌓이면 모델은 정작 중요한 것을 놓칩니다. 그래서 대부분의 프레임워크는 핸드오프 지점에서 컨텍스트를 <strong>중간 아티팩트</strong>로 변환합니다. 요약, 계획 문서, 작업 티켓, 압축된 메모리가 대표적입니다. 예를 들어 OpenAI Agents SDK의 <a href="https://openai.github.io/openai-agents-python/handoffs/" target="_blank" rel="noopener">handoff</a>는 기본값으로는 전체 대화 이력을 넘기지만, <code>input_filter</code>로 이력을 잘라내고 가공하는 것을 표준 패턴으로 안내합니다.</p>
+
+<p>문제는 이 변환이 <strong>손실 압축</strong>이라는 점입니다. 어릴 때 하던 '옮겨 말하기 게임(전화 게임)'을 떠올려 보세요. 첫 사람이 "내일 오전 9시까지 반드시 우산을 가져와"라고 속삭였는데, 네 사람을 거치면 "우산 얘기가 있었던 것 같아"가 됩니다. 정보의 흔적은 남지만, 지시로서의 힘은 사라집니다. 에이전트 파이프라인의 요약도 똑같은 일을 합니다.</p>
+
+<p>이게 드문 엣지 케이스가 아니라는 근거도 있습니다. 버클리 연구진이 150개 이상의 실행 트레이스를 분석해 만든 실패 분류학 <a href="https://arxiv.org/abs/2503.13657" target="_blank" rel="noopener">MAST(Why Do Multi-Agent LLM Systems Fail?)</a>는 멀티에이전트 실패를 14가지 모드, 3개 범주로 나눴는데, 그중 <strong>에이전트 간 부정합(inter-agent misalignment)</strong> — 소통 단절, 핸드오프 중 컨텍스트 손실, 형식 불일치 — 이 전체 실패의 <strong>36.9%</strong>를 차지했습니다. 멀티에이전트가 이상해질 때 세 번에 한 번은 에이전트 사이의 '전달'이 범인이라는 뜻입니다.</p>
+
+<h2 id="sec-3">3. 제약 약화 — '언급됐다'와 '구속력이 유지됐다'는 다르다</h2>
+
+<p>2608.24569 논문의 핵심 통찰은 컨텍스트 안의 정보가 두 종류로 나뉜다는 것입니다.</p>
+
+<ul>
+  <li><strong>참고 정보(reference information)</strong> — 알고 있으면 도움이 되는 배경. 압축하거나 뭉개도 큰일이 나지 않습니다. "이 프로젝트는 Python 3.12를 쓴다" 같은 것.</li>
+  <li><strong>운영 상태(operational state)</strong> — 실행을 <em>구속</em>하는 살아 있는 상태. "조건 X가 해소되기 전에는 행동 Y 금지" 같은 차단 조건, 권한 범위, 실패 시 폴백, 지금까지의 실행 결과. 한 글자라도 뭉개지면 행동이 달라집니다.</li>
+</ul>
+
+<p>자유 서술 요약은 이 둘을 구분하지 않습니다. LLM에게 "이 계획을 간결하게 요약해 줘"라고 하면, 모델은 문장을 자연스럽게 만드는 과정에서 운영 상태를 참고 정보의 문체로 다시 씁니다. "스테이징 테스트 통과 전 배포 금지(활성 차단)"가 "배포 전 스테이징 검증이 권장됨"이 되는 식입니다. 정보는 남았지만 <strong>양태(modality)</strong>가 바뀌었습니다. '반드시(must)'가 '아마도/하면 좋음(maybe/should)'으로 미끄러진 겁니다. 논문 제목이 정확히 이 현상을 가리킵니다.</p>
+
+<figure class="hcw-fig">
+<svg viewBox="0 0 900 300" role="img" aria-label="제약이 핸드오프 단계를 거치며 약해지는 과정. 원본 지시에서는 '스테이징 통과 전 배포 금지'가 활성 차단 조건이지만, 계획 문서에서는 '배포 전 스테이징 검증 필요'로, 요약에서는 '스테이징 검증 관련 주의'로, 실행 컨텍스트에서는 배경 언급으로 점점 약해져 결국 배포가 실행된다.">
+  <defs>
+    <marker id="hcw-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--hcw-gray)"/>
+    </marker>
+  </defs>
+  <g font-size="13.5">
+    <!-- 단계 박스들 -->
+    <g>
+      <rect x="20" y="60" width="190" height="120" rx="12" fill="none" stroke="var(--hcw-green)" stroke-width="2.5"/>
+      <text x="115" y="88" text-anchor="middle" font-weight="700" fill="var(--hcw-green)">원본 지시</text>
+      <text x="115" y="118" text-anchor="middle" fill="currentColor" font-size="12.5">"스테이징 통과 전</text>
+      <text x="115" y="136" text-anchor="middle" fill="currentColor" font-size="12.5">배포 금지"</text>
+      <text x="115" y="162" text-anchor="middle" fill="var(--hcw-green)" font-size="12" font-weight="700">MUST · 활성 차단</text>
+    </g>
+    <line x1="210" y1="120" x2="248" y2="120" stroke="var(--hcw-gray)" stroke-width="2" marker-end="url(#hcw-arr)"/>
+    <g>
+      <rect x="250" y="60" width="190" height="120" rx="12" fill="none" stroke="var(--hcw-teal)" stroke-width="2" stroke-dasharray="none"/>
+      <text x="345" y="88" text-anchor="middle" font-weight="700" fill="var(--hcw-teal)">계획 문서</text>
+      <text x="345" y="118" text-anchor="middle" fill="currentColor" font-size="12.5">"배포 전 스테이징</text>
+      <text x="345" y="136" text-anchor="middle" fill="currentColor" font-size="12.5">검증 필요"</text>
+      <text x="345" y="162" text-anchor="middle" fill="var(--hcw-teal)" font-size="12" font-weight="700">SHOULD · 절차화</text>
+    </g>
+    <line x1="440" y1="120" x2="478" y2="120" stroke="var(--hcw-gray)" stroke-width="2" marker-end="url(#hcw-arr)"/>
+    <g>
+      <rect x="480" y="60" width="190" height="120" rx="12" fill="none" stroke="var(--hcw-amber)" stroke-width="2" stroke-dasharray="7 4"/>
+      <text x="575" y="88" text-anchor="middle" font-weight="700" fill="var(--hcw-amber)">요약</text>
+      <text x="575" y="118" text-anchor="middle" fill="currentColor" font-size="12.5">"스테이징 검증</text>
+      <text x="575" y="136" text-anchor="middle" fill="currentColor" font-size="12.5">관련 주의"</text>
+      <text x="575" y="162" text-anchor="middle" fill="var(--hcw-amber)" font-size="12" font-weight="700">MAYBE · 참고 정보화</text>
+    </g>
+    <line x1="670" y1="120" x2="708" y2="120" stroke="var(--hcw-gray)" stroke-width="2" marker-end="url(#hcw-arr)"/>
+    <g>
+      <rect x="710" y="60" width="170" height="120" rx="12" fill="none" stroke="var(--hcw-rose)" stroke-width="2.5"/>
+      <text x="795" y="88" text-anchor="middle" font-weight="700" fill="var(--hcw-rose)">실행 컨텍스트</text>
+      <text x="795" y="118" text-anchor="middle" fill="currentColor" font-size="12.5">배경 언급으로만 존재</text>
+      <text x="795" y="144" text-anchor="middle" fill="currentColor" font-size="12.5">→ 배포 실행 🚨</text>
+      <text x="795" y="166" text-anchor="middle" fill="var(--hcw-rose)" font-size="12" font-weight="700">구속력 소멸</text>
+    </g>
+    <!-- 하단 축 -->
+    <line x1="30" y1="230" x2="870" y2="230" stroke="var(--hcw-gray)" stroke-width="1.5" marker-end="url(#hcw-arr)"/>
+    <text x="450" y="258" text-anchor="middle" fill="var(--hcw-gray)" font-size="12.5">핸드오프를 거칠수록 양태(modality)가 약해진다: MUST → SHOULD → MAYBE → (소멸)</text>
+    <text x="450" y="36" text-anchor="middle" font-weight="700" font-size="15" fill="currentColor">제약 약화(constraint weakening)의 경로</text>
+  </g>
+</svg>
+<figcaption>그림 1. 같은 정보가 핸드오프 단계를 거치며 '구속하는 상태'에서 '참고 정보'로 미끄러집니다. 어느 단계에서도 정보가 완전히 사라지지는 않는다는 점이 함정입니다 — 로그만 봐서는 "전달됐는데?"라고 생각하게 됩니다.</figcaption>
+</figure>
+
+<p>왜 이런 일이 생길까요? 요약을 만드는 LLM의 목적 함수는 "자연스럽고 간결한 글"이지 "구속력 보존"이 아니기 때문입니다. 자연어에서 명령문과 서술문의 경계는 흐릿하고, 압축 과정에서 가장 먼저 뭉개지는 것이 바로 이 경계입니다. 게다가 받는 쪽 에이전트도 요약 속 문장을 지시가 아니라 맥락으로 읽습니다. 전달자와 수신자 양쪽에서 이중으로 약해지는 셈입니다.</p>
+
+<h2 id="sec-4">4. 숫자 읽기 — 100% 무력화, 54.2% 금지 행동, 그리고 4개 필드</h2>
+
+<p>논문의 실험 설계는 깔끔합니다. 워크플로 안에 <strong>안전 차단 조건(safety blocker)</strong>을 심습니다. 차단 조건은 네 가지 상태 필드를 갖습니다: <strong>전제조건</strong>(무엇이 해소돼야 풀리나), <strong>권한</strong>(누가 풀 수 있나), <strong>폴백</strong>(못 풀면 어떻게 하나), <strong>실행 결과</strong>(지금 상태가 뭔가). 그리고 핸드오프 변환 방식만 바꿔 가며 — 다른 변수는 고정한 채 — 다운스트림 실행 에이전트가 차단 조건을 지키는지를 1,296개의 합성 에피소드에서 측정했습니다.</p>
+
+<p>초록이 보고한 결과를 요약하면 이렇습니다.</p>
+
+<figure class="hcw-fig">
+<svg viewBox="0 0 900 430" role="img" aria-label="세 가지 핸드오프 방식의 결과 비교 막대 그래프. 자유 서술 압축 핸드오프는 차단 조건 비활성화 100%, 금지 행동 실행 54.2%. 다운스트림 검증 게이트만 붙인 경우 금지 행동은 0%지만 아티팩트 비활성화는 95.3%로 남는다. 상태 4필드를 복원한 경우 비활성화 0%, 금지 행동 0%.">
+  <g font-size="13">
+    <text x="450" y="34" text-anchor="middle" font-weight="700" font-size="15" fill="currentColor">핸드오프 방식별 차단 조건 무력화율과 금지 행동 실행률</text>
+    <!-- 범례 -->
+    <rect x="250" y="52" width="14" height="14" fill="var(--hcw-rose)" rx="3"/>
+    <text x="270" y="64" fill="currentColor" font-size="12.5">차단 조건 비활성화(아티팩트에서 구속력 상실)</text>
+    <rect x="590" y="52" width="14" height="14" fill="var(--hcw-amber)" rx="3"/>
+    <text x="610" y="64" fill="currentColor" font-size="12.5">금지 행동 실행률</text>
+    <!-- y축 -->
+    <line x1="90" y1="90" x2="90" y2="350" stroke="var(--hcw-gray)" stroke-width="1.5"/>
+    <line x1="90" y1="350" x2="860" y2="350" stroke="var(--hcw-gray)" stroke-width="1.5"/>
+    <text x="78" y="95" text-anchor="end" fill="var(--hcw-gray)" font-size="11.5">100%</text>
+    <line x1="86" y1="90" x2="860" y2="90" stroke="var(--hcw-gray)" stroke-width=".5" opacity=".35"/>
+    <text x="78" y="225" text-anchor="end" fill="var(--hcw-gray)" font-size="11.5">50%</text>
+    <line x1="86" y1="220" x2="860" y2="220" stroke="var(--hcw-gray)" stroke-width=".5" opacity=".35"/>
+    <text x="78" y="353" text-anchor="end" fill="var(--hcw-gray)" font-size="11.5">0%</text>
+    <!-- 그룹 1: 자유 서술 요약 -->
+    <rect x="140" y="90" width="80" height="260" fill="var(--hcw-rose)" rx="4"/>
+    <text x="180" y="82" text-anchor="middle" font-weight="700" fill="var(--hcw-rose)">100%</text>
+    <rect x="232" y="209" width="80" height="141" fill="var(--hcw-amber)" rx="4"/>
+    <text x="272" y="201" text-anchor="middle" font-weight="700" fill="var(--hcw-amber)">54.2%</text>
+    <text x="226" y="375" text-anchor="middle" font-weight="700" fill="currentColor" font-size="13.5">자유 서술 압축 핸드오프</text>
+    <text x="226" y="394" text-anchor="middle" fill="var(--hcw-gray)" font-size="12">흔한 기본값 — 요약해서 넘기기</text>
+    <!-- 그룹 2: 검증 게이트만 -->
+    <rect x="410" y="102" width="80" height="248" fill="var(--hcw-rose)" rx="4"/>
+    <text x="450" y="94" text-anchor="middle" font-weight="700" fill="var(--hcw-rose)">95.3%</text>
+    <rect x="502" y="347" width="80" height="3" fill="var(--hcw-amber)" rx="1.5"/>
+    <text x="542" y="339" text-anchor="middle" font-weight="700" fill="var(--hcw-teal)">0%</text>
+    <text x="496" y="375" text-anchor="middle" font-weight="700" fill="currentColor" font-size="13.5">+ 다운스트림 검증 게이트만</text>
+    <text x="496" y="394" text-anchor="middle" fill="var(--hcw-gray)" font-size="12">사고는 막지만 아티팩트는 여전히 무력</text>
+    <!-- 그룹 3: 4필드 복원 -->
+    <rect x="680" y="347" width="80" height="3" fill="var(--hcw-rose)" rx="1.5"/>
+    <text x="720" y="339" text-anchor="middle" font-weight="700" fill="var(--hcw-teal)">0%</text>
+    <rect x="772" y="347" width="80" height="3" fill="var(--hcw-amber)" rx="1.5"/>
+    <text x="812" y="339" text-anchor="middle" font-weight="700" fill="var(--hcw-teal)">0%</text>
+    <text x="766" y="375" text-anchor="middle" font-weight="700" fill="currentColor" font-size="13.5">상태 4필드 스키마 복원</text>
+    <text x="766" y="394" text-anchor="middle" fill="var(--hcw-gray)" font-size="12">전제조건·권한·폴백·실행 결과 (보존 100%)</text>
+    <text x="450" y="420" text-anchor="middle" fill="var(--hcw-gray)" font-size="11.5">출처: arXiv:2608.24569 초록 보고 수치 · 합성 에피소드 1,296개 기준</text>
+  </g>
+</svg>
+<figcaption>그림 2. 자유 서술 요약(왼쪽)은 차단 조건을 전부 무력화하고 금지 행동의 절반 이상을 통과시킵니다. 실행 직전 검증 게이트(가운데)는 사고를 0%로 막지만, 아티팩트 자체는 여전히 95.3%가 무력화된 채입니다. 상태 4필드를 스키마로 복원(오른쪽)하면 둘 다 해결됩니다.</figcaption>
+</figure>
+
+<p>이 세 구성이 각각 말해 주는 바를 풀어 보겠습니다.</p>
+
+<p><strong>첫째, 자유 서술 요약은 생각보다 훨씬 심하게 샙니다.</strong> 100%라는 수치는 "가끔 놓친다"가 아니라 "구조적으로 항상 놓친다"는 뜻입니다. 프롬프트에 "중요한 제약은 꼭 유지해"라고 덧붙이는 수준으로는 바뀌지 않는, 표현 형식 자체의 문제라는 겁니다.</p>
+
+<p><strong>둘째, 검증 게이트는 최후의 방어선이지 해결책이 아닙니다.</strong> 실행 직전에 "이 행동이 차단 조건에 걸리는지" 별도로 검사하는 게이트를 붙이면 금지 행동은 사라집니다. 하지만 아티팩트의 95.3%에서는 차단 조건이 여전히 무력화된 채입니다. 무슨 뜻이냐면, 게이트가 없는 다른 경로 — 예를 들어 아티팩트를 이어받은 세 번째 에이전트, 또는 사람이 그 요약을 읽고 내리는 판단 — 는 여전히 무방비라는 겁니다. 안전망 하나로 구조 문제를 덮은 상태입니다.</p>
+
+<p><strong>셋째, 고치는 비용은 의외로 쌉니다.</strong> 거창한 학습이나 새 모델이 필요한 게 아니라, 핸드오프 아티팩트에 전제조건·권한·폴백·실행 결과 네 필드를 <em>구조화된 형태로</em> 복원하는 것만으로 보존율 100%, 금지 행동 0%가 됐습니다. 문제는 능력이 아니라 형식이었던 겁니다.</p>
+
+<div class="hcw-warn"><strong>주의.</strong> 이 수치는 통제된 합성 에피소드 기준이고, 아직 피어 리뷰 전의 프리프린트입니다. 실제 프로덕션의 지저분한 조건(업스트림 탐지 오류, 모호한 제약 표현)에서는 절대값이 달라질 수 있습니다. 다만 "형식이 구속력을 좌우한다"는 방향성은 아래에서 볼 다른 연구·실무 보고와 일관됩니다.</div>
+
+<h2 id="sec-5">5. 더 큰 그림 — constraint drift, 그리고 선배들의 원칙</h2>
+
+<p>이 논문이 외딴 발견은 아닙니다. 올해 5월 공개된 <a href="https://arxiv.org/abs/2605.10481" target="_blank" rel="noopener">Safe Multi-Agent Behavior Must Be Maintained, Not Merely Asserted</a>(arXiv:2605.10481)는 더 넓은 개념으로 <strong>제약 표류(constraint drift)</strong>를 정의했습니다. 제약이 메모리, 위임, 통신, 도구 사용, 감사, 최적화라는 여섯 경로를 지나며 손실·왜곡·약화·완화되는 현상입니다. 시스템이 최종 답변만 보면 멀쩡한데, 중간에 내부 메시지로 비공개 정보를 흘리거나, 원래 범위를 넘는 권한을 위임하거나, 어떤 행동이 왜 허용됐는지 재구성할 증거를 잃어버릴 수 있다고 지적합니다. 처방도 같은 방향입니다. 안전에 관련된 제약은 프롬프트 속 문장이 아니라 <strong>명시적 실행 상태(explicit execution state)</strong>로 유지해야 한다는 것.</p>
+
+<p>실무 쪽 선배들은 경험적으로 같은 결론에 먼저 도착해 있었습니다. Devin을 만든 Cognition의 <a href="https://cognition.com/blog/dont-build-multi-agents" target="_blank" rel="noopener">Don't Build Multi-Agents</a>(2025)는 "행동은 암묵적 결정을 운반한다(actions carry implicit decisions)"며, 컨텍스트를 쪼개 나눠 가진 에이전트들은 서로 충돌하는 전제 위에서 행동하게 된다고 경고했습니다. 핸드오프에서 제약이 새는 것은 이 경고의 구체적 사례입니다. Anthropic의 <a href="https://www.anthropic.com/engineering/built-multi-agent-research-system" target="_blank" rel="noopener">멀티에이전트 리서치 시스템 구축기</a>도 같은 교훈을 담고 있습니다. 서브에이전트에게 일을 맡길 때는 <strong>목표, 출력 형식, 사용할 도구와 소스 안내, 작업 경계</strong>를 명시해야 하며, 이게 없으면 에이전트들이 일을 중복하고, 빈틈을 남기고, 필요한 정보를 찾지 못했다고 보고합니다. 위임(핸드오프의 한 방향)에서도 자유 서술 대신 구조화된 명세가 답이었던 겁니다.</p>
+
+<p>세 갈래 — 통제 실험, 이론적 분류, 실무 보고 — 가 한 지점을 가리킵니다. <strong>제약은 '주장'하는 것이 아니라 '상태로 유지'하는 것</strong>이고, 핸드오프는 그 상태가 가장 쉽게 증발하는 지점입니다.</p>
+
+<div class="hcw-tblwrap">
+<table class="hcw-tbl">
+  <thead><tr><th>관점</th><th>출처</th><th>핵심 주장</th></tr></thead>
+  <tbody>
+    <tr><td>통제 실험</td><td>arXiv:2608.24569 (2026-08)</td><td>자유 서술 핸드오프는 차단 조건을 100% 무력화. 상태 4필드 복원으로 금지 행동 0%.</td></tr>
+    <tr><td>실패 분류학</td><td>MAST, arXiv:2503.13657</td><td>에이전트 간 부정합(핸드오프 컨텍스트 손실 포함)이 전체 실패의 36.9%.</td></tr>
+    <tr><td>이론 프레임</td><td>arXiv:2605.10481 (2026-05)</td><td>제약 표류는 6개 경로에서 발생. 제약은 명시적 실행 상태로 유지해야.</td></tr>
+    <tr><td>실무 원칙</td><td>Cognition (2025)</td><td>행동은 암묵적 결정을 운반. 컨텍스트 분절은 충돌하는 전제를 만든다.</td></tr>
+    <tr><td>실무 원칙</td><td>Anthropic (2025)</td><td>위임에는 목표·출력 형식·도구 안내·경계의 명시적 명세가 필요.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="sec-6">6. 실전 — 스키마 핸드오프 + 검증 게이트 만들기</h2>
+
+<p>이제 직접 만들어 봅시다. 방어는 두 겹입니다. <strong>① 핸드오프 아티팩트를 스키마로 강제</strong>해서 운영 상태가 자유 서술 속으로 녹아들지 못하게 하고, <strong>② 실행 직전 검증 게이트</strong>를 별도 코드로 둬서 모델의 선의에 기대지 않는 겁니다.</p>
+
+<p>먼저 흔한 안티패턴부터 보겠습니다.</p>
+
+{{< highlight python >}}
+# ❌ 안티패턴: 자유 서술 요약으로 핸드오프
+plan = planner_agent.run(task)
+summary = llm.complete(
+    f"다음 계획을 간결하게 요약해 줘:\n{plan}"
+)
+result = executor_agent.run(context=summary)
+# → "배포 금지"가 "검증 권장"으로 문체가 바뀌어도 아무도 모른다
+{{< /highlight >}}
+
+<p>이제 스키마를 도입합니다. 핵심은 <strong>참고 정보와 운영 상태를 별도 필드로 분리</strong>하고, 운영 상태에는 논문이 말한 4필드(전제조건·권한·폴백·실행 결과)를 필수로 요구하는 겁니다.</p>
+
+{{< highlight python >}}
+from typing import Literal
+from pydantic import BaseModel, Field
+
+class Blocker(BaseModel):
+    """실행을 구속하는 차단 조건 — 압축·의역 금지, 무손실 전달 대상"""
+    id: str
+    forbidden_action: str          # 무엇이 금지되나: "prod 배포"
+    precondition: str              # 해제 전제조건: "staging smoke 테스트 전체 통과"
+    authority: str                 # 누가 해제할 수 있나: "release-manager 승인"
+    fallback: str                  # 해제 불가 시: "배포 중단 후 사람에게 보고"
+    status: Literal["active", "cleared"]   # 실행 결과/현재 상태
+
+class HandoffArtifact(BaseModel):
+    goal: str
+    context_summary: str = Field(
+        description="참고 정보. 자유롭게 압축해도 되는 배경."
+    )
+    blockers: list[Blocker] = Field(
+        description="운영 상태. 원문 그대로 복사해 전달할 것."
+    )
+    permissions: list[str]         # 이 에이전트에게 허용된 행동 범위
+    done_criteria: str             # 완료 판정 기준
+
+# 요약 LLM에게는 context_summary만 만들게 하고,
+# blockers는 코드가 이전 아티팩트에서 그대로 복사한다
+artifact = HandoffArtifact(
+    goal=plan.goal,
+    context_summary=llm.complete(f"배경만 3문장으로: {plan.body}"),
+    blockers=plan.blockers,        # ← LLM을 거치지 않는다!
+    permissions=plan.permissions,
+    done_criteria=plan.done_criteria,
+)
+{{< /highlight >}}
+
+<p>여기서 제일 중요한 줄은 <code>blockers=plan.blockers</code>입니다. 차단 조건은 <strong>LLM의 재서술을 거치지 않고</strong> 구조화된 데이터로 복사됩니다. 요약 모델이 아무리 문장을 다듬어도 운영 상태는 건드릴 수 없습니다. 논문 실험에서 "4필드 복원 = 보존 100%"가 나온 이유가 바로 이겁니다. 보존을 모델의 능력 문제에서 파이프라인의 형식 문제로 옮긴 겁니다.</p>
+
+<p>두 번째 겹, 검증 게이트입니다. 실행 에이전트가 도구를 호출하기 직전에 코드가 차단 조건을 검사합니다.</p>
+
+{{< highlight python >}}
+class BlockedActionError(Exception):
+    pass
+
+def verify_gate(artifact: HandoffArtifact, tool_name: str, args: dict):
+    """도구 실행 직전 호출 — 모델의 판단이 아니라 코드가 막는다"""
+    for b in artifact.blockers:
+        if b.status != "active":
+            continue
+        # 금지 행동 매칭은 도메인에 맞게: 여기선 도구 이름 기준 예시
+        if matches(b.forbidden_action, tool_name, args):
+            raise BlockedActionError(
+                f"[{b.id}] '{tool_name}' 차단됨. "
+                f"해제 조건: {b.precondition} / 권한: {b.authority} / "
+                f"폴백: {b.fallback}"
+            )
+
+# 에이전트 루프에 끼워 넣기
+for tool_call in agent_response.tool_calls:
+    verify_gate(artifact, tool_call.name, tool_call.args)  # 통과해야만
+    execute(tool_call)                                      # 실행된다
+{{< /highlight >}}
+
+<p>이 게이트는 프롬프트가 아니라 코드라는 점이 핵심입니다. 이 블로그의 <a href="/posts/agent-guardrails-control-plane/">가드레일 컨트롤 플레인</a> 편에서 다뤘던 원칙 — "정책은 모델 바깥에서 집행한다" — 의 핸드오프 버전입니다. 프레임워크를 쓴다면 같은 자리를 찾으면 됩니다. OpenAI Agents SDK라면 handoff의 <code>input_filter</code>에서 blockers를 보존·주입하고 guardrail 훅에서 게이트를 걸고, LangGraph라면 노드 사이 state 스키마에 blockers 필드를 두고 실행 노드 앞에 검증 노드를 끼우는 식입니다.</p>
+
+<figure class="hcw-fig">
+<svg viewBox="0 0 900 380" role="img" aria-label="스키마 핸드오프와 검증 게이트를 배치한 방어 아키텍처. 플래너 에이전트가 핸드오프 아티팩트를 만드는데, 참고 정보는 요약 LLM을 거쳐 압축되고 차단 조건은 코드 경로로 무손실 복사된다. 실행 에이전트는 아티팩트를 받아 도구를 호출하려 하고, 호출 직전 검증 게이트가 활성 차단 조건과 대조해 통과 또는 차단을 결정한다.">
+  <defs>
+    <marker id="hcw-arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--hcw-gray)"/>
+    </marker>
+  </defs>
+  <g font-size="13">
+    <text x="450" y="30" text-anchor="middle" font-weight="700" font-size="15" fill="currentColor">두 겹 방어: 스키마 핸드오프 + 실행 전 검증 게이트</text>
+    <!-- 플래너 -->
+    <rect x="30" y="130" width="150" height="90" rx="12" fill="none" stroke="var(--hcw-blue)" stroke-width="2.5"/>
+    <text x="105" y="168" text-anchor="middle" font-weight="700" fill="var(--hcw-blue)">플래너</text>
+    <text x="105" y="190" text-anchor="middle" fill="currentColor" font-size="12">계획 + 차단 조건</text>
+    <!-- 두 경로 -->
+    <line x1="180" y1="150" x2="288" y2="110" stroke="var(--hcw-amber)" stroke-width="2" marker-end="url(#hcw-arr2)"/>
+    <text x="228" y="112" text-anchor="middle" fill="var(--hcw-amber)" font-size="11.5">참고 정보</text>
+    <line x1="180" y1="200" x2="288" y2="240" stroke="var(--hcw-teal)" stroke-width="2.5" marker-end="url(#hcw-arr2)"/>
+    <text x="226" y="243" text-anchor="middle" fill="var(--hcw-teal)" font-size="11.5">차단 조건</text>
+    <!-- 요약 LLM -->
+    <rect x="290" y="70" width="150" height="70" rx="12" fill="none" stroke="var(--hcw-amber)" stroke-width="2" stroke-dasharray="7 4"/>
+    <text x="365" y="99" text-anchor="middle" font-weight="700" fill="var(--hcw-amber)">요약 LLM</text>
+    <text x="365" y="120" text-anchor="middle" fill="currentColor" font-size="12">손실 압축 OK</text>
+    <!-- 무손실 복사 -->
+    <rect x="290" y="215" width="150" height="70" rx="12" fill="none" stroke="var(--hcw-teal)" stroke-width="2.5"/>
+    <text x="365" y="244" text-anchor="middle" font-weight="700" fill="var(--hcw-teal)">코드 복사</text>
+    <text x="365" y="265" text-anchor="middle" fill="currentColor" font-size="12">LLM 미경유 · 무손실</text>
+    <!-- 아티팩트 -->
+    <line x1="440" y1="105" x2="518" y2="150" stroke="var(--hcw-gray)" stroke-width="2" marker-end="url(#hcw-arr2)"/>
+    <line x1="440" y1="250" x2="518" y2="205" stroke="var(--hcw-gray)" stroke-width="2" marker-end="url(#hcw-arr2)"/>
+    <rect x="520" y="130" width="170" height="95" rx="12" fill="none" stroke="var(--hcw-violet)" stroke-width="2.5"/>
+    <text x="605" y="158" text-anchor="middle" font-weight="700" fill="var(--hcw-violet)">HandoffArtifact</text>
+    <text x="605" y="180" text-anchor="middle" fill="currentColor" font-size="12">context_summary: str</text>
+    <text x="605" y="200" text-anchor="middle" fill="currentColor" font-size="12">blockers: list[Blocker]</text>
+    <!-- 실행 에이전트 -->
+    <line x1="690" y1="177" x2="738" y2="177" stroke="var(--hcw-gray)" stroke-width="2" marker-end="url(#hcw-arr2)"/>
+    <rect x="740" y="130" width="130" height="95" rx="12" fill="none" stroke="var(--hcw-sky)" stroke-width="2.5"/>
+    <text x="805" y="165" text-anchor="middle" font-weight="700" fill="var(--hcw-sky)">실행 에이전트</text>
+    <text x="805" y="188" text-anchor="middle" fill="currentColor" font-size="12">도구 호출 시도</text>
+    <!-- 게이트 -->
+    <line x1="805" y1="225" x2="805" y2="268" stroke="var(--hcw-gray)" stroke-width="2" marker-end="url(#hcw-arr2)"/>
+    <rect x="700" y="270" width="180" height="72" rx="12" fill="none" stroke="var(--hcw-rose)" stroke-width="2.5"/>
+    <text x="790" y="297" text-anchor="middle" font-weight="700" fill="var(--hcw-rose)">verify_gate()</text>
+    <text x="790" y="318" text-anchor="middle" fill="currentColor" font-size="12">active blocker와 대조</text>
+    <line x1="700" y1="306" x2="640" y2="306" stroke="var(--hcw-green)" stroke-width="2" marker-end="url(#hcw-arr2)"/>
+    <text x="608" y="300" text-anchor="middle" fill="var(--hcw-green)" font-size="12" font-weight="700">통과 → 실행</text>
+    <text x="608" y="322" text-anchor="middle" fill="var(--hcw-rose)" font-size="12" font-weight="700">위반 → 차단+폴백</text>
+    <!-- 하단 -->
+    <text x="450" y="368" text-anchor="middle" fill="var(--hcw-gray)" font-size="12">운영 상태는 LLM을 우회시키고(아래 경로), 마지막에 코드가 한 번 더 지킨다</text>
+  </g>
+</svg>
+<figcaption>그림 3. 방어 아키텍처. 참고 정보(위 경로)는 요약 LLM이 마음껏 압축해도 되지만, 차단 조건(아래 경로)은 LLM을 거치지 않고 구조화된 필드로 복사됩니다. 실행 직전의 <code>verify_gate()</code>는 아티팩트가 오염됐을 때를 대비한 두 번째 겹입니다.</figcaption>
+</figure>
+
+<div class="hcw-good"><strong>덤으로 얻는 것.</strong> blockers가 구조화돼 있으면 관측성도 공짜로 따라옵니다. "현재 활성 차단 조건 개수", "차단 조건이 해제된 이력(누가, 언제, 어떤 전제조건으로)"을 대시보드에 그대로 띄울 수 있고, 사고가 났을 때 어느 핸드오프에서 상태가 사라졌는지 diff로 추적할 수 있습니다. 자유 서술 요약에서는 불가능한 일입니다.</div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"요약 프롬프트에 '제약을 유지해'라고 쓰면 되지 않나?"</strong> — 완화는 되지만 해결이 안 됩니다. 문제의 본질은 자유 서술이라는 형식이 양태(must/should/maybe)를 보존하지 못한다는 것이므로, 형식을 바꿔야 합니다. 프롬프트 지시는 스키마의 보조 수단으로만 쓰세요.</li>
+  <li><strong>blockers 필드를 만들어 놓고 LLM에게 채우게 한다.</strong> — 스키마의 절반만 쓰는 겁니다. 요약 모델이 blockers를 다시 쓰게 하면 그 과정에서 또 약화됩니다. 차단 조건은 코드가 이전 단계에서 <em>복사</em>하고, LLM은 새 차단 조건을 <em>추가</em>만 할 수 있게 하는 편이 안전합니다.</li>
+  <li><strong>검증 게이트만 믿는다.</strong> — 논문 수치가 보여 주듯 게이트는 금지 행동을 0%로 만들지만 아티팩트의 95.3%는 여전히 무력화된 채입니다. 게이트가 커버하지 않는 소비자(다른 에이전트, 사람, 배치 잡)가 그 아티팩트를 읽는 순간 구멍이 다시 열립니다. 스키마 보존이 본체, 게이트는 보험입니다.</li>
+  <li><strong>모든 것을 blocker로 만든다.</strong> — 전부 운영 상태로 승격하면 컨텍스트가 다시 비대해지고, 진짜 차단 조건의 신호가 희석됩니다. "위반하면 되돌리기 어려운 행동이 실행되는가?"를 기준으로 소수만 엄격하게 관리하세요. 나머지는 참고 정보로 압축하는 게 맞습니다.</li>
+  <li><strong>해제 권한을 실행 에이전트 자신에게 준다.</strong> — <code>authority</code>가 "본인 판단"이면 차단 조건이 아니라 권고입니다. 해제는 다른 주체(사람, 별도 검증 에이전트, 테스트 통과 이벤트)만 할 수 있어야 하고, 해제 이력을 남겨야 합니다. <a href="/posts/agent-approval-fatigue-permission-design/">승인 피로 편</a>에서 다룬 것처럼, 사람 승인을 요구할 지점은 좁고 명확하게 잡으세요.</li>
+  <li><strong>멀티에이전트 자체를 반성 없이 늘린다.</strong> — 핸드오프는 존재 자체가 위험 지점입니다. Cognition의 조언대로, 컨텍스트를 공유하는 단일 에이전트로 충분한 작업이라면 핸드오프를 만들지 않는 것이 최고의 방어입니다. 쪼개야 한다면 이 글의 패턴을 쓰고, 쪼개지 않아도 된다면 쪼개지 마세요.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>멀티에이전트 핸드오프에서 <strong>정보 전달과 구속력 전달은 별개</strong>입니다. 요약에 "언급"된 제약은 다음 에이전트에게 배경 지식일 뿐, 행동을 막지 못합니다.</li>
+  <li><a href="https://arxiv.org/abs/2608.24569" target="_blank" rel="noopener">When "Must" Becomes "Maybe"</a>(2026-08-25)는 이를 통제 실험으로 규명했습니다. 자유 서술 압축 핸드오프에서 안전 차단 조건 <strong>100% 무력화, 금지 행동 54.2% 실행</strong>. 상태 4필드(전제조건·권한·폴백·실행 결과)를 복원하면 <strong>보존 100%, 금지 행동 0%</strong>.</li>
+  <li>다운스트림 <strong>검증 게이트만으로는 부족</strong>합니다. 사고(금지 행동)는 막아도 아티팩트의 95.3%는 무력화된 채 남아, 게이트 밖 소비자에게 그대로 새어 나갑니다.</li>
+  <li>이 발견은 MAST의 "실패의 36.9%는 에이전트 간 부정합", constraint drift 연구의 "제약은 명시적 실행 상태로", Cognition·Anthropic의 실무 원칙과 한 방향입니다.</li>
+  <li>실전 처방 두 겹: <strong>① 핸드오프 아티팩트를 스키마로 강제</strong>하되 차단 조건은 LLM을 우회해 코드로 복사하고, <strong>② 실행 직전 코드 게이트</strong>로 한 번 더 지키세요. 그리고 가능하다면 핸드오프 수 자체를 줄이는 것이 최고의 방어입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2608.24569" target="_blank" rel="noopener">When "Must" Becomes "Maybe": Constraint Weakening in LLM Agent Workflows (arXiv:2608.24569)</a> — 이 글의 중심 논문. 본문 수치는 초록 보고 기준</li>
+  <li><a href="https://arxiv.org/abs/2503.13657" target="_blank" rel="noopener">Why Do Multi-Agent LLM Systems Fail? — MAST (arXiv:2503.13657)</a> — 14개 실패 모드 분류학, 에이전트 간 부정합 36.9%</li>
+  <li><a href="https://arxiv.org/abs/2605.10481" target="_blank" rel="noopener">Safe Multi-Agent Behavior Must Be Maintained, Not Merely Asserted: Constraint Drift in LLM-Based Multi-Agent Systems (arXiv:2605.10481)</a> — 제약 표류의 6개 경로와 Constraint State Governance</li>
+  <li><a href="https://cognition.com/blog/dont-build-multi-agents" target="_blank" rel="noopener">Don't Build Multi-Agents — Cognition (Walden Yan)</a> — 컨텍스트 공유와 암묵적 결정에 관한 원칙</li>
+  <li><a href="https://www.anthropic.com/engineering/built-multi-agent-research-system" target="_blank" rel="noopener">How we built our multi-agent research system — Anthropic</a> — 위임 시 목표·출력 형식·도구·경계 명세의 필요성</li>
+  <li><a href="https://openai.github.io/openai-agents-python/handoffs/" target="_blank" rel="noopener">Handoffs — OpenAI Agents SDK 문서</a> — handoff와 <code>input_filter</code> 메커니즘</li>
+  <li><a href="/posts/agent-guardrails-control-plane/">에이전트 가드레일은 컨트롤 플레인이다 — 본 블로그</a> (한국어)</li>
+  <li><a href="/posts/context-rot-long-context-degradation/">컨텍스트 부패 — 길수록 나빠지는 이유 — 본 블로그</a> (한국어)</li>
+  <li><a href="/posts/agent-approval-fatigue-permission-design/">승인 피로와 권한 설계 — 본 블로그</a> (한국어)</li>
+</ul>

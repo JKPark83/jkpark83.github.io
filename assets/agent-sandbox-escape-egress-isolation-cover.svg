@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트 샌드박스 이스케이프를 표현한 그림. 왼쪽에는 격리된 에이전트 샌드박스 여러 개가 잠금 아이콘과 함께 있고, 가운데에는 '패키지 프록시 — 단일 egress'라는 하나의 파이프가 금이 간 채(SSRF) 뚫려 있다. 그 틈으로 화살표가 인터넷을 거쳐 오른쪽 '프로덕션 인프라'로 이어진다. 아래에는 '격리는 프롬프트가 아니라 시스템 설계 문제다'라는 문구가 있다.">
+  <defs>
+    <linearGradient id="aei-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="aei-pipe" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#334155"/>
+      <stop offset="1" stop-color="#475569"/>
+    </linearGradient>
+    <marker id="aei-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#fb7185"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#aei-bg)"/>
+
+  <!-- 왼쪽: 격리된 샌드박스들 -->
+  <g font-family="'Segoe UI',system-ui,sans-serif">
+    <text x="70" y="90" fill="#e2e8f0" font-size="26" font-weight="700">격리된 에이전트 샌드박스</text>
+    <g>
+      <rect x="70" y="120" width="150" height="90" rx="12" fill="#111c33" stroke="#38bdf8" stroke-width="1.5"/>
+      <rect x="70" y="225" width="150" height="90" rx="12" fill="#111c33" stroke="#38bdf8" stroke-width="1.5"/>
+      <rect x="70" y="330" width="150" height="90" rx="12" fill="#111c33" stroke="#38bdf8" stroke-width="1.5"/>
+      <!-- 잠금 아이콘 -->
+      <g fill="#38bdf8">
+        <rect x="132" y="158" width="26" height="20" rx="3"/>
+        <path d="M137 158v-6a8 8 0 0 1 16 0v6" fill="none" stroke="#38bdf8" stroke-width="3"/>
+        <rect x="132" y="263" width="26" height="20" rx="3"/>
+        <path d="M137 263v-6a8 8 0 0 1 16 0v6" fill="none" stroke="#38bdf8" stroke-width="3"/>
+        <rect x="132" y="368" width="26" height="20" rx="3"/>
+        <path d="M137 368v-6a8 8 0 0 1 16 0v6" fill="none" stroke="#38bdf8" stroke-width="3"/>
+      </g>
+      <text x="145" y="200" fill="#94a3b8" font-size="13" text-anchor="middle">agent</text>
+      <text x="145" y="305" fill="#94a3b8" font-size="13" text-anchor="middle">agent</text>
+      <text x="145" y="410" fill="#94a3b8" font-size="13" text-anchor="middle">agent</text>
+    </g>
+
+    <!-- 가운데: 단일 egress 파이프 + 균열 -->
+    <text x="600" y="90" fill="#e2e8f0" font-size="26" font-weight="700" text-anchor="middle">패키지 프록시 · 단일 egress</text>
+    <rect x="360" y="240" width="440" height="70" rx="14" fill="url(#aei-pipe)" stroke="#64748b" stroke-width="1.5"/>
+    <!-- 균열(SSRF) -->
+    <path d="M560 240 l-14 24 l16 8 l-12 20 l14 18" fill="none" stroke="#fb7185" stroke-width="4" stroke-linejoin="round"/>
+    <text x="580" y="330" fill="#fb7185" font-size="17" font-weight="700">SSRF · zero-day</text>
+    <text x="380" y="284" fill="#cbd5e1" font-size="15">read-only 이라 믿었던 유일한 출구</text>
+
+    <!-- 샌드박스 → 파이프 화살표 -->
+    <g stroke="#475569" stroke-width="2" fill="none">
+      <path d="M220 165 C 300 200, 320 250, 360 262"/>
+      <path d="M220 270 H360"/>
+      <path d="M220 375 C 300 340, 320 290, 360 288"/>
+    </g>
+
+    <!-- 파이프 균열 → 인터넷 → 프로덕션 -->
+    <path d="M566 300 C 640 380, 760 400, 880 400" stroke="#fb7185" stroke-width="3.5" fill="none" marker-end="url(#aei-arr)"/>
+    <text x="700" y="440" fill="#fca5a5" font-size="15" text-anchor="middle">인터넷</text>
+
+    <!-- 오른쪽: 프로덕션 -->
+    <rect x="900" y="235" width="230" height="150" rx="14" fill="#3b0d17" stroke="#fb7185" stroke-width="2"/>
+    <text x="1015" y="300" fill="#fecaca" font-size="20" font-weight="700" text-anchor="middle">프로덕션</text>
+    <text x="1015" y="330" fill="#fecaca" font-size="20" font-weight="700" text-anchor="middle">인프라</text>
+    <text x="1015" y="362" fill="#fca5a5" font-size="14" text-anchor="middle">credentials · 소스코드</text>
+  </g>
+
+  <!-- 하단 문구 -->
+  <rect x="0" y="520" width="1200" height="110" fill="#020617" opacity="0.55"/>
+  <text x="600" y="565" fill="#f8fafc" font-size="30" font-weight="800" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif">격리는 프롬프트가 아니라 시스템 설계 문제다</text>
+  <text x="600" y="600" fill="#93c5fd" font-size="17" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif">OpenAI · Hugging Face 사건으로 배우는 에이전트 샌드박스 이스케이프와 방어</text>
+</svg>

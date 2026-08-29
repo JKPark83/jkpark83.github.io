@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="360" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="bold">SWE-Prime — 트래젝터리 10%만 골라 학습했을 때의 상대 개선폭</text>
+  <text x="400" y="56" text-anchor="middle" fill="#94a3b8" font-size="12">기준선: 성공 트래젝터리 전체(100%)로 SFT한 모델 대비 상대 성능 향상 (%)</text>
+
+  <!-- axis -->
+  <line x1="150" y1="90" x2="150" y2="270" stroke="#475569" stroke-width="2"/>
+  <line x1="150" y1="270" x2="740" y2="270" stroke="#475569" stroke-width="2"/>
+
+  <!-- gridlines: scale 20px per 1%, max 25% -->
+  <line x1="270" y1="90" x2="270" y2="270" stroke="#1e293b" stroke-width="1"/>
+  <text x="270" y="288" text-anchor="middle" fill="#64748b" font-size="11">+5%</text>
+  <line x1="390" y1="90" x2="390" y2="270" stroke="#1e293b" stroke-width="1"/>
+  <text x="390" y="288" text-anchor="middle" fill="#64748b" font-size="11">+10%</text>
+  <line x1="510" y1="90" x2="510" y2="270" stroke="#1e293b" stroke-width="1"/>
+  <text x="510" y="288" text-anchor="middle" fill="#64748b" font-size="11">+15%</text>
+  <line x1="630" y1="90" x2="630" y2="270" stroke="#1e293b" stroke-width="1"/>
+  <text x="630" y="288" text-anchor="middle" fill="#64748b" font-size="11">+20%</text>
+  <text x="150" y="288" text-anchor="middle" fill="#64748b" font-size="11">0</text>
+
+  <!-- bar: SWE-Bench Pro +12.2% -> width 292.8 -->
+  <rect x="150" y="115" width="293" height="45" rx="6" fill="#38bdf8"/>
+  <text x="140" y="143" text-anchor="end" fill="#e2e8f0" font-size="13">SWE-Bench Pro</text>
+  <text x="455" y="143" text-anchor="start" fill="#7dd3fc" font-size="15" font-weight="bold">+12.2%</text>
+
+  <!-- bar: SWE-Bench Verified +24.2% -> width 580.8 -->
+  <rect x="150" y="195" width="581" height="45" rx="6" fill="#34d399"/>
+  <text x="140" y="223" text-anchor="end" fill="#e2e8f0" font-size="13">SWE-Bench Verified</text>
+  <text x="640" y="223" text-anchor="start" fill="#052e1b" font-size="15" font-weight="bold">+24.2%</text>
+
+  <text x="400" y="318" text-anchor="middle" fill="#e2e8f0" font-size="12">2단계 선별: 트래젝터리 수준(과정·결과·대표성) → 세그먼트 수준(기여도·학습성·위험, 손실 계산에서만 제외)</text>
+  <text x="400" y="342" text-anchor="middle" fill="#64748b" font-size="11">출처: arXiv:2608.27449 초록의 "최대" 상대 개선폭 (제작: 본 블로그)</text>
+</svg>

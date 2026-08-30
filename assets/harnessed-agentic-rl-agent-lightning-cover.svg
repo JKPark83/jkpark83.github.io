@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="훈련장의 에이전트와 실전의 에이전트가 다르다는 메시지를 담은 그림. 왼쪽에는 트레이너가 만든 간이 에이전트로 학습하고 진짜 하네스로 배포해 분포가 어긋나는 전통 agentic RL이 있고, 오른쪽에는 배포 하네스가 루프를 소유하고 프록시 뒤에서 트레이너가 관찰하는 harnessed agentic RL이 있다. 아래에는 훈련한 그 에이전트를 그대로 배포하라는 문구가 있다.">
+  <defs>
+    <linearGradient id="hrl-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1a1f3a"/>
+    </linearGradient>
+    <marker id="hrl-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/>
+    </marker>
+    <marker id="hrl-arrow-r" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fb7185"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#hrl-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">훈련장의 에이전트 ≠ 실전의 에이전트</text>
+  <text x="60" y="118" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">harnessed agentic RL — 하네스째 학습시키기 (Agent Lightning v1.0)</text>
+
+  <!-- 왼쪽: 전통 agentic RL -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="300" y="180" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">전통 agentic RL</text>
+    <rect x="120" y="200" width="360" height="130" rx="16" fill="#2b1622" stroke="#fb7185" stroke-width="2"/>
+    <text x="300" y="232" text-anchor="middle" font-size="17" fill="#fda4af">트레이너 안의 '간이 에이전트'로 학습</text>
+    <rect x="150" y="252" width="300" height="56" rx="8" fill="#3f1d2b"/>
+    <text x="300" y="276" text-anchor="middle" font-size="15" fill="#fda4af">단순 루프 · 압축 없음 · 서브에이전트 없음</text>
+    <text x="300" y="298" text-anchor="middle" font-size="15" fill="#fda4af">→ 훈련용으로 다시 구현</text>
+    <path d="M300 330 L300 380" stroke="#fb7185" stroke-width="3" marker-end="url(#hrl-arrow-r)"/>
+    <rect x="120" y="385" width="360" height="86" rx="16" fill="#1e1b2e" stroke="#94a3b8" stroke-width="2" stroke-dasharray="7 5"/>
+    <text x="300" y="420" text-anchor="middle" font-size="17" fill="#cbd5e1">배포: 전혀 다른 진짜 하네스</text>
+    <text x="300" y="448" text-anchor="middle" font-size="15" fill="#fb7185">훈련 분포 ≠ 배포 분포 (train-serve skew)</text>
+  </g>
+
+  <!-- 오른쪽: harnessed agentic RL -->
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <text x="900" y="180" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">harnessed agentic RL</text>
+    <rect x="720" y="200" width="360" height="120" rx="16" fill="#132a1e" stroke="#4ade80" stroke-width="2"/>
+    <text x="900" y="230" text-anchor="middle" font-size="17" fill="#86efac">배포 하네스가 루프를 소유</text>
+    <text x="900" y="256" text-anchor="middle" font-size="15" fill="#86efac">코드 수정 0 — base_url만 프록시로</text>
+    <rect x="750" y="272" width="300" height="34" rx="8" fill="#14532d"/>
+    <text x="900" y="295" text-anchor="middle" font-size="15" fill="#bbf7d0" font-family="ui-monospace,monospace">프록시: 토큰 ID · logprob · rollout 기록</text>
+    <path d="M900 320 L900 368" stroke="#4ade80" stroke-width="3" marker-end="url(#hrl-arrow)"/>
+    <rect x="720" y="372" width="360" height="99" rx="16" fill="#0f2438" stroke="#38bdf8" stroke-width="2"/>
+    <text x="900" y="404" text-anchor="middle" font-size="17" fill="#7dd3fc">트레이너는 관찰만 — 요청·응답 쌍으로 학습</text>
+    <text x="900" y="432" text-anchor="middle" font-size="15" fill="#7dd3fc">SWE-bench Verified 41.8% → 56.4%</text>
+    <text x="900" y="456" text-anchor="middle" font-size="15" fill="#7dd3fc">(Qwen3.5-9B · 학습 샘플 6K)</text>
+  </g>
+
+  <text x="600" y="545" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="26" font-weight="700" fill="#e2e8f0">훈련한 그 에이전트를, 그대로 배포하라</text>
+  <text x="600" y="580" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" fill="#64748b">arXiv:2608.17528 · microsoft/agent-lightning</text>
+</svg>

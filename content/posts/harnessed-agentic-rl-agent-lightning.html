@@ -1,0 +1,368 @@
+---
+title: "훈련장의 에이전트와 실전의 에이전트가 다르다: 하네스째 학습시키는 harnessed agentic RL"
+date: 2026-08-31T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "강화학습", "reinforcement learning", "agentic RL", "harnessed agentic RL", "Agent Lightning", "에이전트 하네스", "agent harness", "train-serve skew", "retokenization drift", "training-inference mismatch", "importance sampling", "GRPO", "vLLM", "SWE-bench", "포스트 트레이닝", "post-training", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "RL로 열심히 훈련한 에이전트가 배포하니 딴판으로 움직입니다. 원인은 모델이 아니라 구조입니다 — 학습은 트레이너가 만든 '간이 에이전트'로 하고, 배포는 진짜 하네스로 하니까요. ML의 고전 문제인 train-serve skew가 에이전트 RL에 그대로 돌아온 셈입니다. 이번 주 arXiv와 X를 달군 Microsoft의 Agent Lightning v1.0은 이 구도를 뒤집습니다. 배포 하네스가 상호작용 루프를 그대로 소유하고, 트레이너는 프록시 뒤에서 관찰만 하는 'harnessed agentic RL'입니다. 그 대가로 생기는 다섯 가지 함정 — retokenization drift, 샘플 병합, advantage 배분, loss 정규화, 백엔드 스케줄링 — 과 엔진 간 수치 불일치까지, junior 개발자 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "harnessed-agentic-rl-agent-lightning-cover.svg"
+  alt: "왼쪽에는 트레이너가 만든 간이 에이전트로 학습하고 진짜 하네스로 배포해 어긋나는 전통 agentic RL, 오른쪽에는 배포 하네스 그대로 학습하는 harnessed agentic RL을 대비시킨 그림"
+  caption: "학습에 쓴 에이전트와 배포하는 에이전트가 다르면, 훈련은 다른 무언가를 최적화한 것입니다."
+  relative: false
+---
+
+<style>
+/* ── harnessed agentic RL 포스트 전용 스타일 (hrl- 접두사) ── */
+.hrl-fig{
+  --hrl-violet:#7c3aed; --hrl-sky:#0284c7; --hrl-green:#16a34a; --hrl-rose:#e11d48;
+  --hrl-amber:#d97706; --hrl-slate:#64748b; --hrl-teal:#0d9488; --hrl-blue:#2563eb;
+  --hrl-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .hrl-fig{
+  --hrl-violet:#a78bfa; --hrl-sky:#38bdf8; --hrl-green:#4ade80; --hrl-rose:#fb7185;
+  --hrl-amber:#fbbf24; --hrl-slate:#94a3b8; --hrl-teal:#2dd4bf; --hrl-blue:#60a5fa;
+  --hrl-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .hrl-fig{
+    --hrl-violet:#a78bfa; --hrl-sky:#38bdf8; --hrl-green:#4ade80; --hrl-rose:#fb7185;
+    --hrl-amber:#fbbf24; --hrl-slate:#94a3b8; --hrl-teal:#2dd4bf; --hrl-blue:#60a5fa;
+    --hrl-gray:#64748b;
+  }
+}
+.hrl-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.hrl-fig text{font-family:inherit}
+.hrl-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.hrl-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.hrl-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.hrl-toc ol{margin:0;padding-left:1.25rem}
+.hrl-toc li{margin:.22rem 0;font-size:.95rem}
+.hrl-toc a{text-decoration:none}
+.hrl-toc a:hover{text-decoration:underline}
+.hrl-pull{font-size:1.12rem;line-height:1.72}
+.hrl-pull footer{font-size:.92rem;opacity:.7;margin-top:.55rem}
+.hrl-note{border-left:4px solid var(--hrl-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.hrl-note strong{color:var(--hrl-blue,#2563eb)}
+.hrl-warn{border-left:4px solid var(--hrl-rose,#e11d48)}
+.hrl-warn strong{color:var(--hrl-rose,#e11d48)}
+.hrl-good{border-left:4px solid var(--hrl-teal,#0d9488)}
+.hrl-good strong{color:var(--hrl-teal,#0d9488)}
+.hrl-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.hrl-tbl th,.hrl-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.hrl-tbl th{background:var(--entry);font-weight:700}
+.hrl-tbl code{font-size:.86em}
+.hrl-tblwrap{overflow-x:auto}
+</style>
+
+<blockquote class="hrl-pull">
+"전통적인 agentic RL에서는 트레이닝 엔진이 환경 상호작용 루프를 소유한다. harnessed agentic RL에서는 <strong>하네스가 루프를 소유하고, 트레이너는 LLM의 요청–응답 쌍 시퀀스만 관찰한다.</strong>"
+<footer>— arXiv:2608.17528, "Agent Lightning v1.0: Towards Harnessed Agentic RL"의 핵심 구도 요약</footer>
+</blockquote>
+
+<div class="hrl-toc">
+  <div class="hrl-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 연습 문제집과 시험지가 다르다</a></li>
+    <li><a href="#sec-2">배경 — agentic RL과 하네스, 딱 필요한 만큼만</a></li>
+    <li><a href="#sec-3">harnessed agentic RL — 루프의 주인을 바꾸다</a></li>
+    <li><a href="#sec-4">공짜가 아니다 — 다섯 가지 엔지니어링 함정</a></li>
+    <li><a href="#sec-5">또 하나의 불일치 — 트레이너와 추론 엔진은 다른 확률을 말한다</a></li>
+    <li><a href="#sec-6">숫자 읽기 — 6K 샘플로 SWE-bench +14.6%p</a></li>
+    <li><a href="#sec-7">실전 — 내 에이전트에 적용한다면</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 연습 문제집과 시험지가 다르다</h2>
+
+<p>고전 ML 엔지니어링에는 유명한 함정이 하나 있습니다. <strong>train-serve skew</strong> — 학습 파이프라인에서 만든 피처와 서빙 파이프라인에서 만든 피처가 미묘하게 달라서, 오프라인 지표는 좋은데 실전에서는 모델이 무너지는 현상입니다. 원인은 늘 같습니다. 학습 환경과 배포 환경을 <em>따로</em> 만들었기 때문입니다.</p>
+
+<p>2026년의 에이전트 RL에서 이 문제가 그대로 재현되고 있습니다. RL로 에이전트를 훈련하려면 에이전트를 트레이닝 프레임워크 안에서 돌려야 하는데, 실제 배포용 에이전트는 <a href="/posts/prime-agent-self-improving-rlm-harness/">하네스(harness)</a> — 컨텍스트 관리, 도구 실행, 서브에이전트, 컴팩션까지 얹힌 복잡한 실행 껍데기 — 위에서 돕니다. 이걸 트레이너 안에 통째로 이식하기는 어려우니, 다들 학습용으로 <strong>단순화한 '간이 에이전트'</strong>를 새로 만듭니다. 그리고 그 간이 에이전트로 훈련한 가중치를, 전혀 다르게 생긴 진짜 하네스에 얹어 배포합니다. 연습은 문제집으로 하고 시험은 다른 시험지로 보는 셈입니다.</p>
+
+<p>이번 주(8월 마지막 주) 이 문제가 제대로 화두에 올랐습니다. Microsoft가 arXiv에 올린 <a href="https://arxiv.org/abs/2608.17528" target="_blank" rel="noopener">Agent Lightning v1.0: Towards Harnessed Agentic RL</a>이 "학습은 에이전트의 실제 운영 환경 안에서 일어나야 한다 — 아니면 배포할 것과 다른 무언가를 훈련하게 된다"는 메시지로 X에서 널리 회자됐고(<a href="https://x.com/rohanpaul_ai/status/2091156685574619433" target="_blank" rel="noopener">Rohan Paul의 정리 스레드</a>), <a href="https://thenewstack.io/microsoft-agent-lightning-harness/" target="_blank" rel="noopener">The New Stack</a>이 플랫폼 엔지니어 관점에서 받아썼습니다. 같은 주에 vLLM 블로그에는 SkyRL의 트레이너–추론 엔진 불일치를 없애는 <a href="https://vllm-project.github.io/" target="_blank" rel="noopener">IsoExec 글(2026-08-21)</a>이 올라왔습니다. 결이 같은 이야기입니다. <strong>학습에 쓰는 것과 배포에 쓰는 것을 일치시켜라.</strong></p>
+
+<p>이 글은 Agent Lightning v1.0을 재료 삼아, "하네스째 학습시킨다"는 게 정확히 무슨 뜻이고, 그게 왜 공짜가 아닌지 — retokenization drift부터 엔진 간 확률 불일치까지 — 를 뜯어봅니다.</p>
+
+<div class="hrl-note"><strong>이 글에서 얻어 갈 것.</strong> ① 전통 agentic RL과 harnessed agentic RL의 구도 차이, ② 프록시 하나로 기존 에이전트를 코드 수정 없이 훈련 루프에 넣는 방법, ③ 문자열로 학습 데이터를 만들면 안 되는 이유(retokenization drift), ④ 같은 가중치인데 트레이너와 vLLM이 다른 확률을 내놓는 문제와 처방, ⑤ 6K 샘플로 SWE-bench Verified를 14.6%p 올린 숫자를 읽는 법.</div>
+
+<h2 id="sec-2">2. 배경 — agentic RL과 하네스, 딱 필요한 만큼만</h2>
+
+<p>따라오는 데 필요한 최소한만 정리합니다.</p>
+
+<p><strong>agentic RL</strong>은 에이전트를 강화학습으로 개선하는 것입니다. 에이전트가 과제를 하나 받아 여러 턴에 걸쳐 도구를 부르고 최종 결과를 내면 — 이 한 판을 <strong>롤아웃(rollout)</strong>이라 합니다 — 채점기가 보상(reward)을 매깁니다. 코딩이라면 "패치가 테스트를 통과했는가"처럼 기계적으로 검증 가능한 보상(RLVR)을 주로 씁니다. 같은 과제로 롤아웃을 여러 개 만들어 잘한 판의 행동은 확률을 올리고 못한 판은 내리는 식으로 가중치를 갱신합니다(GRPO가 대표적입니다). 환경이 왜 병목인지는 <a href="/posts/rl-environments-agentic-rl/">예전 글</a>에서 다뤘으니, 여기서는 "롤아웃을 만들고 → 보상을 매기고 → 가중치를 갱신하는 루프"라는 것만 기억하면 됩니다.</p>
+
+<p><strong>하네스(harness)</strong>는 모델을 감싸고 실행을 굴리는 껍데기입니다. 시스템 프롬프트, 도구 목록과 실행기, 컨텍스트 압축, 재시도, 서브에이전트 — Claude Code 같은 코딩 에이전트에서 모델 밖의 전부입니다. <a href="/posts/prime-agent-self-improving-rlm-harness/">지난주 글</a>에서 봤듯 하네스는 성능을 좌우하는 변수이고, 최근 담론은 "하네스도 설계·학습의 대상"으로 옮겨 가고 있습니다.</p>
+
+<p>문제는 이 둘을 합칠 때 생깁니다. 전통적인 agentic RL 프레임워크에서는 <strong>트레이너가 환경 상호작용 루프를 소유</strong>합니다. 롤아웃 생성부터 가중치 갱신까지 트레이너가 지휘하므로, 에이전트 로직을 트레이너가 이해하는 형태로 다시 구현해야 합니다. 그 결과가 두 가지 비용입니다.</p>
+
+<ul>
+<li><strong>이식 비용.</strong> LangChain이든 직접 짠 루프든, 기존 에이전트를 트레이닝 프레임워크의 인터페이스에 맞춰 다시 짜야 합니다. 도구 하나, 프롬프트 한 줄 바뀔 때마다 두 벌을 관리합니다.</li>
+<li><strong>불일치 비용.</strong> 이식본은 필연적으로 단순해집니다. 진짜 하네스에 있는 컨텍스트 압축, 멀티 에이전트 협업, 에러 복구가 빠진 채 훈련되면, 모델이 배운 분포와 배포 시 마주칠 분포가 어긋납니다. 훈련 지표는 오르는데 실전 체감은 그대로인 이유가 여기 있는 경우가 많습니다.</li>
+</ul>
+
+<h2 id="sec-3">3. harnessed agentic RL — 루프의 주인을 바꾸다</h2>
+
+<p>Agent Lightning의 답은 구도를 뒤집는 것입니다. 에이전트를 트레이너 안으로 이식하는 게 아니라, <strong>배포 하네스가 평소처럼 루프를 소유한 채 그대로 돌고, 트레이너는 그 뒤에서 관찰만 합니다.</strong> 논문은 이 패러다임을 <strong>harnessed agentic RL</strong> — 배포 시점 하네스가 포스트 트레이닝에 직접 참여하는 방식 — 이라 부릅니다.</p>
+
+<figure class="hrl-fig">
+<svg viewBox="0 0 900 430" role="img" aria-label="전통 agentic RL과 harnessed agentic RL을 비교한 그림. 왼쪽은 트레이너가 루프를 소유해 학습용 간이 에이전트를 새로 만들고 배포 하네스와 어긋난다. 오른쪽은 배포 하네스가 루프를 소유하고 트레이너는 요청 응답 쌍만 관찰한다.">
+  <g font-size="14">
+    <!-- 왼쪽: 전통 -->
+    <text x="225" y="30" text-anchor="middle" font-weight="700" fill="var(--hrl-rose)">전통 agentic RL — 트레이너가 루프 소유</text>
+    <rect x="40" y="50" width="370" height="200" rx="12" fill="none" stroke="var(--hrl-rose)" stroke-width="2"/>
+    <text x="225" y="74" text-anchor="middle" fill="var(--hrl-rose)" font-size="13" font-weight="700">트레이닝 프레임워크</text>
+    <rect x="60" y="90" width="330" height="60" rx="8" fill="none" stroke="var(--hrl-slate)"/>
+    <text x="225" y="113" text-anchor="middle" fill="var(--hrl-slate)" font-size="13">학습용 '간이 에이전트'</text>
+    <text x="225" y="133" text-anchor="middle" fill="var(--hrl-slate)" font-size="12">(트레이너 인터페이스에 맞춰 재구현)</text>
+    <rect x="60" y="165" width="155" height="46" rx="8" fill="none" stroke="var(--hrl-blue)" stroke-width="2"/>
+    <text x="137" y="192" text-anchor="middle" fill="var(--hrl-blue)" font-size="13">LLM 생성</text>
+    <rect x="235" y="165" width="155" height="46" rx="8" fill="none" stroke="var(--hrl-slate)"/>
+    <text x="312" y="192" text-anchor="middle" fill="var(--hrl-slate)" font-size="13">가중치 갱신</text>
+    <path d="M225 280 L225 310" stroke="var(--hrl-rose)" stroke-width="2"/>
+    <rect x="75" y="310" width="300" height="52" rx="10" fill="none" stroke="var(--hrl-slate)" stroke-dasharray="6 4"/>
+    <text x="225" y="333" text-anchor="middle" fill="var(--hrl-slate)" font-size="13">배포: 전혀 다른 진짜 하네스</text>
+    <text x="225" y="352" text-anchor="middle" fill="var(--hrl-rose)" font-size="12.5">압축·서브에이전트·복구… 훈련 때 없던 것들</text>
+    <text x="225" y="392" text-anchor="middle" fill="var(--hrl-rose)" font-size="13" font-weight="700">훈련 분포 ≠ 배포 분포</text>
+
+    <!-- 오른쪽: harnessed -->
+    <text x="675" y="30" text-anchor="middle" font-weight="700" fill="var(--hrl-green)">harnessed agentic RL — 하네스가 루프 소유</text>
+    <rect x="490" y="50" width="370" height="110" rx="12" fill="none" stroke="var(--hrl-green)" stroke-width="2"/>
+    <text x="675" y="74" text-anchor="middle" fill="var(--hrl-green)" font-size="13" font-weight="700">배포 하네스 그대로 (코드 수정 0)</text>
+    <text x="675" y="98" text-anchor="middle" fill="var(--hrl-slate)" font-size="12.5">도구 · 컨텍스트 관리 · 서브에이전트 · 재시도</text>
+    <text x="675" y="122" text-anchor="middle" fill="var(--hrl-slate)" font-size="12.5">평소처럼 과제를 수행 = 이것이 곧 롤아웃</text>
+    <text x="675" y="143" text-anchor="middle" fill="var(--hrl-teal)" font-size="12.5" font-family="monospace">base_url → 프록시로만 교체</text>
+    <path d="M675 160 L675 190" stroke="var(--hrl-green)" stroke-width="2"/>
+    <rect x="545" y="190" width="260" height="46" rx="10" fill="none" stroke="var(--hrl-teal)" stroke-width="2"/>
+    <text x="675" y="211" text-anchor="middle" fill="var(--hrl-teal)" font-size="13" font-weight="700">프록시 (Gateway)</text>
+    <text x="675" y="229" text-anchor="middle" fill="var(--hrl-teal)" font-size="12">요청–응답 · 토큰 ID · logprob 기록</text>
+    <path d="M675 236 L675 266" stroke="var(--hrl-teal)" stroke-width="2"/>
+    <rect x="545" y="266" width="260" height="46" rx="10" fill="none" stroke="var(--hrl-blue)" stroke-width="2"/>
+    <text x="675" y="287" text-anchor="middle" fill="var(--hrl-blue)" font-size="13" font-weight="700">추론 엔진 (vLLM 등)</text>
+    <text x="675" y="305" text-anchor="middle" fill="var(--hrl-blue)" font-size="12">실제 토큰 생성</text>
+    <path d="M545 289 C 470 289, 470 340, 545 340" fill="none" stroke="var(--hrl-slate)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <rect x="545" y="318" width="260" height="46" rx="10" fill="none" stroke="var(--hrl-slate)"/>
+    <text x="675" y="339" text-anchor="middle" fill="var(--hrl-slate)" font-size="13">트레이너 — 관찰된 쌍으로 가중치 갱신</text>
+    <text x="675" y="357" text-anchor="middle" fill="var(--hrl-slate)" font-size="12">새 가중치를 추론 엔진에 반영</text>
+    <text x="675" y="392" text-anchor="middle" fill="var(--hrl-green)" font-size="13" font-weight="700">훈련한 그 에이전트를 그대로 배포</text>
+  </g>
+</svg>
+<figcaption>그림 1. 전통 agentic RL(왼쪽)은 트레이너가 루프를 소유해 학습용 간이 에이전트를 따로 만들고, 배포 하네스와 어긋납니다. harnessed agentic RL(오른쪽)은 배포 하네스가 루프를 소유하고, 트레이너는 프록시 뒤에서 요청–응답 쌍만 관찰합니다.</figcaption>
+</figure>
+
+<p>동작을 순서대로 풀면 이렇습니다.</p>
+
+<ol>
+<li>하네스(에이전트)는 평소처럼 OpenAI 호환 API로 모델을 부릅니다. 다른 점은 단 하나, <code>base_url</code>이 Agent Lightning의 <strong>프록시(Gateway, LLMProxy)</strong>를 가리킨다는 것뿐입니다.</li>
+<li>프록시는 요청을 실제 추론 엔진(vLLM 등)에 전달하면서, 오가는 모든 것 — 프롬프트, 응답, <strong>토큰 ID, logprob</strong> — 을 가로채 기록하고, 어떤 롤아웃의 몇 번째 시도인지 ID를 붙여 저장소에 쌓습니다.</li>
+<li>롤아웃이 끝나면 채점기가 보상을 매기고, 트레이너는 쌓인 요청–응답 쌍 시퀀스를 학습 샘플로 바꿔 GRPO 같은 알고리즘으로 가중치를 갱신합니다.</li>
+<li>갱신된 가중치가 추론 엔진에 반영되고, 다음 롤아웃부터 새 모델이 응답합니다. 루프 반복.</li>
+</ol>
+
+<p>에이전트 입장에서 보면 <strong>자기가 훈련 중인지도 모릅니다.</strong> 그냥 평소처럼 일하고 있을 뿐이고, 훈련은 그 뒤에서 일어납니다. 원조 <a href="https://arxiv.org/abs/2508.03680" target="_blank" rel="noopener">Agent Lightning 논문(2025)</a>이 이 분리를 Training-Agent Disaggregation이라 불렀는데 — 무거운 LLM 생성·학습과 가볍고 다양한 애플리케이션 로직을 떼어 놓는 설계 — v1.0은 여기서 한 발 더 나가 "간이 에이전트조차 만들지 말고 진짜 하네스로 훈련하라"를 기본값으로 삼았습니다. <a href="https://github.com/microsoft/agent-lightning" target="_blank" rel="noopener">GitHub 저장소</a>(스타 약 1.7만 개)의 표현을 빌리면 코어는 약 3,500줄의 Python이고, LangChain·OpenAI Agents SDK·AutoGen 등 어떤 프레임워크로 짠 에이전트든 거의 코드 수정 없이 붙습니다.</p>
+
+<h2 id="sec-4">4. 공짜가 아니다 — 다섯 가지 엔지니어링 함정</h2>
+
+<p>여기까지 들으면 "프록시 하나 끼우면 끝이네"싶지만, 트레이너가 루프의 통제권을 내려놓는 순간 학습 데이터 만들기가 갑자기 어려워집니다. v1.0 논문이 정면으로 다루는 다섯 가지를 하나씩 봅니다. 이 목록은 그대로 <strong>"내가 직접 만든다면 어디서 데일까"의 체크리스트</strong>이기도 합니다.</p>
+
+<h3>4-1. Retokenization drift — 같은 문자열, 다른 토큰</h3>
+
+<p>가장 유명한 함정이라 먼저 자세히 봅니다. RL 학습은 문자열이 아니라 <strong>토큰 ID 시퀀스</strong> 위에서 일어납니다. "이 토큰을 뽑을 확률을 올려라/내려라"가 갱신의 단위이기 때문입니다. 그런데 하네스는 OpenAI 호환 API로 모델을 부르고, 이 API는 전통적으로 <strong>문자열만</strong> 돌려줬습니다. 모델이 생성한 토큰들은 문자열로 풀어서(detokenize) 전달되고, 학습하려면 그 문자열을 다시 토큰으로 쪼개야(retokenize) 합니다.</p>
+
+<p>문제는 <strong>같은 문자열을 만드는 토큰 분할이 하나가 아니라는 것</strong>입니다. 한국어로 비유하면 "아버지가방에들어가신다"를 어디서 끊어 읽느냐의 문제입니다. BPE 토크나이저에서 예컨대 <code>self-improving</code>이라는 출력은 생성 시 <code>[self][-impro][ving]</code>이었는데 재토크나이즈하면 <code>[self][-][improving]</code>이 될 수 있습니다. 문자열은 동일하니 눈으로는 못 잡습니다. 하지만 학습은 이제 <strong>모델이 실제로 뽑은 적 없는 토큰열</strong>에 대해 확률을 갱신합니다. 이 어긋남이 retokenization drift이고, 멀티턴 에이전트에서는 턴마다 누적되며 학습을 조용히 오염시킵니다.</p>
+
+<figure class="hrl-fig">
+<svg viewBox="0 0 900 300" role="img" aria-label="retokenization drift를 보여 주는 그림. 추론 엔진이 생성한 토큰열이 문자열로 풀렸다가 학습 시 재토크나이즈되면 다른 토큰열이 되고, 학습은 모델이 실제로 만든 적 없는 토큰열에 대해 일어난다. 아래에 return_token_ids로 토큰 ID를 직접 받는 우회로가 있다.">
+  <g font-size="14">
+    <rect x="30" y="40" width="240" height="66" rx="10" fill="none" stroke="var(--hrl-blue)" stroke-width="2"/>
+    <text x="150" y="65" text-anchor="middle" fill="var(--hrl-blue)" font-weight="700" font-size="13">추론 엔진이 생성</text>
+    <text x="150" y="90" text-anchor="middle" fill="var(--hrl-blue)" font-family="monospace" font-size="13">[self][-impro][ving]</text>
+    <path d="M270 73 L330 73" stroke="var(--hrl-slate)" stroke-width="2"/>
+    <text x="300" y="60" text-anchor="middle" fill="var(--hrl-slate)" font-size="12">detokenize</text>
+    <rect x="330" y="40" width="240" height="66" rx="10" fill="none" stroke="var(--hrl-slate)" stroke-width="2"/>
+    <text x="450" y="65" text-anchor="middle" fill="var(--hrl-slate)" font-weight="700" font-size="13">API 응답 (문자열만)</text>
+    <text x="450" y="90" text-anchor="middle" fill="var(--hrl-slate)" font-family="monospace" font-size="13">"self-improving"</text>
+    <path d="M570 73 L630 73" stroke="var(--hrl-rose)" stroke-width="2"/>
+    <text x="600" y="60" text-anchor="middle" fill="var(--hrl-rose)" font-size="12">retokenize</text>
+    <rect x="630" y="40" width="240" height="66" rx="10" fill="none" stroke="var(--hrl-rose)" stroke-width="2"/>
+    <text x="750" y="65" text-anchor="middle" fill="var(--hrl-rose)" font-weight="700" font-size="13">트레이너가 학습</text>
+    <text x="750" y="90" text-anchor="middle" fill="var(--hrl-rose)" font-family="monospace" font-size="13">[self][-][improving]</text>
+    <text x="450" y="145" text-anchor="middle" fill="var(--hrl-rose)" font-size="13.5" font-weight="700">문자열은 같지만 토큰열이 다름 → 만든 적 없는 행동에 확률 갱신</text>
+    <path d="M150 106 L150 200 L620 200" fill="none" stroke="var(--hrl-green)" stroke-width="2" stroke-dasharray="7 4"/>
+    <rect x="620" y="175" width="250" height="60" rx="10" fill="none" stroke="var(--hrl-green)" stroke-width="2"/>
+    <text x="745" y="199" text-anchor="middle" fill="var(--hrl-green)" font-weight="700" font-size="13">우회로: 토큰 ID를 직접 반환</text>
+    <text x="745" y="221" text-anchor="middle" fill="var(--hrl-green)" font-family="monospace" font-size="12.5">"return_token_ids": true</text>
+    <text x="450" y="272" text-anchor="middle" fill="var(--hrl-green)" font-size="13">생성된 그 토큰열 그대로 학습 — drift 원천 차단</text>
+  </g>
+</svg>
+<figcaption>그림 2. retokenization drift. 문자열을 거쳐 왕복하면 토큰 경계가 달라질 수 있습니다. vLLM의 <code>return_token_ids</code> 확장처럼 추론 엔진이 만든 토큰 ID를 그대로 받아 학습에 쓰면 원천 차단됩니다.</figcaption>
+</figure>
+
+<p>처방은 명확합니다. <strong>문자열이 아니라 토큰 ID를 왕복시키는 것</strong>입니다. Agent Lightning 팀과 vLLM이 함께 만든 확장이 그것으로, vLLM의 OpenAI 호환 엔드포인트에 <code>"return_token_ids": true</code>를 넘기면 응답에 프롬프트와 출력의 실제 토큰 ID(<code>prompt_token_ids</code>, <code>token_ids</code>)가 함께 옵니다(<a href="https://vllm.ai/blog/2025-10-22-agent-lightning" target="_blank" rel="noopener">vLLM 블로그: No More Retokenization Drift</a>). 프록시는 이 값을 트레이스에 남기고, 트레이너는 재토크나이즈 없이 그 토큰열을 그대로 씁니다.</p>
+
+<h3>4-2. 샘플 병합(sample merging) — 롤아웃 하나에 LLM 호출은 여러 번</h3>
+
+<p>에이전트 롤아웃 하나는 LLM 호출 한 번이 아닙니다. 계획 세우기, 도구 호출 10번, 요약 한 번 — 수십 번의 요청–응답 쌍이 쌓입니다. 게다가 멀티턴 대화는 이전 턴 전체를 프롬프트로 다시 포함하므로, 호출들끼리 앞부분(prefix)이 겹칩니다. 이걸 호출 단위로 흩어 별개 샘플로 취급하면 겹치는 프리픽스가 중복 학습되고, 하나의 시퀀스로 합치려면 <strong>어디까지가 모델이 만든 토큰이고 어디가 하네스가 끼워 넣은 토큰(도구 결과, 시스템 프롬프트)인지</strong> 정확히 가려 loss 마스크를 씌워야 합니다. 하네스가 중간에 컨텍스트를 압축하거나 메시지를 재배열했다면 단순 이어붙이기로는 안 되는, v1.0이 공들여 다루는 지점입니다.</p>
+
+<h3>4-3. Advantage 배분 — 보상은 하나, 행동은 수십 개</h3>
+
+<p>보상은 대개 롤아웃이 다 끝난 뒤에 하나 옵니다("패치가 테스트를 통과했다"). 그런데 갱신해야 할 LLM 호출은 수십 개입니다. 성공한 롤아웃의 <em>모든</em> 호출이 잘한 걸까요? 초반에 삽질하다 마지막에 만회했다면요? 이 신용 배분(credit assignment) 문제를 원조 논문은 LightningRL이라는 계층적 알고리즘으로 다뤘고 — 임의 에이전트가 만든 궤적을 학습 가능한 전이(transition)들로 분해합니다 — v1.0은 이를 하네스가 만든 지저분한 실제 궤적에서도 안정적으로 계산하는 문제로 확장합니다.</p>
+
+<h3>4-4. Loss 정규화 — 길이가 제각각인 샘플들</h3>
+
+<p>호출마다 출력 길이가 다르고 롤아웃마다 호출 수가 다릅니다. 이대로 평균 내면 긴 응답·긴 롤아웃이 gradient를 지배하거나, 반대로 토큰 단위 정규화가 짧은 응답을 과대평가합니다. 배치 안에서 무엇으로 나눌지(토큰 수, 시퀀스 수, 롤아웃 수)는 사소해 보여도 학습 안정성을 좌우하는 선택이고, 논문이 명시적으로 짚는 네 번째 함정입니다.</p>
+
+<h3>4-5. 백엔드 스케줄링 — 롤아웃은 길고, 가중치는 계속 바뀐다</h3>
+
+<p>에이전트 롤아웃은 몇 분씩 걸리고 병렬로 수십 개가 돕니다. 그 사이 트레이너는 가중치를 갱신하고 싶어 합니다. 어떤 롤아웃이 어떤 버전의 가중치로 생성됐는지 추적하지 않으면, 옛 정책이 만든 데이터를 새 정책의 것인 양 학습하는 <strong>의도치 않은 off-policy</strong>(뒤에서 다시 나옵니다)가 생깁니다. 생성용 GPU와 학습용 GPU 사이에서 가중치를 언제 어떻게 동기화할지 — 백엔드 스케줄링 — 까지가 프레임워크의 몫입니다.</p>
+
+<h2 id="sec-5">5. 또 하나의 불일치 — 트레이너와 추론 엔진은 다른 확률을 말한다</h2>
+
+<p>하네스와 트레이너를 일치시켜도 불일치가 하나 더 남습니다. 이번엔 시스템 계층입니다. 롤아웃은 추론에 최적화된 엔진(vLLM, SGLang)이 만들고, gradient 계산은 학습 엔진(FSDP, Megatron)이 합니다. <strong>같은 체크포인트, 같은 입력인데도 두 엔진이 내놓는 다음 토큰 확률분포가 미묘하게 다릅니다.</strong> 커널 구현, 연산 순서, 정밀도 처리가 다르기 때문입니다.</p>
+
+<figure class="hrl-fig">
+<svg viewBox="0 0 900 310" role="img" aria-label="트레이너와 추론 엔진의 확률 불일치를 보여 주는 그림. 같은 체크포인트를 vLLM 같은 추론 엔진과 FSDP 같은 학습 엔진에 넣으면 커널 구현과 연산 순서 차이로 다음 토큰 확률이 미묘하게 달라지고, 샘플은 추론 엔진 분포에서 나오는데 갱신은 학습 엔진 분포 기준이라 암묵적 off-policy가 된다.">
+  <g font-size="14">
+    <rect x="330" y="30" width="240" height="54" rx="10" fill="none" stroke="var(--hrl-slate)" stroke-width="2"/>
+    <text x="450" y="53" text-anchor="middle" fill="var(--hrl-slate)" font-weight="700" font-size="13">같은 체크포인트 θ</text>
+    <text x="450" y="73" text-anchor="middle" fill="var(--hrl-slate)" font-size="12">같은 입력 프롬프트</text>
+    <path d="M370 84 L215 130" stroke="var(--hrl-blue)" stroke-width="2"/>
+    <path d="M530 84 L685 130" stroke="var(--hrl-amber)" stroke-width="2"/>
+    <rect x="60" y="130" width="310" height="96" rx="12" fill="none" stroke="var(--hrl-blue)" stroke-width="2"/>
+    <text x="215" y="155" text-anchor="middle" fill="var(--hrl-blue)" font-weight="700" font-size="13">추론 엔진 (vLLM · SGLang)</text>
+    <text x="215" y="178" text-anchor="middle" fill="var(--hrl-blue)" font-size="12.5">추론용 커널 · 배칭 · 연산 순서</text>
+    <text x="215" y="205" text-anchor="middle" fill="var(--hrl-blue)" font-family="monospace" font-size="13">P(다음 토큰) = 0.4132…</text>
+    <rect x="530" y="130" width="310" height="96" rx="12" fill="none" stroke="var(--hrl-amber)" stroke-width="2"/>
+    <text x="685" y="155" text-anchor="middle" fill="var(--hrl-amber)" font-weight="700" font-size="13">학습 엔진 (FSDP · Megatron)</text>
+    <text x="685" y="178" text-anchor="middle" fill="var(--hrl-amber)" font-size="12.5">학습용 커널 · 다른 정밀도 경로</text>
+    <text x="685" y="205" text-anchor="middle" fill="var(--hrl-amber)" font-family="monospace" font-size="13">P(다음 토큰) = 0.4087…</text>
+    <text x="450" y="185" text-anchor="middle" fill="var(--hrl-rose)" font-size="20" font-weight="700">≠</text>
+    <text x="215" y="252" text-anchor="middle" fill="var(--hrl-blue)" font-size="12.5">샘플은 이 분포에서 나오고</text>
+    <text x="685" y="252" text-anchor="middle" fill="var(--hrl-amber)" font-size="12.5">갱신은 이 분포 기준으로 하니</text>
+    <text x="450" y="290" text-anchor="middle" fill="var(--hrl-rose)" font-size="14" font-weight="700">on-policy 전제가 조용히 깨짐 → 암묵적 off-policy → 누적되면 학습 불안정</text>
+  </g>
+</svg>
+<figcaption>그림 3. 같은 가중치, 같은 입력이어도 추론 엔진과 학습 엔진의 구현 차이로 확률이 미묘하게 다릅니다. 티끌 같은 차이가 긴 시퀀스와 수천 스텝에 걸쳐 누적됩니다.</figcaption>
+</figure>
+
+<p>이게 왜 문제일까요? GRPO류 알고리즘은 "지금 정책이 뽑은 샘플"이라는 전제(on-policy) 위에 서 있습니다. 그런데 샘플은 vLLM의 분포에서 나왔고 갱신은 FSDP의 분포 기준으로 하니, 전제가 조용히 깨집니다 — 문헌에서 말하는 <strong>암묵적 off-policy</strong>입니다(<a href="https://openreview.net/pdf/325f91538e61ba160793adc5029888c00d06fa7a.pdf" target="_blank" rel="noopener">On the Rollout-Training Mismatch in Modern RL Systems</a>). 티끌 같은 확률 차이가 긴 시퀀스와 수천 스텝에 걸쳐 누적되면 학습이 불안정해지거나 붕괴합니다. 처방은 두 갈래입니다.</p>
+
+<div class="hrl-tblwrap">
+<table class="hrl-tbl">
+<thead><tr><th>처방</th><th>아이디어</th><th>예시</th></tr></thead>
+<tbody>
+<tr><td><strong>알고리즘으로 보정</strong></td><td>두 분포의 확률 비율로 gradient를 재가중하는 중요도 샘플링(importance sampling). 극단값은 잘라내거나(TIS) 마스킹(MIS)해 분산을 통제</td><td>TIS/MIS — 최근 RL 프레임워크 다수가 옵션으로 내장 (<a href="https://swift.readthedocs.io/en/latest/Instruction/GRPO/AdvancedResearch/training_inference_mismatch.html" target="_blank" rel="noopener">ms-swift 문서</a>)</td></tr>
+<tr><td><strong>시스템으로 제거</strong></td><td>두 엔진의 연산을 정렬해 애초에 같은 확률이 나오게 만들기(truly on-policy)</td><td>SkyRL의 IsoExec — 트레이너·추론의 실행을 통일해 불일치를 제거 (<a href="https://vllm-project.github.io/" target="_blank" rel="noopener">vLLM 블로그, 2026-08-21</a>)</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>junior 입장에서 기억할 것은 하나입니다. <strong>불일치는 진단부터.</strong> 같은 시퀀스에 대해 추론 엔진이 기록한 logprob과 학습 엔진이 다시 계산한 logprob의 차이를 학습 내내 지표로 찍으세요. 이 차이가 커지는데 loss만 보고 있으면, 원인 모를 학습 붕괴를 "하이퍼파라미터 탓"으로 돌리며 며칠을 태우게 됩니다. 프록시가 logprob을 트레이스에 남기는 이유가 바로 이것입니다.</p>
+
+<h2 id="sec-6">6. 숫자 읽기 — 6K 샘플로 SWE-bench +14.6%p</h2>
+
+<p>이제 결과입니다. 논문의 대표 실험은 코딩 에이전트입니다. Qwen3.5-9B를 실제 하네스째 RL로 훈련했더니 <strong>SWE-bench Verified 점수가 41.8%에서 56.4%로, 14.6%p 올랐습니다.</strong> 눈여겨볼 건 비용입니다. 학습 샘플 <strong>6천 개</strong>와 "modest compute"로 얻은 수치이고, 데이터 정제 파이프라인과 학습 스크립트를 오픈소스 데이터·모델 기반으로 전부 공개해 재현 가능하게 했습니다. 명령 수행·검색·코딩 세 종류의 에이전트로 평가했습니다.</p>
+
+<p>읽을 때 걸러야 할 것도 있습니다. 첫째, 이 수치는 <strong>"그 하네스에서 훈련하고 그 하네스에서 평가한"</strong> 결과입니다. harnessed RL의 주장 자체가 "훈련·배포 환경을 일치시키면 이만큼 나온다"이므로 당연한 설계지만, 다른 하네스로 옮기면 이득이 얼마나 보존되는지는 별개 질문입니다. 둘째, 9B라는 작은 모델의 결과입니다. 작은 모델일수록 도메인 특화 RL의 개선 폭이 크게 나오는 경향이 있으니, 프론티어급에서 같은 폭을 기대하긴 어렵습니다. 그럼에도 "간이 에이전트로 훈련해 배포에서 잃어버리던 이득을, 하네스 일치로 회수한다"는 방향성의 증거로는 충분히 인상적입니다.</p>
+
+<h2 id="sec-7">7. 실전 — 내 에이전트에 적용한다면</h2>
+
+<p>전체 그림을 코드 감각으로 잡아 봅니다. 먼저 에이전트 쪽 — 바꿀 것은 정말 <code>base_url</code>뿐입니다.</p>
+
+{{< highlight python >}}
+# 기존 에이전트 코드 (개념 예시) — 하네스 로직은 그대로 둡니다
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url=os.environ["AGL_PROXY_URL"],  # 훈련 시: Agent Lightning 프록시
+    api_key="dummy",                        # 배포 시: 실제 엔드포인트
+)
+
+# 이하 평소의 에이전트 루프 그대로.
+# 프록시가 요청-응답·토큰 ID·logprob을 가로채 롤아웃 ID와 함께 기록합니다.
+resp = client.chat.completions.create(model="policy", messages=messages, tools=tools)
+{{< /highlight >}}
+
+<p>다음은 프록시 뒤에서 일어나는 일의 핵심, 토큰 ID 직접 반환입니다. vLLM 엔드포인트를 직접 때려 보면 감이 옵니다.</p>
+
+{{< highlight python >}}
+import requests
+
+resp = requests.post("http://localhost:8000/v1/chat/completions", json={
+    "model": "Qwen/Qwen3.5-9B",
+    "messages": [{"role": "user", "content": "버그 원인을 찾아 줘"}],
+    "logprobs": True,
+    "return_token_ids": True,   # vLLM 확장 — 실제 생성 토큰 ID를 함께 반환
+})
+data = resp.json()
+
+# 문자열을 재토크나이즈하지 않고, '엔진이 실제로 만든' 토큰열을 그대로 확보
+# (필드 위치는 vLLM 버전에 따라 응답 최상위 또는 choice 안에 있습니다)
+prompt_ids = data.get("prompt_token_ids")
+output_ids = data["choices"][0].get("token_ids")
+{{< /highlight >}}
+
+<p>마지막으로 트레이너가 보는 세상입니다. 하네스가 뭘 하든, 트레이너에게 도착하는 건 롤아웃별로 묶인 요청–응답 쌍의 시퀀스와 보상 하나입니다.</p>
+
+{{< highlight python >}}
+# 트레이너 관점의 롤아웃 (의사코드)
+rollout = {
+    "rollout_id": "swe-1042/attempt-3",
+    "reward": 1.0,                     # 패치가 테스트 통과
+    "calls": [                          # 하네스가 만든 LLM 호출들 (시간순)
+        {"prompt_ids": [...], "output_ids": [...], "logprobs": [...]},
+        {"prompt_ids": [...], "output_ids": [...], "logprobs": [...]},
+        # ... 도구 결과·시스템 프롬프트 토큰은 loss 마스크로 제외
+    ],
+}
+# 이후: 샘플 병합 → advantage 배분 → loss 정규화 → 가중치 갱신 → 엔진에 반영
+{{< /highlight >}}
+
+<p>직접 굴려 보고 싶다면 <a href="https://microsoft.github.io/agent-lightning/latest/" target="_blank" rel="noopener">공식 문서</a>의 튜토리얼부터 시작하면 됩니다. RL만이 아니라 자동 프롬프트 최적화, SFT 같은 다른 알고리즘도 같은 트레이스 위에서 지원하므로, "일단 트레이스 수집부터 붙여 두는" 것만으로도 가치가 있습니다. 무엇을 관찰할 수 있어야 하는지의 감각은 <a href="/posts/agent-observability-tracing/">에이전트 관측성 글</a>과 이어집니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+<li><strong>학습용 간이 에이전트를 새로 만드는 것.</strong> 이 글의 요지 그대로입니다. "훈련용으로 간단한 버전을 하나 만들자"는 그 결정이 train-serve skew의 시작입니다. 훈련이 필요해질 것 같으면, 하네스의 LLM 호출을 처음부터 <code>base_url</code> 주입이 가능하게 짜 두세요.</li>
+<li><strong>문자열만 로깅하고 토큰 ID·logprob을 버리는 것.</strong> 트레이스에 문자열만 남기면 나중에 학습 데이터로 쓸 때 재토크나이즈를 피할 수 없습니다. 지금 학습 계획이 없어도, 수집 시점에 토큰 ID와 logprob을 함께 남기는 건 비용이 거의 안 듭니다.</li>
+<li><strong>프록시를 우회하는 호출을 놓치는 것.</strong> 하네스 구석의 요약 호출, 서브에이전트, 임베딩 호출이 프록시를 안 거치면 트레이스에 구멍이 납니다. 구멍 난 롤아웃은 샘플 병합 단계에서 조용히 어긋납니다. 모든 LLM 트래픽이 한 곳을 지나가게 만드세요.</li>
+<li><strong>롤아웃을 <code>temperature=0</code>으로 만드는 것.</strong> RL은 잘한 판과 못한 판의 <em>차이</em>에서 배웁니다. 탐색 없이 같은 행동만 반복하면 배울 신호가 없습니다. 반대로 훈련 때의 샘플링 설정과 배포 때의 설정이 크게 다르면 그것도 또 하나의 skew입니다.</li>
+<li><strong>logprob 차이를 안 찍는 것.</strong> 5장의 결론 반복입니다. 추론 엔진의 logprob과 학습 엔진의 재계산 logprob 차이는 가장 싼 조기 경보입니다. 학습이 이유 없이 불안정하면 하이퍼파라미터보다 이 지표를 먼저 보세요.</li>
+<li><strong>평가만 옛날 방식으로 하는 것.</strong> 훈련을 하네스째 했다면 평가도 같은 하네스로 해야 비교가 성립합니다. 에이전트 평가의 함정은 <a href="/posts/agent-evals-reliability/">evals 글</a>에서 다뤘습니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+<li>agentic RL의 고질병: 학습은 트레이너 안의 <strong>간이 에이전트</strong>로, 배포는 <strong>진짜 하네스</strong>로 — ML의 고전 문제 train-serve skew의 에이전트판입니다.</li>
+<li><strong>harnessed agentic RL</strong>은 구도를 뒤집습니다. 배포 하네스가 상호작용 루프를 소유한 채 평소처럼 돌고, 트레이너는 프록시 뒤에서 요청–응답 쌍만 관찰해 학습합니다. Microsoft의 <strong>Agent Lightning v1.0</strong>(arXiv:2608.17528)이 이번 주 이 개념을 밀어 올렸습니다.</li>
+<li>에이전트 쪽 수정은 사실상 <code>base_url</code> 교체뿐. 프록시가 토큰 ID·logprob·롤아웃 ID를 기록해 학습 데이터를 만듭니다.</li>
+<li>공짜는 아닙니다. <strong>retokenization drift</strong>(문자열 왕복이 토큰열을 바꿈 — vLLM <code>return_token_ids</code>로 차단), <strong>샘플 병합</strong>, <strong>advantage 배분</strong>, <strong>loss 정규화</strong>, <strong>백엔드 스케줄링</strong>이 프레임워크가 풀어야 할 다섯 함정입니다.</li>
+<li>남는 불일치 하나 더: 같은 가중치라도 추론 엔진과 학습 엔진의 확률이 달라 <strong>암묵적 off-policy</strong>가 됩니다. 중요도 샘플링(TIS/MIS)으로 보정하거나 IsoExec처럼 실행을 정렬해 제거하고, 무엇보다 logprob 차이를 상시 모니터링하세요.</li>
+<li>결과: Qwen3.5-9B가 6K 샘플의 RL만으로 SWE-bench Verified <strong>41.8% → 56.4%(+14.6%p)</strong>. 작은 모델·동일 하네스 평가라는 조건은 감안해 읽되, "훈련한 그 에이전트를 그대로 배포한다"는 방향의 증거로는 충분합니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+<li><a href="https://arxiv.org/abs/2608.17528" target="_blank" rel="noopener">Agent Lightning v1.0: Towards Harnessed Agentic RL (arXiv:2608.17528)</a></li>
+<li><a href="https://arxiv.org/abs/2508.03680" target="_blank" rel="noopener">Agent Lightning: Train ANY AI Agents with Reinforcement Learning (arXiv:2508.03680)</a></li>
+<li><a href="https://github.com/microsoft/agent-lightning" target="_blank" rel="noopener">GitHub — microsoft/agent-lightning</a></li>
+<li><a href="https://microsoft.github.io/agent-lightning/latest/" target="_blank" rel="noopener">Agent Lightning 공식 문서</a></li>
+<li><a href="https://vllm.ai/blog/2025-10-22-agent-lightning" target="_blank" rel="noopener">vLLM Blog — No More Retokenization Drift: Returning Token IDs via the OpenAI Compatible API</a></li>
+<li><a href="https://vllm-project.github.io/" target="_blank" rel="noopener">vLLM Blog — IsoExec: Unified Execution to Eliminate Trainer-Inference Mismatch in SkyRL (2026-08-21)</a></li>
+<li><a href="https://openreview.net/pdf/325f91538e61ba160793adc5029888c00d06fa7a.pdf" target="_blank" rel="noopener">On the Rollout-Training Mismatch in Modern RL Systems (Feng Yao et al.)</a></li>
+<li><a href="https://arxiv.org/abs/2605.14220" target="_blank" rel="noopener">Diagnosing Training Inference Mismatch in LLM Reinforcement Learning (arXiv:2605.14220)</a></li>
+<li><a href="https://swift.readthedocs.io/en/latest/Instruction/GRPO/AdvancedResearch/training_inference_mismatch.html" target="_blank" rel="noopener">ms-swift 문서 — Training-Inference Mismatch (TIS/MIS 보정)</a></li>
+<li><a href="https://deepwiki.com/microsoft/agent-lightning/4.3-llm-proxy" target="_blank" rel="noopener">DeepWiki — Agent Lightning LLMProxy 구조</a></li>
+<li><a href="https://thenewstack.io/microsoft-agent-lightning-harness/" target="_blank" rel="noopener">The New Stack — Microsoft just released Agent Lightning v1.0. Here's why it matters for platform engineers</a></li>
+<li><a href="https://x.com/rohanpaul_ai/status/2091156685574619433" target="_blank" rel="noopener">Rohan Paul — Agent Lightning v1.0 정리 스레드 (X)</a></li>
+<li><a href="https://github.com/huggingface/trl/issues/4159" target="_blank" rel="noopener">huggingface/trl issue #4159 — vLLM logprob 불일치 사례</a></li>
+</ul>
+
+<p style="opacity:.7;font-size:.9rem">※ 이번 주제는 아직 정리된 한국어 자료를 찾지 못했습니다. 위 출처는 모두 영어 자료입니다.</p>

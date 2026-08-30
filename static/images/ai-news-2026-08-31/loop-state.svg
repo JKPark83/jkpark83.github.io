@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="420" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="bold">왜 트래젝터리 단위 안전장치는 루프에서 무너지는가</text>
+  <text x="400" y="56" text-anchor="middle" fill="#94a3b8" font-size="12">LoopHarness (arXiv:2608.27141) 핵심 주장 + LoopX가 채우는 자리</text>
+
+  <!-- Row 1: trajectory-scoped -->
+  <text x="30" y="95" fill="#f87171" font-size="13" font-weight="bold">현재 방식 — 반복(iteration)마다 안전 상태가 초기화</text>
+  <g>
+    <rect x="30" y="108" width="150" height="56" rx="8" fill="#1e293b" stroke="#475569"/>
+    <text x="105" y="130" text-anchor="middle" fill="#e2e8f0" font-size="12">반복 1</text>
+    <text x="105" y="148" text-anchor="middle" fill="#fbbf24" font-size="11">공격 조각 A</text>
+    <rect x="220" y="108" width="150" height="56" rx="8" fill="#1e293b" stroke="#475569"/>
+    <text x="295" y="130" text-anchor="middle" fill="#e2e8f0" font-size="12">반복 2</text>
+    <text x="295" y="148" text-anchor="middle" fill="#fbbf24" font-size="11">공격 조각 B</text>
+    <rect x="410" y="108" width="150" height="56" rx="8" fill="#1e293b" stroke="#475569"/>
+    <text x="485" y="130" text-anchor="middle" fill="#e2e8f0" font-size="12">반복 3</text>
+    <text x="485" y="148" text-anchor="middle" fill="#fbbf24" font-size="11">공격 조각 C → 발동</text>
+    <text x="200" y="140" text-anchor="middle" fill="#ef4444" font-size="16">✕</text>
+    <text x="390" y="140" text-anchor="middle" fill="#ef4444" font-size="16">✕</text>
+    <text x="200" y="158" text-anchor="middle" fill="#94a3b8" font-size="9">상태 리셋</text>
+    <text x="390" y="158" text-anchor="middle" fill="#94a3b8" font-size="9">상태 리셋</text>
+  </g>
+  <rect x="590" y="108" width="180" height="56" rx="8" fill="#450a0a" stroke="#ef4444"/>
+  <text x="680" y="130" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="bold">탐지율 = 오탐율</text>
+  <text x="680" y="148" text-anchor="middle" fill="#fca5a5" font-size="10">증거가 창 밖에 있어 이론상 무력</text>
+
+  <!-- Row 2: loop-level -->
+  <text x="30" y="205" fill="#4ade80" font-size="13" font-weight="bold">루프 레벨 — 반복을 가로질러 감쇠 없이 누적되는 리스크 상태</text>
+  <g>
+    <rect x="30" y="218" width="150" height="56" rx="8" fill="#1e293b" stroke="#475569"/>
+    <text x="105" y="240" text-anchor="middle" fill="#e2e8f0" font-size="12">반복 1</text>
+    <text x="105" y="258" text-anchor="middle" fill="#fbbf24" font-size="11">공격 조각 A</text>
+    <rect x="220" y="218" width="150" height="56" rx="8" fill="#1e293b" stroke="#475569"/>
+    <text x="295" y="240" text-anchor="middle" fill="#e2e8f0" font-size="12">반복 2</text>
+    <text x="295" y="258" text-anchor="middle" fill="#fbbf24" font-size="11">공격 조각 B</text>
+    <rect x="410" y="218" width="150" height="56" rx="8" fill="#1e293b" stroke="#475569"/>
+    <text x="485" y="240" text-anchor="middle" fill="#e2e8f0" font-size="12">반복 3</text>
+    <text x="485" y="258" text-anchor="middle" fill="#f87171" font-size="11">발동 전 차단</text>
+  </g>
+  <rect x="30" y="290" width="530" height="34" rx="8" fill="#052e16" stroke="#22c55e"/>
+  <text x="295" y="312" text-anchor="middle" fill="#86efac" font-size="12" font-weight="bold">지속 안전 상태 (non-decaying): A + B + C 조각이 한 곳에 쌓인다</text>
+  <line x1="105" y1="274" x2="105" y2="290" stroke="#22c55e" stroke-width="1.5"/>
+  <line x1="295" y1="274" x2="295" y2="290" stroke="#22c55e" stroke-width="1.5"/>
+  <line x1="485" y1="274" x2="485" y2="290" stroke="#22c55e" stroke-width="1.5"/>
+  <rect x="590" y="218" width="180" height="56" rx="8" fill="#052e16" stroke="#22c55e"/>
+  <text x="680" y="240" text-anchor="middle" fill="#86efac" font-size="12" font-weight="bold">완전 분리 가능</text>
+  <text x="680" y="258" text-anchor="middle" fill="#86efac" font-size="10">감쇠형 점수는 불충분 (논문 증명)</text>
+
+  <!-- bottom note -->
+  <rect x="30" y="345" width="740" height="52" rx="8" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="400" y="366" text-anchor="middle" fill="#7dd3fc" font-size="12" font-weight="bold">같은 구조 문제를 오픈소스가 공략 중 — LoopX: 목표·게이트·증거·쿼터를 하니스 밖 상태 커널에 보관</text>
+  <text x="400" y="385" text-anchor="middle" fill="#94a3b8" font-size="11">Codex 0.151.0도 서브에이전트 토큰을 루트 목표 예산으로 합산 — "루프 레벨 회계"라는 같은 방향</text>
+</svg>

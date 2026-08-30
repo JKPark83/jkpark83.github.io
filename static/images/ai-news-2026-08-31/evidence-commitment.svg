@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="bold">예측 불가능한 질문에 방향성 베팅을 하는 비율 (12개 프런티어 모델 평균)</text>
+  <text x="400" y="56" text-anchor="middle" fill="#94a3b8" font-size="12">arXiv:2608.27167 초록 수치 — 정보가 아니라 "증거의 포장"이 행동을 잠금 해제한다</text>
+
+  <!-- axis -->
+  <line x1="230" y1="80" x2="230" y2="300" stroke="#475569" stroke-width="2"/>
+  <line x1="230" y1="300" x2="770" y2="300" stroke="#475569" stroke-width="2"/>
+  <!-- gridlines: 9px per 1%, max 60% -->
+  <line x1="320" y1="80" x2="320" y2="300" stroke="#1e293b"/>
+  <text x="320" y="318" text-anchor="middle" fill="#64748b" font-size="11">10%</text>
+  <line x1="410" y1="80" x2="410" y2="300" stroke="#1e293b"/>
+  <text x="410" y="318" text-anchor="middle" fill="#64748b" font-size="11">20%</text>
+  <line x1="500" y1="80" x2="500" y2="300" stroke="#1e293b"/>
+  <text x="500" y="318" text-anchor="middle" fill="#64748b" font-size="11">30%</text>
+  <line x1="590" y1="80" x2="590" y2="300" stroke="#1e293b"/>
+  <text x="590" y="318" text-anchor="middle" fill="#64748b" font-size="11">40%</text>
+  <line x1="680" y1="80" x2="680" y2="300" stroke="#1e293b"/>
+  <text x="680" y="318" text-anchor="middle" fill="#64748b" font-size="11">50%</text>
+  <text x="230" y="318" text-anchor="middle" fill="#64748b" font-size="11">0</text>
+
+  <!-- bare question: 6.5% -> 58.5px -->
+  <rect x="230" y="95" width="59" height="38" rx="6" fill="#64748b"/>
+  <text x="222" y="119" text-anchor="end" fill="#e2e8f0" font-size="13">질문만 제시</text>
+  <text x="297" y="119" text-anchor="start" fill="#cbd5e1" font-size="14" font-weight="bold">6.5%</text>
+
+  <!-- genuine market panel: 37.6% -> 338.4px -->
+  <rect x="230" y="148" width="338" height="38" rx="6" fill="#38bdf8"/>
+  <text x="222" y="172" text-anchor="end" fill="#e2e8f0" font-size="13">진짜 시장 데이터 패널</text>
+  <text x="576" y="172" text-anchor="start" fill="#7dd3fc" font-size="14" font-weight="bold">37.6%</text>
+
+  <!-- fully fabricated panel: 36.8% -> 331.2px -->
+  <rect x="230" y="201" width="331" height="38" rx="6" fill="#f97316"/>
+  <text x="222" y="225" text-anchor="end" fill="#e2e8f0" font-size="13">숫자 전부 조작된 패널</text>
+  <text x="569" y="225" text-anchor="start" fill="#fdba74" font-size="14" font-weight="bold">36.8%</text>
+
+  <!-- max escalation: 54.0% -> 486px -->
+  <rect x="230" y="254" width="486" height="38" rx="6" fill="#ef4444"/>
+  <text x="222" y="278" text-anchor="end" fill="#e2e8f0" font-size="13">증거 최대로 강화</text>
+  <text x="724" y="278" text-anchor="start" fill="#fca5a5" font-size="14" font-weight="bold">54.0%</text>
+
+  <text x="400" y="352" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">진짜 데이터(37.6%)와 완전 조작 데이터(36.8%)의 차이는 통계적으로 구분 불가</text>
+  <text x="400" y="374" text-anchor="middle" fill="#94a3b8" font-size="11">모델은 질문의 답 불가능성을 90% 정확히 분류하면서도, 그럴듯한 패널 앞에서는 베팅한다</text>
+</svg>

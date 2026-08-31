@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="하네스를 사람이 미리 만드는 AOT 방식과 하네스 모델이 과제마다 즉석에서 합성하는 JIT 방식을 대비시킨 그림. 왼쪽에는 모든 과제에 같은 수제 하네스를 쓰는 구도가 있고, 오른쪽에는 JIT-Agent가 과제 명세를 받아 메모리·플래닝·액션·능력 오케스트레이션 네 모듈로 된 하네스를 즉석에서 찍어내 백본 LLM에 입히는 구도가 있다.">
+  <defs>
+    <linearGradient id="jha-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1a1f3a"/>
+    </linearGradient>
+    <marker id="jha-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#jha-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">하네스, 사람이 아니라 모델이 짓는다</text>
+  <text x="60" y="118" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">JIT-Agent — 과제마다 하네스를 즉석 합성하는 '하네스 인텔리전스'</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 왼쪽: AOT -->
+    <text x="290" y="185" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">AOT — 수제 하네스 하나로 전부</text>
+    <rect x="110" y="210" width="360" height="88" rx="14" fill="#2b1622" stroke="#fb7185" stroke-width="2"/>
+    <text x="290" y="246" text-anchor="middle" font-size="17" fill="#fda4af">개발자가 설계 시점에 고정한 하네스</text>
+    <text x="290" y="276" text-anchor="middle" font-size="15" fill="#fda4af">프롬프트 · 도구 · 메모리 전략 한 벌</text>
+    <text x="180" y="345" text-anchor="middle" font-size="15" fill="#94a3b8">리서치 과제</text>
+    <text x="290" y="345" text-anchor="middle" font-size="15" fill="#94a3b8">사무 과제</text>
+    <text x="400" y="345" text-anchor="middle" font-size="15" fill="#94a3b8">플래닝 과제</text>
+    <path d="M180 355 L260 400" stroke="#fb7185" stroke-width="2"/>
+    <path d="M290 355 L290 400" stroke="#fb7185" stroke-width="2"/>
+    <path d="M400 355 L320 400" stroke="#fb7185" stroke-width="2"/>
+    <rect x="200" y="400" width="180" height="52" rx="10" fill="#1e293b" stroke="#64748b"/>
+    <text x="290" y="432" text-anchor="middle" font-size="16" fill="#cbd5e1">같은 하네스</text>
+    <text x="290" y="505" text-anchor="middle" font-size="16" fill="#fb7185" font-weight="700">과제가 달라도 옷은 한 벌 → 어딘가는 항상 헐렁</text>
+
+    <!-- 가운데 구분 -->
+    <line x1="600" y1="170" x2="600" y2="540" stroke="#334155" stroke-width="1.5" stroke-dasharray="8 7"/>
+
+    <!-- 오른쪽: JIT -->
+    <text x="900" y="185" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">JIT — 과제마다 즉석 합성</text>
+    <rect x="700" y="210" width="400" height="64" rx="14" fill="#122b1e" stroke="#4ade80" stroke-width="2"/>
+    <text x="900" y="238" text-anchor="middle" font-size="17" font-weight="700" fill="#86efac">JIT-Agent (하네스 인텔리전스 모델)</text>
+    <text x="900" y="262" text-anchor="middle" font-size="14" fill="#86efac">과제 명세 + 도구 레지스트리 + 과거 하네스 아카이브</text>
+    <path d="M900 274 L900 316" stroke="#4ade80" stroke-width="2.5" marker-end="url(#jha-arrow)"/>
+    <rect x="670" y="322" width="460" height="96" rx="14" fill="#0f2036" stroke="#38bdf8" stroke-width="2"/>
+    <text x="900" y="350" text-anchor="middle" font-size="16" font-weight="700" fill="#7dd3fc">과제 맞춤 하네스 (실행 코드)</text>
+    <g font-size="13.5" fill="#bae6fd">
+      <text x="735" y="384" text-anchor="middle">메모리</text>
+      <text x="845" y="384" text-anchor="middle">플래닝</text>
+      <text x="955" y="384" text-anchor="middle">액션</text>
+      <text x="1067" y="384" text-anchor="middle">능력 관리</text>
+    </g>
+    <g fill="none" stroke="#38bdf8" stroke-width="1.3">
+      <rect x="695" y="368" width="80" height="24" rx="6"/>
+      <rect x="805" y="368" width="80" height="24" rx="6"/>
+      <rect x="915" y="368" width="80" height="24" rx="6"/>
+      <rect x="1023" y="368" width="88" height="24" rx="6"/>
+    </g>
+    <path d="M900 418 L900 452" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#jha-arrow)"/>
+    <rect x="770" y="456" width="260" height="50" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+    <text x="900" y="487" text-anchor="middle" font-size="16" fill="#c4b5fd">기성(off-the-shelf) 백본 LLM</text>
+    <text x="900" y="540" text-anchor="middle" font-size="16" fill="#4ade80" font-weight="700">과제마다 맞춤 정장 — 성과는 아카이브로 되먹임</text>
+  </g>
+
+  <text x="60" y="600" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#64748b">arXiv:2608.25593 — JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution</text>
+</svg>

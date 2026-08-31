@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#0f172a" rx="12"/>
+  <text x="400" y="32" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="bold">LoopArena — 컨트롤러와 워커를 분리해서 평가한다</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <!-- Controller box -->
+  <rect x="70" y="90" width="240" height="110" rx="10" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
+  <text x="190" y="118" text-anchor="middle" fill="#93c5fd" font-size="15" font-weight="bold">Controller (평가 대상 모델)</text>
+  <text x="190" y="142" text-anchor="middle" fill="#e2e8f0" font-size="11">실행 요약을 읽고 결정:</text>
+  <text x="190" y="160" text-anchor="middle" fill="#e2e8f0" font-size="11">다음 작업 지시 · 검증 지시 · 중단</text>
+  <text x="190" y="182" text-anchor="middle" fill="#94a3b8" font-size="10">루프의 "판단력"만 따로 측정</text>
+
+  <!-- Worker box -->
+  <rect x="490" y="90" width="240" height="110" rx="10" fill="#052e16" stroke="#22c55e" stroke-width="2"/>
+  <text x="610" y="118" text-anchor="middle" fill="#86efac" font-size="15" font-weight="bold">Worker (고정 코딩 에이전트)</text>
+  <text x="610" y="142" text-anchor="middle" fill="#e2e8f0" font-size="11">지시를 받아 코드 작업 실행</text>
+  <text x="610" y="160" text-anchor="middle" fill="#e2e8f0" font-size="11">모든 컨트롤러에 동일 조건</text>
+  <text x="610" y="182" text-anchor="middle" fill="#94a3b8" font-size="10">실행력 변수를 통제</text>
+
+  <!-- arrows -->
+  <path d="M310,115 L490,115" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)" fill="none"/>
+  <text x="400" y="105" text-anchor="middle" fill="#7dd3fc" font-size="11">다음 행동 지시</text>
+  <path d="M490,175 L310,175" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)" fill="none"/>
+  <text x="400" y="196" text-anchor="middle" fill="#7dd3fc" font-size="11">구조화된 실행 요약</text>
+
+  <!-- Types row -->
+  <rect x="55" y="240" width="215" height="100" rx="10" fill="#1e293b" stroke="#475569"/>
+  <text x="162" y="264" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="bold">Type I — 선택 문제</text>
+  <text x="162" y="286" text-anchor="middle" fill="#e2e8f0" font-size="11">실행 없이 "다음 한 수"를</text>
+  <text x="162" y="303" text-anchor="middle" fill="#e2e8f0" font-size="11">검증된 문제로 채점</text>
+  <text x="162" y="325" text-anchor="middle" fill="#94a3b8" font-size="10">가장 싸다</text>
+
+  <rect x="292" y="240" width="215" height="100" rx="10" fill="#1e293b" stroke="#475569"/>
+  <text x="399" y="264" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="bold">Type II — 구간 실행</text>
+  <text x="399" y="286" text-anchor="middle" fill="#e2e8f0" font-size="11">과제 일부 구간에서 반복 제어</text>
+  <text x="399" y="303" text-anchor="middle" fill="#e2e8f0" font-size="11">전체 대비 추정 비용 평균 64.4%↓</text>
+  <text x="399" y="325" text-anchor="middle" fill="#94a3b8" font-size="10">순위 상관 ρ=0.97 유지</text>
+
+  <rect x="529" y="240" width="215" height="100" rx="10" fill="#1e293b" stroke="#475569"/>
+  <text x="636" y="264" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="bold">Type III — 전체 과제</text>
+  <text x="636" y="286" text-anchor="middle" fill="#e2e8f0" font-size="11">원래 상태에서 끝까지 실행</text>
+  <text x="636" y="303" text-anchor="middle" fill="#e2e8f0" font-size="11">최고 Strict 성공률 24.69%</text>
+  <text x="636" y="325" text-anchor="middle" fill="#94a3b8" font-size="10">장기 제어는 아직 어렵다</text>
+
+  <text x="400" y="376" text-anchor="middle" fill="#64748b" font-size="11">출처: arXiv 2608.28281 (AMAP-ML). 수치는 논문 초록 기준</text>
+</svg>

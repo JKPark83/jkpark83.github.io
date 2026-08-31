@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 330" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="330" fill="#0f172a" rx="12"/>
+  <text x="400" y="32" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="bold">오늘의 리포 비교 — Archify vs Raven</text>
+
+  <!-- Archify card -->
+  <rect x="45" y="55" width="340" height="230" rx="10" fill="#052e16" stroke="#22c55e" stroke-width="2"/>
+  <text x="215" y="83" text-anchor="middle" fill="#86efac" font-size="15" font-weight="bold">tt-a1i/archify</text>
+  <text x="215" y="104" text-anchor="middle" fill="#e2e8f0" font-size="11">아키텍처 다이어그램 에이전트 스킬</text>
+  <line x1="70" y1="116" x2="360" y2="116" stroke="#166534"/>
+  <text x="70" y="140" fill="#94a3b8" font-size="11">역할</text>
+  <text x="215" y="140" fill="#e2e8f0" font-size="11">JSON IR → 결정적 HTML/SVG 지도</text>
+  <text x="70" y="164" fill="#94a3b8" font-size="11">스택</text>
+  <text x="215" y="164" fill="#e2e8f0" font-size="11">Node.js · MIT</text>
+  <text x="70" y="188" fill="#94a3b8" font-size="11">상태</text>
+  <text x="215" y="188" fill="#e2e8f0" font-size="11">v2.16.0 안정판 (8/30)</text>
+  <text x="70" y="212" fill="#94a3b8" font-size="11">대상</text>
+  <text x="215" y="212" fill="#e2e8f0" font-size="11">Cursor · Claude Code · Codex · OpenCode</text>
+  <text x="70" y="236" fill="#94a3b8" font-size="11">쓰임</text>
+  <text x="215" y="236" fill="#e2e8f0" font-size="11">머지 전 아키텍처 변경 Before/After 리뷰</text>
+  <text x="215" y="268" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="bold">지금 바로 써먹는 도구형</text>
+
+  <!-- Raven card -->
+  <rect x="415" y="55" width="340" height="230" rx="10" fill="#172554" stroke="#3b82f6" stroke-width="2"/>
+  <text x="585" y="83" text-anchor="middle" fill="#93c5fd" font-size="15" font-weight="bold">EverMind-AI/Raven</text>
+  <text x="585" y="104" text-anchor="middle" fill="#e2e8f0" font-size="11">자기개선(self-improving) 에이전트 하네스</text>
+  <line x1="440" y1="116" x2="730" y2="116" stroke="#1e40af"/>
+  <text x="440" y="140" fill="#94a3b8" font-size="11">역할</text>
+  <text x="585" y="140" fill="#e2e8f0" font-size="11">실행+트레이싱+장기 메모리+스킬+평가</text>
+  <text x="440" y="164" fill="#94a3b8" font-size="11">스택</text>
+  <text x="585" y="164" fill="#e2e8f0" font-size="11">Python + TypeScript · Apache-2.0</text>
+  <text x="440" y="188" fill="#94a3b8" font-size="11">상태</text>
+  <text x="585" y="188" fill="#e2e8f0" font-size="11">pre-alpha (8/31에도 커밋)</text>
+  <text x="440" y="212" fill="#94a3b8" font-size="11">방향</text>
+  <text x="585" y="212" fill="#e2e8f0" font-size="11">"Harness of Harnesses" 멀티 하네스망</text>
+  <text x="440" y="236" fill="#94a3b8" font-size="11">주의</text>
+  <text x="585" y="236" fill="#e2e8f0" font-size="11">벤치마크 수치는 내부 프로토타입 주장</text>
+  <text x="585" y="268" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="bold">방향을 관찰할 실험형</text>
+
+  <text x="400" y="312" text-anchor="middle" fill="#64748b" font-size="11">스타 수는 API 차단 환경으로 미확인 — 두 리포 모두 클론으로 존재·활성 검증</text>
+</svg>

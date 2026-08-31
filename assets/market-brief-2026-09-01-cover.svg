@@ -1,0 +1,36 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="주식 심리는 중립 54, 암호화폐 심리는 탐욕 62를 가리키는 두 개의 계기판 표지. 미국-이란 충돌 재개로 유가가 뛰고 10년물이 4.75%를 찍었지만 비트코인은 8월을 25% 상승으로 마감했음을 함께 표시">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.01 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">중동 충돌 재개 · 유가 급등, 10년물 4.75% 터치 · 비트코인 8월 +25% 마감</text>
+
+  <g transform="translate(300,410)">
+    <path d="M-150,0 A150,150 0 0,1 -106.07,-106.07" fill="none" stroke="#ef4444" stroke-width="30"/>
+    <path d="M-106.07,-106.07 A150,150 0 0,1 -23.46,-148.15" fill="none" stroke="#f59e0b" stroke-width="30"/>
+    <path d="M-23.46,-148.15 A150,150 0 0,1 23.46,-148.15" fill="none" stroke="#eab308" stroke-width="30"/>
+    <path d="M23.46,-148.15 A150,150 0 0,1 106.07,-106.07" fill="none" stroke="#84cc16" stroke-width="30"/>
+    <path d="M106.07,-106.07 A150,150 0 0,1 150,0" fill="none" stroke="#22c55e" stroke-width="30"/>
+    <line x1="0" y1="0" x2="15.04" y2="-119.05" stroke="#f1f5f9" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="10" fill="#f1f5f9"/>
+    <text x="0" y="60" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#f1f5f9">주식 54 · 중립</text>
+  </g>
+
+  <g transform="translate(880,410)">
+    <path d="M-150,0 A150,150 0 0,1 -106.07,-106.07" fill="none" stroke="#ef4444" stroke-width="30"/>
+    <path d="M-106.07,-106.07 A150,150 0 0,1 -23.46,-148.15" fill="none" stroke="#f59e0b" stroke-width="30"/>
+    <path d="M-23.46,-148.15 A150,150 0 0,1 23.46,-148.15" fill="none" stroke="#eab308" stroke-width="30"/>
+    <path d="M23.46,-148.15 A150,150 0 0,1 106.07,-106.07" fill="none" stroke="#84cc16" stroke-width="30"/>
+    <path d="M106.07,-106.07 A150,150 0 0,1 150,0" fill="none" stroke="#22c55e" stroke-width="30"/>
+    <line x1="0" y1="0" x2="44.17" y2="-111.58" stroke="#f1f5f9" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="10" fill="#f1f5f9"/>
+    <text x="0" y="60" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#f1f5f9">암호화폐 62 · 탐욕</text>
+  </g>
+
+  <text x="600" y="600" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#64748b">나스닥 관망 · 암호화폐 관망 — 오늘 밤 델 실적, 금요일 고용보고서</text>
+</svg>

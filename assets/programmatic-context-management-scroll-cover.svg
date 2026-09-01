@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="히스토리를 요약기로 눌러 담아 디테일을 잃는 컴팩션 방식과, 무손실 이벤트 로그와 살아 있는 Python 커널에서 모델이 쓴 조회 코드로 필요한 것만 print로 꺼내 오는 Scroll 방식을 대비시킨 그림">
+  <defs>
+    <linearGradient id="pcm-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1a1f3a"/>
+    </linearGradient>
+    <marker id="pcm-arrow-g" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/>
+    </marker>
+    <marker id="pcm-arrow-r" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fb7185"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#pcm-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">요약하지 말고 프로그램하라</text>
+  <text x="60" y="118" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">Scroll — 컨텍스트를 '실행 환경'으로 다루는 프로그래머틱 컨텍스트 관리</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 왼쪽: 컴팩션 -->
+    <text x="300" y="185" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">컴팩션 — 쓰기 시점에 결정</text>
+    <rect x="120" y="210" width="360" height="80" rx="14" fill="#1e2440" stroke="#94a3b8" stroke-width="2"/>
+    <text x="300" y="243" text-anchor="middle" font-size="17" fill="#cbd5e1">세션 히스토리</text>
+    <text x="300" y="271" text-anchor="middle" font-size="15" fill="#94a3b8">대화 · 도구 출력 · 중간 산출물</text>
+    <path d="M300 290 L300 330" stroke="#fb7185" stroke-width="3" marker-end="url(#pcm-arrow-r)"/>
+    <rect x="170" y="336" width="260" height="64" rx="14" fill="#2b1622" stroke="#fb7185" stroke-width="2"/>
+    <text x="300" y="363" text-anchor="middle" font-size="17" fill="#fda4af">LLM 요약기</text>
+    <text x="300" y="388" text-anchor="middle" font-size="14" fill="#fda4af">중요한 걸 미리 맞혀야 함</text>
+    <path d="M300 400 L300 440" stroke="#fb7185" stroke-width="3" marker-end="url(#pcm-arrow-r)"/>
+    <rect x="170" y="446" width="260" height="60" rx="14" fill="#2b1e14" stroke="#fbbf24" stroke-width="2"/>
+    <text x="300" y="472" text-anchor="middle" font-size="16" fill="#fbbf24">요약본 (손실 압축)</text>
+    <text x="300" y="495" text-anchor="middle" font-size="13" fill="#fbbf24">버린 디테일은 복원 불가</text>
+    <text x="300" y="555" text-anchor="middle" font-size="16" fill="#fb7185">✗ 원본은 사라진다</text>
+
+    <!-- 구분선 -->
+    <line x1="600" y1="170" x2="600" y2="570" stroke="#334155" stroke-width="2" stroke-dasharray="6 8"/>
+
+    <!-- 오른쪽: Scroll -->
+    <text x="900" y="185" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">Scroll — 조회 시점에 결정</text>
+    <rect x="680" y="210" width="440" height="72" rx="14" fill="#122b1e" stroke="#4ade80" stroke-width="2"/>
+    <text x="900" y="240" text-anchor="middle" font-size="17" fill="#86efac">이벤트 로그 — append-only · 무손실</text>
+    <text x="900" y="266" text-anchor="middle" font-size="14" fill="#4ade80">e#001 · e#002 · … 주소가 붙은 원본</text>
+    <path d="M900 282 L900 318" stroke="#4ade80" stroke-width="3" marker-end="url(#pcm-arrow-g)"/>
+    <rect x="680" y="324" width="440" height="72" rx="14" fill="#0f2a2a" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="900" y="354" text-anchor="middle" font-size="17" fill="#5eead4">살아 있는 Python 커널</text>
+    <text x="900" y="380" text-anchor="middle" font-size="14" fill="#2dd4bf">모델이 쓴 조회 코드 exec · 변수로 상태 유지</text>
+    <path d="M900 396 L900 432" stroke="#4ade80" stroke-width="3" marker-end="url(#pcm-arrow-g)"/>
+    <rect x="680" y="438" width="440" height="68" rx="14" fill="#131c3a" stroke="#60a5fa" stroke-width="2"/>
+    <text x="900" y="466" text-anchor="middle" font-size="16" fill="#93c5fd">print한 투영만 → working view</text>
+    <text x="900" y="491" text-anchor="middle" font-size="13" fill="#60a5fa">필요한 것만, 질문이 온 다음에</text>
+    <text x="900" y="555" text-anchor="middle" font-size="16" fill="#4ade80">✓ 원본은 항상 로그에 남는다</text>
+  </g>
+
+  <text x="60" y="600" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#64748b">arXiv:2608.21690 · Context as an Environment (Alibaba) — jkpark83.github.io</text>
+</svg>

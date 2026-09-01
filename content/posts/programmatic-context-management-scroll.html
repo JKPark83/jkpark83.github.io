@@ -1,0 +1,379 @@
+---
+title: "요약하지 말고 프로그램하라 — 컨텍스트를 '실행 환경'으로 다루는 Scroll"
+date: 2026-09-02T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "컨텍스트 엔지니어링", "context engineering", "컨텍스트 관리", "Scroll", "이벤트 로그", "event log", "컴팩션", "compaction", "장기 실행 에이전트", "long-horizon agents", "프로그래머틱 컨텍스트", "programmatic context", "LongMemEval", "LOCA-bench", "Python 커널", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "긴 세션에서 컨텍스트 윈도우가 차면 지금까지의 정답은 요약(compaction)이었습니다. 그런데 요약은 태생적으로 비가역입니다 — 버린 디테일은 돌아오지 않습니다. 이번 주 X에서 화제가 된 Alibaba의 Scroll(arXiv:2608.21690)은 발상을 뒤집습니다. 히스토리를 append-only 이벤트 로그에 무손실로 남기고, 세션 내내 살아 있는 Python 커널에 상태를 변수로 들고, 모델이 직접 조회 코드를 써서 필요한 것만 print로 꺼내 옵니다. '무엇을 남길까'를 쓰기 시점이 아니라 조회 시점에 결정하는 겁니다. 컴팩션이 왜 한계에 부딪히는지부터, 이벤트 로그·퍼시스턴트 커널·print 투영·eviction landmark라는 네 가지 설계 부품, LongMemEval 94.8%·LOCA_256K +37.4pt라는 숫자를 읽는 법, 그리고 오늘 내 하네스에 훔쳐 올 수 있는 아이디어까지 — junior 개발자 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "programmatic-context-management-scroll-cover.svg"
+  alt: "왼쪽에는 히스토리를 요약기로 눌러 담아 디테일을 잃는 컴팩션 방식, 오른쪽에는 무손실 이벤트 로그와 살아 있는 Python 커널에서 모델이 쓴 조회 코드로 필요한 것만 꺼내 오는 Scroll 방식을 대비시킨 그림"
+  caption: "요약은 쓰기 시점에 중요한 걸 미리 맞혀야 합니다. 조회는 질문이 온 다음에 골라도 됩니다."
+  relative: false
+---
+
+<style>
+/* ── Scroll 포스트 전용 스타일 (pcm- 접두사) ── */
+.pcm-fig{
+  --pcm-violet:#7c3aed; --pcm-sky:#0284c7; --pcm-green:#16a34a; --pcm-rose:#e11d48;
+  --pcm-amber:#d97706; --pcm-slate:#64748b; --pcm-teal:#0d9488; --pcm-blue:#2563eb;
+  --pcm-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .pcm-fig{
+  --pcm-violet:#a78bfa; --pcm-sky:#38bdf8; --pcm-green:#4ade80; --pcm-rose:#fb7185;
+  --pcm-amber:#fbbf24; --pcm-slate:#94a3b8; --pcm-teal:#2dd4bf; --pcm-blue:#60a5fa;
+  --pcm-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .pcm-fig{
+    --pcm-violet:#a78bfa; --pcm-sky:#38bdf8; --pcm-green:#4ade80; --pcm-rose:#fb7185;
+    --pcm-amber:#fbbf24; --pcm-slate:#94a3b8; --pcm-teal:#2dd4bf; --pcm-blue:#60a5fa;
+    --pcm-gray:#64748b;
+  }
+}
+.pcm-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.pcm-fig text{font-family:inherit}
+.pcm-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.pcm-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.pcm-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.pcm-toc ol{margin:0;padding-left:1.25rem}
+.pcm-toc li{margin:.22rem 0;font-size:.95rem}
+.pcm-toc a{text-decoration:none}
+.pcm-toc a:hover{text-decoration:underline}
+.pcm-note{border-left:4px solid var(--pcm-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.pcm-note strong{color:var(--pcm-blue,#2563eb)}
+.pcm-warn{border-left:4px solid var(--pcm-rose,#e11d48)}
+.pcm-warn strong{color:var(--pcm-rose,#e11d48)}
+.pcm-good{border-left:4px solid var(--pcm-teal,#0d9488)}
+.pcm-good strong{color:var(--pcm-teal,#0d9488)}
+.pcm-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.pcm-tbl th,.pcm-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.pcm-tbl th{background:var(--entry);font-weight:700}
+.pcm-tbl code{font-size:.86em}
+.pcm-tblwrap{overflow-x:auto}
+</style>
+
+<div class="pcm-toc">
+  <div class="pcm-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — "요약은 하네스의 규칙, 조회는 모델의 프로그램"</a></li>
+    <li><a href="#sec-2">배경 — 컨텍스트가 넘칠 때 우리가 쓰던 세 가지 방법과 공통 약점</a></li>
+    <li><a href="#sec-3">Scroll의 세 부품 — 이벤트 로그 · 살아 있는 커널 · print 투영</a></li>
+    <li><a href="#sec-4">한 턴이 흘러가는 방식 — 그리고 eviction landmark</a></li>
+    <li><a href="#sec-5">숫자 읽는 법 — 94.8%와 +37.4pt의 조건</a></li>
+    <li><a href="#sec-6">실전 — 장난감 버전 만들어 보기, 오늘 훔칠 아이디어</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — "요약은 하네스의 규칙, 조회는 모델의 프로그램"</h2>
+
+<p>긴 세션을 굴리는 에이전트라면 예외 없이 마주치는 순간이 있습니다. 컨텍스트 윈도우가 차오르고, 하네스가 지난 대화를 요약본으로 눌러 담고, 몇 턴 뒤 모델이 이렇게 말하는 순간요. "말씀하신 파일 경로를 다시 알려 주시겠어요?" 분명히 세션 초반에 나온 정보인데, 요약을 거치며 사라진 겁니다.</p>
+
+<p>이번 주 X(트위터)의 AI 엔지니어링 타임라인에서는 이 오래된 고통에 새 이름표를 붙인 논문 하나가 돌았습니다. <a href="https://x.com/rohanpaul_ai/status/2092735841068023886" target="_blank" rel="noopener">Rohan Paul의 스레드</a>가 던진 질문이 요지를 잘 요약합니다. <strong>"컨텍스트 관리가 하네스가 적용하는 규칙이 아니라, 모델이 작성하는 프로그램이라면 어떨까?"</strong> 대상은 Alibaba가 8월 21일 공개한 <a href="https://arxiv.org/abs/2608.21690" target="_blank" rel="noopener">Context as an Environment: Programmatic Context Management for Long-Horizon Agents</a>(Yin Lin, Elaine Ang, Erkang Zhu, Bolin Ding, Jingren Zhou — arXiv:2608.21690), 시스템 이름은 <strong>Scroll</strong>입니다.</p>
+
+<p>Scroll의 제안을 한 문장으로 줄이면 이렇습니다. <strong>히스토리는 무손실로 남기고, 프롬프트에 넣을 것은 모델이 코드를 써서 그때그때 꺼내 오게 하라.</strong> 요약처럼 "쓰기 시점에 중요한 걸 미리 맞히는" 게임을 그만두고, "질문이 온 다음에 필요한 걸 조회하는" 게임으로 갈아타자는 겁니다. 데이터베이스 엔지니어라면 익숙한 관점이죠 — 원본 테이블을 지우고 요약 테이블만 남기는 시스템은 없으니까요.</p>
+
+<div class="pcm-note"><strong>이 글에서 얻어 갈 것.</strong> ① 컴팩션·외부 메모리·긴 윈도우라는 기존 3대 해법이 공유하는 구조적 약점, ② Scroll의 네 가지 설계 부품(이벤트 로그·퍼시스턴트 커널·print 투영·eviction landmark), ③ LongMemEval 94.8% 같은 숫자를 읽을 때 확인할 조건, ④ 프레임워크 없이 50줄로 만들어 보는 장난감 버전과 지금 하네스에 이식할 아이디어 세 가지.</div>
+
+<h2 id="sec-2">2. 배경 — 컨텍스트가 넘칠 때 우리가 쓰던 세 가지 방법과 공통 약점</h2>
+
+<p>먼저 문제를 정확히 놓고 갑시다. 에이전트가 몇 시간, 며칠짜리 과제를 굴리면 대화·도구 출력·중간 산출물이 쌓여 <strong>세션 히스토리가 컨텍스트 윈도우를 훌쩍 넘어갑니다</strong>. 지금까지 업계의 대응은 크게 세 갈래였습니다.</p>
+
+<ul>
+<li><strong>더 큰 윈도우</strong> — 모델의 컨텍스트 한도를 키웁니다. 하지만 창이 커져도 채우면 그만이고, 길게 채울수록 성능이 미끄러지는 <a href="/posts/context-rot-long-context-degradation/">컨텍스트 부패(context rot)</a>가 따라옵니다. <a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noopener">Lost in the Middle</a> 이후 반복 확인된 현상입니다.</li>
+<li><strong>컴팩션(compaction)</strong> — 윈도우가 차면 지난 히스토리를 LLM으로 요약해 갈아 끼웁니다. Claude Code의 auto-compact가 대표적이고, <a href="https://platform.claude.com/docs/en/build-with-claude/compaction" target="_blank" rel="noopener">Anthropic</a>과 <a href="https://developers.openai.com/api/docs/guides/compaction" target="_blank" rel="noopener">OpenAI</a> 모두 공식 기능으로 제공합니다. 자세한 내용은 <a href="/posts/context-compaction-long-horizon-agents/">컴팩션 글</a>에서 다뤘습니다.</li>
+<li><strong>외부 메모리</strong> — 중요해 보이는 내용을 벡터 DB나 메모리 저장소에 적어 두고 검색으로 되찾습니다. <a href="/posts/agent-memory-consolidation-substrates/">메모리 통합 글</a>에서 다룬 계열입니다.</li>
+</ul>
+
+<p>Scroll 논문이 겨누는 지점은, 뒤의 두 방법이 공유하는 <strong>공통 전제</strong>입니다. 요약이든 메모리 쓰기든, "이건 나중에 필요할 테니 남기자"는 판단을 <strong>쓰기 시점(write-time)</strong>에 내립니다. 그런데 나중에 어떤 질문이 올지는 그 시점엔 모릅니다. 요약기가 "테스트 12개 통과"라고 눌러 담는 순간, "그중 스킵된 테스트 이름이 뭐였지?"라는 미래의 질문은 답을 잃습니다. 요약은 <strong>비가역 손실 압축</strong>이고, 손실된 비트는 프롬프트를 아무리 잘 써도 복원되지 않습니다.</p>
+
+<p>비유하자면 이렇습니다. 회의가 끝날 때마다 녹음 원본을 지우고 회의록만 남기는 회사와, 원본은 아카이브에 두고 필요할 때 해당 구간을 다시 듣는 회사. 전자는 회의록 작성자의 안목에 미래가 걸려 있고, 후자는 "잘 찾는 능력"만 있으면 됩니다. 기존 컨텍스트 관리 대부분이 전자였습니다.</p>
+
+<div class="pcm-note"><strong>낯익은 방향이라면 맞습니다.</strong> 컨텍스트를 프롬프트 밖 변수로 두고 코드로 다루는 흐름은 이 블로그에서도 여러 번 스쳤습니다. <a href="/posts/recursive-language-models-rlm/">RLM</a>은 긴 컨텍스트를 REPL 변수로 놓고 모델이 코드로 뒤지게 했고, <a href="/posts/mcp-code-execution/">MCP 코드 실행</a>은 도구 출력을 프롬프트에 통과시키지 않고 코드 안에서 처리했습니다. Scroll은 이 아이디어를 "세션 히스토리 관리" 전체로 확장해 하나의 시스템으로 조립한 논문입니다. <a href="https://arxiv.org/abs/2510.11967" target="_blank" rel="noopener">Context-Folding</a>, <a href="https://arxiv.org/abs/2512.10371" target="_blank" rel="noopener">AgentProg</a> 같은 선행 연구와 같은 계보로 읽으면 됩니다.</div>
+
+<h2 id="sec-3">3. Scroll의 세 부품 — 이벤트 로그 · 살아 있는 커널 · print 투영</h2>
+
+<p>Scroll은 세션을 문자열 버퍼가 아니라 <strong>실행 가능한 환경(Session Environment)</strong>으로 취급합니다. 그 환경은 세 부품으로 이루어집니다.</p>
+
+<p><strong>① append-only 이벤트 로그(Event Log).</strong> 세션에서 일어난 모든 일 — 사용자 메시지, 모델 출력, 도구 결과 — 을 수정·삭제 없이 차곡차곡 기록합니다. 각 이벤트에는 안정적인 주소가 붙어서, 나중에 "그 지점"을 정확히 다시 열 수 있습니다. 이 로그가 <strong>무손실 원본(ground truth)</strong>입니다. 요약본이 히스토리를 대체하는 컴팩션과 달리, 원본은 항상 살아 있습니다.</p>
+
+<p><strong>② 세션 내내 살아 있는 Python 커널.</strong> 샌드박스 안에서 커널 하나가 모델 호출 사이에도 죽지 않고 유지됩니다. 핵심은 커널이 들고 있는 <strong>타입 있는 네임스페이스</strong>입니다. 도구 출력, 로그에서 되찾은 히스토리, 중간 계산 결과가 매 호출마다 프롬프트에 직렬화되는 대신 <code>df</code>, <code>test_results</code> 같은 <strong>변수</strong>로 묶여 남습니다. Jupyter 노트북을 떠올리면 정확합니다 — 셀을 100번 실행해도 변수는 커널에 계속 있죠.</p>
+
+<p><strong>③ working view와 print 투영.</strong> 모델이 실제로 읽는 프롬프트(working view)에는 커널 상태 전체가 아니라, 모델이 쓴 코드가 <code>exec</code>로 실행되면서 <strong>명시적으로 <code>print</code>한 결과만</strong> 들어갑니다. 논문은 이를 투영(projection)이라 부릅니다. 100MB짜리 데이터가 변수에 있어도, 모델이 <code>print(df.describe())</code>를 골랐다면 컨텍스트에 들어가는 건 요약 통계 몇 줄뿐입니다.</p>
+
+<figure class="pcm-fig">
+<svg viewBox="0 0 900 430" role="img" aria-label="컴팩션 방식과 Scroll 방식의 비교. 왼쪽 컴팩션 방식은 히스토리가 요약기를 거쳐 손실 압축된 요약본이 되어 프롬프트에 들어가고 원본은 버려진다. 오른쪽 Scroll 방식은 모든 이벤트가 append-only 이벤트 로그에 무손실로 쌓이고, 세션 내내 살아 있는 Python 커널이 변수 네임스페이스를 유지하며, 모델이 쓴 조회 코드가 exec로 실행되어 print된 투영만 working view에 들어간다.">
+  <g font-size="14">
+    <!-- 왼쪽: 컴팩션 -->
+    <text x="215" y="34" text-anchor="middle" font-weight="700" fill="var(--pcm-rose)" font-size="16">컴팩션 — 쓰기 시점에 결정</text>
+    <rect x="60" y="55" width="310" height="52" rx="10" fill="none" stroke="var(--pcm-slate)" stroke-width="1.5"/>
+    <text x="215" y="77" text-anchor="middle" fill="var(--pcm-slate)" font-size="13" font-weight="700">세션 히스토리 (계속 증가)</text>
+    <text x="215" y="96" text-anchor="middle" fill="var(--pcm-slate)" font-size="12">대화 · 도구 출력 · 중간 산출물</text>
+    <path d="M215 107 L215 140" stroke="var(--pcm-rose)" stroke-width="2"/>
+    <rect x="110" y="140" width="210" height="46" rx="10" fill="none" stroke="var(--pcm-rose)" stroke-width="2"/>
+    <text x="215" y="160" text-anchor="middle" fill="var(--pcm-rose)" font-size="13" font-weight="700">LLM 요약기</text>
+    <text x="215" y="177" text-anchor="middle" fill="var(--pcm-rose)" font-size="12">"중요한 것"을 지금 골라야 함</text>
+    <path d="M215 186 L215 219" stroke="var(--pcm-rose)" stroke-width="2"/>
+    <rect x="110" y="219" width="210" height="46" rx="10" fill="none" stroke="var(--pcm-amber)" stroke-width="1.5"/>
+    <text x="215" y="239" text-anchor="middle" fill="var(--pcm-amber)" font-size="13" font-weight="700">요약본 (손실 압축)</text>
+    <text x="215" y="256" text-anchor="middle" fill="var(--pcm-amber)" font-size="12">버린 디테일은 복원 불가</text>
+    <path d="M215 265 L215 298" stroke="var(--pcm-slate)" stroke-width="2"/>
+    <rect x="110" y="298" width="210" height="42" rx="10" fill="none" stroke="var(--pcm-blue)" stroke-width="1.5"/>
+    <text x="215" y="324" text-anchor="middle" fill="var(--pcm-blue)" font-size="13" font-weight="700">프롬프트 → 모델</text>
+    <text x="215" y="372" text-anchor="middle" fill="var(--pcm-rose)" font-size="12.5">✗ 원본은 요약본으로 대체되어 사라짐</text>
+    <!-- 구분선 -->
+    <line x1="450" y1="30" x2="450" y2="400" stroke="var(--pcm-gray)" stroke-width="1" stroke-dasharray="4 5"/>
+    <!-- 오른쪽: Scroll -->
+    <text x="675" y="34" text-anchor="middle" font-weight="700" fill="var(--pcm-green)" font-size="16">Scroll — 조회 시점에 결정</text>
+    <rect x="500" y="55" width="350" height="58" rx="10" fill="none" stroke="var(--pcm-green)" stroke-width="2"/>
+    <text x="675" y="78" text-anchor="middle" fill="var(--pcm-green)" font-size="13" font-weight="700">이벤트 로그 (append-only · 무손실)</text>
+    <text x="675" y="99" text-anchor="middle" fill="var(--pcm-green)" font-size="12">모든 이벤트에 안정적인 주소 e#001, e#002 …</text>
+    <path d="M675 113 L675 146" stroke="var(--pcm-green)" stroke-width="2"/>
+    <rect x="500" y="146" width="350" height="58" rx="10" fill="none" stroke="var(--pcm-teal)" stroke-width="2"/>
+    <text x="675" y="169" text-anchor="middle" fill="var(--pcm-teal)" font-size="13" font-weight="700">퍼시스턴트 Python 커널 (샌드박스)</text>
+    <text x="675" y="190" text-anchor="middle" fill="var(--pcm-teal)" font-size="12">호출 사이에도 변수 네임스페이스 유지</text>
+    <path d="M675 204 L675 237" stroke="var(--pcm-teal)" stroke-width="2"/>
+    <rect x="500" y="237" width="350" height="58" rx="10" fill="none" stroke="var(--pcm-violet)" stroke-width="2"/>
+    <text x="675" y="260" text-anchor="middle" fill="var(--pcm-violet)" font-size="13" font-weight="700">모델이 쓴 조회 코드 → exec</text>
+    <text x="675" y="281" text-anchor="middle" fill="var(--pcm-violet)" font-size="12">검색 · 변환 · 계산… print한 것만 밖으로</text>
+    <path d="M675 295 L675 328" stroke="var(--pcm-violet)" stroke-width="2"/>
+    <rect x="545" y="328" width="260" height="42" rx="10" fill="none" stroke="var(--pcm-blue)" stroke-width="1.5"/>
+    <text x="675" y="354" text-anchor="middle" fill="var(--pcm-blue)" font-size="13" font-weight="700">working view → 모델</text>
+    <text x="675" y="394" text-anchor="middle" fill="var(--pcm-green)" font-size="12.5">✓ 원본은 항상 로그에, 필요한 투영만 프롬프트에</text>
+  </g>
+</svg>
+<figcaption>그림 1. 컴팩션은 "무엇이 중요한가"를 쓰기 시점에 정하고 원본을 버립니다. Scroll은 원본을 로그에 남기고, 그 결정을 조회 시점의 코드에 맡깁니다.</figcaption>
+</figure>
+
+<p>이 구조에서 눈여겨볼 점 하나. "무엇을 컨텍스트에 남길까"라는 문제가 <strong>프롬프트 튜닝 문제에서 코딩 문제로 바뀝니다</strong>. 요약 프롬프트의 품질에 기대는 대신, 모델의 코드 작성 능력에 기대는 겁니다. 논문 표현을 빌리면 컨텍스트 관리가 "LLM의 향상되는 코딩 능력을 상속하는" 과제가 됩니다. 코딩 벤치마크가 오르는 속도를 생각하면 꽤 영리한 베팅입니다.</p>
+
+<h2 id="sec-4">4. 한 턴이 흘러가는 방식 — 그리고 eviction landmark</h2>
+
+<p>부품을 알았으니 한 턴을 따라가 봅시다. 사용자가 "아까 스킵된 테스트, 원인 정리해 줘"라고 물었다고 합시다.</p>
+
+<ol>
+<li>질문이 이벤트 로그에 새 이벤트로 기록됩니다.</li>
+<li>모델은 working view(최근 대화 + 이전 투영들)를 보고, 답에 필요한 정보가 손에 없다는 걸 압니다. 그래서 <strong>조회 코드</strong>를 씁니다 — 로그에서 테스트 실행 이벤트를 찾아 파싱하는 코드요.</li>
+<li>커널이 코드를 <code>exec</code>로 실행합니다. 중간 결과는 변수로 네임스페이스에 남고, 모델이 <code>print</code>한 결과만 밖으로 나옵니다.</li>
+<li>그 출력이 다음 호출의 working view에 붙습니다. 모델은 이제 근거를 손에 쥐고 답을 씁니다.</li>
+</ol>
+
+<p>개념을 잡기 위한 예시 코드는 이런 모양입니다(논문의 실제 프롬프트가 아니라 이해를 돕는 가상 예시입니다).</p>
+
+{{< highlight python >}}
+# 모델이 작성해 커널로 보내는 조회 코드 (개념 예시)
+hits = log.search(kind="tool_result", query="pytest")   # 이벤트 로그 검색
+runs = [parse_pytest(e.payload) for e in hits]          # 변수로만 유지 — 컨텍스트에 안 들어감
+skipped = [t for r in runs for t in r.tests if t.status == "skipped"]
+
+# print한 이 몇 줄만 다음 호출의 working view에 들어간다
+for t in skipped:
+    print(f"{t.name}: {t.reason} (event {t.addr})")
+{{< /highlight >}}
+
+<p>여기서 "몇 시간짜리 세션이면 working view도 결국 차지 않나?"라는 질문이 나와야 합니다. Scroll의 답이 <strong>eviction landmark</strong>입니다. working view가 예산에 다가가면 오래된 구간(stale span)을 밀어내는데, 그냥 지우지 않습니다. <strong>eviction index</strong>에 "여기에 무엇이 있었는지"를 짧게 적은 랜드마크를 남기고, 그 랜드마크를 이벤트 로그의 정확한 주소에 연결해 둡니다. 나중에 그 내용이 필요해지면 모델은 로그 전체를 뒤지는 게 아니라 랜드마크를 보고 <strong>해당 주소로 직행</strong>합니다. 책을 통째로 다시 읽는 대신, 접어 둔 페이지를 펴는 겁니다.</p>
+
+<figure class="pcm-fig">
+<svg viewBox="0 0 900 380" role="img" aria-label="Scroll에서 한 턴이 흘러가는 5단계. 1 새 이벤트가 로그에 기록되고, 2 모델이 working view를 보고 조회 코드를 작성하고, 3 커널이 exec로 실행해 변수는 네임스페이스에 남고, 4 print된 투영만 다음 working view에 들어가며, 5 view가 예산을 넘으면 오래된 구간을 밀어내되 로그 주소로 연결된 랜드마크를 남긴다.">
+  <g font-size="13">
+    <rect x="30" y="40" width="155" height="72" rx="10" fill="none" stroke="var(--pcm-slate)" stroke-width="1.5"/>
+    <text x="107" y="65" text-anchor="middle" fill="var(--pcm-slate)" font-weight="700">① 이벤트 기록</text>
+    <text x="107" y="85" text-anchor="middle" fill="var(--pcm-slate)" font-size="12">질문·도구 출력이</text>
+    <text x="107" y="101" text-anchor="middle" fill="var(--pcm-slate)" font-size="12">로그에 append</text>
+    <path d="M185 76 L215 76" stroke="var(--pcm-gray)" stroke-width="2"/>
+    <rect x="215" y="40" width="155" height="72" rx="10" fill="none" stroke="var(--pcm-blue)" stroke-width="1.5"/>
+    <text x="292" y="65" text-anchor="middle" fill="var(--pcm-blue)" font-weight="700">② 조회 코드 작성</text>
+    <text x="292" y="85" text-anchor="middle" fill="var(--pcm-blue)" font-size="12">모델이 필요한 정보를</text>
+    <text x="292" y="101" text-anchor="middle" fill="var(--pcm-blue)" font-size="12">가져올 코드를 씀</text>
+    <path d="M370 76 L400 76" stroke="var(--pcm-gray)" stroke-width="2"/>
+    <rect x="400" y="40" width="155" height="72" rx="10" fill="none" stroke="var(--pcm-teal)" stroke-width="1.5"/>
+    <text x="477" y="65" text-anchor="middle" fill="var(--pcm-teal)" font-weight="700">③ 커널 exec</text>
+    <text x="477" y="85" text-anchor="middle" fill="var(--pcm-teal)" font-size="12">중간 결과는 변수로</text>
+    <text x="477" y="101" text-anchor="middle" fill="var(--pcm-teal)" font-size="12">네임스페이스에 유지</text>
+    <path d="M555 76 L585 76" stroke="var(--pcm-gray)" stroke-width="2"/>
+    <rect x="585" y="40" width="155" height="72" rx="10" fill="none" stroke="var(--pcm-violet)" stroke-width="1.5"/>
+    <text x="662" y="65" text-anchor="middle" fill="var(--pcm-violet)" font-weight="700">④ print 투영</text>
+    <text x="662" y="85" text-anchor="middle" fill="var(--pcm-violet)" font-size="12">print된 것만 다음</text>
+    <text x="662" y="101" text-anchor="middle" fill="var(--pcm-violet)" font-size="12">working view에 추가</text>
+    <!-- working view 박스 -->
+    <rect x="120" y="180" width="450" height="120" rx="12" fill="none" stroke="var(--pcm-blue)" stroke-width="2"/>
+    <text x="345" y="205" text-anchor="middle" fill="var(--pcm-blue)" font-weight="700" font-size="14">working view (토큰 예산 있음)</text>
+    <rect x="145" y="222" width="120" height="56" rx="8" fill="none" stroke="var(--pcm-amber)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="205" y="245" text-anchor="middle" fill="var(--pcm-amber)" font-size="11.5">밀려난 구간 자리:</text>
+    <text x="205" y="262" text-anchor="middle" fill="var(--pcm-amber)" font-size="11.5">랜드마크 "빌드 로그</text>
+    <text x="205" y="276" text-anchor="middle" fill="var(--pcm-amber)" font-size="11.5">→ e#118"</text>
+    <rect x="285" y="222" width="125" height="56" rx="8" fill="none" stroke="var(--pcm-slate)" stroke-width="1.5"/>
+    <text x="347" y="253" text-anchor="middle" fill="var(--pcm-slate)" font-size="12">최근 대화</text>
+    <rect x="430" y="222" width="115" height="56" rx="8" fill="none" stroke="var(--pcm-violet)" stroke-width="1.5"/>
+    <text x="487" y="253" text-anchor="middle" fill="var(--pcm-violet)" font-size="12">print 투영들</text>
+    <!-- 로그 -->
+    <rect x="640" y="180" width="230" height="120" rx="12" fill="none" stroke="var(--pcm-green)" stroke-width="2"/>
+    <text x="755" y="205" text-anchor="middle" fill="var(--pcm-green)" font-weight="700" font-size="14">이벤트 로그 (무손실)</text>
+    <text x="755" y="232" text-anchor="middle" fill="var(--pcm-green)" font-size="12">e#001 … e#117</text>
+    <rect x="672" y="244" width="166" height="24" rx="6" fill="none" stroke="var(--pcm-amber)" stroke-width="1.5"/>
+    <text x="755" y="261" text-anchor="middle" fill="var(--pcm-amber)" font-size="12">e#118 빌드 로그 원본</text>
+    <text x="755" y="288" text-anchor="middle" fill="var(--pcm-green)" font-size="12">e#119 …</text>
+    <path d="M265 250 C 420 335, 600 320, 700 268" fill="none" stroke="var(--pcm-amber)" stroke-width="1.8" stroke-dasharray="6 4"/>
+    <text x="465" y="345" text-anchor="middle" fill="var(--pcm-amber)" font-size="12.5">⑤ 필요해지면 랜드마크의 주소로 직행해 원본 복원</text>
+  </g>
+</svg>
+<figcaption>그림 2. 한 턴의 흐름. 밀려난 내용도 사라지지 않습니다 — 랜드마크가 이벤트 로그의 정확한 주소를 가리키고 있어, 조회 코드 한 번이면 돌아옵니다.</figcaption>
+</figure>
+
+<p>컴팩션과의 차이가 여기서 선명해집니다. 컴팩션의 요약도 일종의 랜드마크지만, <strong>원본이 없는 랜드마크</strong>입니다. Scroll의 랜드마크는 뒤에 무손실 로그가 버티고 있어서, 밀어내기(eviction)가 "잊기"가 아니라 <strong>"책갈피 꽂고 덮어 두기"</strong>가 됩니다.</p>
+
+<h2 id="sec-5">5. 숫자 읽는 법 — 94.8%와 +37.4pt의 조건</h2>
+
+<p>논문이 내세우는 성적은 세 벤치마크에서 나옵니다. 각각 무엇을 재는지부터 알아야 숫자가 읽힙니다.</p>
+
+<div class="pcm-tblwrap">
+<table class="pcm-tbl">
+<thead><tr><th>벤치마크</th><th>무엇을 재나</th><th>Scroll (Qwen3.8-Max 백본)</th></tr></thead>
+<tbody>
+<tr><td><a href="https://arxiv.org/abs/2410.10813" target="_blank" rel="noopener">LongMemEval_S</a></td><td>긴 다중 세션 대화에서의 장기 기억 — 정보 추출, 세션 간 추론, 시간 추론, 지식 갱신, 답변 보류(abstention) 5개 능력 (ICLR 2025)</td><td><strong>94.8%</strong></td></tr>
+<tr><td>BEAM_10M</td><td>1M·10M 토큰 스케일의 초장기 메모리 — 선호 따르기, 모순 해소, 사건 순서 등 10개 카테고리</td><td><strong>73.1%</strong> (기존 발표된 최고 메모리 시스템 +5.1pt)</td></tr>
+<tr><td><a href="https://arxiv.org/abs/2602.07962" target="_blank" rel="noopener">LOCA_256K</a></td><td>환경 설명이 8K→256K 토큰으로 커질 때 에이전트가 버티는지 — 극단적 컨텍스트 증가 하의 과제 수행</td><td><strong>86.7%</strong> (기존 발표된 최고 장기 에이전트 +37.4pt)</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>인상적인 건 세 번째 줄입니다. LOCA-bench는 환경 묘사 자체가 256K 토큰까지 부풀 때 에이전트가 얼마나 무너지는지를 재는데, 여기서 +37.4pt라는 간격은 "요약을 잘한다"로는 설명이 안 됩니다. <strong>원본을 잃지 않는 구조 자체가 극단적 스케일에서 이긴다</strong>는 신호로 읽는 편이 맞습니다. LongMemEval 원 논문이 상용 어시스턴트들의 정확도가 지속 대화에서 30%까지 떨어진다고 보고했던 걸 떠올리면, 94.8%는 체감이 되는 숫자입니다.</p>
+
+<div class="pcm-warn pcm-note"><strong>다만 조건을 같이 읽어야 합니다.</strong> ① 보고된 수치는 Qwen3.8-Max 단일 백본 기준입니다. 조회 코드를 얼마나 잘 쓰느냐에 성능이 걸려 있으니, 코딩이 약한 모델에서는 간격이 줄어들 수 있습니다. ② 세 벤치마크 모두 장기 기억·장기 과제 중심입니다. 짧은 세션에서는 커널·로그를 유지하는 오버헤드가 이득을 잠식할 수 있습니다. ③ 글 쓰는 시점 기준 공식 코드 저장소는 확인하지 못했습니다. 숫자의 독립 재현은 아직 없다고 보는 게 안전합니다.</div>
+
+<h2 id="sec-6">6. 실전 — 장난감 버전 만들어 보기, 오늘 훔칠 아이디어</h2>
+
+<p>Scroll 자체는 아직 못 돌려 보지만, 핵심 메커니즘 — <strong>죽지 않는 네임스페이스 + exec + print 투영 + 무손실 로그</strong> — 은 표준 라이브러리만으로 흉내 낼 수 있습니다. 구조를 몸으로 이해하는 데는 이만한 게 없습니다.</p>
+
+{{< highlight python >}}
+import io, json, time, contextlib
+
+class ToySessionEnv:
+    """Scroll의 뼈대만 흉내 낸 장난감: 이벤트 로그 + 퍼시스턴트 네임스페이스 + print 투영"""
+    def __init__(self, log_path="events.jsonl"):
+        self.log_path = log_path
+        self.ns = {"log": self}          # 커널 네임스페이스 — 호출 사이에도 유지
+        self.addr = 0
+
+    def append(self, kind, payload):     # 모든 사건을 무손실로 기록
+        self.addr += 1
+        ev = {"addr": self.addr, "ts": time.time(), "kind": kind, "payload": payload}
+        with open(self.log_path, "a") as f:
+            f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+        return self.addr
+
+    def search(self, kind=None, query=""):   # 조회 코드가 쓰는 로그 검색
+        with open(self.log_path) as f:
+            evs = [json.loads(l) for l in f]
+        return [e for e in evs
+                if (kind is None or e["kind"] == kind)
+                and query in json.dumps(e["payload"], ensure_ascii=False)]
+
+    def exec_code(self, code: str) -> str:
+        """모델이 쓴 코드를 실행. 변수는 ns에 남고, print된 것만 반환된다."""
+        self.append("code", code)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            exec(code, self.ns)          # ⚠️ 실전에서는 반드시 샌드박스 안에서
+        projection = buf.getvalue()
+        self.append("projection", projection)
+        return projection                # ← 이 문자열만 다음 프롬프트에 붙인다
+
+env = ToySessionEnv()
+env.append("tool_result", {"tool": "pytest", "raw": "412 passed, 3 skipped ..."})
+
+# LLM 호출부에서: working_view += env.exec_code(모델이_생성한_코드)
+print(env.exec_code(
+    "hits = log.search(kind='tool_result', query='skipped')\n"
+    "results = [h['payload']['raw'] for h in hits]   # 변수로만 유지\n"
+    "print(results[0][:60])                          # 이 한 줄만 컨텍스트로\n"
+))
+{{< /highlight >}}
+
+<p>50줄이 안 되지만 Scroll의 세 부품이 다 들어 있습니다. 에이전트 루프에 붙일 때는 시스템 프롬프트에 "정보가 필요하면 <code>log.search()</code>를 쓰는 코드를 작성하고, 컨텍스트에 남길 것만 print하라"는 규약을 넣으면 됩니다. 그리고 실제 하네스에 오늘 이식할 만한 아이디어는 세 가지입니다.</p>
+
+<ul>
+<li><strong>큰 도구 출력은 변수로 받기.</strong> 10만 줄짜리 로그를 프롬프트에 통과시키지 말고, 코드 실행 환경의 변수에 묶은 뒤 조회 결과만 넘기세요. Anthropic의 <a href="https://www.anthropic.com/engineering/code-execution-with-mcp" target="_blank" rel="noopener">code execution with MCP</a>와 <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling" target="_blank" rel="noopener">programmatic tool calling</a>이 정확히 이 패턴입니다.</li>
+<li><strong>버리기 전에 주소를 남기기.</strong> 컴팩션을 하더라도, 요약에 "원본: 세션 로그 파일 어느 구간"이라는 포인터를 함께 넣으세요. 요약이 랜드마크가 되고, 파일 시스템이 이벤트 로그가 됩니다. Claude Code가 긴 출력을 파일로 떨구고 경로만 컨텍스트에 남기는 것도 같은 원리입니다.</li>
+<li><strong>요약 프롬프트 대신 조회 함수 다듬기.</strong> "요약을 더 잘 시키는 프롬프트"에 쓰는 시간을, 에이전트가 히스토리를 검색·파싱하기 좋은 헬퍼(<code>search</code>, <code>slice</code>, <code>tail</code>)를 깎는 데 옮겨 보세요. 후자는 모델이 좋아질수록 공짜로 좋아집니다.</li>
+</ul>
+
+<figure class="pcm-fig">
+<svg viewBox="0 0 900 330" role="img" aria-label="세션 성격에 따른 컨텍스트 전략 선택 가이드 결정 트리. 히스토리가 컨텍스트 윈도우를 넘지 않으면 전체 유지, 넘는 경우 지난 디테일을 다시 볼 일이 거의 없으면 컴팩션, 가끔 의미 기반으로 되찾으면 외부 메모리와 RAG, 자주 정확하게 되찾아야 하고 구조적 상태가 있으면 프로그래머틱 컨텍스트가 어울린다.">
+  <g font-size="13">
+    <rect x="330" y="20" width="240" height="46" rx="10" fill="none" stroke="var(--pcm-blue)" stroke-width="2"/>
+    <text x="450" y="48" text-anchor="middle" fill="var(--pcm-blue)" font-weight="700">히스토리가 윈도우를 넘는가?</text>
+    <path d="M390 66 L180 108" stroke="var(--pcm-gray)" stroke-width="1.5"/>
+    <text x="255" y="86" fill="var(--pcm-gray)" font-size="12">아니오</text>
+    <rect x="70" y="108" width="220" height="44" rx="10" fill="none" stroke="var(--pcm-slate)" stroke-width="1.5"/>
+    <text x="180" y="135" text-anchor="middle" fill="var(--pcm-slate)">그냥 전체 유지 — 관리 불필요</text>
+    <path d="M510 66 L620 108" stroke="var(--pcm-gray)" stroke-width="1.5"/>
+    <text x="590" y="86" fill="var(--pcm-gray)" font-size="12">예</text>
+    <rect x="470" y="108" width="300" height="46" rx="10" fill="none" stroke="var(--pcm-blue)" stroke-width="2"/>
+    <text x="620" y="136" text-anchor="middle" fill="var(--pcm-blue)" font-weight="700">지난 디테일을 다시 볼 일이 얼마나 잦은가?</text>
+    <path d="M510 154 L250 206" stroke="var(--pcm-gray)" stroke-width="1.5"/>
+    <text x="345" y="180" fill="var(--pcm-gray)" font-size="12">거의 없음</text>
+    <rect x="105" y="206" width="290" height="62" rx="10" fill="none" stroke="var(--pcm-amber)" stroke-width="1.5"/>
+    <text x="250" y="230" text-anchor="middle" fill="var(--pcm-amber)" font-weight="700">컴팩션 / 요약</text>
+    <text x="250" y="250" text-anchor="middle" fill="var(--pcm-amber)" font-size="12">단순·저비용. 손실은 감수</text>
+    <path d="M620 154 L620 206" stroke="var(--pcm-gray)" stroke-width="1.5"/>
+    <text x="648" y="180" fill="var(--pcm-gray)" font-size="12">가끔 · 의미 검색</text>
+    <rect x="470" y="206" width="290" height="62" rx="10" fill="none" stroke="var(--pcm-teal)" stroke-width="1.5"/>
+    <text x="615" y="230" text-anchor="middle" fill="var(--pcm-teal)" font-weight="700">외부 메모리 / RAG</text>
+    <text x="615" y="250" text-anchor="middle" fill="var(--pcm-teal)" font-size="12">"비슷한 것 찾기"에 강함</text>
+    <path d="M745 154 L810 206 L810 220" stroke="var(--pcm-gray)" stroke-width="1.5" fill="none"/>
+    <text x="805" y="180" fill="var(--pcm-gray)" font-size="12">자주 · 정확히</text>
+    <rect x="640" y="278" width="250" height="46" rx="10" fill="none" stroke="var(--pcm-green)" stroke-width="2.5"/>
+    <text x="765" y="298" text-anchor="middle" fill="var(--pcm-green)" font-weight="700">프로그래머틱 (Scroll류)</text>
+    <text x="765" y="316" text-anchor="middle" fill="var(--pcm-green)" font-size="12">무손실 로그 + 코드 조회</text>
+    <path d="M810 220 L790 278" stroke="var(--pcm-gray)" stroke-width="1.5"/>
+  </g>
+</svg>
+<figcaption>그림 3. 만능 정답은 없습니다. 세션이 짧으면 관리 자체가 불필요하고, "정확한 디테일을 자주 되찾는" 워크로드일수록 프로그래머틱 쪽 이득이 커집니다.</figcaption>
+</figure>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+<li><strong><code>exec</code>를 맨몸으로 돌리지 않기.</strong> 모델이 쓴 코드를 실행한다는 건 프롬프트 인젝션이 곧 코드 실행이 된다는 뜻입니다. 위 장난감 코드의 <code>exec</code>는 학습용이고, 실전은 반드시 격리된 샌드박스 안이어야 합니다. <a href="/posts/agent-code-execution-sandbox/">코드 실행 샌드박스 글</a>과 <a href="/posts/agent-sandbox-escape-egress-isolation/">격리 설계 글</a>에서 다룬 원칙이 그대로 적용됩니다.</li>
+<li><strong>print 폭주 조심.</strong> 모델이 <code>print(df)</code>로 데이터프레임 전체를 쏟으면 투영이 곧 컨텍스트 폭발입니다. 투영에도 토큰 상한을 걸고, 넘치면 잘라서 "…(총 N행, 전체는 변수 <code>df</code>)"처럼 축약해 돌려주세요.</li>
+<li><strong>커널과 로그의 불일치.</strong> 커널이 죽으면 변수는 날아갑니다. 복구 가능하게 만들려면 상태의 원천은 항상 이벤트 로그이고, 커널 상태는 로그를 재생(replay)해 재구성할 수 있어야 합니다. "로그가 진실, 커널은 캐시"라는 원칙을 지키면 재현성 문제도 같이 풀립니다.</li>
+<li><strong>짧은 세션에 오버엔지니어링하지 않기.</strong> 대화 수십 턴짜리 챗봇에 커널·로그·eviction 인덱스를 다 얹는 건 낭비입니다. 그림 3의 결정 기준을 먼저 통과하는지 보세요.</li>
+<li><strong>조회 실패도 관측하기.</strong> 이 구조의 새로운 실패 모드는 "정보가 없어서"가 아니라 <strong>"정보는 로그에 있는데 조회 코드가 못 찾아서"</strong>입니다. 조회 코드가 빈 결과를 돌려준 비율을 따로 로깅해 두면, 헬퍼 함수를 어디부터 고칠지 보입니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+<li>요약·컴팩션·외부 메모리는 모두 "무엇이 중요한가"를 <strong>쓰기 시점</strong>에 정합니다. 미래의 질문을 모른 채 내리는 비가역 결정이라, 버린 디테일은 돌아오지 않습니다.</li>
+<li>Alibaba의 <strong>Scroll</strong>(arXiv:2608.21690)은 세션을 실행 환경으로 취급합니다 — <strong>append-only 이벤트 로그</strong>(무손실 원본) + <strong>세션 내내 살아 있는 Python 커널</strong>(변수 네임스페이스) + <strong>print 투영</strong>(모델이 쓴 조회 코드의 출력만 컨텍스트에).</li>
+<li>working view가 차면 지우는 대신 <strong>eviction landmark</strong>를 남깁니다. 로그 주소로 연결된 책갈피라, 밀어내기가 "잊기"가 아니라 "덮어 두기"가 됩니다.</li>
+<li>성적은 LongMemEval_S <strong>94.8%</strong>, BEAM_10M <strong>73.1%</strong>(+5.1pt), LOCA_256K <strong>86.7%</strong>(+37.4pt). 단, Qwen3.8-Max 단일 백본·장기 과제 중심 벤치마크·코드 미공개라는 조건과 함께 읽어야 합니다.</li>
+<li>오늘 훔칠 것: 큰 도구 출력은 변수로 받고, 버리기 전에 원본 주소를 남기고, 요약 프롬프트 대신 조회 헬퍼를 다듬으세요. 그리고 모델이 쓴 코드의 <code>exec</code>는 반드시 샌드박스 안에서.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+<li><a href="https://arxiv.org/abs/2608.21690" target="_blank" rel="noopener">Context as an Environment: Programmatic Context Management for Long-Horizon Agents (arXiv:2608.21690)</a></li>
+<li><a href="https://arxiv.org/html/2608.21690" target="_blank" rel="noopener">같은 논문 HTML 버전 (arXiv)</a></li>
+<li><a href="https://x.com/rohanpaul_ai/status/2092735841068023886" target="_blank" rel="noopener">Rohan Paul — Scroll 소개 스레드 (X)</a></li>
+<li><a href="https://arxiv.org/abs/2410.10813" target="_blank" rel="noopener">LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory (arXiv:2410.10813, ICLR 2025)</a></li>
+<li><a href="https://github.com/xiaowu0162/longmemeval" target="_blank" rel="noopener">GitHub — xiaowu0162/LongMemEval</a></li>
+<li><a href="https://arxiv.org/abs/2602.07962" target="_blank" rel="noopener">LOCA-bench: Benchmarking Language Agents Under Controllable and Extreme Context Growth (arXiv:2602.07962)</a></li>
+<li><a href="https://arxiv.org/abs/2510.11967" target="_blank" rel="noopener">Scaling Long-Horizon LLM Agent via Context-Folding (arXiv:2510.11967)</a></li>
+<li><a href="https://arxiv.org/abs/2512.10371" target="_blank" rel="noopener">AgentProg: Empowering Long-Horizon GUI Agents with Program-Guided Context Management (arXiv:2512.10371)</a></li>
+<li><a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noopener">Lost in the Middle: How Language Models Use Long Contexts (arXiv:2307.03172)</a></li>
+<li><a href="https://www.anthropic.com/engineering/code-execution-with-mcp" target="_blank" rel="noopener">Anthropic Engineering — Code execution with MCP</a></li>
+<li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling" target="_blank" rel="noopener">Claude Docs — Programmatic tool calling</a></li>
+<li><a href="https://platform.claude.com/docs/en/build-with-claude/compaction" target="_blank" rel="noopener">Claude Docs — Context compaction</a></li>
+<li><a href="https://developers.openai.com/api/docs/guides/compaction" target="_blank" rel="noopener">OpenAI Docs — Compaction guide</a></li>
+<li><a href="https://blog.cloudflare.com/code-mode/" target="_blank" rel="noopener">Cloudflare — Code Mode</a></li>
+</ul>
+
+<p style="opacity:.7;font-size:.9rem">※ 이번 주제는 아직 정리된 한국어 자료를 찾지 못했습니다. 위 출처는 모두 영어 자료입니다.</p>

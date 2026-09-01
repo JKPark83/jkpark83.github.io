@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="300" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" fill="#f8fafc" font-size="17" font-weight="700" text-anchor="middle">오늘의 리포 비교 — "에이전트 출력, 어디까지 믿을까"</text>
+
+  <rect x="40" y="56" width="345" height="200" rx="10" fill="#052e16" stroke="#22c55e"/>
+  <text x="60" y="84" fill="#86efac" font-size="15" font-weight="700">lajosdeme/mole</text>
+  <text x="60" y="106" fill="#94a3b8" font-size="12">Go · Apache-2.0 · 단일 정적 바이너리</text>
+  <text x="60" y="132" fill="#e2e8f0" font-size="12">역할: 딥리서치 결과를 검증 가능하게</text>
+  <text x="60" y="154" fill="#e2e8f0" font-size="12">· 모든 모델 호출을 예산 원장에 선예약</text>
+  <text x="60" y="176" fill="#e2e8f0" font-size="12">· 인용문이 원문에 없으면 추출 단계서 폐기</text>
+  <text x="60" y="198" fill="#e2e8f0" font-size="12">· 로컬 CSV는 집계값만 모델로 반환</text>
+  <text x="60" y="226" fill="#86efac" font-size="12" font-weight="700">쓰임새: 코딩 에이전트의 MCP 리서치 백엔드</text>
+
+  <rect x="415" y="56" width="345" height="200" rx="10" fill="#172554" stroke="#3b82f6"/>
+  <text x="435" y="84" fill="#93c5fd" font-size="15" font-weight="700">islo-labs/reward-hack-bench</text>
+  <text x="435" y="106" fill="#94a3b8" font-size="12">Python · 태스크별 원본 라이선스 유지</text>
+  <text x="435" y="132" fill="#e2e8f0" font-size="12">역할: eval 환경 자체를 검증 가능하게</text>
+  <text x="435" y="154" fill="#e2e8f0" font-size="12">· SWE-bench·CyBench 과제에 컨닝 경로 심음</text>
+  <text x="435" y="176" fill="#e2e8f0" font-size="12">· 샌드박스 정책별로 부정행위 차단율 비교</text>
+  <text x="435" y="198" fill="#e2e8f0" font-size="12">· 관측된 우회 채널 문서화 포함</text>
+  <text x="435" y="226" fill="#93c5fd" font-size="12" font-weight="700">쓰임새: 내 에이전트 eval 샌드박스 검증</text>
+
+  <text x="400" y="282" fill="#64748b" font-size="11" text-anchor="middle">스타 수는 이번 세션에서 GitHub API 미확인 — 리포 내용은 클론으로 직접 검증</text>
+</svg>

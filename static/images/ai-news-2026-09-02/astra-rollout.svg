@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 340" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="340" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" fill="#f8fafc" font-size="18" font-weight="700" text-anchor="middle">OpenAI Astra — 'Critical' 사이버 역량 모델의 단계적 배포</text>
+  <text x="400" y="56" fill="#94a3b8" font-size="12" text-anchor="middle">Preparedness Framework에서 사이버 'Critical' 임계선을 넘은 첫 모델 (보도·OpenAI 발표 기준)</text>
+
+  <!-- threshold gate -->
+  <rect x="40" y="90" width="200" height="120" rx="10" fill="#450a0a" stroke="#ef4444"/>
+  <text x="140" y="118" fill="#fca5a5" font-size="14" font-weight="700" text-anchor="middle">역량 평가</text>
+  <text x="140" y="142" fill="#e2e8f0" font-size="12" text-anchor="middle">미공개 취약점을 찾고</text>
+  <text x="140" y="160" fill="#e2e8f0" font-size="12" text-anchor="middle">단계별 지시 없이 익스플로잇</text>
+  <text x="140" y="184" fill="#fca5a5" font-size="12" font-weight="700" text-anchor="middle">→ 'Critical' 판정</text>
+
+  <path d="M240 150 h40" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>
+
+  <!-- stage 1 -->
+  <rect x="285" y="90" width="220" height="120" rx="10" fill="#1e293b" stroke="#f59e0b"/>
+  <text x="395" y="118" fill="#fcd34d" font-size="14" font-weight="700" text-anchor="middle">1단계: 알파 테스터</text>
+  <text x="395" y="142" fill="#e2e8f0" font-size="12" text-anchor="middle">핵심 인프라 방어 조직·</text>
+  <text x="395" y="160" fill="#e2e8f0" font-size="12" text-anchor="middle">미 정부 등 소수 그룹만</text>
+  <text x="395" y="184" fill="#94a3b8" font-size="12" text-anchor="middle">고급 사이버 기능 전체 접근</text>
+
+  <path d="M505 150 h40" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- stage 2 -->
+  <rect x="550" y="90" width="210" height="120" rx="10" fill="#1e293b" stroke="#22c55e"/>
+  <text x="655" y="118" fill="#86efac" font-size="14" font-weight="700" text-anchor="middle">2단계: Daybreak Blue</text>
+  <text x="655" y="142" fill="#e2e8f0" font-size="12" text-anchor="middle">승인된 사용자에게</text>
+  <text x="655" y="160" fill="#e2e8f0" font-size="12" text-anchor="middle">방어(디펜시브) 용도로</text>
+  <text x="655" y="184" fill="#94a3b8" font-size="12" text-anchor="middle">세이프가드와 함께 확대</text>
+
+  <!-- bottom note -->
+  <rect x="40" y="240" width="720" height="64" rx="8" fill="#172554"/>
+  <text x="400" y="266" fill="#e2e8f0" font-size="13" text-anchor="middle">일반 릴리즈는 "곧" — 단, 고급 사이버 기능은 위 경로로만 개방</text>
+  <text x="400" y="288" fill="#94a3b8" font-size="12" text-anchor="middle">에이전트 빌더 시사점: 모델 역량이 아니라 "누가 어떤 용도로 쓰는가"가 API 접근 조건이 되는 첫 사례급 전환</text>
+</svg>

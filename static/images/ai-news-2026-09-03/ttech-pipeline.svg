@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="420" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" fill="#f8fafc" font-size="19" font-weight="700" text-anchor="middle">T-Tech 레시피 — 프로덕션 트래픽 → 사후학습 파이프라인</text>
+  <text x="400" y="58" fill="#94a3b8" font-size="12" text-anchor="middle">arXiv 2609.01572 · 200+ 사내 앱 트래픽을 Qwen3-32B 하나로 통합</text>
+
+  <!-- Step 1 -->
+  <rect x="40" y="85" width="720" height="54" rx="10" fill="#172554" stroke="#3b82f6"/>
+  <text x="60" y="108" fill="#93c5fd" font-size="13" font-weight="700">1. 프로덕션 에러 분석</text>
+  <text x="60" y="128" fill="#e2e8f0" font-size="12">실서비스 실패 사례를 3개 축으로 분류 → 지시 이행 · 함수 호출 · 사내 태스크 분포</text>
+
+  <line x1="400" y1="139" x2="400" y2="157" stroke="#475569" stroke-width="2"/>
+
+  <!-- Step 2: three experts -->
+  <rect x="40" y="160" width="226" height="88" rx="10" fill="#3b0764" stroke="#a855f7"/>
+  <text x="153" y="184" fill="#d8b4fe" font-size="13" font-weight="700" text-anchor="middle">GRPO 전문가 A</text>
+  <text x="153" y="204" fill="#e2e8f0" font-size="12" text-anchor="middle">지시 이행</text>
+  <text x="153" y="226" fill="#f87171" font-size="11" text-anchor="middle">실패 모드: 의미 붕괴</text>
+
+  <rect x="287" y="160" width="226" height="88" rx="10" fill="#3b0764" stroke="#a855f7"/>
+  <text x="400" y="184" fill="#d8b4fe" font-size="13" font-weight="700" text-anchor="middle">GRPO 전문가 B</text>
+  <text x="400" y="204" fill="#e2e8f0" font-size="12" text-anchor="middle">함수 호출 (tool call)</text>
+  <text x="400" y="226" fill="#f87171" font-size="11" text-anchor="middle">실패 모드: 과잉 호출</text>
+
+  <rect x="534" y="160" width="226" height="88" rx="10" fill="#3b0764" stroke="#a855f7"/>
+  <text x="647" y="184" fill="#d8b4fe" font-size="13" font-weight="700" text-anchor="middle">GRPO 전문가 C</text>
+  <text x="647" y="204" fill="#e2e8f0" font-size="12" text-anchor="middle">사내 태스크 분포</text>
+  <text x="647" y="226" fill="#f87171" font-size="11" text-anchor="middle">실패 모드: 장황함 해킹</text>
+
+  <line x1="153" y1="248" x2="380" y2="278" stroke="#475569" stroke-width="2"/>
+  <line x1="400" y1="248" x2="400" y2="278" stroke="#475569" stroke-width="2"/>
+  <line x1="647" y1="248" x2="420" y2="278" stroke="#475569" stroke-width="2"/>
+
+  <!-- Step 3 -->
+  <rect x="220" y="280" width="360" height="50" rx="10" fill="#052e16" stroke="#22c55e"/>
+  <text x="400" y="301" fill="#86efac" font-size="13" font-weight="700" text-anchor="middle">2단계 SLERP 병합</text>
+  <text x="400" y="320" fill="#e2e8f0" font-size="12" text-anchor="middle">공동 최적화 대신 병합 → 축 간 보상 간섭 회피</text>
+
+  <line x1="400" y1="330" x2="400" y2="348" stroke="#475569" stroke-width="2"/>
+
+  <!-- Result -->
+  <rect x="120" y="350" width="560" height="50" rx="10" fill="#431407" stroke="#f97316"/>
+  <text x="400" y="371" fill="#fdba74" font-size="13" font-weight="700" text-anchor="middle">결과: 총 파라미터 ~7× 큰 기존 모델 추월 (사내 Arena 69.6 vs 65.8)</text>
+  <text x="400" y="390" fill="#e2e8f0" font-size="12" text-anchor="middle">플랫폼 트래픽 50% 흡수 · 월 1.16억 요청 · 토큰 비용 2.8~3.9× 절감</text>
+</svg>

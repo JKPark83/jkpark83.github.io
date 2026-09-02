@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="460" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" fill="#f8fafc" font-size="20" font-weight="700" text-anchor="middle">오늘의 AI 변화 지도 — 2026-09-03</text>
+  <text x="400" y="58" fill="#94a3b8" font-size="12" text-anchor="middle">"Flash급" 모델이 프런티어를 넘보고, 프로덕션 트래픽이 곧 학습 데이터가 된다</text>
+
+  <!-- center node -->
+  <rect x="300" y="208" width="200" height="52" rx="26" fill="#1d4ed8"/>
+  <text x="400" y="230" fill="#ffffff" font-size="14" font-weight="700" text-anchor="middle">싸고 빠른 모델로</text>
+  <text x="400" y="248" fill="#ffffff" font-size="14" font-weight="700" text-anchor="middle">에이전트 굴리기</text>
+
+  <!-- links -->
+  <line x1="215" y1="140" x2="330" y2="213" stroke="#334155" stroke-width="2"/>
+  <line x1="585" y1="140" x2="470" y2="213" stroke="#334155" stroke-width="2"/>
+  <line x1="215" y1="345" x2="330" y2="256" stroke="#334155" stroke-width="2"/>
+  <line x1="585" y1="345" x2="470" y2="256" stroke="#334155" stroke-width="2"/>
+
+  <!-- Models -->
+  <rect x="55" y="80" width="320" height="110" rx="10" fill="#172554" stroke="#3b82f6"/>
+  <text x="70" y="103" fill="#93c5fd" font-size="14" font-weight="700">🤖 모델 &amp; 릴리즈</text>
+  <text x="70" y="126" fill="#e2e8f0" font-size="12">· Gemini 3.8 Flash — Terminal-Bench 2.1 90.8%</text>
+  <text x="70" y="146" fill="#e2e8f0" font-size="12">· 3.8 Flash Cyber — 방어자 전용, Fairwind 프로그램</text>
+  <text x="70" y="166" fill="#e2e8f0" font-size="12">· 프로모션 가격 $0.75/M → 내년 1월 $1.50/M</text>
+
+  <!-- Papers -->
+  <rect x="425" y="80" width="320" height="110" rx="10" fill="#3b0764" stroke="#a855f7"/>
+  <text x="440" y="103" fill="#d8b4fe" font-size="14" font-weight="700">📚 논문</text>
+  <text x="440" y="126" fill="#e2e8f0" font-size="12">· T-Tech — 프로덕션 트래픽으로 32B 모델 사후학습</text>
+  <text x="440" y="146" fill="#e2e8f0" font-size="12">· Hi-Q(POSTECH) — 증거가 쿼리 트리 모양을 정한다</text>
+  <text x="440" y="166" fill="#94a3b8" font-size="11">arXiv 2609.01572 · 2608.30468</text>
+
+  <!-- OSS -->
+  <rect x="55" y="290" width="320" height="110" rx="10" fill="#052e16" stroke="#22c55e"/>
+  <text x="70" y="313" fill="#86efac" font-size="14" font-weight="700">🛠 오픈 웨이트</text>
+  <text x="70" y="336" fill="#e2e8f0" font-size="12">· DeepSeek-V4-Flash-Vision-Exp — 305B MoE, MIT</text>
+  <text x="70" y="356" fill="#e2e8f0" font-size="12">· Tencent Hy4-preview — 770B/49B, 1M 컨텍스트</text>
+  <text x="70" y="376" fill="#94a3b8" font-size="11">둘 다 Terminal-Bench 2.1 80%대 자체 보고</text>
+
+  <!-- Tips -->
+  <rect x="425" y="290" width="320" height="110" rx="10" fill="#431407" stroke="#f97316"/>
+  <text x="440" y="313" fill="#fdba74" font-size="14" font-weight="700">🧑‍💻 실전 팁</text>
+  <text x="440" y="336" fill="#e2e8f0" font-size="12">· Codex — 터미널에서 태스크 @ 멘션 오케스트레이션</text>
+  <text x="440" y="356" fill="#e2e8f0" font-size="12">· Claude Code — auto 모드 Containment Escape 규칙</text>
+  <text x="440" y="376" fill="#e2e8f0" font-size="12">· 공통 — 오프라인 평가를 트래픽 비율로 층화하라</text>
+
+  <text x="400" y="440" fill="#64748b" font-size="11" text-anchor="middle">jkpark83.github.io · AI 데일리 브리핑</text>
+</svg>

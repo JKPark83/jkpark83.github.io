@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="교사 모델의 출력을 필사하는 off-policy 증류와, 학생 모델이 직접 푼 답안을 교사가 토큰 단위로 첨삭하는 on-policy 증류를 대비시킨 그림">
+  <defs>
+    <linearGradient id="opd-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1a1f3a"/>
+    </linearGradient>
+    <marker id="opd-arrow-r" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fb7185"/>
+    </marker>
+    <marker id="opd-arrow-g" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/>
+    </marker>
+    <marker id="opd-arrow-t" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2dd4bf"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#opd-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="38" font-weight="700" fill="#e2e8f0">큰 모델의 실력을 작은 모델로</text>
+  <text x="60" y="118" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">on-policy distillation — 2026년 포스트 트레이닝의 표준 레시피</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 왼쪽: off-policy -->
+    <text x="300" y="190" text-anchor="middle" font-size="22" font-weight="700" fill="#fb7185">off-policy — 교사의 답안 필사</text>
+    <rect x="130" y="220" width="340" height="70" rx="14" fill="#1e2440" stroke="#94a3b8" stroke-width="2"/>
+    <text x="300" y="250" text-anchor="middle" font-size="17" fill="#cbd5e1">교사 모델이 쓴 모범 답안</text>
+    <text x="300" y="275" text-anchor="middle" font-size="14" fill="#94a3b8">학생은 구경만 한 상태 분포</text>
+    <path d="M300 290 L300 336" stroke="#fb7185" stroke-width="3" marker-end="url(#opd-arrow-r)"/>
+    <rect x="150" y="342" width="300" height="64" rx="14" fill="#2b1622" stroke="#fb7185" stroke-width="2"/>
+    <text x="300" y="369" text-anchor="middle" font-size="17" fill="#fda4af">학생이 그대로 따라 씀 (SFT)</text>
+    <text x="300" y="393" text-anchor="middle" font-size="14" fill="#fda4af">내 실수 상태는 배운 적 없음</text>
+    <text x="300" y="460" text-anchor="middle" font-size="16" fill="#fb7185">✗ 시험장에서 한 번 삐끗하면 복구 불가</text>
+    <text x="300" y="488" text-anchor="middle" font-size="14" fill="#fb7185">(compounding error)</text>
+
+    <!-- 구분선 -->
+    <line x1="600" y1="170" x2="600" y2="570" stroke="#334155" stroke-width="2" stroke-dasharray="6 8"/>
+
+    <!-- 오른쪽: on-policy -->
+    <text x="900" y="190" text-anchor="middle" font-size="22" font-weight="700" fill="#4ade80">on-policy — 내 답안을 첨삭</text>
+    <rect x="730" y="220" width="340" height="70" rx="14" fill="#14261e" stroke="#4ade80" stroke-width="2"/>
+    <text x="900" y="250" text-anchor="middle" font-size="17" fill="#86efac">학생이 직접 문제를 풂 (rollout)</text>
+    <text x="900" y="275" text-anchor="middle" font-size="14" fill="#86efac">내가 실제로 가는 상태에서 출발</text>
+    <path d="M900 290 L900 336" stroke="#4ade80" stroke-width="3" marker-end="url(#opd-arrow-g)"/>
+    <rect x="730" y="342" width="340" height="70" rx="14" fill="#12262b" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="900" y="371" text-anchor="middle" font-size="17" fill="#5eead4">교사가 토큰마다 첨삭</text>
+    <text x="900" y="396" text-anchor="middle" font-size="14" fill="#5eead4">per-token reverse KL — 조밀한 신호</text>
+    <path d="M900 412 L900 458" stroke="#2dd4bf" stroke-width="3" marker-end="url(#opd-arrow-t)"/>
+    <text x="900" y="486" text-anchor="middle" font-size="16" fill="#4ade80">✓ RL 대비 GPU 시간 약 1/10 (Qwen3)</text>
+  </g>
+
+  <text x="60" y="596" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#64748b">Qwen3 · DeepSeek · GLM · Nemotron이 쓰는 strong-to-weak 증류 — 원리부터 이번 주 논쟁까지</text>
+</svg>

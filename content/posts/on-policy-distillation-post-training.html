@@ -1,0 +1,366 @@
+---
+title: "큰 모델의 실력을 작은 모델로 옮기는 법 — 2026년 포스트 트레이닝의 표준이 된 on-policy distillation"
+date: 2026-09-03T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM", "온폴리시 증류", "on-policy distillation", "지식 증류", "knowledge distillation", "포스트 트레이닝", "post-training", "파인튜닝", "fine-tuning", "reverse KL", "GKD", "Qwen3", "TRL", "강화학습", "RL", "SFT", "멀티 티처", "multi-teacher", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "프로덕션에서 8B 모델을 쓰면서 '큰 모델만큼 똑똑했으면' 하고 바란 적 있다면, 2026년 오픈 모델 진영의 답은 이미 정해져 있습니다 — on-policy distillation(온폴리시 증류)입니다. 학생 모델이 직접 문제를 풀고, 교사 모델이 그 답안을 토큰 단위로 첨삭하는 이 레시피는 Qwen3·DeepSeek·GLM·Nemotron의 표준 포스트 트레이닝 단계가 됐고, Qwen3 테크니컬 리포트는 RL 대비 GPU 시간 약 1/10에 더 좋은 성능을 보고했습니다. 그런데 이번 주 arXiv에는 '교사 신호는 사실 대부분 노이즈였다'는 도발적인 논문(Does On-Policy Distillation Really Distill?)과, 여러 교사를 합칠 때 능력이 뭉개지는 문제를 진단한 Open-MOPD가 연달아 올라오며 작동 원리를 두고 논쟁이 붙었습니다. off-policy 증류가 왜 시험장에서 무너지는지(compounding error), reverse KL이 왜 '조밀하고 해킹 안 되는 보상'인지, TRL로 직접 돌려 보는 법, 그리고 이번 주 논쟁에서 주니어가 가져갈 교훈까지 — 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "on-policy-distillation-post-training-cover.svg"
+  alt: "교사 모델의 출력을 필사하는 off-policy 증류와, 학생 모델이 직접 푼 답안을 교사가 토큰 단위로 첨삭하는 on-policy 증류를 대비시킨 그림"
+  caption: "남의 모범 답안을 필사하는 것과, 내 답안을 첨삭받는 것. 같은 '배우기'라도 효과는 다릅니다."
+  relative: false
+---
+
+<style>
+/* ── on-policy distillation 포스트 전용 스타일 (opd- 접두사) ── */
+.opd-fig{
+  --opd-violet:#7c3aed; --opd-sky:#0284c7; --opd-green:#16a34a; --opd-rose:#e11d48;
+  --opd-amber:#d97706; --opd-slate:#64748b; --opd-teal:#0d9488; --opd-blue:#2563eb;
+  --opd-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .opd-fig{
+  --opd-violet:#a78bfa; --opd-sky:#38bdf8; --opd-green:#4ade80; --opd-rose:#fb7185;
+  --opd-amber:#fbbf24; --opd-slate:#94a3b8; --opd-teal:#2dd4bf; --opd-blue:#60a5fa;
+  --opd-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .opd-fig{
+    --opd-violet:#a78bfa; --opd-sky:#38bdf8; --opd-green:#4ade80; --opd-rose:#fb7185;
+    --opd-amber:#fbbf24; --opd-slate:#94a3b8; --opd-teal:#2dd4bf; --opd-blue:#60a5fa;
+    --opd-gray:#64748b;
+  }
+}
+.opd-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.opd-fig text{font-family:inherit}
+.opd-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.opd-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.opd-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.opd-toc ol{margin:0;padding-left:1.25rem}
+.opd-toc li{margin:.22rem 0;font-size:.95rem}
+.opd-toc a{text-decoration:none}
+.opd-toc a:hover{text-decoration:underline}
+.opd-note{border-left:4px solid var(--opd-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.opd-note strong{color:var(--opd-blue,#2563eb)}
+.opd-warn{border-left:4px solid var(--opd-rose,#e11d48)}
+.opd-warn strong{color:var(--opd-rose,#e11d48)}
+.opd-good{border-left:4px solid var(--opd-teal,#0d9488)}
+.opd-good strong{color:var(--opd-teal,#0d9488)}
+.opd-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.opd-tbl th,.opd-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.opd-tbl th{background:var(--entry);font-weight:700}
+.opd-tbl code{font-size:.86em}
+.opd-tblwrap{overflow-x:auto}
+</style>
+
+<div class="opd-toc">
+  <div class="opd-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 다들 조용히 쓰고 있던 레시피에 이번 주 물음표가 붙었다</a></li>
+    <li><a href="#sec-2">배경 — 포스트 트레이닝 3종 세트, 그리고 off-policy 증류의 함정</a></li>
+    <li><a href="#sec-3">on-policy distillation의 동작 원리 — 내 답안을 토큰 단위로 첨삭받기</a></li>
+    <li><a href="#sec-4">숫자 읽는 법 — "RL의 1/10"은 어떤 조건의 숫자인가</a></li>
+    <li><a href="#sec-5">실전 — TRL로 직접 돌려 보기</a></li>
+    <li><a href="#sec-6">이번 주 논쟁 — 교사는 정말 가르치고 있었나</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 다들 조용히 쓰고 있던 레시피에 이번 주 물음표가 붙었다</h2>
+
+<p>프로덕션에서 LLM을 굴려 본 팀이라면 다들 같은 딜레마를 압니다. 큰 모델은 똑똑하지만 비싸고 느립니다. 작은 모델은 싸고 빠르지만, 정확히 필요한 지점에서 아쉽습니다. 그래서 누구나 한 번쯤 이렇게 바랍니다. <strong>"큰 모델의 실력을 작은 모델에 옮길 수는 없을까?"</strong></p>
+
+<p>2026년 오픈 모델 진영은 이 질문에 사실상 합의된 답을 갖고 있습니다. <strong>온폴리시 증류(on-policy distillation, 이하 OPD)</strong>입니다. <a href="https://arxiv.org/abs/2505.09388" target="_blank" rel="noopener">Qwen3 테크니컬 리포트</a>가 0.6B부터 14B까지의 경량 모델을 전부 이 방식(strong-to-weak distillation)으로 마무리했다고 밝힌 이후, <a href="https://github.com/chrisliu298/awesome-on-policy-distillation" target="_blank" rel="noopener">공개된 레시피 목록</a>을 보면 DeepSeek, Zhipu(GLM), Xiaomi(MiMo), NVIDIA(Nemotron) 등이 줄줄이 표준 포스트 트레이닝 단계로 채택했습니다. 화려한 발표 없이, 프론티어 오픈 모델의 "작은 사이즈"들이 만들어지는 방식이 조용히 바뀐 겁니다.</p>
+
+<p>그런데 이번 주, 이 합의에 물음표가 붙었습니다. Hugging Face Daily Papers에는 8월 27일 자로 여러 교사 모델을 하나의 학생에 합칠 때 능력이 뭉개지는 문제를 진단한 <a href="https://arxiv.org/abs/2608.19098" target="_blank" rel="noopener">Open-MOPD</a>(Tsinghua·ByteDance)가 43개 upvote를 받으며 올라왔고, 9월 1일에는 제목부터 도발적인 <a href="https://arxiv.org/abs/2608.31046" target="_blank" rel="noopener">"Does On-Policy Distillation Really Distill?"</a>이 등장했습니다. 후자의 주장을 한 줄로 요약하면 이렇습니다. <strong>"교사의 첨삭은 대부분 노이즈였고, 학생은 사실 스스로 좋아지고 있었다."</strong> 업계 표준이 된 기법의 작동 원리를 정면으로 다시 묻는 논문이 일주일 사이 연달아 나온 셈이라, 지금이 이 주제를 기초부터 정리하기 좋은 타이밍입니다.</p>
+
+<div class="opd-note"><strong>이 글에서 얻어 갈 것.</strong> ① SFT 증류(off-policy)가 왜 시험장에서 무너지는지(compounding error), ② OPD의 루프와 reverse KL이 만드는 "조밀하고 해킹 안 되는" 학습 신호, ③ "RL의 1/10 비용" 같은 숫자를 읽을 때 확인할 조건, ④ TRL의 <code>GKDTrainer</code>로 직접 돌려 보는 법, ⑤ 이번 주 두 논문이 남긴 실무 교훈.</div>
+
+<h2 id="sec-2">2. 배경 — 포스트 트레이닝 3종 세트, 그리고 off-policy 증류의 함정</h2>
+
+<p>먼저 용어를 정리합시다. 사전 학습(pre-training)을 마친 베이스 모델을 쓸 만한 모델로 다듬는 과정이 <strong>포스트 트레이닝(post-training)</strong>이고, 도구는 크게 세 가지입니다.</p>
+
+<ul>
+<li><strong>SFT(supervised fine-tuning)</strong> — 정답 텍스트를 주고 그대로 따라 쓰게 합니다. 교사 모델이 만든 출력으로 SFT하면 그게 곧 전통적인 <strong>지식 증류(knowledge distillation)</strong>입니다. DeepSeek-R1의 distill 시리즈가 이 방식이었죠.</li>
+<li><strong>RL(reinforcement learning)</strong> — 모델이 직접 풀게 하고, 채점 결과(보상)로 학습합니다. 수학·코딩처럼 정답 검증이 되는 영역에서 강력하지만 비쌉니다.</li>
+<li><strong>증류의 진화형인 OPD</strong> — 이 글의 주인공. 위 둘의 장점을 섞습니다.</li>
+</ul>
+
+<p>교사 출력으로 SFT하는 전통 증류를 요즘은 <strong>off-policy 증류</strong>라고 부릅니다. "policy"는 RL 용어로 "현재 모델이 행동을 고르는 방식"인데, 학습 데이터가 학생 자신의 policy가 아니라 <strong>교사의 policy</strong>에서 나왔다는 뜻입니다. 이 방식엔 구조적인 함정이 있습니다.</p>
+
+<p>비유하자면 <strong>운전을 조수석에서 배우는 것</strong>과 같습니다. 베테랑 기사의 운전을 아무리 많이 지켜봐도, 그 기사는 애초에 실수를 안 하기 때문에 "실수한 다음 어떻게 수습하는지"는 한 번도 못 봅니다. 정작 내가 운전대를 잡고 차선을 잘못 타는 순간 — 교본에 없던 상태에 놓이는 순간 — 배운 게 없어 당황하고, 작은 실수가 다음 실수를 부릅니다. 자기회귀(autoregressive) 생성도 똑같습니다. 학습 때는 늘 교사가 만든 "완벽한 앞부분" 뒤에서 다음 토큰을 예측하지만, 추론 때는 <strong>자기가 만든 어설픈 앞부분</strong> 위에서 생성해야 합니다. 초반의 작은 이탈이 뒤로 갈수록 눈덩이처럼 커지는 이 현상을 <strong>compounding error</strong>라 하고, 학습 분포와 추론 분포가 어긋나는 문제(train-inference mismatch)는 <a href="https://arxiv.org/abs/2306.13649" target="_blank" rel="noopener">GKD 논문</a>(Google DeepMind)이 증류 맥락에서 정면으로 겨눈 지점입니다.</p>
+
+<p>반대편의 RL은 학생이 직접 굴러 보니(on-policy) 이 문제가 없습니다. 대신 다른 약점이 있죠. 보상이 <strong>희소(sparse)</strong>합니다. 수백 토큰짜리 풀이 전체에 "맞음/틀림" 딱 한 비트가 돌아옵니다. 어디서 잘했고 어디서 망쳤는지는 알려 주지 않으니, 신호 대비 컴퓨트가 많이 듭니다. 그래서 자연스러운 질문이 나옵니다. <strong>"학생이 직접 풀게 하되(on-policy), 채점은 한 비트가 아니라 토큰마다 조밀하게 받을 수는 없을까?"</strong> 그 답이 OPD입니다.</p>
+
+<h2 id="sec-3">3. on-policy distillation의 동작 원리 — 내 답안을 토큰 단위로 첨삭받기</h2>
+
+<p>OPD의 루프는 놀랄 만큼 단순합니다. <a href="https://thinkingmachines.ai/blog/on-policy-distillation/" target="_blank" rel="noopener">Thinking Machines Lab의 해설</a>(이 주제의 가장 깔끔한 입문서로 꼽힙니다)을 기준으로 정리하면 이렇습니다.</p>
+
+<ol>
+<li><strong>학생이 직접 문제를 풉니다.</strong> 프롬프트를 주고 학생 모델이 응답을 샘플링(rollout)합니다.</li>
+<li><strong>교사가 그 답안을 토큰 단위로 채점합니다.</strong> 학생이 만든 시퀀스를 교사 모델에 통과시켜, 각 위치에서 교사가 매기는 확률(logprob)을 얻습니다.</li>
+<li><strong>토큰마다 격차를 줄이는 방향으로 학생을 업데이트합니다.</strong> 손실 함수는 각 토큰 위치에서의 <strong>reverse KL divergence</strong> — "학생이 실제로 간 상태에서, 학생의 다음 토큰 분포가 교사의 분포에서 얼마나 벗어났나"입니다.</li>
+</ol>
+
+<figure class="opd-fig">
+<svg viewBox="0 0 900 400" role="img" aria-label="off-policy 증류와 on-policy 증류의 비교. 왼쪽 off-policy는 교사가 생성한 모범 답안을 학생이 그대로 따라 쓰며, 학생 자신의 실수 상태는 학습 데이터에 없어 추론 시 compounding error가 생긴다. 오른쪽 on-policy는 학생이 직접 rollout을 생성하고 교사가 같은 시퀀스를 읽으며 토큰마다 logprob으로 첨삭하고, per-token reverse KL로 학생을 업데이트한다.">
+  <g font-size="14">
+    <!-- 왼쪽: off-policy -->
+    <text x="215" y="34" text-anchor="middle" font-weight="700" fill="var(--opd-rose)" font-size="16">off-policy 증류 (SFT)</text>
+    <rect x="70" y="55" width="290" height="56" rx="10" fill="none" stroke="var(--opd-slate)" stroke-width="1.5"/>
+    <text x="215" y="78" text-anchor="middle" fill="var(--opd-slate)" font-size="13" font-weight="700">교사 모델</text>
+    <text x="215" y="97" text-anchor="middle" fill="var(--opd-slate)" font-size="12">모범 답안 생성</text>
+    <path d="M215 111 L215 148" stroke="var(--opd-rose)" stroke-width="2"/>
+    <rect x="70" y="148" width="290" height="56" rx="10" fill="none" stroke="var(--opd-rose)" stroke-width="2"/>
+    <text x="215" y="171" text-anchor="middle" fill="var(--opd-rose)" font-size="13" font-weight="700">학생: 교사의 답안을 따라 씀</text>
+    <text x="215" y="190" text-anchor="middle" fill="var(--opd-rose)" font-size="12">항상 "완벽한 앞부분" 뒤에서 예측</text>
+    <path d="M215 204 L215 241" stroke="var(--opd-rose)" stroke-width="2"/>
+    <rect x="70" y="241" width="290" height="56" rx="10" fill="none" stroke="var(--opd-amber)" stroke-width="1.5"/>
+    <text x="215" y="264" text-anchor="middle" fill="var(--opd-amber)" font-size="13" font-weight="700">추론 시: 자기 실수 위에서 생성</text>
+    <text x="215" y="283" text-anchor="middle" fill="var(--opd-amber)" font-size="12">본 적 없는 상태 → 이탈이 누적</text>
+    <text x="215" y="330" text-anchor="middle" fill="var(--opd-rose)" font-size="12.5">✗ compounding error</text>
+    <!-- 구분선 -->
+    <line x1="450" y1="30" x2="450" y2="370" stroke="var(--opd-gray)" stroke-width="1" stroke-dasharray="4 5"/>
+    <!-- 오른쪽: on-policy -->
+    <text x="675" y="34" text-anchor="middle" font-weight="700" fill="var(--opd-green)" font-size="16">on-policy 증류 (OPD)</text>
+    <rect x="510" y="55" width="330" height="56" rx="10" fill="none" stroke="var(--opd-green)" stroke-width="2"/>
+    <text x="675" y="78" text-anchor="middle" fill="var(--opd-green)" font-size="13" font-weight="700">학생: 직접 rollout 생성</text>
+    <text x="675" y="97" text-anchor="middle" fill="var(--opd-green)" font-size="12">자기가 실제로 가는 상태 분포에서 출발</text>
+    <path d="M675 111 L675 148" stroke="var(--opd-green)" stroke-width="2"/>
+    <rect x="510" y="148" width="330" height="56" rx="10" fill="none" stroke="var(--opd-teal)" stroke-width="2"/>
+    <text x="675" y="171" text-anchor="middle" fill="var(--opd-teal)" font-size="13" font-weight="700">교사: 같은 시퀀스를 읽고 토큰마다 채점</text>
+    <text x="675" y="190" text-anchor="middle" fill="var(--opd-teal)" font-size="12">각 위치의 교사 logprob (첨삭)</text>
+    <path d="M675 204 L675 241" stroke="var(--opd-teal)" stroke-width="2"/>
+    <rect x="510" y="241" width="330" height="56" rx="10" fill="none" stroke="var(--opd-blue)" stroke-width="1.5"/>
+    <text x="675" y="264" text-anchor="middle" fill="var(--opd-blue)" font-size="13" font-weight="700">per-token reverse KL로 업데이트</text>
+    <text x="675" y="283" text-anchor="middle" fill="var(--opd-blue)" font-size="12">토큰 수만큼 조밀한 학습 신호</text>
+    <path d="M510 269 C 460 269 460 83 505 83" stroke="var(--opd-gray)" stroke-width="1.5" fill="none" stroke-dasharray="3 4"/>
+    <text x="675" y="330" text-anchor="middle" fill="var(--opd-green)" font-size="12.5">✓ 내 실수 상태에서 배우고, 신호는 조밀하게</text>
+  </g>
+</svg>
+<figcaption>그림 1. off-policy 증류는 교사의 상태 분포에서 배우고, on-policy 증류는 학생 자신의 상태 분포에서 배웁니다. 점선은 업데이트된 학생이 다시 rollout을 생성하는 루프.</figcaption>
+</figure>
+
+<p>RL과 나란히 놓으면 차이가 선명해집니다. RL은 시퀀스 하나에 보상 한 비트, OPD는 <strong>토큰 하나하나가 전부 학습 신호</strong>입니다. 500토큰짜리 풀이라면 신호가 500배 조밀한 셈이죠. 게다가 그 신호는 "이 상태에서 교사라면 어떤 분포로 다음 토큰을 골랐을까"라는 구체적인 방향까지 담고 있습니다.</p>
+
+<figure class="opd-fig">
+<svg viewBox="0 0 900 300" role="img" aria-label="RL의 희소 보상과 OPD의 조밀한 신호 비교. 위쪽 RL은 토큰 시퀀스 전체가 끝난 뒤 맞음 또는 틀림 한 비트의 보상만 돌아온다. 아래쪽 OPD는 같은 시퀀스의 모든 토큰 위치마다 교사와의 격차를 나타내는 신호가 돌아온다.">
+  <g font-size="13">
+    <text x="80" y="60" font-weight="700" fill="var(--opd-rose)" font-size="15">RL</text>
+    <g>
+      <rect x="130" y="40" width="46" height="32" rx="6" fill="none" stroke="var(--opd-slate)" stroke-width="1.2"/>
+      <rect x="184" y="40" width="46" height="32" rx="6" fill="none" stroke="var(--opd-slate)" stroke-width="1.2"/>
+      <rect x="238" y="40" width="46" height="32" rx="6" fill="none" stroke="var(--opd-slate)" stroke-width="1.2"/>
+      <rect x="292" y="40" width="46" height="32" rx="6" fill="none" stroke="var(--opd-slate)" stroke-width="1.2"/>
+      <rect x="346" y="40" width="46" height="32" rx="6" fill="none" stroke="var(--opd-slate)" stroke-width="1.2"/>
+      <rect x="400" y="40" width="46" height="32" rx="6" fill="none" stroke="var(--opd-slate)" stroke-width="1.2"/>
+      <text x="465" y="61" fill="var(--opd-slate)">… (수백 토큰)</text>
+      <rect x="580" y="34" width="180" height="44" rx="10" fill="none" stroke="var(--opd-rose)" stroke-width="2"/>
+      <text x="670" y="53" text-anchor="middle" fill="var(--opd-rose)" font-weight="700">보상 1비트</text>
+      <text x="670" y="70" text-anchor="middle" fill="var(--opd-rose)" font-size="11.5">시퀀스 끝나야 "맞음/틀림"</text>
+    </g>
+    <text x="80" y="180" font-weight="700" fill="var(--opd-teal)" font-size="15">OPD</text>
+    <g>
+      <rect x="130" y="160" width="46" height="32" rx="6" fill="none" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <rect x="184" y="160" width="46" height="32" rx="6" fill="none" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <rect x="238" y="160" width="46" height="32" rx="6" fill="none" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <rect x="292" y="160" width="46" height="32" rx="6" fill="none" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <rect x="346" y="160" width="46" height="32" rx="6" fill="none" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <rect x="400" y="160" width="46" height="32" rx="6" fill="none" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <text x="465" y="181" fill="var(--opd-slate)">…</text>
+      <path d="M153 156 L153 132" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <path d="M207 156 L207 132" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <path d="M261 156 L261 132" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <path d="M315 156 L315 132" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <path d="M369 156 L369 132" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <path d="M423 156 L423 132" stroke="var(--opd-teal)" stroke-width="1.6"/>
+      <text x="288" y="120" text-anchor="middle" fill="var(--opd-teal)" font-size="12">토큰마다 "교사와의 격차" 신호</text>
+      <rect x="580" y="154" width="180" height="44" rx="10" fill="none" stroke="var(--opd-teal)" stroke-width="2"/>
+      <text x="670" y="173" text-anchor="middle" fill="var(--opd-teal)" font-weight="700">per-token reverse KL</text>
+      <text x="670" y="190" text-anchor="middle" fill="var(--opd-teal)" font-size="11.5">토큰 수만큼 조밀한 신호</text>
+    </g>
+    <text x="450" y="255" text-anchor="middle" fill="var(--opd-slate)" font-size="12.5">같은 rollout 한 번에서 뽑아내는 학습 신호의 밀도가 다릅니다 — 컴퓨트 효율 격차의 근원</text>
+  </g>
+</svg>
+<figcaption>그림 2. RL은 시퀀스당 1비트, OPD는 토큰당 하나씩 신호가 돌아옵니다. Thinking Machines가 "dense reward"라 부르는 이유입니다.</figcaption>
+</figure>
+
+<p>여기서 <strong>reverse KL</strong>이 왜 중요한지 짚고 갑시다. KL divergence는 두 확률 분포의 차이를 재는 값인데, 방향이 있습니다. forward KL(교사 기준)로 학습하면 학생은 교사의 <strong>모든</strong> 행동 양식을 조금씩 덮으려다(mode-covering) 어중간해지기 쉽습니다. reverse KL(학생 기준)은 반대로 학생이 교사의 여러 스타일 중 <strong>하나를 골라 확실하게</strong> 따라가게 만듭니다(mode-seeking). 작은 모델은 큰 모델의 모든 것을 담을 용량이 없으니, "넓고 얕게"보다 "좁고 확실하게"가 유리합니다. LLM 증류에 reverse KL을 쓰자는 제안은 <a href="https://arxiv.org/abs/2306.08543" target="_blank" rel="noopener">MiniLLM</a>이 정식화했고, Thinking Machines는 여기에 한 가지 실무적 장점을 더합니다. reverse KL은 <strong>해킹이 어렵습니다(unhackable)</strong>. 보상 모델을 따로 두면 모델이 채점기의 허점을 파고드는 <a href="/posts/agent-reward-hacking-evals/">reward hacking</a>이 생기지만, OPD의 "보상"은 교사 분포 그 자체라서, 점수를 올리는 유일한 방법이 실제로 교사처럼 행동하는 것뿐입니다.</p>
+
+<p>루프를 의사 코드로 옮기면 이 정도입니다.</p>
+
+{{< highlight python >}}
+# on-policy distillation 한 스텝 (개념 의사 코드)
+prompts = sample_batch(dataset)
+
+# 1) 학생이 직접 푼다 — 학습 신호가 "학생의 상태 분포"에서 나오는 게 핵심
+rollouts = student.generate(prompts)          # [B, T] 토큰 시퀀스
+
+# 2) 교사가 같은 시퀀스를 읽으며 토큰마다 채점 (생성이 아니라 forward pass 한 번)
+t_logprobs = teacher.logprobs(rollouts)       # [B, T, vocab]
+s_logprobs = student.logprobs(rollouts)       # [B, T, vocab]
+
+# 3) 토큰별 reverse KL: 학생 분포 기준으로 교사와의 격차를 잰다
+#    KL(student || teacher) = E_{y~student}[ log p_s(y) - log p_t(y) ]
+per_token_loss = reverse_kl(s_logprobs, t_logprobs)   # [B, T]
+
+loss = per_token_loss.mean()
+loss.backward()
+optimizer.step()
+{{< /highlight >}}
+
+<p>눈여겨볼 부분: 교사는 <strong>생성하지 않습니다</strong>. 학생이 만든 시퀀스에 forward pass 한 번으로 logprob만 매깁니다. 비싼 큰 모델을 "채점관"으로만 쓰기 때문에, 교사 비용이 RL의 rollout 반복이나 off-policy 증류의 대량 데이터 생성보다 가볍게 유지됩니다.</p>
+
+<h2 id="sec-4">4. 숫자 읽는 법 — "RL의 1/10"은 어떤 조건의 숫자인가</h2>
+
+<p>OPD가 표준이 된 건 철학이 아니라 숫자 때문입니다. 대표적인 두 출처의 숫자를 조건과 함께 읽어 봅시다.</p>
+
+<p><strong>Thinking Machines의 수학 추론 실험.</strong> Qwen3-8B-Base를 40만 프롬프트로 SFT하면 AIME'24 60%가 나옵니다. 여기서 OPD를 약 150스텝 더 돌리면 70%에 도달합니다. 같은 70%를 RL로 달성하는 것과 비교하면 <strong>컴퓨트가 약 1/10</strong>, off-policy 증류로 달성하려면 학습 데이터가 몇 배 더 필요했을 것으로 추정합니다(블로그는 FLOPs 기준 9~30배 저렴하다는 계산도 제시합니다). 조건에 주의하세요 — 이 숫자는 <strong>이미 SFT로 60%까지 올라온 체크포인트에서 출발</strong>한 결과입니다. OPD는 0에서 실력을 만드는 도구가 아니라, 어느 정도 하는 학생을 교사 수준으로 밀어 올리는 마무리 도구에 가깝습니다.</p>
+
+<p><strong>Qwen3의 프로덕션 레시피.</strong> <a href="https://arxiv.org/abs/2505.09388" target="_blank" rel="noopener">Qwen3 테크니컬 리포트</a>는 경량 모델(0.6B/1.7B/4B/8B/14B, 그리고 30B-A3B)을 2단계로 만듭니다. 먼저 교사 출력으로 <strong>off-policy 증류</strong>를 해 기본 추론 능력과 thinking/non-thinking 모드 전환을 심고, 이어서 학생이 직접 생성한 시퀀스 위에서 교사 logits와의 KL을 최소화하는 <strong>on-policy 증류</strong>로 마무리합니다. 리포트는 이 증류 파이프라인이 <strong>RL 대비 GPU 시간 약 1/10로 더 나은 성능</strong>을 냈다고 보고합니다. off-policy로 기초를 깔고 on-policy로 다듬는 이 순서 자체가 하나의 검증된 커리큘럼입니다.</p>
+
+<p><strong>망각 복구라는 뜻밖의 용도.</strong> Thinking Machines 실험 중 실무자에게 가장 흥미로운 대목은 따로 있습니다. 잘 조련된 어시스턴트 모델을 사내 문서로 파인튜닝해 새 지식을 넣었더니, 지시 따르기(instruction following) 능력이 무너졌습니다 — 전형적인 <strong>파국적 망각(catastrophic forgetting)</strong>입니다. 해법이 우아합니다. <strong>파인튜닝 전의 자기 자신을 교사로</strong> 삼아, 지시 따르기 프롬프트에서 OPD를 돌린 겁니다. 결과는 지시 따르기 능력의 거의 완전한 복구, 그러면서 새로 넣은 도메인 지식은 유지. 교사가 꼭 "더 큰 모델"일 필요가 없다는 것, 그리고 OPD가 경량화만이 아니라 <strong>지속 학습(continual learning)의 도구</strong>이기도 하다는 걸 보여 준 실험입니다.</p>
+
+<div class="opd-tblwrap">
+<table class="opd-tbl">
+<thead><tr><th></th><th>off-policy 증류 (SFT)</th><th>RL (RLVR)</th><th>on-policy 증류 (OPD)</th></tr></thead>
+<tbody>
+<tr><td><strong>누가 푸나</strong></td><td>교사 (학생은 필사)</td><td>학생</td><td>학생</td></tr>
+<tr><td><strong>신호 밀도</strong></td><td>토큰마다 (조밀)</td><td>시퀀스당 1비트 (희소)</td><td>토큰마다 (조밀)</td></tr>
+<tr><td><strong>배우는 상태 분포</strong></td><td>교사의 분포 ✗</td><td>학생의 분포 ✓</td><td>학생의 분포 ✓</td></tr>
+<tr><td><strong>필요한 것</strong></td><td>교사 출력 대량 생성</td><td>검증 가능한 보상 (채점기)</td><td>더 잘하는 교사 모델</td></tr>
+<tr><td><strong>비용 감각</strong></td><td>데이터 생성 비용 큼</td><td>rollout 반복으로 가장 비쌈</td><td>Qwen3 기준 RL의 ~1/10 GPU 시간</td></tr>
+<tr><td><strong>주 용도</strong></td><td>기초 능력 이식 (1단계)</td><td>교사가 없는 능력의 개척</td><td>마무리 다듬기 · 망각 복구 (2단계)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="sec-5">5. 실전 — TRL로 직접 돌려 보기</h2>
+
+<p>직접 굴려 보고 싶다면 Hugging Face TRL이 가장 빠른 길입니다. GKD 논문을 구현한 <a href="https://huggingface.co/docs/trl/gkd_trainer" target="_blank" rel="noopener"><code>GKDTrainer</code></a>가 기본이고, 설정 두 개만 이해하면 됩니다.</p>
+
+{{< highlight python >}}
+from trl import GKDConfig, GKDTrainer
+
+config = GKDConfig(
+    output_dir="qwen3-1.7b-distilled",
+    # lmbda: 학습 배치 중 "학생이 직접 생성한 rollout"의 비율
+    #   0.0 = 순수 off-policy (교사/데이터셋 출력만 사용)
+    #   1.0 = 순수 on-policy (매 스텝 학생이 생성)
+    lmbda=1.0,
+    # beta: 일반화 JSD의 보간 계수
+    #   0.0 = forward KL, 1.0 = reverse KL (mode-seeking)
+    beta=1.0,
+    per_device_train_batch_size=1,
+)
+
+trainer = GKDTrainer(
+    model="Qwen/Qwen3-1.7B",            # 학생
+    teacher_model="Qwen/Qwen3-14B",     # 교사 — 같은 토크나이저!
+    args=config,
+    train_dataset=train_dataset,        # 프롬프트만 있으면 됨
+    processing_class=tokenizer,
+)
+trainer.train()
+{{< /highlight >}}
+
+<p><code>lmbda</code>와 <code>beta</code>를 조절하면 순수 SFT 증류부터 순수 OPD까지 한 프레임워크 안에서 오갈 수 있습니다. Qwen3식 2단계 커리큘럼도 <code>lmbda=0.0</code>으로 시작해 <code>lmbda=1.0</code>으로 옮기는 것으로 재현 가능합니다.</p>
+
+<p>규모를 키울 때의 병목은 두 가지입니다. 첫째, <strong>교사 서빙</strong>. 100B급 교사를 학생과 같은 GPU에 올릴 수는 없으니, TRL의 <a href="https://huggingface.co/docs/trl/distillation_trainer" target="_blank" rel="noopener"><code>DistillationTrainer</code></a>는 교사를 외부 vLLM 서버로 분리하고, logprob 전송을 바이너리 인코딩으로 줄입니다(약 5배 압축). 둘째, <strong>생성 병목</strong>. 학생 rollout 생성과 학습 배치를 분리하는 generation buffer로 최대 40배까지 학습을 가속했다고 문서는 밝힙니다. 교사와 학생의 토크나이저가 다른 조합(예: Llama 학생 + Qwen 교사)은 <a href="https://huggingface.co/docs/trl/gold_trainer" target="_blank" rel="noopener">GOLD trainer</a>가 cross-tokenizer 증류로 지원합니다.</p>
+
+<div class="opd-good"><strong>언제 뭘 쓸까.</strong> 목표 능력을 가진 <strong>더 좋은 모델이 이미 있다면</strong>(오픈 가중치 + logprob 접근 가능) OPD가 기본값입니다. 교사가 없고 채점기만 만들 수 있다면 RL로 개척해야 합니다. 흔한 프로덕션 패턴은 "큰 모델에 RL로 능력을 만들고 → 작은 모델들에 OPD로 복사"입니다. Open-MOPD가 다루는 멀티 티처 통합도 이 패턴의 연장선이죠. 참고로 API 전용 모델은 per-token 분포를 안 주므로 교사로 쓸 수 없습니다 — 그래서 OPD는 사실상 오픈 가중치 생태계의 무기입니다.</div>
+
+<h2 id="sec-6">6. 이번 주 논쟁 — 교사는 정말 가르치고 있었나</h2>
+
+<p>표준이 됐다는 건 한계도 본격적으로 검증되기 시작했다는 뜻입니다. 이번 주 두 논문이 정확히 그 작업을 했습니다.</p>
+
+<p><strong>Open-MOPD (arXiv:2608.19098) — 교사 여럿을 합치면 능력이 뭉개진다.</strong> 실무에서는 수학 교사, 코딩 교사, 지시 따르기 교사를 <strong>하나의 학생</strong>에 합치고 싶어집니다(multi-teacher OPD). Tsinghua와 ByteDance 연구진이 SmolLM3-3B-Base로 통제 실험을 해 보니, 표준적인 멀티 티처 증류는 도메인별 최적 교사를 골라 주는 오라클 대비 <strong>확보 가능한 향상분의 35.6%밖에 담지 못했습니다</strong>. 특히 지시 따르기처럼 짧은 응답 과제가 심하게 밀렸는데, 원인 분석이 흥미롭습니다. 흔히 의심하는 그래디언트 충돌이 아니라, <strong>토큰 단위 최적화 예산의 잘못된 배분</strong> — 긴 추론 과제가 토큰 수로 학습 신호를 독식하면서 짧은 과제가 굶는 구조적 문제였습니다. per-token 신호의 조밀함이 OPD의 무기인데, 멀티 티처 상황에선 바로 그 조밀함이 과제 간 불균형을 만든다는 역설입니다.</p>
+
+<p><strong>Does On-Policy Distillation Really Distill? (arXiv:2608.31046) — 첨삭의 대부분은 노이즈였다.</strong> Purdue의 Yi Ding과 Ruqi Zhang은 OPD 학습 중 교사가 주는 신호를 정량 분석했습니다. 결과가 도발적입니다. 교사 감독에는 상당한 노이즈가 섞여 있고, <strong>교사가 클수록 노이즈가 오히려 늘어나는데</strong>, 놀랍게도 그 노이즈를 제거하든 남겨 두든 학생의 최종 성능은 비슷했습니다. 학습 효과를 분해해 보니 향상은 <strong>학생 자신이 낮은 확률을 매긴 토큰들</strong>에 집중돼 있었고, 교사가 준 토큰별 신호를 <strong>고정된 페널티 상수 하나로 바꿔도 성능이 같게 나왔습니다</strong>. 저자들의 해석: OPD의 이득 중 상당 부분은 교사의 지식이 이식된 게 아니라, "자신 없는 토큰을 정리하는" <strong>자기 개선(self-improvement)</strong> 효과일 수 있다는 겁니다.</p>
+
+<figure class="opd-fig">
+<svg viewBox="0 0 900 340" role="img" aria-label="이번 주 두 논문의 발견. 왼쪽 Open-MOPD는 수학, 코딩, 지시 따르기 교사 세 명을 한 학생에 합칠 때 긴 추론 과제가 토큰 예산을 독식해 짧은 과제가 밀리고, 오라클 대비 향상분의 35.6%만 확보됨을 보여준다. 오른쪽 Does OPD Really Distill은 교사 신호의 상당 부분이 노이즈이고 학습 향상은 학생의 저확률 토큰에 집중되며, 교사 신호를 고정 페널티로 바꿔도 성능이 같음을 보여준다.">
+  <g font-size="13">
+    <!-- 왼쪽 -->
+    <text x="225" y="34" text-anchor="middle" font-weight="700" fill="var(--opd-amber)" font-size="15">Open-MOPD: 멀티 티처의 함정</text>
+    <rect x="60" y="52" width="100" height="40" rx="8" fill="none" stroke="var(--opd-sky)" stroke-width="1.5"/>
+    <text x="110" y="76" text-anchor="middle" fill="var(--opd-sky)" font-size="12">수학 교사</text>
+    <rect x="175" y="52" width="100" height="40" rx="8" fill="none" stroke="var(--opd-violet)" stroke-width="1.5"/>
+    <text x="225" y="76" text-anchor="middle" fill="var(--opd-violet)" font-size="12">코딩 교사</text>
+    <rect x="290" y="52" width="100" height="40" rx="8" fill="none" stroke="var(--opd-green)" stroke-width="1.5"/>
+    <text x="340" y="76" text-anchor="middle" fill="var(--opd-green)" font-size="12">지시 따르기 교사</text>
+    <path d="M110 92 L215 128 M225 92 L225 128 M340 92 L235 128" stroke="var(--opd-slate)" stroke-width="1.5" fill="none"/>
+    <rect x="130" y="130" width="190" height="42" rx="8" fill="none" stroke="var(--opd-slate)" stroke-width="1.5"/>
+    <text x="225" y="156" text-anchor="middle" fill="var(--opd-slate)" font-size="12.5" font-weight="700">학생 하나</text>
+    <rect x="70" y="196" width="310" height="34" rx="8" fill="none" stroke="var(--opd-amber)" stroke-width="1.8"/>
+    <rect x="70" y="196" width="240" height="34" rx="8" fill="var(--opd-amber)" opacity="0.25"/>
+    <text x="225" y="217" text-anchor="middle" fill="var(--opd-amber)" font-size="12">긴 추론 과제가 토큰 예산 독식</text>
+    <text x="225" y="256" text-anchor="middle" fill="var(--opd-amber)" font-size="12.5">→ 짧은 과제(지시 따르기)가 굶는다</text>
+    <text x="225" y="286" text-anchor="middle" fill="var(--opd-rose)" font-size="13" font-weight="700">오라클 대비 향상분의 35.6%만 확보</text>
+    <!-- 구분선 -->
+    <line x1="450" y1="26" x2="450" y2="310" stroke="var(--opd-gray)" stroke-width="1" stroke-dasharray="4 5"/>
+    <!-- 오른쪽 -->
+    <text x="675" y="34" text-anchor="middle" font-weight="700" fill="var(--opd-rose)" font-size="15">Does OPD Really Distill?</text>
+    <rect x="500" y="52" width="350" height="52" rx="8" fill="none" stroke="var(--opd-slate)" stroke-width="1.5"/>
+    <text x="675" y="74" text-anchor="middle" fill="var(--opd-slate)" font-size="12.5">교사의 토큰별 신호를 분해해 보니</text>
+    <text x="675" y="93" text-anchor="middle" fill="var(--opd-rose)" font-size="12.5" font-weight="700">상당 부분이 노이즈 (교사가 클수록 증가)</text>
+    <path d="M675 104 L675 132" stroke="var(--opd-slate)" stroke-width="1.5"/>
+    <rect x="500" y="134" width="350" height="52" rx="8" fill="none" stroke="var(--opd-teal)" stroke-width="1.5"/>
+    <text x="675" y="156" text-anchor="middle" fill="var(--opd-teal)" font-size="12.5">향상은 학생의 <tspan font-weight="700">저확률 토큰</tspan>에 집중</text>
+    <text x="675" y="175" text-anchor="middle" fill="var(--opd-teal)" font-size="12.5">노이즈를 지워도 성능 동일</text>
+    <path d="M675 186 L675 214" stroke="var(--opd-slate)" stroke-width="1.5"/>
+    <rect x="500" y="216" width="350" height="52" rx="8" fill="none" stroke="var(--opd-blue)" stroke-width="1.5"/>
+    <text x="675" y="238" text-anchor="middle" fill="var(--opd-blue)" font-size="12.5">교사 신호 → 고정 페널티 상수로 바꿔도</text>
+    <text x="675" y="257" text-anchor="middle" fill="var(--opd-blue)" font-size="12.5" font-weight="700">성능이 같다 → "자기 개선" 가설</text>
+    <text x="675" y="296" text-anchor="middle" fill="var(--opd-slate)" font-size="12">단, 교사>학생 격차가 큰 strong-to-weak 상황 전반의 반증은 아직 아님</text>
+  </g>
+</svg>
+<figcaption>그림 3. 이번 주 두 논문의 발견. 왼쪽: 멀티 티처 통합은 토큰 예산 배분 문제로 능력이 뭉개진다. 오른쪽: 단일 교사 OPD의 이득조차 "증류"가 아니라 "자기 개선"일 수 있다는 문제 제기.</figcaption>
+</figure>
+
+<p>그래서 OPD는 틀렸다는 얘기냐 하면, 아닙니다. Qwen3급 프로덕션 결과가 사라지는 것도 아니고, 두 논문 모두 특정 세팅(3B급 학생, 특정 벤치마크)에서의 진단입니다. 주니어가 가져갈 교훈은 다른 데 있습니다. <strong>첫째</strong>, 잘 되는 기법이라도 "왜 되는지"는 아직 열린 질문일 수 있습니다 — 메커니즘에 대한 설명을 벤치마크 점수만큼 믿지 마세요. <strong>둘째</strong>, 멀티 티처 통합은 아직 미해결에 가깝습니다. 교사 셋을 합치는 파이프라인을 짜기 전에, 도메인 라우팅(작은 교사를 여럿 서빙하고 요청을 분기)이 더 싸고 확실한 대안은 아닌지 먼저 따져 보세요. <strong>셋째</strong>, "교사 신호가 저확률 토큰 정리로 환원된다"는 발견이 맞다면, 훨씬 싼 근사 기법들이 나올 여지가 있습니다 — 이 분야는 앞으로 몇 달간 더 시끄러울 겁니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+<li><strong>베이스 모델에 바로 OPD 걸지 않기.</strong> 학생이 형편없는 상태면 rollout이 전부 쓰레기라 교사의 첨삭도 의미가 없습니다. Thinking Machines도 Qwen3도 SFT(off-policy)로 기본기를 깐 다음 OPD로 마무리합니다. 순서가 레시피의 일부입니다.</li>
+<li><strong>토크나이저 확인은 맨 먼저.</strong> per-token KL은 두 모델의 토큰 단위가 같아야 성립합니다. 같은 계열(Qwen↔Qwen)이면 문제없지만, 다른 계열이면 <code>GKDTrainer</code> 대신 cross-tokenizer를 지원하는 GOLD 계열을 써야 합니다.</li>
+<li><strong>교사를 학습 GPU에 같이 올리지 않기.</strong> 교사는 forward pass만 하므로 추론 서버(vLLM 등)로 분리하는 편이 메모리도 처리량도 낫습니다. TRL <code>DistillationTrainer</code>의 teacher server 모드가 이 패턴입니다.</li>
+<li><strong>증류 후 회귀 평가 돌리기.</strong> 목표 능력(수학)이 오르는 동안 다른 능력(지시 따르기)이 조용히 밀릴 수 있다는 게 Open-MOPD의 경고입니다. 증류 전후로 목표 외 능력까지 포함한 평가 세트를 돌려 회귀를 잡으세요. 평가 설계는 <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-Judge 글</a>과 <a href="/posts/agent-evals-reliability/">에이전트 평가 글</a>에서 다룬 원칙 그대로입니다.</li>
+<li><strong>API 모델을 교사로 계획하지 않기.</strong> OPD는 교사의 토큰별 확률 분포가 필요합니다. logprob을 충분히 노출하지 않는 API 전용 모델로는 이 레시피를 못 만듭니다. 교사 후보는 오픈 가중치 중에서 고르세요.</li>
+<li><strong>경량화 수단을 헷갈리지 않기.</strong> 증류는 "작은 모델을 더 똑똑하게", <a href="/posts/llm-quantization-fp8-int4-fp4/">양자화</a>는 "같은 모델을 더 싸게"입니다. 둘은 경쟁이 아니라 직렬 조합입니다 — 증류로 8B를 만들고, 그걸 다시 양자화해 서빙하는 식으로요.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+<li><strong>on-policy distillation = 학생이 직접 풀고, 교사가 토큰마다 첨삭.</strong> off-policy 증류의 compounding error(내 실수 상태를 배운 적 없음)와 RL의 희소 보상(시퀀스당 1비트)을 동시에 피합니다. 손실은 per-token reverse KL — mode-seeking이고, 보상 해킹이 구조적으로 어렵습니다.</li>
+<li>숫자는 강력하되 조건과 함께: Thinking Machines는 SFT 60% 체크포인트에서 <strong>RL 대비 약 1/10 컴퓨트</strong>로 AIME'24 70% 도달, Qwen3는 2단계(off-policy→on-policy) 증류로 <strong>RL 대비 GPU 시간 약 1/10에 더 나은 성능</strong>을 보고했습니다. 파인튜닝 전의 자신을 교사로 삼으면 <strong>파국적 망각 복구</strong>에도 쓸 수 있습니다.</li>
+<li>Qwen3·DeepSeek·GLM·MiMo·Nemotron이 표준 레시피로 채택 — 사실상 <strong>오픈 가중치 생태계의 무기</strong>입니다(교사의 logprob 접근이 필수라서요). 직접 해 보려면 TRL의 <code>GKDTrainer</code>(<code>lmbda</code>, <code>beta</code> 두 개면 시작), 규모를 키우면 <code>DistillationTrainer</code>의 vLLM teacher server를 쓰세요.</li>
+<li>이번 주의 균열: <strong>Open-MOPD</strong>는 멀티 티처 통합이 토큰 예산 배분 문제로 향상분의 35.6%밖에 못 담는다고 진단했고, <strong>"Does OPD Really Distill?"</strong>은 교사 신호의 상당 부분이 노이즈이며 이득이 학생의 저확률 토큰 정리(자기 개선)로 환원될 수 있다고 주장했습니다.</li>
+<li>실무 체크리스트: SFT 먼저 → 토크나이저 일치 확인 → 교사는 별도 서버 → 증류 후 목표 외 능력까지 회귀 평가. 멀티 티처는 아직 연구 영역이니, 급하면 도메인 라우팅부터 검토하세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+<li><a href="https://thinkingmachines.ai/blog/on-policy-distillation/" target="_blank" rel="noopener">Thinking Machines Lab — On-Policy Distillation</a></li>
+<li><a href="https://arxiv.org/abs/2505.09388" target="_blank" rel="noopener">Qwen3 Technical Report (arXiv:2505.09388) — Strong-to-Weak Distillation</a></li>
+<li><a href="https://arxiv.org/abs/2608.19098" target="_blank" rel="noopener">Open-MOPD: Diagnosing and Fixing Capability Imbalance in Multi-Teacher On-Policy Distillation (arXiv:2608.19098)</a></li>
+<li><a href="https://arxiv.org/abs/2608.31046" target="_blank" rel="noopener">Does On-Policy Distillation Really Distill? From Noisy Teacher to Self-Improvement (arXiv:2608.31046)</a></li>
+<li><a href="https://arxiv.org/abs/2306.13649" target="_blank" rel="noopener">GKD: On-Policy Distillation of Language Models — Learning from Self-Generated Mistakes (arXiv:2306.13649)</a></li>
+<li><a href="https://arxiv.org/abs/2306.08543" target="_blank" rel="noopener">MiniLLM: Knowledge Distillation of Large Language Models (arXiv:2306.08543)</a></li>
+<li><a href="https://arxiv.org/abs/2604.00626" target="_blank" rel="noopener">A Survey of On-Policy Distillation for Large Language Models (arXiv:2604.00626)</a></li>
+<li><a href="https://github.com/chrisliu298/awesome-on-policy-distillation" target="_blank" rel="noopener">GitHub — awesome-on-policy-distillation (프로덕션 채택 현황·논문 목록)</a></li>
+<li><a href="https://huggingface.co/docs/trl/gkd_trainer" target="_blank" rel="noopener">Hugging Face TRL — GKDTrainer 문서</a></li>
+<li><a href="https://huggingface.co/docs/trl/distillation_trainer" target="_blank" rel="noopener">Hugging Face TRL — Distillation Trainer 문서 (teacher server · generation buffer)</a></li>
+<li><a href="https://huggingface.co/docs/trl/gold_trainer" target="_blank" rel="noopener">Hugging Face TRL — GOLD Trainer 문서 (cross-tokenizer 증류)</a></li>
+<li><a href="https://huggingface.co/papers/2608.19098" target="_blank" rel="noopener">Hugging Face Daily Papers — Open-MOPD (8/27, 43 upvotes)</a></li>
+<li><a href="https://vessl.ai/en/blog/on-policy-distillation-part-1" target="_blank" rel="noopener">VESSL AI — On-policy distillation, part 1: the 2026 open-model post-training trend</a></li>
+</ul>
+
+<p style="opacity:.7;font-size:.9rem">※ 이번 주제는 아직 정리된 한국어 자료를 찾지 못했습니다. 위 출처는 모두 영어 자료입니다.</p>

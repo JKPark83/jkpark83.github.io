@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="460" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" fill="#f8fafc" font-size="20" font-weight="700" text-anchor="middle">오늘의 AI 변화 지도 — 2026-09-04</text>
+  <text x="400" y="58" fill="#94a3b8" font-size="12" text-anchor="middle">모델 그 자체보다 "스킬 + 하네스"가 에이전트 성능을 좌우하기 시작했다</text>
+
+  <!-- center node -->
+  <rect x="290" y="208" width="220" height="52" rx="26" fill="#1d4ed8"/>
+  <text x="400" y="230" fill="#ffffff" font-size="14" font-weight="700" text-anchor="middle">스킬·하네스가</text>
+  <text x="400" y="248" fill="#ffffff" font-size="14" font-weight="700" text-anchor="middle">에이전트 역량의 단위</text>
+
+  <!-- links -->
+  <line x1="215" y1="140" x2="330" y2="213" stroke="#334155" stroke-width="2"/>
+  <line x1="585" y1="140" x2="470" y2="213" stroke="#334155" stroke-width="2"/>
+  <line x1="215" y1="345" x2="330" y2="256" stroke="#334155" stroke-width="2"/>
+  <line x1="585" y1="345" x2="470" y2="256" stroke="#334155" stroke-width="2"/>
+
+  <!-- Models -->
+  <rect x="55" y="80" width="320" height="110" rx="10" fill="#172554" stroke="#3b82f6"/>
+  <text x="70" y="103" fill="#93c5fd" font-size="14" font-weight="700">🤖 모델 &amp; 릴리즈</text>
+  <text x="70" y="126" fill="#e2e8f0" font-size="12">· Muse Spark 1.3 — DeepSWE 75.4로 Opus 5 추월</text>
+  <text x="70" y="146" fill="#e2e8f0" font-size="12">· 단, Muse Code 하네스로 같이 학습한 벤더 수치</text>
+  <text x="70" y="166" fill="#e2e8f0" font-size="12">· Codex 0.153.1 · Claude Code 2.1.259 동시 릴리즈</text>
+
+  <!-- Papers -->
+  <rect x="425" y="80" width="320" height="110" rx="10" fill="#3b0764" stroke="#a855f7"/>
+  <text x="440" y="103" fill="#d8b4fe" font-size="14" font-weight="700">📚 논문</text>
+  <text x="440" y="126" fill="#e2e8f0" font-size="12">· Repo-To-Skill — 스킬 5,000개로 MLE-bench +134%</text>
+  <text x="440" y="146" fill="#e2e8f0" font-size="12">· HarnessDev — LLM이 자기 하네스를 만들 수 있나</text>
+  <text x="440" y="166" fill="#94a3b8" font-size="11">arXiv 2609.02749 · 2609.01437</text>
+
+  <!-- OSS -->
+  <rect x="55" y="285" width="320" height="110" rx="10" fill="#052e16" stroke="#22c55e"/>
+  <text x="70" y="308" fill="#86efac" font-size="14" font-weight="700">🛠 오픈소스</text>
+  <text x="70" y="331" fill="#e2e8f0" font-size="12">· Pi (pi-mono) — TypeScript 에이전트 하네스 툴킷</text>
+  <text x="70" y="351" fill="#e2e8f0" font-size="12">· AREX-Skill — 검증된 스킬 5,000+개 라이브러리</text>
+  <text x="70" y="371" fill="#e2e8f0" font-size="12">· 둘 다 Codex·Claude Code에 바로 연결 가능</text>
+
+  <!-- Tips -->
+  <rect x="425" y="285" width="320" height="110" rx="10" fill="#431407" stroke="#f97316"/>
+  <text x="440" y="308" fill="#fdba74" font-size="14" font-weight="700">🧑‍💻 실전 팁</text>
+  <text x="440" y="331" fill="#e2e8f0" font-size="12">· Codex 0.153 — /recap · auto_recap 요약 카드</text>
+  <text x="440" y="351" fill="#e2e8f0" font-size="12">· Claude Code — --permission-prompts none</text>
+  <text x="440" y="371" fill="#e2e8f0" font-size="12">· 공통 — EarlyEval식 조기 중단으로 평가비 절감</text>
+
+  <text x="400" y="440" fill="#64748b" font-size="11" text-anchor="middle">jkpark83.github.io · AI 데일리 브리핑</text>
+</svg>

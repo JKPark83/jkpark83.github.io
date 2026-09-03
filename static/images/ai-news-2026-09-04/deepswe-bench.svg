@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#0f172a" rx="12"/>
+  <text x="400" y="38" fill="#f8fafc" font-size="19" font-weight="700" text-anchor="middle">DeepSWE v1.1 — 장기 에이전틱 코딩 (Meta 벤더 수치)</text>
+  <text x="400" y="60" fill="#94a3b8" font-size="12" text-anchor="middle">축은 70%부터 시작 · Muse Spark 1.3은 Muse Code 하네스와 함께 학습된 조합의 점수</text>
+
+  <!-- DeepSWE bars, axis 70..76 -->
+  <text x="40" y="112" fill="#e2e8f0" font-size="13" font-weight="700">Muse Spark 1.3</text>
+  <rect x="40" y="122" width="504" height="26" rx="6" fill="#3b82f6"/>
+  <text x="554" y="140" fill="#93c5fd" font-size="14" font-weight="700">75.4%</text>
+
+  <text x="40" y="182" fill="#e2e8f0" font-size="13">Claude Opus 5</text>
+  <rect x="40" y="192" width="373" height="26" rx="6" fill="#475569"/>
+  <text x="423" y="210" fill="#cbd5e1" font-size="14">74.0%</text>
+
+  <text x="40" y="252" fill="#e2e8f0" font-size="13">GPT-5.6 Sol</text>
+  <rect x="40" y="262" width="252" height="26" rx="6" fill="#475569"/>
+  <text x="302" y="280" fill="#cbd5e1" font-size="14">72.7%</text>
+
+  <!-- Terminal-Bench side note -->
+  <rect x="40" y="310" width="720" height="56" rx="10" fill="#1e293b"/>
+  <text x="58" y="333" fill="#fdba74" font-size="12" font-weight="700">참고 · Terminal-Bench 2.1</text>
+  <text x="58" y="353" fill="#e2e8f0" font-size="12">Muse Spark 1.3 = GPT-5.6 Sol 88.8% 동률 · Claude Opus 5 86.7% — 여기서도 각 벤더 자체 보고 수치</text>
+</svg>

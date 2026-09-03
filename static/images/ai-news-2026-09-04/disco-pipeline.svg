@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="430" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" fill="#f8fafc" font-size="19" font-weight="700" text-anchor="middle">DisCo — 리포지토리를 스킬로 증류하는 에이전트</text>
+  <text x="400" y="58" fill="#94a3b8" font-size="12" text-anchor="middle">arXiv 2609.02749 · 모델·하네스·실행 예산은 그대로 두고 "운영 지식" 레이어만 추가</text>
+
+  <!-- pipeline boxes -->
+  <rect x="40" y="90" width="200" height="76" rx="10" fill="#172554" stroke="#3b82f6"/>
+  <text x="140" y="118" fill="#93c5fd" font-size="13" font-weight="700" text-anchor="middle">널리 쓰이는 ML 리포 1,000개</text>
+  <text x="140" y="140" fill="#e2e8f0" font-size="12" text-anchor="middle">+ 논문 (사람용 문서라</text>
+  <text x="140" y="156" fill="#e2e8f0" font-size="12" text-anchor="middle">컨텍스트에 못 싣는 크기)</text>
+
+  <rect x="300" y="90" width="200" height="76" rx="10" fill="#3b0764" stroke="#a855f7"/>
+  <text x="400" y="118" fill="#d8b4fe" font-size="13" font-weight="700" text-anchor="middle">Creator 모드 증류</text>
+  <text x="400" y="140" fill="#e2e8f0" font-size="12" text-anchor="middle">태스크 무관 + 태스크 지향</text>
+  <text x="400" y="156" fill="#e2e8f0" font-size="12" text-anchor="middle">스킬 그래프 구축·검증</text>
+
+  <rect x="560" y="90" width="200" height="76" rx="10" fill="#052e16" stroke="#22c55e"/>
+  <text x="660" y="118" fill="#86efac" font-size="13" font-weight="700" text-anchor="middle">AREX-Skill Library</text>
+  <text x="660" y="140" fill="#e2e8f0" font-size="12" text-anchor="middle">검증된 스킬 5,000+개</text>
+  <text x="660" y="156" fill="#e2e8f0" font-size="12" text-anchor="middle">20개 영역 · 178개 패밀리</text>
+
+  <line x1="240" y1="128" x2="300" y2="128" stroke="#64748b" stroke-width="2"/>
+  <polygon points="300,128 290,123 290,133" fill="#64748b"/>
+  <line x1="500" y1="128" x2="560" y2="128" stroke="#64748b" stroke-width="2"/>
+  <polygon points="560,128 550,123 550,133" fill="#64748b"/>
+
+  <!-- researcher -->
+  <line x1="660" y1="166" x2="660" y2="196" stroke="#64748b" stroke-width="2"/>
+  <polygon points="660,196 655,186 665,186" fill="#64748b"/>
+  <rect x="460" y="196" width="300" height="60" rx="10" fill="#431407" stroke="#f97316"/>
+  <text x="610" y="221" fill="#fdba74" font-size="13" font-weight="700" text-anchor="middle">Researcher 모드</text>
+  <text x="610" y="242" fill="#e2e8f0" font-size="12" text-anchor="middle">필요한 스킬만 점진적 공개(progressive disclosure)로 로드</text>
+
+  <!-- gains bars, axis 0..140% -->
+  <text x="40" y="292" fill="#f8fafc" font-size="14" font-weight="700">스킬 장착 전 대비 성능 향상 (GPT-5.5 백본·하네스·예산 고정)</text>
+
+  <text x="40" y="318" fill="#e2e8f0" font-size="12">MLE-bench</text>
+  <rect x="140" y="306" width="540" height="16" rx="4" fill="#22c55e"/>
+  <text x="688" y="319" fill="#86efac" font-size="12" font-weight="700">+134.3%</text>
+
+  <text x="40" y="344" fill="#e2e8f0" font-size="12">PaperBench</text>
+  <rect x="140" y="332" width="138" height="16" rx="4" fill="#3b82f6"/>
+  <text x="286" y="345" fill="#93c5fd" font-size="12">+34.4%</text>
+
+  <text x="40" y="370" fill="#e2e8f0" font-size="12">PassNet</text>
+  <rect x="140" y="358" width="56" height="16" rx="4" fill="#3b82f6"/>
+  <text x="204" y="371" fill="#93c5fd" font-size="12">+14.0%</text>
+
+  <text x="40" y="396" fill="#e2e8f0" font-size="12">FrontierCS</text>
+  <rect x="140" y="384" width="37" height="16" rx="4" fill="#3b82f6"/>
+  <text x="185" y="397" fill="#93c5fd" font-size="12">+9.2%</text>
+</svg>

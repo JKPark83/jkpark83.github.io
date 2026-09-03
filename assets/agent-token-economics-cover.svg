@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트가 사람의 5배 토큰을 태우지만, 그중 85% 이상이 단가 10분의 1인 캐시 히트라 실제 청구서는 약 18%만 늘어난다는 계산 과정을 나타낸 그림. 왼쪽에 사람 1배와 에이전트 5배 토큰 막대, 가운데에 캐시 분해(15% 신규 + 85% 캐시 재독 × 0.1배 단가), 오른쪽에 비용 약 1.18배 막대가 그려져 있다">
+  <defs>
+    <linearGradient id="ate-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1b1f3d"/>
+    </linearGradient>
+    <marker id="ate-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#ate-bg)"/>
+
+  <text x="60" y="80" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">토큰은 5배, 청구서는 18%</text>
+  <text x="60" y="120" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">에이전트 토큰 이코노믹스 — 숫자 제대로 읽고 비용 설계하기</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 왼쪽: 토큰 소비 막대 -->
+    <text x="235" y="192" text-anchor="middle" font-size="20" font-weight="700" fill="#38bdf8">토큰 소비</text>
+    <!-- 사람 1x -->
+    <rect x="120" y="466" width="90" height="64" rx="8" fill="#334155"/>
+    <text x="165" y="452" text-anchor="middle" font-size="16" fill="#cbd5e1">1배</text>
+    <text x="165" y="558" text-anchor="middle" font-size="16" fill="#94a3b8">사람</text>
+    <!-- 에이전트 5x (캐시/신규 분해) -->
+    <rect x="260" y="258" width="90" height="224" rx="8" fill="#0e7490"/>
+    <rect x="260" y="482" width="90" height="48" rx="8" fill="#38bdf8"/>
+    <text x="305" y="244" text-anchor="middle" font-size="16" font-weight="700" fill="#7dd3fc">5배</text>
+    <text x="305" y="558" text-anchor="middle" font-size="16" fill="#94a3b8">에이전트</text>
+    <text x="392" y="380" font-size="14" fill="#67e8f9">85%+ 캐시 재독</text>
+    <text x="392" y="510" font-size="14" fill="#7dd3fc">신규 토큰</text>
+
+    <!-- 가운데: 캐시 단가 -->
+    <path d="M540 380 L640 380" stroke="#fbbf24" stroke-width="3" marker-end="url(#ate-arrow)"/>
+    <text x="590" y="330" text-anchor="middle" font-size="17" font-weight="700" fill="#fbbf24">캐시 히트 단가</text>
+    <text x="590" y="358" text-anchor="middle" font-size="22" font-weight="700" fill="#fbbf24">× 0.1</text>
+    <text x="590" y="425" text-anchor="middle" font-size="14" fill="#94a3b8">이미 본 프리픽스는</text>
+    <text x="590" y="447" text-anchor="middle" font-size="14" fill="#94a3b8">10분의 1 값에 재사용</text>
+
+    <!-- 오른쪽: 비용 막대 -->
+    <text x="835" y="192" text-anchor="middle" font-size="20" font-weight="700" fill="#4ade80">실제 비용</text>
+    <rect x="720" y="466" width="90" height="64" rx="8" fill="#334155"/>
+    <text x="765" y="452" text-anchor="middle" font-size="16" fill="#cbd5e1">1배</text>
+    <text x="765" y="558" text-anchor="middle" font-size="16" fill="#94a3b8">사람</text>
+    <rect x="860" y="454" width="90" height="76" rx="8" fill="#4ade80"/>
+    <text x="905" y="440" text-anchor="middle" font-size="16" font-weight="700" fill="#86efac">약 1.18배</text>
+    <text x="905" y="558" text-anchor="middle" font-size="16" fill="#94a3b8">에이전트</text>
+
+    <!-- 오른쪽 설명 -->
+    <text x="990" y="350" font-size="15" fill="#e2e8f0" font-weight="700">5 × (0.15×1 + 0.85×0.1)</text>
+    <text x="990" y="378" font-size="15" fill="#4ade80" font-weight="700">≈ 1.175</text>
+    <text x="990" y="412" font-size="13" fill="#94a3b8">출처: a16z Charts of the Week</text>
+    <text x="990" y="432" font-size="13" fill="#94a3b8">(OpenRouter 데이터, 2026-08-21)</text>
+  </g>
+</svg>

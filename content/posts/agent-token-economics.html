@@ -1,0 +1,387 @@
+---
+title: "토큰은 5배, 청구서는 18% — 에이전트 토큰 이코노믹스 제대로 읽기"
+date: 2026-09-04T07:30:00+09:00
+draft: false
+tags: ["AI", "AI 에이전트", "토큰 이코노믹스", "token economics", "추론 비용", "inference cost", "프롬프트 캐싱", "prompt caching", "캐시 히트율", "cost per task", "OpenRouter", "a16z", "Gartner", "비용 최적화", "예산 가드", "모델 라우팅", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 테크 미디어를 돈 숫자 하나가 있습니다. OpenRouter 데이터 기준으로 에이전트가 사람보다 토큰을 약 5배 태우고, 2월 이후 사용량이 14배 늘었다는 a16z 차트입니다. 그런데 같은 데이터에 붙은 각주가 더 중요합니다 — 에이전트 토큰의 85% 이상이 '캐시된 프롬프트'라는 것. 캐시 히트는 단가가 10분의 1이라, 단순 계산으로 '5배 토큰'의 청구서는 5배가 아니라 약 1.18배가 됩니다. 이 글은 그 산수를 직접 해 보면서, 에이전트 루프가 왜 구조적으로 토큰을 태우는지(턴마다 히스토리 재전송 → O(N²)), 요금표의 세 가지 미터기(입력·출력·캐시)를 어떻게 읽는지, 그리고 태스크당 비용(cost per task)을 계측하고 통제하는 네 가지 레버 — 캐시 히트율, 컨텍스트 다이어트, 모델 라우팅, 예산 가드 — 를 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-token-economics-cover.svg"
+  alt: "에이전트가 사람의 5배 토큰을 태우지만 85% 이상이 단가 10분의 1인 캐시 히트라 실제 비용은 약 1.18배가 되는 계산 과정을 나타낸 그림"
+  caption: "헤드라인은 '5배'를 말하지만, 요금표는 세 가지 미터기로 돌아갑니다. 캐시를 읽을 줄 알면 청구서가 다르게 보입니다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 토큰 이코노믹스 포스트 전용 스타일 (ate- 접두사) ── */
+.ate-fig{
+  --ate-violet:#7c3aed; --ate-sky:#0284c7; --ate-green:#16a34a; --ate-rose:#e11d48;
+  --ate-amber:#d97706; --ate-slate:#64748b; --ate-teal:#0d9488; --ate-blue:#2563eb;
+  --ate-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .ate-fig{
+  --ate-violet:#a78bfa; --ate-sky:#38bdf8; --ate-green:#4ade80; --ate-rose:#fb7185;
+  --ate-amber:#fbbf24; --ate-slate:#94a3b8; --ate-teal:#2dd4bf; --ate-blue:#60a5fa;
+  --ate-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .ate-fig{
+    --ate-violet:#a78bfa; --ate-sky:#38bdf8; --ate-green:#4ade80; --ate-rose:#fb7185;
+    --ate-amber:#fbbf24; --ate-slate:#94a3b8; --ate-teal:#2dd4bf; --ate-blue:#60a5fa;
+    --ate-gray:#64748b;
+  }
+}
+.ate-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.ate-fig text{font-family:inherit}
+.ate-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.ate-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.ate-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.ate-toc ol{margin:0;padding-left:1.25rem}
+.ate-toc li{margin:.22rem 0;font-size:.95rem}
+.ate-toc a{text-decoration:none}
+.ate-toc a:hover{text-decoration:underline}
+.ate-note{border-left:4px solid var(--ate-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.ate-note strong{color:var(--ate-blue,#2563eb)}
+.ate-warn{border-left:4px solid var(--ate-rose,#e11d48)}
+.ate-warn strong{color:var(--ate-rose,#e11d48)}
+.ate-good{border-left:4px solid var(--ate-teal,#0d9488)}
+.ate-good strong{color:var(--ate-teal,#0d9488)}
+.ate-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.ate-tbl th,.ate-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.ate-tbl th{background:var(--entry);font-weight:700}
+.ate-tbl code{font-size:.86em}
+.ate-tblwrap{overflow-x:auto}
+</style>
+
+<div class="ate-toc">
+  <div class="ate-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 이번 주 화제가 된 차트 세 장</a></li>
+    <li><a href="#sec-2">배경 — 요금표에는 미터기가 세 개 있다</a></li>
+    <li><a href="#sec-3">에이전트는 왜 토큰을 5배 태우나 — 루프의 산수</a></li>
+    <li><a href="#sec-4">5배가 18%가 되는 계산 — 직접 해 보기</a></li>
+    <li><a href="#sec-5">실전 — 태스크당 비용(cost per task) 계측하기</a></li>
+    <li><a href="#sec-6">비용을 움직이는 네 가지 레버</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 이번 주 화제가 된 차트 세 장</h2>
+
+<p>지난주 AI 엔지니어링 쪽 타임라인과 테크 미디어에 같은 차트가 반복해서 등장했습니다. a16z가 뉴스레터 <a href="https://www.a16z.news/t/charts" target="_blank" rel="noopener">Charts of the Week</a>(8월 21일자, Moses Sternstein 작성)에서 공개한 OpenRouter 사용량 분석입니다. 요지는 세 개의 숫자로 요약됩니다.</p>
+
+<ul>
+<li><strong>5배</strong> — OpenRouter를 지나는 트래픽에서, 에이전트가 사람(사람이 직접 모델에 질문하는 사용)보다 토큰을 약 5배 소비합니다.</li>
+<li><strong>14배</strong> — 에이전트 사용량이 2026년 2월 이후 약 14배 늘었습니다.</li>
+<li><strong>85%+</strong> — 에이전트가 태우는 토큰의 85% 이상이 <strong>캐시된 프롬프트(cached prompt)</strong>, 즉 이미 봤던 컨텍스트를 다시 읽는 데 쓰입니다.</li>
+</ul>
+
+<p><a href="https://www.eweek.com/news/ai-agents-llm-token-usage-humans/" target="_blank" rel="noopener">eWeek</a>, <a href="https://ppc.land/ai-agents-use-five-times-more-tokens-than-humans-openrouter-data-shows/" target="_blank" rel="noopener">PPC Land</a>, <a href="https://www.computerworld.com/article/4210786/ai-inference-is-getting-cheaper-but-your-agents-are-getting-more-expensive.html" target="_blank" rel="noopener">Computerworld</a> 같은 매체가 일제히 받아썼고, 헤드라인은 대부분 "에이전트가 토큰을 5배 태운다"에 꽂혔습니다. 그런데 실무자 커뮤니티에서 더 회자된 건 세 번째 숫자였습니다. <a href="https://getmegabrain.com/blog/ai-agent-token-cache-economics-2026" target="_blank" rel="noopener">한 분석</a>이 지적했듯, 85%가 캐시 히트라면 — 캐시 히트는 단가가 정가의 10분의 1 수준이라 — <strong>"토큰 5배"의 청구서는 5배가 아니라 대략 1.18배</strong>로 계산됩니다. 토큰 수와 비용이 완전히 다른 얘기가 된 겁니다.</p>
+
+<p>이 간극이 오늘의 주제입니다. 에이전트를 운영하는 순간, "토큰이 얼마나 드나"라는 질문은 요금표의 구조 — 입력·출력·캐시라는 세 가지 미터기 — 를 모르면 답할 수 없는 질문이 됩니다. 단가는 계속 내려가는데 에이전트 비용은 오히려 늘어난다는 <a href="https://www.gartner.com/en/newsroom/press-releases/2026-03-25-gartner-predicts-that-by-2030-performing-inference-on-an-llm-with-1-trillion-parameters-will-cost-genai-providers-over-90-percent-less-than-in-2025" target="_blank" rel="noopener">Gartner의 "추론 역설(inference paradox)"</a> 전망까지 겹치면서, <strong>토큰 이코노믹스를 읽는 능력 자체가 AI 엔지니어링 스킬</strong>이 되고 있습니다.</p>
+
+<div class="ate-note"><strong>이 글에서 얻어 갈 것.</strong> ① 요금표의 세 미터기(입력·출력·캐시)와 캐시 단가의 구조, ② 에이전트 루프가 토큰을 O(N²)로 태우는 이유와 "85% 캐시"가 필연인 이유, ③ 5배 → 1.18배 산수를 직접 재현하는 법과 그 계산의 함정, ④ 태스크당 비용을 계측하는 코드와 비용을 움직이는 네 가지 레버.</div>
+
+<h2 id="sec-2">2. 배경 — 요금표에는 미터기가 세 개 있다</h2>
+
+<p>LLM API 요금은 "토큰당 얼마"라는 단일 단가처럼 보이지만, 실제로는 <strong>성격이 다른 미터기 세 개</strong>가 동시에 돌아갑니다.</p>
+
+<div class="ate-tblwrap"><table class="ate-tbl">
+<tr><th>미터기</th><th>무엇을 재나</th><th>단가 (입력 정가 = 1 기준)</th></tr>
+<tr><td><strong>입력(input)</strong></td><td>모델이 처음 읽는 토큰. 프롬프트, 히스토리, 도구 출력.</td><td>1</td></tr>
+<tr><td><strong>출력(output)</strong></td><td>모델이 생성하는 토큰. 답변, 도구 호출 인자, 그리고 reasoning 모델의 <strong>사고 토큰도 출력으로 과금</strong>됩니다.</td><td>보통 4~5 (입력보다 훨씬 비쌈)</td></tr>
+<tr><td><strong>캐시(cache)</strong></td><td>직전 요청과 앞부분(프리픽스)이 같아서 KV 캐시를 재사용한 토큰.</td><td>읽기 ≈ <strong>0.1</strong> / 쓰기 ≈ 1.25 (Anthropic 기준)</td></tr>
+</table></div>
+
+<p>캐시 미터기의 구조를 조금만 더 뜯어 보겠습니다. <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener">Anthropic의 프롬프트 캐싱</a>은 명시적으로 캐시 지점을 표시하는 방식인데, <strong>캐시에 쓸 때는 정가의 1.25배</strong>(1시간 TTL은 더 비쌈)를 내고, <strong>캐시에서 읽을 때는 정가의 0.1배</strong>만 냅니다. OpenAI는 요청 프리픽스가 1,024토큰 이상 일치하면 자동으로 캐시가 적용되고, GPT-5 계열에서는 캐시된 입력이 정가 대비 <strong>90% 할인</strong>됩니다(과거 GPT-4o 시절엔 50%였습니다). <a href="https://openrouter.ai/docs/guides/best-practices/prompt-caching" target="_blank" rel="noopener">OpenRouter 문서</a>에 제공자별 정책이 정리되어 있습니다.</p>
+
+<p>캐싱이 KV 캐시 수준에서 어떻게 동작하는지, 프리픽스를 어떻게 배치해야 캐시가 안 깨지는지는 <a href="/posts/prompt-caching-cache-aware-agents/">프롬프트 캐싱 글</a>에서 자세히 다뤘습니다. 오늘은 그 위에서 <strong>돈 계산</strong>을 합니다.</p>
+
+<p>배경 지식 하나만 더. Gartner는 올해 3월 "1조 파라미터급 LLM의 추론 원가가 2030년까지 90% 이상 떨어진다"고 전망하면서, 동시에 <strong>에이전틱 워크플로의 추론 비용은 향후 2년간 5배 이상 늘어난다</strong>고 예측했습니다(<a href="https://www.hpcwire.com/aiwire/2026/03/25/gartner-forecasts-90-drop-in-llm-inference-costs-by-2030/" target="_blank" rel="noopener">AIwire 보도</a>). 에이전트가 챗봇보다 태스크당 토큰을 5~30배 쓰기 때문에, 단가 하락보다 소비 증가가 빠르다는 겁니다. 단가가 내려가니 비용 걱정은 끝났다는 직관과 정반대의 전망이죠. 왜 이런 일이 생기는지, 루프의 산수부터 봅시다.</p>
+
+<h2 id="sec-3">3. 에이전트는 왜 토큰을 5배 태우나 — 루프의 산수</h2>
+
+<p>에이전트 루프의 기본 구조를 떠올려 봅시다. 모델을 한 번 호출하고, 도구를 실행하고, 그 결과를 붙여서 다시 호출하고 — 태스크가 끝날 때까지 반복합니다. 여기서 핵심은, <strong>LLM API는 상태가 없다(stateless)</strong>는 점입니다. 모델은 지난 턴을 기억하지 않으므로, 매 턴 <strong>지금까지의 히스토리 전체를 처음부터 다시 보냅니다</strong>.</p>
+
+<p>숫자를 넣어 보겠습니다. 시스템 프롬프트 + 도구 정의로 이루어진 고정 프리픽스가 8,000토큰, 매 턴 도구 출력과 모델 응답으로 히스토리가 평균 1,000토큰씩 자란다고 합시다. 턴 k의 입력 토큰은 대략 <code>8,000 + (k−1) × 1,000</code>입니다.</p>
+
+{{< highlight text >}}
+턴 1 입력:  8,000  (프리픽스)
+턴 2 입력:  9,000  (프리픽스 + 히스토리 1,000)
+턴 3 입력: 10,000
+...
+턴 20 입력: 27,000
+
+20턴 누적 입력 = 20×8,000 + (0+1+...+19)×1,000
+             = 160,000 + 190,000 = 350,000 토큰
+{{< /highlight >}}
+
+<p>스무 턴짜리 태스크 하나가 입력만 35만 토큰을 씁니다. 반면 이 태스크에서 <strong>"처음 보는" 토큰</strong>은 얼마일까요? 프리픽스 8,000 + 턴마다 새로 붙는 증분 19,000 = 약 27,000토큰뿐입니다. 나머지 32만여 토큰(<strong>약 92%</strong>)은 전부 이미 봤던 내용의 재전송입니다. 매 턴 증가분(등차수열)의 합이니, 총 토큰은 턴 수 N에 대해 <strong>O(N²)</strong>으로 자랍니다. 턴이 두 배 길어지면 토큰은 대략 네 배가 되는 구조입니다.</p>
+
+<figure class="ate-fig">
+<svg viewBox="0 0 900 420" role="img" aria-label="에이전트 루프에서 턴이 진행될수록 입력 토큰이 쌓이는 모습. 턴 1부터 턴 6까지 막대가 계단식으로 길어지는데, 각 막대의 대부분은 이전 턴까지 이미 봤던 프리픽스와 히스토리의 재전송(캐시 히트 가능 영역)이고, 막대 끝의 작은 조각만 이번 턴에 처음 보는 신규 토큰이다. 오른쪽에 총합은 턴 수의 제곱에 비례해 자라고 신규 토큰은 선형으로만 자란다는 설명이 있다.">
+  <g font-size="14">
+    <text x="450" y="30" text-anchor="middle" font-weight="700" fill="var(--ate-sky)" font-size="16">매 턴 히스토리 전체를 다시 보낸다 — 재독이 쌓이는 방식</text>
+    <!-- 턴 막대들: x=140 시작, 폭 스케일 0.02px/token -->
+    <!-- 턴1: 8000 -->
+    <text x="130" y="87" text-anchor="end" fill="var(--ate-slate)">턴 1</text>
+    <rect x="140" y="72" width="150" height="22" rx="4" fill="none" stroke="var(--ate-sky)" stroke-width="2"/>
+    <text x="215" y="88" text-anchor="middle" fill="var(--ate-sky)" font-size="12">프리픽스 8k (신규)</text>
+    <!-- 턴2: 9000 = 재독 8000 + 신규 1000 -->
+    <text x="130" y="137" text-anchor="end" fill="var(--ate-slate)">턴 2</text>
+    <rect x="140" y="122" width="150" height="22" rx="4" fill="var(--ate-gray)" opacity=".28"/>
+    <rect x="290" y="122" width="19" height="22" rx="3" fill="var(--ate-amber)"/>
+    <!-- 턴3: 10000 -->
+    <text x="130" y="187" text-anchor="end" fill="var(--ate-slate)">턴 3</text>
+    <rect x="140" y="172" width="169" height="22" rx="4" fill="var(--ate-gray)" opacity=".28"/>
+    <rect x="309" y="172" width="19" height="22" rx="3" fill="var(--ate-amber)"/>
+    <!-- 턴4 -->
+    <text x="130" y="237" text-anchor="end" fill="var(--ate-slate)">턴 4</text>
+    <rect x="140" y="222" width="188" height="22" rx="4" fill="var(--ate-gray)" opacity=".28"/>
+    <rect x="328" y="222" width="19" height="22" rx="3" fill="var(--ate-amber)"/>
+    <!-- 턴5 -->
+    <text x="130" y="287" text-anchor="end" fill="var(--ate-slate)">턴 5</text>
+    <rect x="140" y="272" width="207" height="22" rx="4" fill="var(--ate-gray)" opacity=".28"/>
+    <rect x="347" y="272" width="19" height="22" rx="3" fill="var(--ate-amber)"/>
+    <!-- 턴6 -->
+    <text x="130" y="337" text-anchor="end" fill="var(--ate-slate)">턴 6</text>
+    <rect x="140" y="322" width="226" height="22" rx="4" fill="var(--ate-gray)" opacity=".28"/>
+    <rect x="366" y="322" width="19" height="22" rx="3" fill="var(--ate-amber)"/>
+    <!-- 범례 -->
+    <rect x="140" y="376" width="16" height="14" fill="var(--ate-gray)" opacity=".28"/>
+    <text x="163" y="388" fill="var(--ate-slate)" font-size="12.5">이미 본 내용의 재전송 (캐시 히트 가능)</text>
+    <rect x="420" y="376" width="16" height="14" fill="var(--ate-amber)"/>
+    <text x="443" y="388" fill="var(--ate-slate)" font-size="12.5">이번 턴에 처음 보는 신규 토큰</text>
+    <!-- 오른쪽 요약 -->
+    <rect x="520" y="90" width="330" height="230" rx="12" fill="none" stroke="var(--ate-slate)" stroke-width="1.3"/>
+    <text x="685" y="126" text-anchor="middle" fill="var(--ate-rose)" font-weight="700" font-size="15">총 입력 토큰 ∝ N²</text>
+    <text x="685" y="152" text-anchor="middle" fill="var(--ate-slate)" font-size="12.5">턴이 2배 길어지면 토큰은 ~4배</text>
+    <text x="685" y="196" text-anchor="middle" fill="var(--ate-green)" font-weight="700" font-size="15">신규 토큰 ∝ N</text>
+    <text x="685" y="222" text-anchor="middle" fill="var(--ate-slate)" font-size="12.5">새 정보는 선형으로만 늘어난다</text>
+    <text x="685" y="266" text-anchor="middle" fill="var(--ate-amber)" font-weight="700" font-size="15">→ 재독 비중이 갈수록 커짐</text>
+    <text x="685" y="292" text-anchor="middle" fill="var(--ate-slate)" font-size="12.5">20턴 예시: 재독 ≈ 92%</text>
+  </g>
+</svg>
+<figcaption>그림 1. 루프의 각 턴은 히스토리 전체를 다시 보냅니다. 새 정보는 턴마다 조금씩(선형) 늘지만 재전송 총량은 제곱으로 쌓여서, 뒤로 갈수록 "이미 본 내용 다시 읽기"가 토큰 소비를 지배합니다.</figcaption>
+</figure>
+
+<p>이제 a16z 차트의 세 번째 숫자가 필연이었다는 게 보입니다. <strong>에이전트 토큰의 85% 이상이 캐시된 프롬프트라는 건, 에이전트가 낭비하고 있다는 뜻이 아니라 루프라는 구조의 산수적 귀결</strong>입니다. 사람의 채팅은 한 번 묻고 한 번 답하는 짧은 왕복이라 재독 비중이 낮고, 에이전트는 수십 턴을 돌며 같은 프리픽스를 수십 번 다시 읽습니다. 그래서 "에이전트 vs 사람"의 토큰 배율은 앞으로 루프가 길어질수록 더 벌어질 겁니다.</p>
+
+<div class="ate-note"><strong>왜 재전송을 아예 없애지 않을까?</strong> 서버가 세션 상태를 들고 있으면 되지 않냐는 의문이 들 수 있습니다. 실제로 제공자들이 responses API류의 서버 측 대화 상태, KV 캐시 유지 같은 걸 제공하지만, 그 내부에서도 결국 어텐션 계산을 위한 KV 캐시를 누군가는 저장·재계산해야 하고 그 비용이 캐시 요금으로 청구됩니다. 재전송이 사라지는 게 아니라 <strong>재계산 비용이 "캐시 읽기 단가"라는 형태로 바뀌는 것</strong>에 가깝습니다.</div>
+
+<h2 id="sec-4">4. 5배가 18%가 되는 계산 — 직접 해 보기</h2>
+
+<p>이제 이번 주 화제의 산수를 재현해 봅시다. 사람의 사용량을 1이라 두고, 다음 세 가지를 가정합니다.</p>
+
+<ul>
+<li>에이전트는 토큰을 5배 쓴다 (a16z/OpenRouter).</li>
+<li>그중 85%는 캐시 히트, 15%는 정가 토큰이다 (같은 출처).</li>
+<li>캐시 히트 단가는 정가의 0.1배다 (Anthropic 캐시 읽기, GPT-5 계열 캐시 입력 할인과 동일 수준).</li>
+</ul>
+
+{{< highlight text >}}
+사람 비용   = 1 × 1                        = 1.000
+에이전트 비용 = 5 × (0.15×1 + 0.85×0.1)
+           = 5 × (0.15 + 0.085)
+           = 5 × 0.235                    = 1.175
+{{< /highlight >}}
+
+<p>토큰은 5배인데 비용은 <strong>약 1.18배, 즉 +18%</strong>. 헤드라인과 청구서 사이의 간극이 이 세 줄 산수에 다 들어 있습니다.</p>
+
+<figure class="ate-fig">
+<svg viewBox="0 0 900 400" role="img" aria-label="5배 토큰이 1.175배 비용이 되는 과정을 보여주는 브리지 차트. 왼쪽에 사람 1배와 에이전트 5배 토큰 막대가 있고, 에이전트 막대는 85% 캐시 히트와 15% 정가 토큰으로 나뉜다. 가운데에서 캐시 히트 부분에 0.1배 단가가 곱해지고, 오른쪽에 사람 1배와 에이전트 1.175배 비용 막대가 나온다.">
+  <g font-size="14">
+    <text x="200" y="34" text-anchor="middle" font-weight="700" fill="var(--ate-sky)" font-size="16">① 토큰 소비</text>
+    <!-- 사람 토큰 -->
+    <rect x="90" y="300" width="80" height="52" rx="8" fill="none" stroke="var(--ate-slate)" stroke-width="2"/>
+    <text x="130" y="290" text-anchor="middle" fill="var(--ate-slate)" font-size="13">1배</text>
+    <text x="130" y="378" text-anchor="middle" fill="var(--ate-slate)" font-size="13">사람</text>
+    <!-- 에이전트 토큰: 5배 (260px). 캐시 85% = 221px, 신규 15% = 39px -->
+    <rect x="230" y="92" width="80" height="221" rx="8" fill="none" stroke="var(--ate-sky)" stroke-width="2" stroke-dasharray="5 4"/>
+    <rect x="230" y="313" width="80" height="39" rx="6" fill="none" stroke="var(--ate-sky)" stroke-width="2"/>
+    <text x="270" y="82" text-anchor="middle" fill="var(--ate-sky)" font-weight="700" font-size="13">5배</text>
+    <text x="270" y="378" text-anchor="middle" fill="var(--ate-slate)" font-size="13">에이전트</text>
+    <text x="322" y="200" fill="var(--ate-sky)" font-size="12.5">캐시 히트 85%</text>
+    <text x="322" y="338" fill="var(--ate-sky)" font-size="12.5">정가 15%</text>
+    <!-- 가운데 -->
+    <text x="480" y="34" text-anchor="middle" font-weight="700" fill="var(--ate-amber)" font-size="16">② 단가 적용</text>
+    <path d="M430 210 L540 210" stroke="var(--ate-amber)" stroke-width="2.5"/>
+    <path d="M540 210 L533 205 M540 210 L533 215" stroke="var(--ate-amber)" stroke-width="2.5"/>
+    <text x="483" y="185" text-anchor="middle" fill="var(--ate-amber)" font-weight="700" font-size="14">캐시 × 0.1</text>
+    <text x="483" y="238" text-anchor="middle" fill="var(--ate-slate)" font-size="12.5">정가 × 1.0</text>
+    <!-- 오른쪽: 비용 -->
+    <text x="710" y="34" text-anchor="middle" font-weight="700" fill="var(--ate-green)" font-size="16">③ 실제 비용</text>
+    <rect x="600" y="300" width="80" height="52" rx="8" fill="none" stroke="var(--ate-slate)" stroke-width="2"/>
+    <text x="640" y="290" text-anchor="middle" fill="var(--ate-slate)" font-size="13">1배</text>
+    <text x="640" y="378" text-anchor="middle" fill="var(--ate-slate)" font-size="13">사람</text>
+    <rect x="740" y="291" width="80" height="61" rx="8" fill="none" stroke="var(--ate-green)" stroke-width="2.5"/>
+    <text x="780" y="281" text-anchor="middle" fill="var(--ate-green)" font-weight="700" font-size="13">1.175배</text>
+    <text x="780" y="378" text-anchor="middle" fill="var(--ate-slate)" font-size="13">에이전트</text>
+    <text x="710" y="130" text-anchor="middle" fill="var(--ate-green)" font-size="13.5" font-weight="700">5 × (0.15 + 0.85×0.1) ≈ 1.175</text>
+    <text x="710" y="156" text-anchor="middle" fill="var(--ate-slate)" font-size="12.5">"토큰 5배"의 청구서는 +18%</text>
+  </g>
+</svg>
+<figcaption>그림 2. 같은 데이터를 토큰 미터기로 읽으면 5배, 돈 미터기로 읽으면 1.175배입니다. 캐시 히트 비중과 캐시 단가를 모르면 비용 추정이 4배 이상 어긋납니다.</figcaption>
+</figure>
+
+<p>다만 이 계산은 <strong>봉투 뒷면 산수(back-of-the-envelope)</strong>라는 점을 분명히 해야 합니다. 실제 청구서와는 다음 지점에서 어긋날 수 있습니다.</p>
+
+<ul>
+<li><strong>출력 토큰이 빠져 있습니다.</strong> 출력은 입력보다 4~5배 비싸고 캐시가 적용되지 않습니다. reasoning 모델이라면 보이지 않는 사고 토큰까지 출력 요금으로 나갑니다. 출력 비중이 큰 워크로드라면 +18%보다 훨씬 커집니다.</li>
+<li><strong>캐시 쓰기 비용도 빠져 있습니다.</strong> Anthropic 방식은 캐시에 처음 쓸 때 1.25배를 내므로, 턴이 몇 번 안 도는 짧은 태스크는 캐시 손익분기점을 못 넘길 수 있습니다.</li>
+<li><strong>85%는 "잘 돌아가는 평균"입니다.</strong> 프리픽스를 흔드는 실수 하나로(6장) 내 에이전트의 캐시 히트율은 0%가 될 수 있고, 그 순간 5배 토큰은 진짜 5배 비용이 됩니다.</li>
+</ul>
+
+<div class="ate-warn"><strong>그래서 결론은 "에이전트 비용은 괜찮다"가 아닙니다.</strong> 개별 태스크의 청구서가 +18%로 끝나더라도, 사용량 자체가 2월 이후 14배로 자라는 중이고 Gartner는 에이전틱 워크플로 비용이 2년간 5배 이상 늘어난다고 봅니다. 단가 하락(2030년까지 90%↓)보다 소비 증가가 빠르다는 게 추론 역설의 요지입니다. 개인 프로젝트의 청구서도, 회사의 인프라 계획도, "단가 × 토큰 구조"를 둘 다 봐야 맞게 예측됩니다.</div>
+
+<h2 id="sec-5">5. 실전 — 태스크당 비용(cost per task) 계측하기</h2>
+
+<p>토큰 이코노믹스의 첫걸음은 거창한 게 아니라, <strong>내 에이전트의 태스크당 비용을 숫자로 만드는 것</strong>입니다. 다행히 모든 주요 API가 응답마다 <code>usage</code> 필드로 미터기 눈금을 알려 줍니다. Anthropic API 기준으로, 루프에 몇 줄만 붙이면 됩니다.</p>
+
+{{< highlight python >}}
+# 1M 토큰당 단가(USD). 예시값 — 실제 값은 요금표에서 확인하세요.
+PRICE = {
+    "input": 3.00,
+    "output": 15.00,        # 출력은 입력보다 5배 비쌈
+    "cache_write": 3.75,    # 입력 × 1.25
+    "cache_read": 0.30,     # 입력 × 0.10
+}
+
+def turn_cost_usd(u) -> float:
+    """한 턴의 usage에서 네 미터기를 모두 읽어 달러로 환산."""
+    return (
+        u.input_tokens * PRICE["input"]
+        + u.output_tokens * PRICE["output"]
+        + u.cache_creation_input_tokens * PRICE["cache_write"]
+        + u.cache_read_input_tokens * PRICE["cache_read"]
+    ) / 1_000_000
+
+task = {"turns": 0, "usd": 0.0, "cache_read": 0, "uncached": 0}
+
+while not done:
+    resp = client.messages.create(model=MODEL, messages=history, tools=tools)
+    u = resp.usage
+    task["turns"] += 1
+    task["usd"] += turn_cost_usd(u)
+    task["cache_read"] += u.cache_read_input_tokens
+    # input_tokens는 캐시를 못 탄 부분, cache_creation은 이번에 캐시에 쓴 부분
+    task["uncached"] += u.input_tokens + u.cache_creation_input_tokens
+    # ... 도구 실행, history 갱신 ...
+
+hit_rate = task["cache_read"] / (task["cache_read"] + task["uncached"])
+print(f"태스크 비용 ${task['usd']:.4f}, {task['turns']}턴, "
+      f"캐시 히트율 {hit_rate:.0%}")
+{{< /highlight >}}
+
+<p>이 네 줄짜리 집계가 만들어 주는 지표가 두 개입니다. <strong>태스크당 비용(cost per task)</strong>과 <strong>캐시 히트율</strong>. 전자는 "이 자동화가 사람 손보다 싼가"를 판단하는 단위이고 — 토큰당 비용은 이 판단에 아무 도움이 안 됩니다 — 후자는 4장의 +18% 산수가 내 시스템에서 실제로 성립하는지 알려 주는 건강 지표입니다. 히트율이 85% 밑으로 뚝 떨어져 있다면 어딘가에서 프리픽스가 흔들리고 있다는 신호입니다.</p>
+
+<p>지표가 생기면 <strong>예산 가드</strong>를 걸 수 있습니다. 에이전트 비용 사고의 전형은 평균이 아니라 꼬리에서 납니다 — 같은 검색을 무한 반복하는 폭주 루프 하나가 하루 예산을 태우는 식이죠. 루프 조건에 두 줄이면 됩니다.</p>
+
+{{< highlight python >}}
+MAX_TURNS = 30       # 정상 태스크의 p95 턴 수보다 조금 크게
+MAX_USD_PER_TASK = 0.50
+
+while not done:
+    if task["turns"] >= MAX_TURNS or task["usd"] >= MAX_USD_PER_TASK:
+        # 그냥 죽이지 말고: 지금까지의 진행 상황을 요약해 사람에게 인계
+        raise BudgetExceeded(summary=summarize_progress(history))
+    ...
+{{< /highlight >}}
+
+<h2 id="sec-6">6. 비용을 움직이는 네 가지 레버</h2>
+
+<p>태스크당 비용은 결국 <strong>비용 = Σ(턴마다) 토큰 수 × 단가</strong>라는 곱셈입니다. 그래서 레버도 곱셈의 각 항에 하나씩 걸립니다: 단가를 낮추거나(캐시, 라우팅), 토큰 수를 줄이거나(컨텍스트 다이어트), 턴 수를 제한하거나(예산 가드).</p>
+
+<figure class="ate-fig">
+<svg viewBox="0 0 900 360" role="img" aria-label="태스크당 비용을 구성하는 곱셈 구조와 네 가지 레버. 가운데에 비용 = 턴 수 × 턴당 토큰 × 단가라는 식이 있고, 턴 수에는 예산 가드, 턴당 토큰에는 컨텍스트 다이어트, 단가에는 캐시 히트율 지키기와 모델 라우팅이 각각 레버로 연결되어 있다.">
+  <g font-size="14">
+    <text x="450" y="36" text-anchor="middle" font-weight="700" fill="var(--ate-blue)" font-size="16">태스크당 비용의 곱셈 구조와 레버가 걸리는 자리</text>
+    <!-- 중앙 식 -->
+    <rect x="90" y="150" width="200" height="64" rx="12" fill="none" stroke="var(--ate-rose)" stroke-width="2"/>
+    <text x="190" y="177" text-anchor="middle" fill="var(--ate-rose)" font-weight="700">턴 수 (N)</text>
+    <text x="190" y="199" text-anchor="middle" fill="var(--ate-slate)" font-size="12">루프가 몇 번 도나</text>
+    <text x="320" y="190" text-anchor="middle" fill="var(--ate-slate)" font-size="22">×</text>
+    <rect x="350" y="150" width="200" height="64" rx="12" fill="none" stroke="var(--ate-amber)" stroke-width="2"/>
+    <text x="450" y="177" text-anchor="middle" fill="var(--ate-amber)" font-weight="700">턴당 토큰</text>
+    <text x="450" y="199" text-anchor="middle" fill="var(--ate-slate)" font-size="12">컨텍스트가 얼마나 크나</text>
+    <text x="580" y="190" text-anchor="middle" fill="var(--ate-slate)" font-size="22">×</text>
+    <rect x="610" y="150" width="200" height="64" rx="12" fill="none" stroke="var(--ate-teal)" stroke-width="2"/>
+    <text x="710" y="177" text-anchor="middle" fill="var(--ate-teal)" font-weight="700">실효 단가</text>
+    <text x="710" y="199" text-anchor="middle" fill="var(--ate-slate)" font-size="12">토큰당 실제로 내는 돈</text>
+    <!-- 레버들 -->
+    <path d="M190 258 L190 218" stroke="var(--ate-rose)" stroke-width="2"/>
+    <rect x="90" y="258" width="200" height="52" rx="10" fill="none" stroke="var(--ate-rose)" stroke-width="1.4"/>
+    <text x="190" y="280" text-anchor="middle" fill="var(--ate-rose)" font-size="13" font-weight="700">④ 예산 가드</text>
+    <text x="190" y="299" text-anchor="middle" fill="var(--ate-slate)" font-size="12">max turns · 태스크당 상한</text>
+    <path d="M450 258 L450 218" stroke="var(--ate-amber)" stroke-width="2"/>
+    <rect x="350" y="258" width="200" height="52" rx="10" fill="none" stroke="var(--ate-amber)" stroke-width="1.4"/>
+    <text x="450" y="280" text-anchor="middle" fill="var(--ate-amber)" font-size="13" font-weight="700">② 컨텍스트 다이어트</text>
+    <text x="450" y="299" text-anchor="middle" fill="var(--ate-slate)" font-size="12">도구 출력 다이어트 · 서브에이전트</text>
+    <path d="M665 258 L692 218" stroke="var(--ate-teal)" stroke-width="2"/>
+    <path d="M755 258 L728 218" stroke="var(--ate-teal)" stroke-width="2"/>
+    <rect x="565" y="258" width="130" height="52" rx="10" fill="none" stroke="var(--ate-teal)" stroke-width="1.4"/>
+    <text x="630" y="280" text-anchor="middle" fill="var(--ate-teal)" font-size="13" font-weight="700">① 캐시 히트율</text>
+    <text x="630" y="299" text-anchor="middle" fill="var(--ate-slate)" font-size="12">단가 ×0.1</text>
+    <rect x="715" y="258" width="130" height="52" rx="10" fill="none" stroke="var(--ate-teal)" stroke-width="1.4"/>
+    <text x="780" y="280" text-anchor="middle" fill="var(--ate-teal)" font-size="13" font-weight="700">③ 모델 라우팅</text>
+    <text x="780" y="299" text-anchor="middle" fill="var(--ate-slate)" font-size="12">싼 모델로 서브스텝</text>
+    <!-- N² 주석 -->
+    <text x="450" y="110" text-anchor="middle" fill="var(--ate-slate)" font-size="12.5">주의: 턴 수와 턴당 토큰은 독립이 아닙니다 — 턴이 늘면 히스토리도 커져서 (N × 턴당 토큰) ≈ O(N²)</text>
+  </g>
+</svg>
+<figcaption>그림 3. 비용은 곱셈이라 어느 항을 줄여도 효과가 있지만, 레버마다 걸리는 자리와 함정이 다릅니다.</figcaption>
+</figure>
+
+<div class="ate-tblwrap"><table class="ate-tbl">
+<tr><th>레버</th><th>어떻게</th><th>함정</th></tr>
+<tr><td><strong>① 캐시 히트율 지키기</strong></td><td>고정 프리픽스(시스템 프롬프트·도구 정의)를 맨 앞에, 변하는 내용은 뒤에. 히스토리는 append-only로 유지. 자세한 설계는 <a href="/posts/prompt-caching-cache-aware-agents/">캐싱 글</a> 참고.</td><td>프리픽스에 현재 시각을 넣거나, 턴 중간에 도구 정의를 바꾸거나, 히스토리 중간을 수정하면 그 지점 이후 캐시가 전부 무효. <strong>컴팩션도 프리픽스를 갈아 끼우므로 캐시를 깹니다</strong> — 컨텍스트를 줄이려는 조치가 단가를 10배로 되돌리는 트레이드오프가 있습니다.</td></tr>
+<tr><td><strong>② 컨텍스트 다이어트</strong></td><td>도구 출력을 통째로 붙이지 말고 필요한 부분만(<a href="/posts/less-context-better-agents/">적은 컨텍스트 글</a>), 조사·검색 같은 소모성 작업은 서브에이전트로 격리해 본 루프의 히스토리 성장을 막기(N² 기울기 완화).</td><td>과도한 요약·삭제는 정보 손실 → 모델이 같은 걸 다시 조회하느라 턴 수가 늘어 역효과. 무엇을 잃는지 모르는 압축은 비용 절감이 아니라 품질 저하입니다.</td></tr>
+<tr><td><strong>③ 모델 라우팅</strong></td><td>분류·추출·재작성 같은 서브스텝은 소형 모델로. 프런티어 모델과 소형 모델의 단가 차이는 보통 10배 이상이라, 서브스텝 몇 개만 옮겨도 체감이 큽니다(<a href="/posts/llm-model-routing/">라우팅 글</a>).</td><td>능력 미달 모델로 라우팅하면 실패 → 재시도 → 오히려 비쌈. 라우팅 판단 자체도 평가로 검증해야 합니다. 모델을 바꾸면 캐시도 공유되지 않습니다.</td></tr>
+<tr><td><strong>④ 예산 가드</strong></td><td>태스크당 <code>max_turns</code>·비용 상한, 초과 시 진행 상황 요약과 함께 사람에게 인계(5장 코드).</td><td>상한을 너무 낮게 잡으면 정상 태스크까지 잘려 실패율이 오릅니다. 정상 분포(p95)를 먼저 재고 상한을 정하세요.</td></tr>
+</table></div>
+
+<div class="ate-good"><strong>우선순위 감각.</strong> 넷 중 가장 먼저 볼 것은 ①입니다. 이미 돌아가는 에이전트라면 코드 변경 거의 없이 단가를 최대 10분의 1로 만드는 레버인 데다, 잘못돼 있어도 기능은 멀쩡해서 <strong>계측하지 않으면 영원히 모르는</strong> 항목이기 때문입니다. 그다음이 ④(사고 방지), 그리고 ②·③(구조 개선) 순서가 실무에서 무난합니다.</div>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+<li><strong>토큰 수로 비용을 추정한다.</strong> 이 글의 요지 그대로입니다. 캐시 히트율과 입력/출력 비율에 따라 같은 토큰 수의 비용이 몇 배씩 달라집니다. 대시보드에 토큰 수만 있다면 절반만 보고 있는 겁니다.</li>
+<li><strong>출력 토큰을 잊는다.</strong> 입력이 물량으로는 압도적이라 출력을 무시하기 쉽지만, 단가가 5배쯤 높고 reasoning 토큰도 출력으로 청구됩니다. 사고 예산을 넉넉히 준 reasoning 모델은 짧은 답변에도 수천 토큰의 출력 요금이 붙을 수 있습니다(<a href="/posts/reasoning-effort-thinking-budget/">사고 예산 글</a>).</li>
+<li><strong>캐시 쓰기 요금을 모르고 1시간 TTL을 남발한다.</strong> 쓰기 단가가 더 비싼 만큼, 다시 읽을 일이 별로 없는 짧은 태스크에선 캐싱이 손해일 수 있습니다. 히트율과 함께 손익을 계산하세요.</li>
+<li><strong>평균만 보고 꼬리를 안 본다.</strong> 비용 사고는 p50이 아니라 p99에서 납니다. 태스크당 비용의 분포를 보고, 상위 몇 개 태스크의 트레이스를 열어 보는 습관이 폭주 루프를 가장 빨리 잡습니다.</li>
+<li><strong>"단가가 계속 내려가니 곧 해결된다"고 믿는다.</strong> Gartner 전망이 보여 주듯 단가 하락(90%↓/4년)보다 에이전트의 소비 증가(5배↑/2년)가 빠릅니다. 구조를 방치하면 청구서는 커집니다.</li>
+<li><strong>팁: 비용 리그레션을 CI처럼 다루세요.</strong> 프롬프트나 도구 정의를 바꾸는 PR이 캐시 히트율을 떨어뜨리는 건 기능 테스트로는 안 잡힙니다. 대표 태스크 몇 개를 돌려 태스크당 비용과 히트율을 비교하는 스모크 체크를 배포 전에 끼워 넣으면, "기능은 그대로인데 비용만 4배"가 되는 조용한 회귀를 막을 수 있습니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+<li>a16z의 OpenRouter 분석(8/21): 에이전트는 사람보다 토큰을 <strong>약 5배</strong> 소비하고, 사용량은 2월 이후 <strong>14배</strong> 성장, 토큰의 <strong>85% 이상이 캐시된 프롬프트</strong>입니다.</li>
+<li>85% 캐시는 낭비가 아니라 구조입니다. stateless API 위의 루프는 매 턴 히스토리를 재전송하므로 총 토큰이 <strong>O(N²)</strong>로 자라고, 재독 비중이 갈수록 커집니다.</li>
+<li>캐시 히트 단가는 정가의 ~0.1배. 그래서 <code>5 × (0.15 + 0.85×0.1) ≈ 1.175</code> — <strong>토큰 5배의 청구서는 약 +18%</strong>입니다. 단, 출력 토큰·캐시 쓰기·캐시 미스가 빠진 봉투 뒷면 산수임을 기억하세요.</li>
+<li>지표는 두 개면 시작할 수 있습니다: <strong>태스크당 비용</strong>과 <strong>캐시 히트율</strong>. 응답의 <code>usage</code> 네 필드만 집계하면 됩니다.</li>
+<li>레버는 넷: <strong>캐시 히트율 지키기 → 예산 가드 → 컨텍스트 다이어트 → 모델 라우팅</strong>. 컴팩션이 캐시를 깨는 트레이드오프처럼, 레버끼리 상충하는 지점을 아는 게 실력입니다.</li>
+<li>단가는 내려가지만(Gartner: 2030년까지 90%↓) 에이전트 소비가 더 빨리 늡니다(2년간 5배↑). <strong>토큰 이코노믹스 리터러시는 이제 선택이 아니라 엔지니어링 기본기</strong>입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+<li><a href="https://www.a16z.news/t/charts" target="_blank" rel="noopener">a16z — Charts of the Week (Moses Sternstein, 2026-08-21자 이슈: OpenRouter 에이전트 토큰 데이터)</a></li>
+<li><a href="https://ppc.land/ai-agents-use-five-times-more-tokens-than-humans-openrouter-data-shows/" target="_blank" rel="noopener">PPC Land — AI agents use five times more tokens than humans, OpenRouter data shows</a></li>
+<li><a href="https://www.eweek.com/news/ai-agents-llm-token-usage-humans/" target="_blank" rel="noopener">eWeek — AI Agents Use 5 Times More LLM Tokens Than Humans</a></li>
+<li><a href="https://getmegabrain.com/blog/ai-agent-token-cache-economics-2026" target="_blank" rel="noopener">MegaBrain — AI Agents Are Burning 5x the Tokens Humans Do. The Real Bill Is Up 18%.</a></li>
+<li><a href="https://www.computerworld.com/article/4210786/ai-inference-is-getting-cheaper-but-your-agents-are-getting-more-expensive.html" target="_blank" rel="noopener">Computerworld — AI inference is getting cheaper, but your agents are getting more expensive</a></li>
+<li><a href="https://www.gartner.com/en/newsroom/press-releases/2026-03-25-gartner-predicts-that-by-2030-performing-inference-on-an-llm-with-1-trillion-parameters-will-cost-genai-providers-over-90-percent-less-than-in-2025" target="_blank" rel="noopener">Gartner — 2030년까지 1T 파라미터 LLM 추론 비용 90%+ 하락 전망 (보도자료)</a></li>
+<li><a href="https://www.hpcwire.com/aiwire/2026/03/25/gartner-forecasts-90-drop-in-llm-inference-costs-by-2030/" target="_blank" rel="noopener">AIwire — Gartner Forecasts 90% Drop in LLM Inference Costs by 2030 (에이전틱 워크플로 5배 증가 전망 포함)</a></li>
+<li><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener">Claude Docs — Prompt caching (캐시 읽기 0.1×·쓰기 1.25× 단가)</a></li>
+<li><a href="https://openrouter.ai/docs/guides/best-practices/prompt-caching" target="_blank" rel="noopener">OpenRouter Docs — Prompt Caching (제공자별 캐시 정책 비교)</a></li>
+<li><a href="https://www.businesswire.com/news/home/20260526953416/en/OpenRouter-Raises-$113-Million-CapitalG-led-Series-B-as-Weekly-Volume-Explodes-to-25T-Tokens" target="_blank" rel="noopener">BusinessWire — OpenRouter 주간 25T 토큰 규모 (플랫폼 규모 참고)</a></li>
+<li><a href="https://memeburn.com/ai-agents-use-5x-more-tokens-than-humans-what-openrouter-data-reveals/" target="_blank" rel="noopener">Memeburn — AI Agents Use 5x More Tokens Than Humans: What OpenRouter Data Reveals</a></li>
+</ul>
+
+<p style="opacity:.7;font-size:.9rem">※ 이번 주제는 아직 정리된 한국어 자료를 찾지 못했습니다. 위 출처는 모두 영어 자료입니다.</p>

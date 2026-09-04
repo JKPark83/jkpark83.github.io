@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="쌓여 있는 에이전트 궤적 로그를 거꾸로 재생해 실행 가능한 터미널 환경으로 되돌리는 과정을 나타낸 그림. 왼쪽에 얼어붙은 시연인 궤적 더미, 가운데에 파일 연산 역재생과 completion agent 단계, 오른쪽에 지시·검증기·도커 이미지로 구성된 재사용 가능한 환경 상자와 37.3k 환경이라는 숫자가 그려져 있다">
+  <defs>
+    <linearGradient id="es-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#14213d"/>
+    </linearGradient>
+    <marker id="es-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#es-bg)"/>
+
+  <text x="60" y="80" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">궤적을 뒤집으면 환경이 나온다</text>
+  <text x="60" y="120" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">에이전트 훈련의 병목을 푸는 환경 합성 — Terminal-Universe</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 왼쪽: 궤적 더미 -->
+    <text x="240" y="195" text-anchor="middle" font-size="20" font-weight="700" fill="#38bdf8">궤적 (trajectory)</text>
+    <text x="240" y="222" text-anchor="middle" font-size="14" fill="#94a3b8">얼어붙은 시연 한 편 · 대량으로 쌓임</text>
+    <g>
+      <rect x="120" y="250" width="240" height="86" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+      <rect x="132" y="264" width="180" height="9" rx="4" fill="#475569"/>
+      <rect x="132" y="283" width="216" height="9" rx="4" fill="#475569"/>
+      <rect x="132" y="302" width="150" height="9" rx="4" fill="#38bdf8" opacity=".75"/>
+      <text x="140" y="329" font-size="12" fill="#67e8f9" font-family="ui-monospace,monospace">$ sed -i 's/…/…/' app.py</text>
+    </g>
+    <rect x="132" y="352" width="240" height="70" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" opacity=".75"/>
+    <rect x="144" y="424" width="240" height="60" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" opacity=".5"/>
+    <rect x="156" y="490" width="240" height="46" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" opacity=".3"/>
+    <text x="252" y="575" text-anchor="middle" font-size="15" fill="#94a3b8">공개 궤적 수만 편</text>
+
+    <!-- 가운데: 역재생 -->
+    <path d="M470 390 L620 390" stroke="#fbbf24" stroke-width="3" marker-end="url(#es-arrow)"/>
+    <text x="545" y="300" text-anchor="middle" font-size="26" font-weight="700" fill="#fbbf24">⏪ 역재생</text>
+    <text x="545" y="340" text-anchor="middle" font-size="16" fill="#fcd34d">파일 연산 리플레이로</text>
+    <text x="545" y="362" text-anchor="middle" font-size="16" fill="#fcd34d">수정 전 상태 복원</text>
+    <text x="545" y="432" text-anchor="middle" font-size="15" fill="#94a3b8">+ completion agent가</text>
+    <text x="545" y="454" text-anchor="middle" font-size="15" fill="#94a3b8">누락 파일·의존성 보충</text>
+
+    <!-- 오른쪽: 환경 상자 -->
+    <text x="880" y="195" text-anchor="middle" font-size="20" font-weight="700" fill="#4ade80">환경 (environment)</text>
+    <text x="880" y="222" text-anchor="middle" font-size="14" fill="#94a3b8">재질의 가능 · 실행 피드백 제공</text>
+    <rect x="700" y="250" width="360" height="240" rx="16" fill="#0c2b23" stroke="#4ade80" stroke-width="2.5"/>
+    <rect x="724" y="278" width="312" height="52" rx="9" fill="#134e3a"/>
+    <text x="740" y="310" font-size="16" fill="#bbf7d0">📋 태스크 지시 (재구성 + 신규 합성)</text>
+    <rect x="724" y="342" width="312" height="52" rx="9" fill="#134e3a"/>
+    <text x="740" y="374" font-size="16" fill="#bbf7d0">🐳 실행 가능한 워크스페이스</text>
+    <rect x="724" y="406" width="312" height="52" rx="9" fill="#134e3a"/>
+    <text x="740" y="438" font-size="16" fill="#bbf7d0">✅ 검증기 (최종 상태 테스트)</text>
+    <text x="880" y="540" text-anchor="middle" font-size="26" font-weight="700" fill="#4ade80">37.3k개 환경</text>
+    <text x="880" y="570" text-anchor="middle" font-size="15" fill="#94a3b8">Terminal-Bench 2.1 단일 라운드 +11.9pt (Qwen3.5-27B SFT)</text>
+  </g>
+</svg>

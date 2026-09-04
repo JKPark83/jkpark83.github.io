@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 330" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="760" height="330" fill="#0f172a" rx="12"/>
+  <text x="380" y="34" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="bold">Terminal-Universe — 궤적을 환경으로 되살리는 파이프라인</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <!-- step 1 -->
+  <rect x="30" y="70" width="160" height="70" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="110" y="98" text-anchor="middle" fill="#38bdf8" font-size="13" font-weight="bold">에이전트 궤적</text>
+  <text x="110" y="118" text-anchor="middle" fill="#94a3b8" font-size="11">툴 실행 이력에 환경</text>
+  <text x="110" y="132" text-anchor="middle" fill="#94a3b8" font-size="11">구조가 남아 있음</text>
+
+  <line x1="190" y1="105" x2="225" y2="105" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- step 2 -->
+  <rect x="230" y="70" width="160" height="70" rx="10" fill="#1e293b" stroke="#34d399"/>
+  <text x="310" y="98" text-anchor="middle" fill="#34d399" font-size="13" font-weight="bold">파일 연산 리플레이</text>
+  <text x="310" y="118" text-anchor="middle" fill="#94a3b8" font-size="11">수정 전 상태로 복원한</text>
+  <text x="310" y="132" text-anchor="middle" fill="#94a3b8" font-size="11">부분 워크스페이스</text>
+
+  <line x1="390" y1="105" x2="425" y2="105" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- step 3 -->
+  <rect x="430" y="70" width="160" height="70" rx="10" fill="#1e293b" stroke="#a78bfa"/>
+  <text x="510" y="98" text-anchor="middle" fill="#a78bfa" font-size="13" font-weight="bold">완성 에이전트</text>
+  <text x="510" y="118" text-anchor="middle" fill="#94a3b8" font-size="11">누락 파일·의존성을</text>
+  <text x="510" y="132" text-anchor="middle" fill="#94a3b8" font-size="11">채워 실행 가능하게</text>
+
+  <line x1="590" y1="105" x2="625" y2="105" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- step 4 -->
+  <rect x="630" y="70" width="110" height="70" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+  <text x="685" y="98" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="bold">환경 37.3k</text>
+  <text x="685" y="118" text-anchor="middle" fill="#94a3b8" font-size="11">검증 가능한</text>
+  <text x="685" y="132" text-anchor="middle" fill="#94a3b8" font-size="11">재사용 환경</text>
+
+  <!-- expansion row -->
+  <line x1="685" y1="140" x2="685" y2="170" stroke="#f59e0b" stroke-width="2"/>
+  <line x1="685" y1="170" x2="200" y2="170" stroke="#f59e0b" stroke-width="2"/>
+  <line x1="200" y1="170" x2="200" y2="195" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="480" y1="170" x2="480" y2="195" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr)"/>
+
+  <rect x="60" y="200" width="280" height="60" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="200" y="224" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="bold">넓이 확장 (breadth)</text>
+  <text x="200" y="244" text-anchor="middle" fill="#94a3b8" font-size="11">환경 간 의존 관계로 크로스-워크스페이스 태스크</text>
+
+  <rect x="360" y="200" width="280" height="60" rx="10" fill="#1e293b" stroke="#34d399"/>
+  <text x="500" y="224" text-anchor="middle" fill="#34d399" font-size="12" font-weight="bold">깊이 확장 (depth)</text>
+  <text x="500" y="244" text-anchor="middle" fill="#94a3b8" font-size="11">유저 에이전트가 피드백을 주는 멀티턴 세션</text>
+
+  <text x="380" y="295" text-anchor="middle" fill="#cbd5e1" font-size="12">이 코퍼스로 Qwen3.5-27B를 SFT → Terminal-Bench 2.1 +11.9p, EvoCode-Bench v2 MT@4 +13.8p</text>
+  <text x="380" y="315" text-anchor="middle" fill="#64748b" font-size="10">출처: arXiv 2609.04148 초록 (arXiv API로 검증)</text>
+</svg>

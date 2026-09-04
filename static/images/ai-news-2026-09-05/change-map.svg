@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="470" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">오늘의 AI 변화 지도 — 2026-09-05</text>
+  <text x="400" y="58" text-anchor="middle" fill="#94a3b8" font-size="12">컴퓨터를 쓰는 모델이 GA로, 쌓인 궤적은 학습 환경으로</text>
+
+  <!-- center node -->
+  <rect x="290" y="205" width="220" height="60" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+  <text x="400" y="230" text-anchor="middle" fill="#fbbf24" font-size="14" font-weight="bold">에이전트 인프라의 재활용</text>
+  <text x="400" y="250" text-anchor="middle" fill="#cbd5e1" font-size="11">컴퓨터 유즈 GA · 궤적 → 환경 · 병렬 오케스트레이션</text>
+
+  <!-- connectors -->
+  <line x1="220" y1="140" x2="320" y2="205" stroke="#475569" stroke-width="1.5"/>
+  <line x1="580" y1="140" x2="480" y2="205" stroke="#475569" stroke-width="1.5"/>
+  <line x1="220" y1="345" x2="320" y2="265" stroke="#475569" stroke-width="1.5"/>
+  <line x1="580" y1="345" x2="480" y2="265" stroke="#475569" stroke-width="1.5"/>
+
+  <!-- quadrant: model -->
+  <rect x="40" y="80" width="330" height="105" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="55" y="103" fill="#38bdf8" font-size="13" font-weight="bold">🤖 모델</text>
+  <text x="55" y="125" fill="#e2e8f0" font-size="12">GPT-6 Astra 정식 출시 (9/3)</text>
+  <text x="55" y="143" fill="#94a3b8" font-size="11">$10/$50 · 1.05M ctx · Terminal-Bench 4.0 57.9%</text>
+  <text x="55" y="161" fill="#94a3b8" font-size="11">Critical 사이버 임계선 첫 통과 → 단계적 롤아웃</text>
+  <text x="55" y="179" fill="#94a3b8" font-size="11">computer use + hosted shell + MCP 기본 탑재</text>
+
+  <!-- quadrant: papers -->
+  <rect x="430" y="80" width="330" height="105" rx="10" fill="#1e293b" stroke="#a78bfa"/>
+  <text x="445" y="103" fill="#a78bfa" font-size="13" font-weight="bold">📚 논문</text>
+  <text x="445" y="125" fill="#e2e8f0" font-size="12">Terminal-Universe (Qwen)</text>
+  <text x="445" y="143" fill="#94a3b8" font-size="11">궤적 재생 → 실행 환경 37.3k개 복원</text>
+  <text x="445" y="161" fill="#e2e8f0" font-size="12">DRACO (IBM Research)</text>
+  <text x="445" y="179" fill="#94a3b8" font-size="11">동적 루브릭으로 스텝 단위 크레딧 배분</text>
+
+  <!-- quadrant: oss -->
+  <rect x="40" y="290" width="330" height="105" rx="10" fill="#1e293b" stroke="#34d399"/>
+  <text x="55" y="313" fill="#34d399" font-size="13" font-weight="bold">🛠 오픈소스</text>
+  <text x="55" y="335" fill="#e2e8f0" font-size="12">deepseek-ai/deepseek-harness (dsh)</text>
+  <text x="55" y="353" fill="#94a3b8" font-size="11">플러그인 올인 아키텍처의 에이전트 하네스</text>
+  <text x="55" y="371" fill="#e2e8f0" font-size="12">stablyai/orca — 병렬 worktree 오케스트레이터</text>
+  <text x="55" y="389" fill="#94a3b8" font-size="11">Codex·Claude Code·Pi를 한 화면에서 병렬 실행</text>
+
+  <!-- quadrant: tooling -->
+  <rect x="430" y="290" width="330" height="105" rx="10" fill="#1e293b" stroke="#f472b6"/>
+  <text x="445" y="313" fill="#f472b6" font-size="13" font-weight="bold">🧑‍💻 툴링</text>
+  <text x="445" y="335" fill="#e2e8f0" font-size="12">Claude Code 2.1.261 — /skill-doctor</text>
+  <text x="445" y="353" fill="#94a3b8" font-size="11">안 쓰는 스킬의 컨텍스트 비용 진단·정리</text>
+  <text x="445" y="371" fill="#e2e8f0" font-size="12">Codex CLI — gpt-6-astra 지원 확인</text>
+  <text x="445" y="389" fill="#94a3b8" font-size="11">0.153+ 에서 model 한 줄로 전환</text>
+
+  <text x="400" y="440" text-anchor="middle" fill="#64748b" font-size="10">모든 수치는 1차 소스(arXiv API·저장소 클론) 또는 복수 보도로 검증 · 벤치마크는 OpenAI 자체 발표치</text>
+</svg>

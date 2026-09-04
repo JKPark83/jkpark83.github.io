@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="700" height="400" fill="#0f172a" rx="12"/>
+  <text x="350" y="36" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="bold">Terminal-Bench 4.0 — GPT-6 Astra 발표치</text>
+  <text x="350" y="57" text-anchor="middle" fill="#94a3b8" font-size="11">OpenAI 자체 발표 · 발표 자료가 57.7% → 57.9%로 조용히 수정됨</text>
+
+  <!-- axis -->
+  <line x1="90" y1="90" x2="90" y2="300" stroke="#475569"/>
+  <line x1="90" y1="300" x2="640" y2="300" stroke="#475569"/>
+  <!-- gridlines at 20 40 60 (scale: 100% = 550px width? horizontal bars) -->
+
+  <!-- bars: horizontal, max 60% -> 520px scale: 1% = 8.6px -->
+  <!-- Astra 57.9 -->
+  <rect x="90" y="105" width="498" height="42" rx="6" fill="#38bdf8"/>
+  <text x="95" y="131" fill="#0f172a" font-size="13" font-weight="bold">GPT-6 Astra</text>
+  <text x="598" y="131" fill="#f8fafc" font-size="14" font-weight="bold">57.9</text>
+
+  <!-- Fable 5.1 55.8 -->
+  <rect x="90" y="165" width="480" height="42" rx="6" fill="#a78bfa"/>
+  <text x="95" y="191" fill="#0f172a" font-size="13" font-weight="bold">Claude Fable 5.1</text>
+  <text x="580" y="191" fill="#f8fafc" font-size="14" font-weight="bold">55.8</text>
+
+  <!-- Sol 37.3 -->
+  <rect x="90" y="225" width="321" height="42" rx="6" fill="#64748b"/>
+  <text x="95" y="251" fill="#0f172a" font-size="13" font-weight="bold">GPT-5.6 Sol</text>
+  <text x="421" y="251" fill="#f8fafc" font-size="14" font-weight="bold">37.3</text>
+
+  <text x="90" y="322" fill="#64748b" font-size="10">0</text>
+  <text x="628" y="322" fill="#64748b" font-size="10">60%</text>
+
+  <text x="350" y="352" text-anchor="middle" fill="#cbd5e1" font-size="12">같이 발표된 수치: DeepSWE v1.1 74.1(Sol 72.7) · OSWorld 2.0 72.6, 태스크당 약 40분(Sol 65.7, 약 75분)</text>
+  <text x="350" y="376" text-anchor="middle" fill="#64748b" font-size="10">전부 OpenAI 자체 측정치. 어제 다룬 Meta Muse Spark 1.3의 DeepSWE 75.4는 자사 하네스 기준이라 직접 비교 불가</text>
+</svg>

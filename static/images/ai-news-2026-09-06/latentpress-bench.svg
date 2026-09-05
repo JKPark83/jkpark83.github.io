@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 330" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="330" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="bold">LatentPress — LongMemEval 정확도 (압축 방식별)</text>
+  <text x="400" y="58" text-anchor="middle" fill="#94a3b8" font-size="12">7.70배 압축하고도 비압축 원문보다 높은 정확도 (논문 자체 보고치)</text>
+
+  <!-- bars: scale value/0.55 * 520 px from x=200 -->
+  <text x="188" y="102" text-anchor="end" fill="#e2e8f0" font-size="13" font-weight="bold">LatentPress</text>
+  <rect x="200" y="86" width="476" height="26" rx="4" fill="#34d399"/>
+  <text x="668" y="104" text-anchor="end" fill="#0f172a" font-size="13" font-weight="bold">0.504</text>
+  <text x="200" y="126" fill="#64748b" font-size="10">연속 메모리 토큰 · 7.70배 압축</text>
+
+  <text x="188" y="158" text-anchor="end" fill="#e2e8f0" font-size="13">비압축 원문</text>
+  <rect x="200" y="142" width="463" height="26" rx="4" fill="#38bdf8"/>
+  <text x="655" y="160" text-anchor="end" fill="#0f172a" font-size="13" font-weight="bold">0.490</text>
+  <text x="200" y="182" fill="#64748b" font-size="10">증거 텍스트를 그대로 컨텍스트에 투입</text>
+
+  <text x="188" y="214" text-anchor="end" fill="#e2e8f0" font-size="13">OCR 기반 압축</text>
+  <rect x="200" y="198" width="403" height="26" rx="4" fill="#a78bfa"/>
+  <text x="595" y="216" text-anchor="end" fill="#0f172a" font-size="13" font-weight="bold">0.426</text>
+  <text x="200" y="238" fill="#64748b" font-size="10">이미지로 렌더링 후 비전 토큰으로 읽기 · 압축률 높이면 0.312까지 하락</text>
+
+  <text x="188" y="270" text-anchor="end" fill="#e2e8f0" font-size="13">텍스트 요약</text>
+  <rect x="200" y="254" width="174" height="26" rx="4" fill="#fb7185"/>
+  <text x="382" y="272" fill="#f8fafc" font-size="13" font-weight="bold">0.184</text>
+  <text x="200" y="294" fill="#64748b" font-size="10">LLM 요약문으로 대체 · 세부 정보 소실</text>
+
+  <text x="400" y="318" text-anchor="middle" fill="#64748b" font-size="10">출처: arXiv 2609.01507 (v2, 2026-09-03). 쓰기 43ms/대화 · 읽기는 원문 대비 5~9배 빠름 · 어댑터 4.2M~26.2M 파라미터</text>
+</svg>

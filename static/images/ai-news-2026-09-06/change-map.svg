@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="470" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">오늘의 AI 변화 지도 — 2026-09-06</text>
+  <text x="400" y="58" text-anchor="middle" fill="#94a3b8" font-size="12">오픈 웨이트 허브는 Nvidia 품으로, 컨텍스트는 압축되고 프롬프트는 컴파일된다</text>
+
+  <!-- center node -->
+  <rect x="290" y="205" width="220" height="60" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+  <text x="400" y="230" text-anchor="middle" fill="#fbbf24" font-size="14" font-weight="bold">인프라의 소유권과 효율</text>
+  <text x="400" y="250" text-anchor="middle" fill="#cbd5e1" font-size="11">HF 인수 · 메모리 토큰 · NL→로컬 함수 컴파일</text>
+
+  <!-- connectors -->
+  <line x1="220" y1="140" x2="320" y2="205" stroke="#475569" stroke-width="1.5"/>
+  <line x1="580" y1="140" x2="480" y2="205" stroke="#475569" stroke-width="1.5"/>
+  <line x1="220" y1="345" x2="320" y2="265" stroke="#475569" stroke-width="1.5"/>
+  <line x1="580" y1="345" x2="480" y2="265" stroke="#475569" stroke-width="1.5"/>
+
+  <!-- quadrant: model/biz -->
+  <rect x="40" y="80" width="330" height="105" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="55" y="103" fill="#38bdf8" font-size="13" font-weight="bold">🤖 모델 &amp; 플랫폼</text>
+  <text x="55" y="125" fill="#e2e8f0" font-size="12">Nvidia, Hugging Face 인수 확정 (9/3)</text>
+  <text x="55" y="143" fill="#94a3b8" font-size="11">$12.9B · 모델 300만 · 개발자 1,800만 명</text>
+  <text x="55" y="161" fill="#e2e8f0" font-size="12">Codex CLI 0.153.4</text>
+  <text x="55" y="179" fill="#94a3b8" font-size="11">GPT-6 Astra가 번들 기본 모델로</text>
+
+  <!-- quadrant: papers -->
+  <rect x="430" y="80" width="330" height="105" rx="10" fill="#1e293b" stroke="#a78bfa"/>
+  <text x="445" y="103" fill="#a78bfa" font-size="13" font-weight="bold">📚 논문</text>
+  <text x="445" y="125" fill="#e2e8f0" font-size="12">Compile by Training</text>
+  <text x="445" y="143" fill="#94a3b8" font-size="11">자연어 스펙 → 로컬 뉴럴 함수로 컴파일</text>
+  <text x="445" y="161" fill="#e2e8f0" font-size="12">LatentPress</text>
+  <text x="445" y="179" fill="#94a3b8" font-size="11">대화 이력 → 연속 메모리 토큰, 4~16배 압축</text>
+
+  <!-- quadrant: open source -->
+  <rect x="40" y="285" width="330" height="105" rx="10" fill="#1e293b" stroke="#34d399"/>
+  <text x="55" y="308" fill="#34d399" font-size="13" font-weight="bold">🛠 오픈소스</text>
+  <text x="55" y="330" fill="#e2e8f0" font-size="12">OmniRoute — AI 게이트웨이</text>
+  <text x="55" y="348" fill="#94a3b8" font-size="11">356개 프로바이더 · 무료 티어 스태킹 · 19개 라우팅</text>
+  <text x="55" y="366" fill="#e2e8f0" font-size="12">AgentTeams — 멀티에이전트 협업 OS</text>
+  <text x="55" y="384" fill="#94a3b8" font-size="11">Matrix 룸에서 Manager–Workers 오케스트레이션</text>
+
+  <!-- quadrant: action -->
+  <rect x="430" y="285" width="330" height="105" rx="10" fill="#1e293b" stroke="#fb7185"/>
+  <text x="445" y="308" fill="#fb7185" font-size="13" font-weight="bold">🎯 오늘의 액션</text>
+  <text x="445" y="330" fill="#e2e8f0" font-size="12">HF 의존성 목록 만들기 (모델·데이터셋·Spaces)</text>
+  <text x="445" y="348" fill="#94a3b8" font-size="11">인수 이후 정책 변화에 대비한 미러링 후보 선정</text>
+  <text x="445" y="366" fill="#e2e8f0" font-size="12">Codex 모델 핀 고정 + /cost로 캐시 미스 점검</text>
+  <text x="445" y="384" fill="#94a3b8" font-size="11">기본 모델 변경에 파이프라인이 흔들리지 않게</text>
+
+  <text x="400" y="440" text-anchor="middle" fill="#64748b" font-size="10">출처: TechCrunch·CNBC·Nvidia 공식 블로그, arXiv 2609.04199 / 2609.01507, 각 리포 클론 검증 (2026-09-06 KST)</text>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#0f172a" rx="12"/>
+  <text x="400" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">Nvidia × Hugging Face — 딜 한눈에 보기</text>
+  <text x="400" y="60" text-anchor="middle" fill="#94a3b8" font-size="12">2026-09-03 발표 · 클로징 목표 2027년 상반기</text>
+
+  <!-- deal size card -->
+  <rect x="40" y="85" width="345" height="120" rx="10" fill="#1e293b" stroke="#76b900" stroke-width="2"/>
+  <text x="212" y="115" text-anchor="middle" fill="#a3e635" font-size="14" font-weight="bold">인수 금액</text>
+  <text x="212" y="160" text-anchor="middle" fill="#f8fafc" font-size="36" font-weight="bold">$12.93B</text>
+  <text x="212" y="188" text-anchor="middle" fill="#94a3b8" font-size="11">Groq 자산 인수($20B)에 이은 Nvidia 역대 2위 딜</text>
+
+  <!-- retention card -->
+  <rect x="415" y="85" width="345" height="120" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+  <text x="587" y="115" text-anchor="middle" fill="#fbbf24" font-size="14" font-weight="bold">직원 리텐션 프로그램</text>
+  <text x="587" y="160" text-anchor="middle" fill="#f8fafc" font-size="36" font-weight="bold">최대 $1B</text>
+  <text x="587" y="188" text-anchor="middle" fill="#94a3b8" font-size="11">Nvidia 합류 HF 직원 대상 주식 기반 보상</text>
+
+  <!-- platform scale -->
+  <text x="400" y="240" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="bold">Nvidia가 손에 넣는 플랫폼 규모</text>
+  <rect x="40" y="255" width="166" height="80" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="123" y="290" text-anchor="middle" fill="#f8fafc" font-size="24" font-weight="bold">300만</text>
+  <text x="123" y="315" text-anchor="middle" fill="#94a3b8" font-size="12">호스팅 모델</text>
+  <rect x="225" y="255" width="166" height="80" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="308" y="290" text-anchor="middle" fill="#f8fafc" font-size="24" font-weight="bold">1,800만+</text>
+  <text x="308" y="315" text-anchor="middle" fill="#94a3b8" font-size="12">이용 개발자</text>
+  <rect x="410" y="255" width="166" height="80" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="493" y="290" text-anchor="middle" fill="#f8fafc" font-size="24" font-weight="bold">100만</text>
+  <text x="493" y="315" text-anchor="middle" fill="#94a3b8" font-size="12">앱(Spaces)</text>
+  <rect x="595" y="255" width="165" height="80" rx="10" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="677" y="290" text-anchor="middle" fill="#f8fafc" font-size="24" font-weight="bold">50만</text>
+  <text x="677" y="315" text-anchor="middle" fill="#94a3b8" font-size="12">데이터셋</text>
+
+  <text x="400" y="370" text-anchor="middle" fill="#64748b" font-size="10">수치 출처: TechCrunch·Bloomberg·CNBC 보도 및 Nvidia 공식 블로그 (2026-09-03). 클로징 전 규제 심사 남음.</text>
+</svg>

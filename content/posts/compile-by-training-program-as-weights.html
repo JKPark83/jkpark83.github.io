@@ -1,0 +1,410 @@
+---
+title: "프롬프트를 호출하지 말고 컴파일하라 — Program-as-Weights와 Compile by Training"
+date: 2026-09-07T07:30:00+09:00
+draft: false
+tags: ["AI", "fuzzy function", "퍼지 함수", "Program-as-Weights", "PAW", "Compile by Training", "LoRA", "어댑터", "distillation", "증류", "Qwen3", "로컬 LLM", "on-device", "프롬프트 컴파일", "EMNLP 2026", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "\"이 로그에서 중요한 줄만 골라 줘\" 같은 기능은 규칙으로 못 짜니까 다들 프롬프트를 써서 거대 모델 API를 매번 호출합니다. 그런데 이 호출을 함수 하나로 '컴파일'해 둘 수 있다면 어떨까요? 이번 주 Hugging Face 데일리 페이퍼 트렌딩 1위에 오른 Compile by Training(arXiv:2609.04199)과 그 전신 Program-as-Weights(arXiv:2607.02512)는 자연어 명세를 컴파일러에 넣어 작은 어댑터 파일로 바꾸고, 그 파일을 0.6B 프로즌 인터프리터가 로드해 로컬에서 실행하는 새 프로그래밍 패러다임을 제안합니다. 컴파일된 함수는 버전 관리하고, 공유하고, 오프라인에서 호출할 수 있습니다. 이 글은 '퍼지 함수'라는 문제 설정부터 두 가지 컴파일 방식(가중치 직접 생성 vs teacher 예제 합성 + LoRA 학습)의 차이, 숫자 읽는 법, 직접 흉내 내는 장난감 파이프라인까지 junior 개발자 눈높이에서 쉽고 자세하게 다룹니다."
+ShowToc: false
+cover:
+  image: "compile-by-training-program-as-weights-cover.svg"
+  alt: "자연어 명세가 컴파일러를 거쳐 작은 어댑터 파일이 되고, 프로즌 0.6B 인터프리터가 그 파일을 로드해 로컬에서 실행하는 흐름. 매번 거대 모델 API를 호출하는 기존 경로는 점선 우회로로 그려져 있다"
+  caption: "매번 API를 호출하는 대신, 명세를 한 번 컴파일해서 함수 파일로 만들어 두면 어떨까요?"
+  relative: false
+---
+
+<style>
+/* ── 프롬프트 컴파일 포스트 전용 스타일 (cbt- 접두사) ── */
+.cbt-fig{
+  --cbt-violet:#7c3aed; --cbt-sky:#0284c7; --cbt-green:#16a34a; --cbt-rose:#e11d48;
+  --cbt-amber:#d97706; --cbt-slate:#64748b; --cbt-teal:#0d9488; --cbt-blue:#2563eb;
+  --cbt-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .cbt-fig{
+  --cbt-violet:#a78bfa; --cbt-sky:#38bdf8; --cbt-green:#4ade80; --cbt-rose:#fb7185;
+  --cbt-amber:#fbbf24; --cbt-slate:#94a3b8; --cbt-teal:#2dd4bf; --cbt-blue:#60a5fa;
+  --cbt-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .cbt-fig{
+    --cbt-violet:#a78bfa; --cbt-sky:#38bdf8; --cbt-green:#4ade80; --cbt-rose:#fb7185;
+    --cbt-amber:#fbbf24; --cbt-slate:#94a3b8; --cbt-teal:#2dd4bf; --cbt-blue:#60a5fa;
+    --cbt-gray:#64748b;
+  }
+}
+.cbt-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.cbt-fig text{font-family:inherit}
+.cbt-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.cbt-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.cbt-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.cbt-toc ol{margin:0;padding-left:1.25rem}
+.cbt-toc li{margin:.22rem 0;font-size:.95rem}
+.cbt-toc a{text-decoration:none}
+.cbt-toc a:hover{text-decoration:underline}
+.cbt-note{border-left:4px solid var(--cbt-blue,#2563eb);background:var(--entry);border-radius:0 10px 10px 0;padding:.85rem 1.15rem;margin:1.5rem 0;font-size:.97rem}
+.cbt-note strong{color:var(--cbt-blue,#2563eb)}
+.cbt-warn{border-left:4px solid var(--cbt-rose,#e11d48)}
+.cbt-warn strong{color:var(--cbt-rose,#e11d48)}
+.cbt-good{border-left:4px solid var(--cbt-teal,#0d9488)}
+.cbt-good strong{color:var(--cbt-teal,#0d9488)}
+.cbt-tbl{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.93rem}
+.cbt-tbl th,.cbt-tbl td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;vertical-align:top}
+.cbt-tbl th{background:var(--entry);font-weight:700}
+.cbt-tbl code{font-size:.86em}
+.cbt-tblwrap{overflow-x:auto}
+</style>
+
+<div class="cbt-toc">
+  <div class="cbt-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — API 호출 뒤에 숨은 '퍼지 함수'들</a></li>
+    <li><a href="#sec-2">배경 — 퍼지 함수, 그리고 왜 '컴파일'인가</a></li>
+    <li><a href="#sec-3">Program-as-Weights 해부 — 컴파일러 · 프로그램 · 인터프리터</a></li>
+    <li><a href="#sec-4">Compile by Training — 컴파일러가 예제를 만들어 학생을 가르친다</a></li>
+    <li><a href="#sec-5">숫자 읽는 법 — 83.6%와 '1분'의 의미</a></li>
+    <li><a href="#sec-6">실전 — 장난감 compile-by-training 파이프라인</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — API 호출 뒤에 숨은 '퍼지 함수'들</h2>
+
+<p>여러분의 코드베이스를 한번 뒤져 보세요. 아마 이런 함수가 몇 개쯤 있을 겁니다. "로그에서 심각해 보이는 줄만 골라 줘", "이 깨진 JSON을 고쳐 줘", "검색 결과를 사용자의 의도에 맞게 다시 정렬해 줘". 공통점은 하나입니다 — <strong>정확한 규칙으로는 못 짜지만, 사람에게 말로 설명하면 바로 알아듣는 기능</strong>이라는 것. 그래서 다들 똑같이 구현합니다. 프롬프트를 하나 쓰고, 거대 모델 API를 호출하고, 응답을 파싱합니다.</p>
+
+<p>이 패턴은 잘 동작하지만 비용이 따라옵니다. 호출할 때마다 돈이 나가고(<a href="/posts/agent-token-economics/">토큰 이코노믹스 글</a>에서 다뤘죠), 네트워크 왕복 지연이 붙고, 오프라인에서는 아예 못 쓰고, 프로바이더가 모델을 업데이트하면 어제까지 잘 되던 출력이 슬그머니 달라집니다. 결정적으로 이 "함수"는 <strong>버전 관리가 안 됩니다</strong>. 프롬프트 문자열은 git에 있지만, 실제 동작의 대부분을 결정하는 모델은 남의 서버에서 계속 움직이는 표적이니까요.</p>
+
+<p>이번 주 Hugging Face 데일리 페이퍼 트렌딩 1위(9/6 기준, 롤링 7일 집계)에 오른 <a href="https://arxiv.org/abs/2609.04199" target="_blank" rel="noopener">Compile by Training: Turning Natural-Language Specifications into Local Neural Functions</a>(arXiv:2609.04199, EMNLP 2026 System Demonstrations)는 이 문제에 컴파일러라는 오래된 도구를 들이댑니다. 자연어 명세를 <strong>컴파일</strong>해서 작은 어댑터 파일로 만들고, 그 파일을 0.6B짜리 고정 인터프리터 모델이 로드해 <strong>로컬에서, teacher 없이, 오프라인으로</strong> 실행하자는 겁니다. 컴파일된 함수는 보통 소프트웨어처럼 저장하고, 버전 관리하고, 조합할 수 있습니다.</p>
+
+<div class="cbt-note"><strong>이 글에서 얻어 갈 것.</strong> ① '퍼지 함수(fuzzy function)'라는 문제 설정과 왜 컴파일 비유가 성립하는지, ② 전신인 Program-as-Weights(PAW)의 컴파일러·프로그램·인터프리터 3요소, ③ 가중치를 직접 생성하는 fast 컴파일과 teacher 예제 합성 + LoRA 학습이라는 두 컴파일 전략의 트레이드오프, ④ 83.6% semantic accuracy 같은 숫자를 회의적으로 읽는 법, ⑤ 지금 있는 도구(teacher API + peft)로 흉내 내는 장난감 파이프라인과 실무 함정.</div>
+
+<h2 id="sec-2">2. 배경 — 퍼지 함수, 그리고 왜 '컴파일'인가</h2>
+
+<p>먼저 용어부터 잡겠습니다. 두 논문이 다루는 대상은 <strong>퍼지 함수(fuzzy function)</strong>입니다. 입출력 관계를 형식 규칙으로 완전히 명세할 수는 없지만, 자연어로 설명하면 의도가 분명한 함수를 말합니다. "중요한 로그 라인에 알림을 걸어라", "망가진 JSON을 수리해라", "의도 기준으로 검색 결과를 랭킹해라" 같은 것들이죠. 정규식으로 짜자니 예외가 무한하고, 분류기를 학습하자니 함수 하나 만들자고 데이터셋을 모으는 건 배보다 배꼽이 큽니다.</p>
+
+<p>그래서 지금은 모두가 세 번째 길을 씁니다 — 프롬프트를 쓰고 범용 거대 모델을 호출하는 것. 이걸 프로그래밍 언어의 눈으로 보면 꽤 이상한 구조입니다. 마치 <strong>모든 함수 호출마다 소스 코드를 통째로 들고 가서, 세상에서 제일 큰 인터프리터에게 매번 처음부터 해석시키는 것</strong>과 같습니다. 컴파일이라는 단계가 통째로 빠져 있는 셈이죠.</p>
+
+<p>전통 소프트웨어에서 컴파일러는 "사람이 쓴 명세(소스 코드)"를 "기계가 빨리 실행하는 산출물(바이너리)"로 한 번만 변환해 줍니다. 7월에 나온 <a href="https://arxiv.org/abs/2607.02512" target="_blank" rel="noopener">Program-as-Weights: A Programming Paradigm for Fuzzy Functions</a>(arXiv:2607.02512, 이하 PAW)의 제안은 이 구도를 퍼지 함수에 그대로 이식하는 겁니다. 소스 코드 자리에 <strong>자연어 명세</strong>가, 바이너리 자리에 <strong>신경망 가중치(어댑터)</strong>가, CPU 자리에 <strong>작은 고정 인터프리터 모델</strong>이 들어갑니다.</p>
+
+<figure class="cbt-fig">
+<svg viewBox="0 0 860 500" role="img" aria-label="전통 컴파일과 퍼지 함수 컴파일을 대응시킨 다이어그램. 위 행은 소스 코드가 컴파일러를 거쳐 바이너리가 되고 CPU가 실행하는 흐름, 아래 행은 자연어 명세가 신경 컴파일러를 거쳐 어댑터 가중치가 되고 프로즌 0.6B 인터프리터가 실행하는 흐름을 보여준다. 오른쪽에는 매 호출마다 거대 모델 API로 가는 기존 경로가 인터프리터만 있고 컴파일이 없는 구조로 그려져 있다">
+  <defs>
+    <marker id="cbt-ar1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--cbt-slate)"/>
+    </marker>
+  </defs>
+
+  <!-- 전통 소프트웨어 행 -->
+  <text x="20" y="36" font-size="15" font-weight="800" fill="var(--cbt-slate)">전통 소프트웨어</text>
+  <rect x="20" y="52" width="200" height="64" rx="10" fill="none" stroke="var(--cbt-slate)" stroke-width="2"/>
+  <text x="120" y="79" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-slate)">소스 코드</text>
+  <text x="120" y="100" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">사람이 쓰는 명세</text>
+  <line x1="220" y1="84" x2="310" y2="84" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar1)"/>
+  <text x="265" y="72" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">컴파일 (1회)</text>
+  <rect x="315" y="52" width="200" height="64" rx="10" fill="none" stroke="var(--cbt-slate)" stroke-width="2"/>
+  <text x="415" y="79" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-slate)">바이너리</text>
+  <text x="415" y="100" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">배포·버전 관리 대상</text>
+  <line x1="515" y1="84" x2="605" y2="84" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar1)"/>
+  <text x="560" y="72" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">실행 (N회)</text>
+  <rect x="610" y="52" width="200" height="64" rx="10" fill="none" stroke="var(--cbt-slate)" stroke-width="2"/>
+  <text x="710" y="79" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-slate)">CPU</text>
+  <text x="710" y="100" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">고정된 실행 기계</text>
+
+  <!-- PAW 행 -->
+  <text x="20" y="188" font-size="15" font-weight="800" fill="var(--cbt-green)">퍼지 함수 컴파일 (PAW)</text>
+  <rect x="20" y="204" width="200" height="64" rx="10" fill="none" stroke="var(--cbt-sky)" stroke-width="2"/>
+  <text x="120" y="231" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-sky)">자연어 명세</text>
+  <text x="120" y="252" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">"깨진 JSON을 고쳐라"</text>
+  <line x1="220" y1="236" x2="310" y2="236" stroke="var(--cbt-green)" stroke-width="2" marker-end="url(#cbt-ar1)"/>
+  <text x="265" y="224" text-anchor="middle" font-size="11.5" fill="var(--cbt-green)">신경 컴파일러 (1회)</text>
+  <rect x="315" y="204" width="200" height="64" rx="10" fill="none" stroke="var(--cbt-green)" stroke-width="2"/>
+  <text x="415" y="231" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-green)">어댑터 가중치</text>
+  <text x="415" y="252" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">단일 파일 · git에 넣는다</text>
+  <line x1="515" y1="236" x2="605" y2="236" stroke="var(--cbt-green)" stroke-width="2" marker-end="url(#cbt-ar1)"/>
+  <text x="560" y="224" text-anchor="middle" font-size="11.5" fill="var(--cbt-green)">로드 + 실행 (N회)</text>
+  <rect x="610" y="204" width="200" height="64" rx="10" fill="none" stroke="var(--cbt-sky)" stroke-width="2"/>
+  <text x="710" y="231" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-sky)">0.6B 인터프리터</text>
+  <text x="710" y="252" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">frozen · 모든 함수 공유</text>
+
+  <!-- 기존 방식 행 -->
+  <text x="20" y="340" font-size="15" font-weight="800" fill="var(--cbt-amber)">지금의 관행 (컴파일 없음)</text>
+  <rect x="20" y="356" width="200" height="64" rx="10" fill="none" stroke="var(--cbt-amber)" stroke-width="2"/>
+  <text x="120" y="383" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-amber)">프롬프트 + 입력</text>
+  <text x="120" y="404" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">명세를 매번 들고 간다</text>
+  <line x1="220" y1="388" x2="605" y2="388" stroke="var(--cbt-amber)" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#cbt-ar1)"/>
+  <text x="412" y="376" text-anchor="middle" font-size="11.5" fill="var(--cbt-amber)">매 호출마다 해석 (N회 전부)</text>
+  <rect x="610" y="356" width="200" height="64" rx="10" fill="none" stroke="var(--cbt-amber)" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="710" y="383" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-amber)">거대 모델 API</text>
+  <text x="710" y="404" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">비용 · 지연 · 드리프트</text>
+
+  <text x="430" y="470" text-anchor="middle" font-size="12.5" fill="var(--cbt-gray)">컴파일 단계를 되찾으면, "함수"가 다시 저장·버전 관리·오프라인 실행이 가능한 산출물이 된다</text>
+</svg>
+<figcaption>그림 1. 전통 컴파일과 퍼지 함수 컴파일의 대응. 지금의 프롬프트 + API 관행은 컴파일 없이 매 호출마다 명세를 다시 해석시키는 구조입니다.</figcaption>
+</figure>
+
+<p>비유를 하나 들면, 지금의 프롬프트 관행은 <strong>매번 통역사를 대동하고 회의에 들어가는 것</strong>입니다. 훌륭하지만 비싸고, 통역사 스케줄(API)에 의존하고, 통역사가 바뀌면 뉘앙스도 바뀝니다. 컴파일 패러다임은 <strong>회의 주제 하나를 전담하는 직원을 짧게 교육시켜 두는 것</strong>에 가깝습니다. 교육(컴파일)에는 시간이 들지만, 그다음부터는 통역사 없이 그 업무만큼은 빠르고 싸게 처리합니다.</p>
+
+<h2 id="sec-3">3. Program-as-Weights 해부 — 컴파일러 · 프로그램 · 인터프리터</h2>
+
+<p>PAW는 이 패러다임을 세 가지 구성 요소로 구현했습니다. 이 3요소 구분이 이후 이야기의 뼈대이니 확실히 잡고 가겠습니다.</p>
+
+<div class="cbt-tblwrap">
+<table class="cbt-tbl">
+  <thead><tr><th>구성 요소</th><th>정체</th><th>역할</th></tr></thead>
+  <tbody>
+    <tr><td><strong>컴파일러</strong></td><td>4B 신경망. FuzzyBench라는 약 1,000만 예제 데이터셋으로 학습</td><td>자연어 명세를 입력받아 <strong>어댑터 가중치를 곧바로 출력</strong>한다 (수 초)</td></tr>
+    <tr><td><strong>프로그램</strong></td><td>파라미터 효율적 어댑터(단일 파일)</td><td>퍼지 함수 하나의 동작을 담는다. 캐시·버전 관리·공유·오프라인 호출 가능</td></tr>
+    <tr><td><strong>인터프리터</strong></td><td>frozen Qwen3-0.6B</td><td>어댑터를 로드하고 사용자 입력을 실행한다. <strong>모든 함수가 공유</strong>하는 고정 실행 기계</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>핵심 트릭은 컴파일러가 <strong>가중치 공간으로 직접 출력한다</strong>는 점입니다. 보통 우리가 아는 "모델이 모델을 돕는" 구조는 텍스트를 주고받지만, PAW의 4B 컴파일러는 명세를 읽고 인터프리터에 꽂을 어댑터 파라미터 자체를 생성합니다. 함수마다 파인튜닝을 돌리는 게 아니라, <strong>단일 컴파일러가 요청 즉시(on demand) 프로그램을 찍어내는</strong> 구조라서 컴파일이 수 초면 끝납니다.</p>
+
+<p>결과 숫자도 흥미롭습니다. 논문 자체 보고 기준으로, PAW 프로그램을 실행하는 0.6B 인터프리터가 <strong>Qwen3-32B를 직접 프롬프팅한 것과 맞먹는 성능</strong>을 내면서, 추론 메모리는 약 1/50이고, MacBook M3에서 초당 30토큰으로 돕니다. "그 함수 하나"만 놓고 보면 50배 넘게 큰 범용 모델이 필요 없다는 이야기죠. 이건 사실 <a href="/posts/on-policy-distillation-post-training/">증류(distillation) 글</a>에서 본 직관과 같습니다 — 좁은 태스크에 필요한 능력은 범용 능력보다 훨씬 작으니, 작은 모델에 옮겨 담을 수 있다는 것. PAW의 새로움은 그 "옮겨 담기"를 태스크마다 훈련하는 대신 <strong>컴파일러 한 번 호출로</strong> 만든 데 있습니다.</p>
+
+<div class="cbt-note"><strong>작은 로컬 모델 파인튜닝과 뭐가 다른가요?</strong> 결과물만 보면 "작은 모델 + LoRA"로 같습니다. 다른 건 <strong>생산 방식과 단위</strong>입니다. 파인튜닝은 태스크마다 데이터셋을 준비해 훈련 잡을 돌리는 프로젝트지만, PAW에서 함수의 동작은 fine-tune에 박히는 게 아니라 컴파일러가 <strong>함수 단위로</strong> 찍어냅니다. 명세를 고치면 다시 컴파일하면 되고, 함수 100개면 어댑터 100개가 인터프리터 하나를 공유합니다. <a href="/posts/multi-lora-serving/">멀티 LoRA 서빙 글</a>에서 본 "베이스 하나 + 어댑터 여럿" 구조가 프로그래밍 모델로 승격된 셈입니다.</div>
+
+<h2 id="sec-4">4. Compile by Training — 컴파일러가 예제를 만들어 학생을 가르친다</h2>
+
+<p>그런데 가중치를 직접 찍어내는 fast 컴파일러에는 한계가 있었습니다. 이번 주 화제가 된 후속작 Compile by Training(같은 저자 그룹 — Yuntian Deng·Pengyu Nie(Waterloo), Stuart Shieber(Harvard))이 출발하는 지점이 바로 그 한계입니다. 논문이 제시하는 FuzzyBench-Hard, 즉 <strong>fast 컴파일러가 exact match를 하나도 못 낸 어려운 부분집합</strong>이 있습니다. 컴파일러가 학습 분포에서 본 적 없는 유형의 명세라면, 가중치 공간으로 바로 사상하는 방식은 일반화가 잘 안 되는 거죠.</p>
+
+<p>Compile by Training의 답은 우회로입니다. 명세에서 가중치로 한 방에 가지 말고, <strong>중간에 데이터를 경유</strong>하자는 겁니다. 컴파일 시점에 teacher 모델(범용 거대 모델)이 명세를 읽고 태스크 특화 입출력 예제를 합성하고, 그 예제로 frozen Qwen3-0.6B 인터프리터 위에 LoRA 어댑터를 파인튜닝합니다. 다시 말해 <strong>컴파일 = 작은 증류 실행</strong>입니다. 컴파일이 끝나면 teacher는 필요 없어지고, 산출물은 fast 컴파일러와 똑같은 형태 — 인터프리터에 꽂는 어댑터 파일 — 로 나옵니다.</p>
+
+<figure class="cbt-fig">
+<svg viewBox="0 0 860 470" role="img" aria-label="두 가지 컴파일 전략을 비교한 다이어그램. 위쪽 fast 컴파일 경로는 명세가 4B 컴파일러를 거쳐 어댑터 가중치를 직접 생성하며 수 초가 걸리고 분포 밖 명세에 약하다. 아래쪽 compile by training 경로는 명세를 받은 teacher 모델이 태스크 특화 예제를 합성하고 그 예제로 LoRA 어댑터를 학습하며 약 1분이 걸리지만 FuzzyBench-Hard에서 83.6% semantic accuracy를 낸다. 두 경로 모두 동일한 형태의 어댑터 파일로 수렴한다">
+  <defs>
+    <marker id="cbt-ar2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--cbt-slate)"/>
+    </marker>
+  </defs>
+
+  <!-- 공통 입력 -->
+  <rect x="20" y="180" width="170" height="76" rx="10" fill="none" stroke="var(--cbt-sky)" stroke-width="2"/>
+  <text x="105" y="212" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--cbt-sky)">자연어 명세</text>
+  <text x="105" y="234" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">퍼지 함수 하나</text>
+
+  <line x1="190" y1="200" x2="270" y2="110" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar2)"/>
+  <line x1="190" y1="238" x2="270" y2="330" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar2)"/>
+
+  <!-- fast 경로 -->
+  <text x="280" y="40" font-size="14.5" font-weight="800" fill="var(--cbt-amber)">전략 1 — fast 컴파일 (PAW)</text>
+  <rect x="275" y="56" width="215" height="90" rx="10" fill="none" stroke="var(--cbt-amber)" stroke-width="2"/>
+  <text x="382" y="86" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cbt-amber)">4B 컴파일러</text>
+  <text x="382" y="107" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">명세 → 가중치 직접 생성</text>
+  <text x="382" y="127" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">FuzzyBench 10M 예제로 학습</text>
+  <line x1="490" y1="101" x2="600" y2="180" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar2)"/>
+  <text x="560" y="120" text-anchor="middle" font-size="11.5" fill="var(--cbt-amber)">수 초</text>
+  <text x="560" y="138" text-anchor="middle" font-size="11" fill="var(--cbt-rose)">분포 밖 명세에 취약</text>
+
+  <!-- training 경로 -->
+  <text x="280" y="292" font-size="14.5" font-weight="800" fill="var(--cbt-green)">전략 2 — compile by training</text>
+  <rect x="275" y="306" width="215" height="64" rx="10" fill="none" stroke="var(--cbt-green)" stroke-width="2"/>
+  <text x="382" y="332" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cbt-green)">teacher 모델</text>
+  <text x="382" y="352" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">태스크 특화 예제 합성</text>
+  <line x1="382" y1="370" x2="382" y2="392" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar2)"/>
+  <rect x="275" y="396" width="215" height="58" rx="10" fill="none" stroke="var(--cbt-green)" stroke-width="2"/>
+  <text x="382" y="420" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cbt-green)">LoRA 어댑터 학습</text>
+  <text x="382" y="440" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">frozen 0.6B 인터프리터 위에서</text>
+  <line x1="490" y1="405" x2="600" y2="265" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar2)"/>
+  <text x="568" y="352" text-anchor="middle" font-size="11.5" fill="var(--cbt-green)">약 1분</text>
+  <text x="568" y="370" text-anchor="middle" font-size="11" fill="var(--cbt-green)">Hard에서 83.6%*</text>
+
+  <!-- 수렴 산출물 -->
+  <rect x="600" y="180" width="240" height="86" rx="12" fill="none" stroke="var(--cbt-teal)" stroke-width="2.5"/>
+  <text x="720" y="212" text-anchor="middle" font-size="14" font-weight="800" fill="var(--cbt-teal)">어댑터 파일 (동일 형태)</text>
+  <text x="720" y="234" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">teacher 불필요 · 로컬 실행</text>
+  <text x="720" y="252" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">저장 · 버전 관리 · 조합 가능</text>
+
+  <text x="430" y="464" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">* fast 컴파일러가 exact match 0을 낸 FuzzyBench-Hard 부분집합 기준, semantic accuracy (자체 보고)</text>
+</svg>
+<figcaption>그림 2. 같은 명세, 두 가지 컴파일 전략. fast 컴파일은 수 초 만에 가중치를 직접 찍어내고, compile by training은 teacher가 합성한 예제로 어댑터를 학습합니다. 산출물 형태는 같습니다.</figcaption>
+</figure>
+
+<p>이 구조를 컴파일러 용어로 옮기면 딱 <strong>-O0와 -O2의 관계</strong>입니다. 빨리 도는 컴파일(수 초)과 오래 걸리지만 좋은 산출물을 내는 컴파일(약 1분)이 같은 인터페이스 뒤에 공존하는 거죠. 실제로 EMNLP 데모 시스템은 이 컴파일러를 공개 인터랙티브 서비스로 배포했고, 컴파일된 함수들로 멀티 사이트 웹사이트 헬퍼, 자연어로 조종하는 3D 아바타, 양방향 번역기를 만들어 보였습니다.</p>
+
+<p>눈치챈 분도 있겠지만, "teacher로 예제를 합성해 작은 모델을 가르친다"는 것 자체는 새 발명이 아닙니다. distillation은 물론이고, <a href="/posts/prompt-optimization-dspy-gepa/">DSPy 글</a>에서 본 "프로그램을 컴파일한다"는 프레이밍과도 닮았습니다. 차이는 <strong>무엇으로 컴파일하느냐</strong>입니다. DSPy의 컴파일 산출물은 여전히 프롬프트(텍스트)라서 실행하려면 거대 모델이 필요합니다. PAW 계열의 산출물은 가중치라서 <strong>실행 시점에 거대 모델이 필요 없습니다</strong>. 함수 단위 자동화 + 로컬 실행 가능한 산출물 + 공유 인터프리터라는 조합을 하나의 프로그래밍 모델로 묶고, 서비스로 만들어 보인 것이 이번 주 사람들이 반응한 지점입니다.</p>
+
+<h2 id="sec-5">5. 숫자 읽는 법 — 83.6%와 '1분'의 의미</h2>
+
+<p>벤치마크 숫자는 늘 그렇듯 조건을 붙여 읽어야 합니다. 세 가지만 챙기면 됩니다.</p>
+
+<p><strong>첫째, 83.6%는 semantic accuracy입니다.</strong> exact match(문자열 완전 일치)가 아니라 출력이 의미적으로 맞으면 정답으로 치는 지표입니다. 퍼지 함수는 정답 표현이 여럿이라 exact match가 지나치게 가혹한 건 사실이지만, "의미적으로 같은지"를 판정하는 것 역시 결국 판정자(주로 <a href="/posts/llm-as-a-judge-evals/">LLM judge</a>)의 몫이라는 점은 기억해 두세요. 그리고 이 숫자는 <strong>fast 컴파일러가 exact match 0을 낸 부분집합</strong> 위에서의 값입니다. "쉬운 명세 포함 전체에서 83.6%"가 아니라 "fast 방식이 완전히 무너지는 지점에서도 83.6%가 나온다"로 읽는 게 정확합니다.</p>
+
+<p><strong>둘째, '약 1분'은 함수당 컴파일 비용입니다.</strong> 호출당 비용이 아닙니다. 한 번 컴파일하면 이후 모든 호출은 로컬 0.6B 추론이므로, 이 1분(과 teacher 호출 토큰비)은 함수의 <strong>고정비</strong>입니다. 호출량이 많은 함수일수록 상각이 빨리 끝나고, 한두 번 쓰고 버릴 함수라면 그냥 프롬프트로 호출하는 편이 쌉니다.</p>
+
+<p><strong>셋째, "0.6B가 32B급"이라는 비교의 범위입니다.</strong> PAW가 보고한 이 등식은 어디까지나 <strong>컴파일된 그 함수 하나</strong>에 대한 이야기입니다. 어댑터를 꽂은 0.6B는 그 명세 바깥에서는 다시 0.6B짜리 능력으로 돌아갑니다. 범용성과 맞바꿔 특정 함수의 성능·비용·지연을 얻는 거래라는 걸 잊으면 안 됩니다.</p>
+
+<div class="cbt-good"><strong>그래서 언제 쓰나.</strong> 세 조건이 겹칠 때 컴파일이 이깁니다. ① 같은 퍼지 함수를 <strong>대량으로 반복 호출</strong>한다(로그 파이프라인, 데이터 클리닝, 스트림 분류). ② <strong>지연·오프라인·프라이버시</strong> 제약이 있다(온디바이스, 에어갭, 사용자 데이터 외부 반출 금지). ③ 출력의 <strong>재현성과 버전 고정</strong>이 필요하다(프로바이더 모델 업데이트에 흔들리면 안 되는 곳). 반대로 명세가 매일 바뀌거나, 함수가 넓은 세계 지식을 요구하거나, 호출량이 적다면 기존 API 호출이 낫습니다.</div>
+
+<h2 id="sec-6">6. 실전 — 장난감 compile-by-training 파이프라인</h2>
+
+<p>compile by training의 본질은 "teacher가 예제를 만들고, 작은 인터프리터에 LoRA를 학습한다"이므로, 지금 갖고 있는 도구로도 원리를 흉내 낼 수 있습니다. 퍼지 함수 하나 — "로그 라인이 조치가 필요한 줄인지 판정하라" — 를 컴파일해 보겠습니다.</p>
+
+<p><strong>1단계 — 명세에서 예제 합성 (teacher 호출은 컴파일 때 한 번뿐).</strong></p>
+
+{{< highlight python >}}
+import anthropic, json
+
+SPEC = """함수 명세: 입력은 서버 로그 한 줄이다.
+사람이 조치해야 하는 줄이면 "ALERT", 아니면 "OK"만 출력한다.
+디스크/메모리 고갈, 반복 재시도 실패, 데이터 유실 가능성은 ALERT다.
+일회성 timeout, 디버그/정보성 메시지, 정상 재연결은 OK다."""
+
+client = anthropic.Anthropic()
+
+def synthesize_examples(spec: str, n: int = 300) -> list[dict]:
+    # teacher에게 명세를 주고 다양한 (입력, 출력) 쌍을 만들게 한다.
+    # 경계 사례(edge case)를 명시적으로 요구하는 게 품질의 핵심이다.
+    msg = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=16000,
+        messages=[{"role": "user", "content":
+            f"{spec}\n\n위 명세를 따르는 학습 예제 {n}개를 JSON 배열로 만들어라. "
+            '각 원소는 {"input": 로그 한 줄, "output": "ALERT"|"OK"}. '
+            "쉬운 예 60%, 경계 사례 40%로 섞고, 서비스·포맷을 다양하게 하라."}],
+    )
+    return json.loads(msg.content[0].text)
+
+examples = synthesize_examples(SPEC)
+{{< /highlight >}}
+
+<p><strong>2단계 — 예제로 0.6B 인터프리터에 LoRA 어댑터 학습.</strong> 이 단계가 논문의 "약 1분"에 해당합니다(장난감 규모 기준이며, 환경에 따라 다릅니다).</p>
+
+{{< highlight python >}}
+from datasets import Dataset
+from peft import LoraConfig
+from trl import SFTConfig, SFTTrainer
+
+BASE = "Qwen/Qwen3-0.6B"   # frozen 인터프리터 — 모든 함수가 공유
+
+def to_chat(ex):
+    # 명세 본문은 학습 후 필요 없다. 짧은 고정 태그만 남긴다.
+    return {"messages": [
+        {"role": "user", "content": f"[triage] {ex['input']}"},
+        {"role": "assistant", "content": ex["output"]},
+    ]}
+
+ds = Dataset.from_list([to_chat(e) for e in examples])
+
+trainer = SFTTrainer(
+    model=BASE,
+    train_dataset=ds,
+    # r=8이면 어댑터가 수 MB — 이 파일이 곧 '컴파일된 함수'다
+    peft_config=LoraConfig(r=8, lora_alpha=16, target_modules="all-linear"),
+    args=SFTConfig(num_train_epochs=3, per_device_train_batch_size=8,
+                   output_dir="fn_log_triage"),
+)
+trainer.train()
+trainer.save_model("fn_log_triage/v1")   # 함수를 버전으로 저장
+{{< /highlight >}}
+
+<p><strong>3단계 — teacher 없이 로컬 실행 + 회귀 테스트.</strong> 산출물이 파일이 됐으니, 보통 소프트웨어처럼 다룰 수 있습니다.</p>
+
+{{< highlight python >}}
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from peft import PeftModel
+
+tok = AutoTokenizer.from_pretrained(BASE)
+model = PeftModel.from_pretrained(
+    AutoModelForCausalLM.from_pretrained(BASE), "fn_log_triage/v1")
+triage = pipeline("text-generation", model=model, tokenizer=tok)
+
+def fn_log_triage(line: str) -> str:
+    out = triage(f"[triage] {line}", max_new_tokens=4, do_sample=False)
+    return out[0]["generated_text"].split("[triage]")[-1].strip()
+
+# 컴파일된 함수에는 유닛 테스트를 붙일 수 있다 — 프롬프트와의 결정적 차이
+assert fn_log_triage("ERROR disk usage 98% on /var, writes failing") == "ALERT"
+assert fn_log_triage("INFO reconnected to redis after 1 retry") == "OK"
+{{< /highlight >}}
+
+<p>이 장난감이 논문과 다른 점도 분명히 해 두겠습니다. 실제 시스템은 예제 합성의 품질 관리(검증·필터링)와 학습 하이퍼파라미터를 컴파일러가 알아서 처리하고, fast 컴파일러와의 선택지를 하나의 서비스 뒤에 숨깁니다. 우리가 손으로 한 1~3단계를 <code>compile(spec)</code> 한 번으로 만드는 것 — 그 <strong>공정의 자동화</strong>가 논문의 기여입니다.</p>
+
+<figure class="cbt-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="퍼지 함수 구현 방식을 고르는 결정 트리. 같은 명세를 대량 반복 호출하는지, 오프라인·프라이버시·버전 고정 요구가 있는지, 넓은 세계 지식이 필요한지에 따라 프롬프트 + API 호출, fast 컴파일, compile by training으로 갈린다">
+  <defs>
+    <marker id="cbt-ar3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--cbt-slate)"/>
+    </marker>
+  </defs>
+
+  <rect x="290" y="16" width="280" height="58" rx="12" fill="none" stroke="var(--cbt-sky)" stroke-width="2.5"/>
+  <text x="430" y="41" text-anchor="middle" font-size="14" font-weight="800" fill="var(--cbt-sky)">퍼지 함수가 필요하다</text>
+  <text x="430" y="61" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">규칙으로는 못 짜는 기능</text>
+
+  <line x1="430" y1="74" x2="430" y2="106" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar3)"/>
+
+  <rect x="270" y="110" width="320" height="52" rx="10" fill="none" stroke="var(--cbt-slate)" stroke-width="2"/>
+  <text x="430" y="132" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cbt-slate)">넓은 세계 지식·긴 추론이 필요한가?</text>
+  <text x="430" y="151" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">뉴스 요약, 오픈 도메인 QA 등</text>
+
+  <line x1="290" y1="150" x2="150" y2="200" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar3)"/>
+  <text x="195" y="172" font-size="12" fill="var(--cbt-amber)" font-weight="700">예</text>
+  <line x1="570" y1="150" x2="620" y2="200" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar3)"/>
+  <text x="612" y="172" font-size="12" fill="var(--cbt-green)" font-weight="700">아니오 (좁은 함수다)</text>
+
+  <rect x="40" y="204" width="230" height="72" rx="10" fill="none" stroke="var(--cbt-amber)" stroke-width="2"/>
+  <text x="155" y="232" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--cbt-amber)">프롬프트 + API 호출</text>
+  <text x="155" y="254" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">호출량 적을 때도 이쪽</text>
+
+  <rect x="490" y="204" width="330" height="52" rx="10" fill="none" stroke="var(--cbt-slate)" stroke-width="2"/>
+  <text x="655" y="226" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cbt-slate)">대량 반복 호출? 오프라인·버전 고정 요구?</text>
+  <text x="655" y="245" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">고정비 1분을 상각할 수 있는가</text>
+
+  <line x1="560" y1="256" x2="480" y2="320" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar3)"/>
+  <text x="500" y="284" font-size="12" fill="var(--cbt-slate)" font-weight="700">단순·전형적 명세</text>
+  <line x1="750" y1="256" x2="750" y2="320" stroke="var(--cbt-slate)" stroke-width="1.6" marker-end="url(#cbt-ar3)"/>
+  <text x="778" y="290" font-size="12" fill="var(--cbt-green)" font-weight="700">어려운 명세</text>
+
+  <rect x="330" y="324" width="250" height="80" rx="10" fill="none" stroke="var(--cbt-teal)" stroke-width="2"/>
+  <text x="455" y="352" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--cbt-teal)">fast 컴파일 (PAW)</text>
+  <text x="455" y="374" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">수 초 · 컴파일러가 가중치 직접 생성</text>
+  <text x="455" y="392" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">-O0: 반복 실험에 유리</text>
+
+  <rect x="620" y="324" width="220" height="80" rx="10" fill="none" stroke="var(--cbt-green)" stroke-width="2"/>
+  <text x="730" y="352" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--cbt-green)">compile by training</text>
+  <text x="730" y="374" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">약 1분 · teacher 예제 + LoRA</text>
+  <text x="730" y="392" text-anchor="middle" font-size="11.5" fill="var(--cbt-gray)">-O2: 배포 직전 최적화 컴파일</text>
+</svg>
+<figcaption>그림 3. 퍼지 함수 구현 방식 결정 가이드. 컴파일은 "좁은 함수 + 반복 호출 + 고정 요구"라는 조건에서 이기는 선택입니다.</figcaption>
+</figure>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<p><strong>실수 1 — 합성 예제의 분포를 검수하지 않는다.</strong> compile by training의 품질 상한은 teacher가 만든 예제의 품질입니다. teacher는 시키지 않으면 쉽고 전형적인 예제만 잔뜩 만들고, 그러면 어댑터는 경계 사례에서 무너집니다. 합성 시 경계 사례 비율을 명시적으로 요구하고, 컴파일 전에 예제 수십 개를 <strong>사람 눈으로</strong> 훑어 명세와 어긋난 라벨을 걸러내세요. 명세가 애매하면 teacher가 애매함을 예제에 그대로 구워 넣습니다 — 컴파일 에러가 나는 대신 <strong>조용히 이상한 함수</strong>가 나온다는 게 이 패러다임의 무서운 점입니다.</p>
+
+<p><strong>실수 2 — held-out 평가 없이 배포한다.</strong> 학습에 쓴 합성 예제로 정확도를 재면 당연히 잘 나옵니다. 합성 예제 일부를 학습에서 빼서 평가 전용으로 두고, 가능하면 <strong>실제 트래픽에서 뽑은 입력</strong>으로 소규모 평가 세트를 따로 만드세요. 이 평가 세트는 함수와 함께 버전 관리해서, 명세를 고쳐 재컴파일할 때마다 회귀 테스트로 돌리는 게 좋습니다. <a href="/posts/agent-evals-reliability/">에이전트 평가 글</a>에서 말한 "평가 없이는 개선도 없다"가 함수 단위에서도 그대로 적용됩니다.</p>
+
+<p><strong>실수 3 — 함수 경계를 너무 넓게 잡는다.</strong> "고객 문의를 알아서 잘 처리해라"는 퍼지 함수가 아니라 에이전트입니다. 컴파일이 잘 먹히는 건 입출력 계약이 좁고 명확한 함수입니다. 넓은 문제는 좁은 함수 여러 개로 쪼개고, 조합은 보통 코드로 하세요. 인터프리터 하나에 어댑터를 바꿔 끼우며 함수를 전환하는 구조라서, 함수를 잘게 쪼개는 비용이 낮습니다.</p>
+
+<p><strong>실수 4 — 상각 계산 없이 유행 따라 컴파일한다.</strong> 컴파일에는 teacher 토큰비 + 학습 1분 + 운영할 추론 인프라(또는 온디바이스 배포 파이프라인)가 듭니다. 하루 100번 호출하는 함수라면 그냥 <a href="/posts/semantic-caching-llm/">캐싱</a> 붙인 API 호출이 쌀 수 있습니다. 반대로 초당 수십 건씩 흐르는 파이프라인이라면 컴파일 고정비는 몇 시간 만에 상각됩니다.</p>
+
+<p><strong>팁 — 프롬프트 버전 대신 함수 버전을 남기세요.</strong> 컴파일 패러다임의 숨은 최대 장점은 <strong>동작이 파일에 고정된다</strong>는 겁니다. <code>fn_log_triage/v1</code>은 프로바이더가 내일 모델을 업데이트해도 오늘과 똑같이 동작합니다. 명세·합성 예제·평가 세트·어댑터를 한 디렉터리로 묶어 두면, "지난달과 출력이 달라졌어요"라는 버그 리포트에 diff로 답할 수 있게 됩니다.</p>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+<li><strong>퍼지 함수</strong> — 규칙으로는 못 짜지만 말로 설명하면 명확한 함수(로그 알림, JSON 수리, 의도 랭킹). 지금은 다들 프롬프트 + 거대 모델 API로 구현하는데, 이는 컴파일 없이 매 호출마다 명세를 재해석시키는 구조입니다.</li>
+<li><strong>Program-as-Weights(arXiv:2607.02512)</strong> — 자연어 명세를 신경 컴파일러(4B, FuzzyBench 10M 예제로 학습)에 넣어 어댑터 파일로 컴파일하고, frozen Qwen3-0.6B 인터프리터가 로드해 실행하는 패러다임. 자체 보고 기준 0.6B + 프로그램이 Qwen3-32B 직접 프롬프팅급, 추론 메모리 약 1/50, MacBook M3에서 30 tok/s.</li>
+<li><strong>Compile by Training(arXiv:2609.04199)</strong> — fast 컴파일러가 무너지는 어려운 명세(FuzzyBench-Hard, exact match 0)에서, teacher가 예제를 합성하고 LoRA를 학습하는 방식으로 semantic accuracy 83.6%(자체 보고). 컴파일 시간은 수 초 → 약 1분. -O0/-O2처럼 두 전략이 같은 산출물 형태로 공존합니다.</li>
+<li><strong>언제 쓰나</strong> — 좁은 함수 + 대량 반복 호출 + 오프라인·프라이버시·버전 고정 요구가 겹칠 때. 명세가 자주 바뀌거나 넓은 지식이 필요하면 기존 API 호출이 낫습니다.</li>
+<li><strong>주의</strong> — 품질 상한은 합성 예제 품질입니다. 경계 사례를 요구하고, held-out 평가 세트를 함수와 함께 버전 관리하고, 상각 계산을 먼저 하세요. 컴파일 에러 대신 '조용히 이상한 함수'가 나오는 패러다임입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+<li><a href="https://arxiv.org/abs/2609.04199" target="_blank" rel="noopener">Compile by Training: Turning Natural-Language Specifications into Local Neural Functions (arXiv:2609.04199, EMNLP 2026 System Demonstrations)</a> — 이 글의 주인공. teacher 예제 합성 + LoRA 컴파일, FuzzyBench-Hard 83.6%, 데모 서비스.</li>
+<li><a href="https://arxiv.org/abs/2607.02512" target="_blank" rel="noopener">Program-as-Weights: A Programming Paradigm for Fuzzy Functions (arXiv:2607.02512)</a> — 전신. 컴파일러·프로그램·인터프리터 3요소, 4B 컴파일러와 FuzzyBench 10M, 0.6B ≈ 32B 결과의 출처.</li>
+<li><a href="https://huggingface.co/papers/2609.04199" target="_blank" rel="noopener">Hugging Face Papers — Compile by Training</a> — 데일리 페이퍼 페이지.</li>
+<li><a href="https://orangebot.ai/top-ai-models-this-week" target="_blank" rel="noopener">OrangeBot — Top AI Models This Week</a> — 9/6 기준 트렌딩 1위 집계(롤링 7일)의 근거.</li>
+<li><a href="https://buttondown.com/agent-k/archive/llm-daily-september-05-2026/" target="_blank" rel="noopener">LLM Daily (2026-09-05)</a> — 이번 주 트렌딩 페이퍼 맥락.</li>
+<li><a href="https://kenashe.ai/blog/2026-09-04-compiling-a-prompt-into-a-small-neural-function-you-can-version" target="_blank" rel="noopener">Compiling a Prompt Into a Small Neural Function You Can Version (Ken Ashe)</a> — 실무자 관점 반응: 비용·버전 관리 각도.</li>
+<li><a href="https://www.alphaxiv.org/overview/2607.02512" target="_blank" rel="noopener">Program-as-Weights — alphaXiv overview</a> — PAW 구조 해설.</li>
+<li><a href="https://www.emergentmind.com/papers/2607.02512" target="_blank" rel="noopener">Program-as-Weights for Fuzzy Functions (Emergent Mind)</a> — 퍼지 함수 사용 사례 정리.</li>
+<li><a href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener">TRL SFTTrainer 문서</a> — 실전 예제의 LoRA 학습 코드가 기대는 API.</li>
+<li>관련 글: <a href="/posts/on-policy-distillation-post-training/">on-policy distillation</a>, <a href="/posts/prompt-optimization-dspy-gepa/">DSPy·GEPA 프롬프트 최적화</a>, <a href="/posts/multi-lora-serving/">멀티 LoRA 서빙</a>, <a href="/posts/agent-token-economics/">에이전트 토큰 이코노믹스</a> (한국어 자료)</li>
+</ul>

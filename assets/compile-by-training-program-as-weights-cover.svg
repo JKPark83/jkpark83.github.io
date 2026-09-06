@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="자연어 명세가 컴파일러를 거쳐 작은 어댑터 파일로 컴파일되고, 그 파일을 0.6B 프로즌 인터프리터가 로드해 로컬에서 실행되는 흐름을 나타낸 그림. 매번 거대 모델 API를 호출하는 기존 경로에는 우회로 표시가 있다">
+  <defs>
+    <linearGradient id="cbt-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#14263b"/>
+    </linearGradient>
+    <marker id="cbt-carw" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/>
+    </marker>
+    <marker id="cbt-carw2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#cbt-bg)"/>
+
+  <text x="60" y="80" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">프롬프트를 호출하지 말고 컴파일하라</text>
+  <text x="60" y="120" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">자연어 명세 → 로컬 신경 함수 — Program-as-Weights와 Compile by Training</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 위: 기존 경로 (매번 API 호출) -->
+    <rect x="70" y="190" width="240" height="86" rx="12" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="190" y="226" text-anchor="middle" font-size="18" font-weight="700" fill="#fbbf24">프롬프트 + 입력</text>
+    <text x="190" y="252" text-anchor="middle" font-size="13.5" fill="#64748b">"이 로그에서 중요한 줄만 골라 줘"</text>
+
+    <path d="M310 233 C 420 233, 500 220, 600 226" fill="none" stroke="#475569" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#cbt-carw2)"/>
+    <text x="455" y="205" text-anchor="middle" font-size="14" fill="#94a3b8">매 호출마다</text>
+
+    <rect x="610" y="190" width="250" height="86" rx="12" fill="#1e293b" stroke="#475569" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="735" y="226" text-anchor="middle" font-size="18" font-weight="700" fill="#94a3b8">거대 모델 API</text>
+    <text x="735" y="252" text-anchor="middle" font-size="13.5" fill="#64748b">비용 · 지연 · 네트워크 · 드리프트</text>
+
+    <!-- 아래: 컴파일 경로 -->
+    <rect x="70" y="360" width="240" height="150" rx="12" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="190" y="395" text-anchor="middle" font-size="18" font-weight="700" fill="#38bdf8">자연어 명세</text>
+    <g fill="#475569">
+      <rect x="95" y="415" width="190" height="9" rx="4.5"/>
+      <rect x="95" y="435" width="160" height="9" rx="4.5"/>
+      <rect x="95" y="455" width="180" height="9" rx="4.5"/>
+    </g>
+    <text x="190" y="492" text-anchor="middle" font-size="13.5" fill="#64748b">한 번만 쓴다</text>
+
+    <line x1="310" y1="435" x2="400" y2="435" stroke="#4ade80" stroke-width="3" marker-end="url(#cbt-carw)"/>
+    <text x="355" y="418" text-anchor="middle" font-size="14" fill="#4ade80" font-weight="700">컴파일</text>
+
+    <rect x="405" y="385" width="220" height="100" rx="12" fill="#173225" stroke="#22c55e" stroke-width="2"/>
+    <text x="515" y="424" text-anchor="middle" font-size="18" font-weight="700" fill="#4ade80">어댑터 파일</text>
+    <text x="515" y="450" text-anchor="middle" font-size="13.5" fill="#86efac">LoRA · 버전 관리 · 공유 가능</text>
+
+    <line x1="625" y1="435" x2="715" y2="435" stroke="#4ade80" stroke-width="3" marker-end="url(#cbt-carw)"/>
+    <text x="670" y="418" text-anchor="middle" font-size="14" fill="#4ade80" font-weight="700">로드</text>
+
+    <rect x="720" y="360" width="250" height="150" rx="12" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="845" y="400" text-anchor="middle" font-size="18" font-weight="700" fill="#38bdf8">0.6B 인터프리터</text>
+    <text x="845" y="428" text-anchor="middle" font-size="14" fill="#94a3b8">frozen · 모든 함수가 공유</text>
+    <text x="845" y="460" text-anchor="middle" font-size="14" fill="#e2e8f0">로컬 실행 · 오프라인 OK</text>
+    <text x="845" y="488" text-anchor="middle" font-size="13.5" fill="#64748b">32B 직접 프롬프팅급 (자체 보고)</text>
+
+    <text x="1010" y="440" font-size="30" fill="#4ade80" font-weight="700">ƒ(x)</text>
+  </g>
+</svg>

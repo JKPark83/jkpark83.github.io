@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="sans-serif">
+  <rect width="800" height="460" fill="#f8f9fa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-09-07</text>
+
+  <!-- axes labels -->
+  <text x="400" y="62" text-anchor="middle" font-size="12" fill="#6c757d">모델 / 인프라 ↑</text>
+  <text x="400" y="450" text-anchor="middle" font-size="12" fill="#6c757d">개발 워크플로 ↓</text>
+
+  <!-- quadrant: open models -->
+  <rect x="40" y="80" width="345" height="160" rx="10" fill="#e7f1ff" stroke="#4a7fd4"/>
+  <text x="60" y="106" font-size="14" font-weight="bold" fill="#1d4e89">오픈 웨이트 모델</text>
+  <text x="60" y="130" font-size="13" fill="#212529">IFM K2 Horizon — 6개 모델 전부 공개</text>
+  <text x="60" y="150" font-size="12" fill="#495057">가중치 + 코드 + 학습 데이터, Apache 2.0</text>
+  <text x="60" y="170" font-size="12" fill="#495057">0.9B ~ 375B(A23B), 512K 컨텍스트</text>
+  <text x="60" y="196" font-size="11" fill="#6c757d">Nvidia–HF 인수 직후 나온 '완전 개방' 릴리즈</text>
+
+  <!-- quadrant: serving -->
+  <rect x="415" y="80" width="345" height="160" rx="10" fill="#fff3e0" stroke="#e8963e"/>
+  <text x="435" y="106" font-size="14" font-weight="bold" fill="#8a5a17">추론 서빙 효율</text>
+  <text x="435" y="130" font-size="13" fill="#212529">Random Attention (Salesforce)</text>
+  <text x="435" y="150" font-size="12" fill="#495057">KV 캐시, 점수 계산 없이 무작위 축출</text>
+  <text x="435" y="170" font-size="12" fill="#495057">vLLM 처리량 +32~43% (동급 정확도)</text>
+  <text x="435" y="196" font-size="11" fill="#6c757d">"프롬프트만 지키면 나머지는 랜덤도 된다"</text>
+
+  <!-- quadrant: skills -->
+  <rect x="40" y="260" width="345" height="160" rx="10" fill="#e8f5e9" stroke="#5a9e6f"/>
+  <text x="60" y="286" font-size="14" font-weight="bold" fill="#2e6b3e">에이전트 스킬 생태계</text>
+  <text x="60" y="310" font-size="13" fill="#212529">scientific-agent-skills — 163개 스킬</text>
+  <text x="60" y="330" font-size="12" fill="#495057">Agent Skills 개방 표준 채택</text>
+  <text x="60" y="350" font-size="12" fill="#495057">Cursor·Claude Code·Codex 공용</text>
+  <text x="60" y="376" font-size="11" fill="#6c757d">스킬이 특정 에이전트 종속에서 벗어나는 중</text>
+
+  <!-- quadrant: vibe coding -->
+  <rect x="415" y="260" width="345" height="160" rx="10" fill="#f3e8fd" stroke="#9268c8"/>
+  <text x="435" y="286" font-size="14" font-weight="bold" fill="#5b3a8e">바이브 코딩</text>
+  <text x="435" y="310" font-size="13" fill="#212529">ponytail — "게으른 시니어" 스킬</text>
+  <text x="435" y="330" font-size="12" fill="#495057">과잉 구현 억제: 코드 -54%, 비용 -20%</text>
+  <text x="435" y="350" font-size="12" fill="#495057">20개 에이전트 지원, MIT</text>
+  <text x="435" y="376" font-size="11" fill="#6c757d">"안 쓴 코드가 가장 좋은 코드"를 스킬로</text>
+</svg>

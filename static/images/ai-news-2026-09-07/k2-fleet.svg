@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="sans-serif">
+  <rect width="800" height="420" fill="#f8f9fa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a2e">K2 Horizon 모델 플릿 (IFM / MBZUAI, 9/3 공개)</text>
+
+  <!-- dense group -->
+  <text x="60" y="76" font-size="14" font-weight="bold" fill="#1d4e89">Dense 4종</text>
+  <rect x="60" y="90" width="150" height="64" rx="8" fill="#e7f1ff" stroke="#4a7fd4"/>
+  <text x="135" y="116" text-anchor="middle" font-size="16" font-weight="bold" fill="#212529">0.9B</text>
+  <text x="135" y="138" text-anchor="middle" font-size="11" fill="#495057">엣지·라우터용</text>
+
+  <rect x="230" y="90" width="150" height="64" rx="8" fill="#e7f1ff" stroke="#4a7fd4"/>
+  <text x="305" y="116" text-anchor="middle" font-size="16" font-weight="bold" fill="#212529">3.7B</text>
+  <text x="305" y="138" text-anchor="middle" font-size="11" fill="#495057">로컬 보조용</text>
+
+  <rect x="400" y="90" width="150" height="64" rx="8" fill="#e7f1ff" stroke="#4a7fd4"/>
+  <text x="475" y="116" text-anchor="middle" font-size="16" font-weight="bold" fill="#212529">7B</text>
+  <text x="475" y="138" text-anchor="middle" font-size="11" fill="#495057">단일 GPU 서빙</text>
+
+  <rect x="570" y="90" width="150" height="64" rx="8" fill="#e7f1ff" stroke="#4a7fd4"/>
+  <text x="645" y="116" text-anchor="middle" font-size="16" font-weight="bold" fill="#212529">32B</text>
+  <text x="645" y="138" text-anchor="middle" font-size="11" fill="#495057">Stage 1 공개, 2 예정</text>
+
+  <!-- MoE group -->
+  <text x="60" y="192" font-size="14" font-weight="bold" fill="#8a5a17">MoE 2종 (MoVA 아키텍처)</text>
+  <rect x="60" y="206" width="320" height="64" rx="8" fill="#fff3e0" stroke="#e8963e"/>
+  <text x="220" y="232" text-anchor="middle" font-size="16" font-weight="bold" fill="#212529">36B (활성 4B)</text>
+  <text x="220" y="254" text-anchor="middle" font-size="11" fill="#495057">K2-Horizon-MoVA-36B-A4B</text>
+
+  <rect x="400" y="206" width="320" height="64" rx="8" fill="#fff3e0" stroke="#e8963e"/>
+  <text x="560" y="232" text-anchor="middle" font-size="16" font-weight="bold" fill="#212529">375B (활성 23B)</text>
+  <text x="560" y="254" text-anchor="middle" font-size="11" fill="#495057">플래그십 MoE</text>
+
+  <!-- release contents -->
+  <rect x="60" y="296" width="660" height="96" rx="10" fill="#e8f5e9" stroke="#5a9e6f"/>
+  <text x="80" y="322" font-size="14" font-weight="bold" fill="#2e6b3e">전 모델 공통 공개 범위</text>
+  <text x="80" y="346" font-size="12.5" fill="#212529">✔ 가중치  ✔ 코드  ✔ 학습 데이터(재배포 허용분)  ✔ 중간 체크포인트·로그  — Apache 2.0</text>
+  <text x="80" y="370" font-size="12.5" fill="#212529">✔ 512K 네이티브 컨텍스트(미드트레이닝 이후)  ✔ vLLM·SGLang·Ollama 데이제로 지원</text>
+
+  <text x="400" y="412" text-anchor="middle" font-size="10.5" fill="#6c757d">출처: ifm.ai 발표·Hugging Face IFM 조직 모델 카드 (32B 카드에서 직접 확인). 0.9B·3.7B·7B는 동급 SOTA 주장(벤더 자체 보고).</text>
+</svg>

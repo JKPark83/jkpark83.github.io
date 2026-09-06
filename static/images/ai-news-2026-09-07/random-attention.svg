@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="sans-serif">
+  <rect width="800" height="400" fill="#f8f9fa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a2e">Random Attention — KV 캐시 축출, 점수가 필요 없었다</text>
+
+  <!-- KV cache bar -->
+  <text x="60" y="80" font-size="14" font-weight="bold" fill="#212529">긴 추론 세션의 KV 캐시</text>
+  <rect x="60" y="96" width="180" height="56" rx="6" fill="#ffe3e3" stroke="#d64545"/>
+  <text x="150" y="120" text-anchor="middle" font-size="13" font-weight="bold" fill="#8e2626">프롬프트</text>
+  <text x="150" y="140" text-anchor="middle" font-size="11" fill="#8e2626">깨지기 쉬움 → 전부 보존</text>
+
+  <rect x="240" y="96" width="480" height="56" rx="6" fill="#e7f1ff" stroke="#4a7fd4"/>
+  <text x="480" y="120" text-anchor="middle" font-size="13" font-weight="bold" fill="#1d4e89">추론 트레이스 (chain of thought)</text>
+  <text x="480" y="140" text-anchor="middle" font-size="11" fill="#1d4e89">이중 중복: 텍스트가 스스로 재진술 + 헤드마다 사본 보유</text>
+
+  <!-- arrow -->
+  <line x1="400" y1="168" x2="400" y2="196" stroke="#6c757d" stroke-width="2"/>
+  <polygon points="394,196 406,196 400,208" fill="#6c757d"/>
+
+  <!-- eviction -->
+  <rect x="120" y="216" width="560" height="60" rx="8" fill="#f3e8fd" stroke="#9268c8"/>
+  <text x="400" y="240" text-anchor="middle" font-size="14" font-weight="bold" fill="#5b3a8e">헤드별 균등 무작위 축출 — 중요도 점수 계산 0회</text>
+  <text x="400" y="262" text-anchor="middle" font-size="12" fill="#5b3a8e">기존 방식: 토큰마다 "나중에 얼마나 중요할지" 점수를 매겨 top-k 유지</text>
+
+  <!-- results -->
+  <rect x="60" y="300" width="330" height="72" rx="8" fill="#e8f5e9" stroke="#5a9e6f"/>
+  <text x="225" y="328" text-anchor="middle" font-size="13" font-weight="bold" fill="#2e6b3e">정확도: 최강 기존 축출법과 동급</text>
+  <text x="225" y="352" text-anchor="middle" font-size="11.5" fill="#2e6b3e">4개 모델 × 6개 추론 태스크에서 확인</text>
+
+  <rect x="410" y="300" width="330" height="72" rx="8" fill="#fff3e0" stroke="#e8963e"/>
+  <text x="575" y="328" text-anchor="middle" font-size="13" font-weight="bold" fill="#8a5a17">vLLM 서빙 처리량 +32~43%</text>
+  <text x="575" y="352" text-anchor="middle" font-size="11.5" fill="#8a5a17">점수 계산 오버헤드가 사라진 몫</text>
+
+  <text x="400" y="392" text-anchor="middle" font-size="10.5" fill="#6c757d">출처: arXiv 2609.03430 초록(자체 보고). Salesforce AI Research, 코드 공개.</text>
+</svg>

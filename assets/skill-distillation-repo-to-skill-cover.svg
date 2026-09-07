@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="GitHub 저장소와 논문이 DisCo 증류기를 거쳐 SKILL.md와 references, scripts로 구성된 검증된 스킬 패키지가 되고, 라우터를 통해 에이전트가 필요한 가지만 로드하는 흐름을 나타낸 그림">
+  <defs>
+    <linearGradient id="rts-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#14263b"/>
+    </linearGradient>
+    <marker id="rts-carw" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/>
+    </marker>
+    <marker id="rts-carw2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#rts-bg)"/>
+
+  <text x="60" y="80" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="38" font-weight="700" fill="#e2e8f0">스킬을 손으로 쓰는 시대는 끝났다?</text>
+  <text x="60" y="120" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">GitHub 저장소 1,000개 → 검증된 스킬 5,000개 — Repo-To-Skill과 AREX-Skill</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 소스: 저장소들 -->
+    <rect x="70" y="200" width="220" height="70" rx="12" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="180" y="230" text-anchor="middle" font-size="17" font-weight="700" fill="#fbbf24">GitHub 저장소 ×1,000</text>
+    <text x="180" y="254" text-anchor="middle" font-size="13" fill="#64748b">vLLM · FAISS · Diffusers · …</text>
+    <rect x="70" y="290" width="220" height="70" rx="12" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="180" y="320" text-anchor="middle" font-size="17" font-weight="700" fill="#fbbf24">논문 · 문서 · 테스트</text>
+    <text x="180" y="344" text-anchor="middle" font-size="13" fill="#64748b">사람이 읽으라고 쓴 지식</text>
+
+    <line x1="290" y1="280" x2="380" y2="280" stroke="#38bdf8" stroke-width="3" marker-end="url(#rts-carw2)"/>
+
+    <!-- DisCo 증류기 -->
+    <rect x="390" y="230" width="230" height="100" rx="14" fill="#0c2f36" stroke="#2dd4bf" stroke-width="2.5"/>
+    <text x="505" y="270" text-anchor="middle" font-size="20" font-weight="800" fill="#2dd4bf">DisCo 증류기</text>
+    <text x="505" y="298" text-anchor="middle" font-size="13" fill="#7ac9c0">범위 → 근거 → 구성 → 검증</text>
+
+    <line x1="620" y1="280" x2="710" y2="280" stroke="#4ade80" stroke-width="3" marker-end="url(#rts-carw)"/>
+
+    <!-- 스킬 패키지 -->
+    <rect x="720" y="200" width="240" height="160" rx="14" fill="#122b1c" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="840" y="234" text-anchor="middle" font-size="18" font-weight="800" fill="#4ade80">검증된 스킬 ×5,000</text>
+    <text x="760" y="268" font-size="14" fill="#a7f3d0" font-family="ui-monospace,monospace">├─ SKILL.md</text>
+    <text x="760" y="296" font-size="14" fill="#a7f3d0" font-family="ui-monospace,monospace">├─ references/</text>
+    <text x="760" y="324" font-size="14" fill="#a7f3d0" font-family="ui-monospace,monospace">└─ scripts/</text>
+
+    <line x1="960" y1="280" x2="1035" y2="280" stroke="#4ade80" stroke-width="3" marker-end="url(#rts-carw)"/>
+
+    <!-- 에이전트 -->
+    <rect x="1045" y="235" width="110" height="90" rx="14" fill="#1e293b" stroke="#60a5fa" stroke-width="2.5"/>
+    <text x="1100" y="273" text-anchor="middle" font-size="16" font-weight="800" fill="#60a5fa">에이전트</text>
+    <text x="1100" y="298" text-anchor="middle" font-size="12" fill="#64748b">필요한 가지만</text>
+
+    <!-- 하단 결과 배너 -->
+    <rect x="70" y="430" width="1085" height="120" rx="14" fill="#0f2233" stroke="#334155" stroke-width="2"/>
+    <text x="100" y="478" font-size="17" fill="#94a3b8">같은 Codex · 같은 harness · 같은 예산, 스킬만 얹으면</text>
+    <text x="100" y="520" font-size="26" font-weight="800" fill="#e2e8f0">MLE-bench 메달률 31.11% → <tspan fill="#4ade80">72.89%</tspan>  <tspan font-size="19" fill="#4ade80">(+134.3%)</tspan></text>
+    <text x="1125" y="520" text-anchor="end" font-size="15" fill="#64748b">arXiv:2609.02749</text>
+  </g>
+</svg>

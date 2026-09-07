@@ -1,0 +1,441 @@
+---
+title: "스킬을 손으로 쓰는 시대는 끝났다? — GitHub 저장소를 에이전트 스킬로 증류하는 Repo-To-Skill"
+date: 2026-09-08T07:30:00+09:00
+draft: false
+tags: ["AI", "Agent Skills", "SKILL.md", "스킬 증류", "skill distillation", "Repo-To-Skill", "AREX-Skill", "DisCo", "BAAI", "MLE-bench", "에이전트", "코딩 에이전트", "context engineering", "progressive disclosure", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트에게 전문성을 심는 표준으로 SKILL.md가 자리 잡았지만, 지금까지 스킬은 사람이 손으로 썼습니다. 이번 주 Hugging Face 데일리 페이퍼와 X를 달군 Repo-To-Skill(arXiv:2609.02749)은 이 전제를 뒤집습니다. DisCo라는 에이전트가 GitHub 저장소 1,000개를 읽고 검증 가능한 스킬 5,000여 개를 자동으로 '증류'해 AREX-Skill 라이브러리를 만들었고, 같은 Codex 에이전트에 이 스킬을 얹었더니 MLE-bench 메달 획득률이 31.11%에서 72.89%로 뛰었습니다. 이 글은 '운영 지식'이라는 문제 설정부터 실제 vLLM 스킬 해부, 4단계 증류 파이프라인, 숫자를 의심하며 읽는 법, 내 저장소를 스킬로 증류해 보는 실습까지 junior 개발자 눈높이에서 쉽고 자세하게 다룹니다."
+ShowToc: false
+cover:
+  image: "skill-distillation-repo-to-skill-cover.svg"
+  alt: "GitHub 저장소와 논문이 DisCo 증류기를 거쳐 SKILL.md·references·scripts로 구성된 스킬 패키지가 되고, 라우터를 통해 에이전트가 필요한 가지만 로드하는 흐름"
+  caption: "사람용 문서를 에이전트용 스킬로 — 저장소 1,000개가 검증된 스킬 5,000개가 되기까지"
+  relative: false
+---
+
+<style>
+/* ── 스킬 증류 포스트 전용 스타일 (rts- 접두사) ── */
+.rts-fig{
+  --rts-violet:#7c3aed; --rts-sky:#0284c7; --rts-green:#16a34a; --rts-rose:#e11d48;
+  --rts-amber:#d97706; --rts-slate:#64748b; --rts-teal:#0d9488; --rts-blue:#2563eb;
+  --rts-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .rts-fig{
+  --rts-violet:#a78bfa; --rts-sky:#38bdf8; --rts-green:#4ade80; --rts-rose:#fb7185;
+  --rts-amber:#fbbf24; --rts-slate:#94a3b8; --rts-teal:#2dd4bf; --rts-blue:#60a5fa;
+  --rts-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .rts-fig{
+    --rts-violet:#a78bfa; --rts-sky:#38bdf8; --rts-green:#4ade80; --rts-rose:#fb7185;
+    --rts-amber:#fbbf24; --rts-slate:#94a3b8; --rts-teal:#2dd4bf; --rts-blue:#60a5fa;
+    --rts-gray:#64748b;
+  }
+}
+.rts-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.rts-fig text{font-family:inherit}
+.rts-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.rts-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.rts-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.rts-toc ol{margin:0;padding-left:1.25rem}
+.rts-toc li{margin:.22rem 0;font-size:.95rem}
+.rts-toc a{text-decoration:none}
+.rts-toc a:hover{text-decoration:underline}
+.rts-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.rts-table th,.rts-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left}
+.rts-table th{background:var(--entry)}
+.rts-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+</style>
+
+<div class="rts-toc">
+  <div class="rts-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 스킬은 좋은데, 누가 다 쓰나요?</a></li>
+    <li><a href="#sec-2">배경 — SKILL.md 30초 복습, 그리고 '운영 지식'</a></li>
+    <li><a href="#sec-3">스킬 하나 해부 — vLLM 스킬은 실제로 이렇게 생겼다</a></li>
+    <li><a href="#sec-4">DisCo의 4단계 증류 파이프라인</a></li>
+    <li><a href="#sec-5">숫자 읽는 법 — +134.3%는 무슨 뜻인가</a></li>
+    <li><a href="#sec-6">계보 — '경험을 스킬로'는 하나의 연구 축이 됐다</a></li>
+    <li><a href="#sec-7">실전 — 설치해 보고, 내 저장소도 증류해 보기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 스킬은 좋은데, 누가 다 쓰나요?</h2>
+
+<p>에이전트에게 도메인 전문성을 얹는 방법으로 <a href="/posts/agent-skills-skill-md/">SKILL.md 기반 Agent Skills</a>는 이제 사실상 표준이 됐습니다. 그런데 이 방식에는 조용히 깔린 전제가 하나 있습니다. <strong>스킬은 사람이 손으로 쓴다</strong>는 것. vLLM 배포 노하우를 스킬로 만들려면, vLLM을 잘 아는 사람이 앉아서 문서를 읽고, 함정을 정리하고, 검증 절차를 적어야 합니다. 스킬이 10개면 어떻게든 됩니다. 그런데 ML 생태계의 주요 저장소 1,000개를 커버하려면요?</p>
+
+<p>이번 주(9월 첫째 주) 이 전제를 정면으로 뒤집는 논문이 화제가 됐습니다. 9월 2일 공개된 <a href="https://arxiv.org/abs/2609.02749" target="_blank" rel="noopener">Repo-To-Skill: Distilling GitHub Repositories Into AI4AI Skills</a>(arXiv:2609.02749)입니다. 베이징인공지능연구원(BAAI)을 중심으로 한 연구진은 <strong>DisCo</strong>라는 에이전트에게 GitHub 저장소를 읽혀서 스킬을 자동으로 만들게 했고, 그 결과물인 <a href="https://github.com/VectorSpaceLab/AREX-Skill" target="_blank" rel="noopener">AREX-Skill 라이브러리</a>는 저장소 1,000개에서 증류한 검증된 스킬 5,000여 개를 담고 있습니다. 효과도 큽니다. 같은 Codex 에이전트, 같은 harness, 같은 실행 예산에서 스킬만 얹었더니 MLE-bench 메달 획득률이 31.11%에서 72.89%로, 상대 기준 +134.3% 뛰었습니다.</p>
+
+<p>논문은 Hugging Face 데일리 페이퍼에 오르고 <a href="https://x.com/TheTuringPost/status/2096240393117692157" target="_blank" rel="noopener">Turing Post 등 X 계정들이 정리 스레드</a>를 올리면서 빠르게 퍼졌습니다. 마침 같은 주에 <a href="https://arize.com/blog/mcp-vs-cli-skills-for-agents-what-our-eval-found-and-which-you-should-use/" target="_blank" rel="noopener">Arize의 "MCP vs CLI/Skills" 평가 글</a>이 돌면서 "에이전트 능력의 단위는 무엇인가"라는 논쟁이 다시 붙었는데, Repo-To-Skill은 여기에 "스킬이 맞다, 심지어 손으로 안 써도 된다"는 강한 한 표를 던진 셈입니다.</p>
+
+<p>비유하자면 이렇습니다. 지금까지의 스킬 작성이 <strong>장인이 한 권씩 쓰는 사내 위키</strong>였다면, Repo-To-Skill은 <strong>위키를 쓰는 사서를 고용한 것</strong>입니다. 사서가 도서관(GitHub) 전체를 돌며 책마다 "이 도구는 언제 쓰고, 뭘 실행하고, 어떻게 검증하고, 실패하면 어떻게 복구하는지"를 규격화된 카드로 만들어 꽂아 둡니다. 에이전트는 일하다가 필요한 카드만 뽑아 읽습니다.</p>
+
+<h2 id="sec-2">2. 배경 — SKILL.md 30초 복습, 그리고 '운영 지식'</h2>
+
+<p>따라오는 데 필요한 배경은 두 가지뿐입니다.</p>
+
+<p><strong>첫째, Agent Skills 포맷.</strong> 스킬은 <code>SKILL.md</code> 파일 하나가 담긴 폴더입니다. 프런트매터에 이름과 "언제 이 스킬을 쓰는지" 설명이 있고, 본문에 절차가 있고, 옆에 <code>references/</code>(참고 문서)와 <code>scripts/</code>(실행 가능한 헬퍼)를 둘 수 있습니다. 핵심 원리는 점진적 공개(progressive disclosure)입니다. 평소에는 이름·설명만 컨텍스트에 올려 두고, 요청과 맞을 때만 본문을, 더 필요할 때만 참고 문서를 펼칩니다. 자세한 동작은 <a href="/posts/agent-skills-skill-md/">이전 글</a>에서 다뤘으니 여기서는 이 정도만 기억하면 됩니다. AREX-Skill도 독자 포맷이 아니라 이 공개 표준(<a href="https://github.com/agentskills/agentskills" target="_blank" rel="noopener">agentskills/agentskills</a>)을 패키징 규약으로 그대로 씁니다. 그래서 만들어진 스킬을 Codex나 Claude Code 같은 기존 코딩 에이전트에 바로 설치할 수 있습니다.</p>
+
+<p><strong>둘째, 이 논문의 문제 설정인 운영 지식(operational knowledge).</strong> 방법을 "아는 것"과 실제로 "돌아가게 만드는 것" 사이의 노하우를 말합니다. 어떤 라이브러리 버전 조합이 실제로 설치되는지, 어떤 API를 어떤 순서로 불러야 하는지, 학습 파이프라인 설정에서 다들 걸려 넘어지는 함정이 뭔지 같은 것들이죠. 이 지식은 세상에 이미 있습니다. 논문에, 저장소에, 이슈 스레드에요. 문제는 전부 <strong>사람이 읽으라고 쓴 형태</strong>라는 겁니다. 에이전트가 작업 중에 통째로 로드하기엔 너무 크고, 검색해서 짜깁기하자니 매번 같은 삽질을 반복합니다.</p>
+
+<figure class="rts-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="왼쪽은 사람용 지식인 논문, 저장소, 블로그를 에이전트가 매번 검색하고 조합하고 디버깅하는 구조, 오른쪽은 같은 지식을 스킬 인터페이스로 증류해 언제 쓰는지, 무엇을 실행하는지, 어떻게 검증하는지, 어떻게 복구하는지 네 항목으로 제공하는 구조를 대비한 다이어그램">
+  <defs>
+    <marker id="rts-ar1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--rts-slate)"/>
+    </marker>
+    <marker id="rts-ar1g" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--rts-green)"/>
+    </marker>
+  </defs>
+
+  <!-- 왼쪽: 사람용 지식 -->
+  <text x="20" y="34" font-size="15" font-weight="800" fill="var(--rts-amber)">지금 — 사람용 형태의 지식</text>
+  <rect x="20" y="52" width="110" height="52" rx="9" fill="none" stroke="var(--rts-amber)" stroke-width="2"/>
+  <text x="75" y="83" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-amber)">논문</text>
+  <rect x="145" y="52" width="110" height="52" rx="9" fill="none" stroke="var(--rts-amber)" stroke-width="2"/>
+  <text x="200" y="83" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-amber)">저장소</text>
+  <rect x="270" y="52" width="110" height="52" rx="9" fill="none" stroke="var(--rts-amber)" stroke-width="2"/>
+  <text x="325" y="83" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-amber)">블로그·이슈</text>
+
+  <line x1="200" y1="104" x2="200" y2="150" stroke="var(--rts-slate)" stroke-width="1.6" marker-end="url(#rts-ar1)"/>
+  <rect x="60" y="155" width="280" height="120" rx="10" fill="none" stroke="var(--rts-slate)" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="200" y="182" text-anchor="middle" font-size="13" font-weight="700" fill="var(--rts-slate)">에이전트, 작업할 때마다</text>
+  <text x="200" y="207" text-anchor="middle" font-size="12" fill="var(--rts-gray)">검색 → 무엇이 적용되는지 판단</text>
+  <text x="200" y="228" text-anchor="middle" font-size="12" fill="var(--rts-gray)">→ 워크플로 짜깁기 → 빠진 단계 디버깅</text>
+  <text x="200" y="249" text-anchor="middle" font-size="12" fill="var(--rts-gray)">→ 결과가 믿을 만한지 자체 판단</text>
+  <text x="200" y="305" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-rose)">같은 삽질을 태스크마다 반복 · 예산 낭비</text>
+
+  <!-- 가운데 화살표 -->
+  <line x1="405" y1="190" x2="470" y2="190" stroke="var(--rts-green)" stroke-width="2.4" marker-end="url(#rts-ar1g)"/>
+  <text x="437" y="172" text-anchor="middle" font-size="12" font-weight="700" fill="var(--rts-green)">증류</text>
+
+  <!-- 오른쪽: 스킬 인터페이스 -->
+  <text x="490" y="34" font-size="15" font-weight="800" fill="var(--rts-green)">Repo-To-Skill — 에이전트용 인터페이스</text>
+  <rect x="490" y="52" width="350" height="260" rx="12" fill="none" stroke="var(--rts-green)" stroke-width="2.2"/>
+  <text x="665" y="80" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--rts-green)">스킬 = 자기완결적 운영 지식 단위</text>
+  <rect x="510" y="98" width="310" height="42" rx="8" fill="none" stroke="var(--rts-sky)" stroke-width="1.8"/>
+  <text x="665" y="124" text-anchor="middle" font-size="12.5" fill="var(--rts-sky)">① 언제 쓰는가 — 적용 범위·라우팅 조건</text>
+  <rect x="510" y="150" width="310" height="42" rx="8" fill="none" stroke="var(--rts-sky)" stroke-width="1.8"/>
+  <text x="665" y="176" text-anchor="middle" font-size="12.5" fill="var(--rts-sky)">② 무엇을 실행하는가 — 절차·명령·스크립트</text>
+  <rect x="510" y="202" width="310" height="42" rx="8" fill="none" stroke="var(--rts-sky)" stroke-width="1.8"/>
+  <text x="665" y="228" text-anchor="middle" font-size="12.5" fill="var(--rts-sky)">③ 어떻게 검증하는가 — 체크·목표 지표</text>
+  <rect x="510" y="254" width="310" height="42" rx="8" fill="none" stroke="var(--rts-sky)" stroke-width="1.8"/>
+  <text x="665" y="280" text-anchor="middle" font-size="12.5" fill="var(--rts-sky)">④ 실패하면 어떻게 복구하는가 — 트러블슈팅</text>
+  <text x="665" y="345" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-green)">필요한 카드만 뽑아 읽고, 절차를 재사용</text>
+
+  <text x="430" y="405" text-anchor="middle" font-size="12.5" fill="var(--rts-gray)">요약이 아니라 인터페이스 — "저장소를 요약"하는 게 아니라 "저장소를 조작하는 법"을 담는다</text>
+</svg>
+<figcaption>그림 1. 운영 지식 문제. 지식 자체는 이미 공개돼 있지만 사람용 형태라 에이전트가 매번 다시 조립해야 합니다. 스킬은 이 지식을 ①언제 ②무엇을 ③검증 ④복구의 네 축으로 규격화한 에이전트용 인터페이스입니다.</figcaption>
+</figure>
+
+<p>즉 Repo-To-Skill의 관점에서 스킬은 저장소의 <em>요약</em>이 아닙니다. README를 줄여 놓은 게 아니라, "이 도구를 실전에서 굴리는 법"을 실행 가능한 형태로 옮긴 <strong>인터페이스</strong>입니다. 이 구분이 이 논문 전체를 관통합니다.</p>
+
+<h2 id="sec-3">3. 스킬 하나 해부 — vLLM 스킬은 실제로 이렇게 생겼다</h2>
+
+<p>추상적으로 듣는 것보다 실물을 보는 게 빠릅니다. AREX-Skill 저장소에 실제로 들어 있는 vLLM 스킬의 루트 <code>SKILL.md</code>는 이렇게 시작합니다(발췌).</p>
+
+{{< highlight yaml >}}
+---
+name: vllm
+description: "Route vLLM tasks across offline inference, OpenAI-compatible
+  serving, structured/tool/reasoning, multimodal/LoRA/pooling, and
+  deployment/performance workflows."
+disable-model-invocation: true   # 모델에게 항상 보이는 목록에서는 뺀다 (아래 설명)
+metadata:
+  disco-role: operating
+license: Apache 2.0
+---
+{{< /highlight >}}
+
+<p>본문에서 눈에 띄는 특징은 네 가지입니다.</p>
+
+<p><strong>루트 스킬은 라우터입니다.</strong> vLLM처럼 기능이 많은 저장소는 스킬 하나로 안 끝납니다. 루트 SKILL.md는 "사용자가 Python 인프로세스 추론을 원하면 <code>sub-skills/offline-inference/</code>로, <code>vllm serve</code>와 OpenAI 호환 서버 얘기면 <code>sub-skills/openai-serving/</code>로, 메모리·병렬화·양자화·벤치마크면 <code>sub-skills/deployment-performance/</code>로 가라"는 라우팅 표를 담고, 실제 명령과 코드는 하위 스킬에 있습니다. 저장소 하나가 <strong>스킬 그래프(skill graph)</strong>가 되는 구조입니다.</p>
+
+<p><strong>안전 기본값이 명시돼 있습니다.</strong> "사용자가 승인하기 전에는 서버를 띄우거나, 모델을 다운로드하거나, <code>trust_remote_code</code>를 켜지 말라"처럼, GPU 실행·다운로드·멀티 노드 같은 비싼 행동을 환경 게이트 뒤로 밀어 둡니다. 스킬이 절차만이 아니라 <em>행동 규범</em>도 실어 나른다는 뜻입니다.</p>
+
+<p><strong>실행 가능한 진단 스크립트가 붙어 있습니다.</strong> <code>scripts/vllm_skill_doctor.py</code>는 모델을 내려받거나 서버를 띄우지 않고도 import·CLI·백엔드 상태를 점검합니다. "말로 된 지시"와 "돌려 볼 수 있는 코드"가 한 패키지에 있는 거죠.</p>
+
+<p><strong>검증 범위를 스스로 밝힙니다.</strong> 맨 아래 Verification Scope 절은 "이 스킬은 소스·문서·예제·테스트와 CPU 환경 점검으로 생성했고, 실제 GPU 서빙은 사용자 환경에서 검증해야 한다"고 적습니다. 어디까지 확인된 지식인지 출처와 한계를 남기는 것 — 이게 뒤에서 볼 증류 파이프라인의 '검증' 단계와 이어집니다.</p>
+
+<p>그럼 스킬이 5,000개면 컨텍스트가 터지지 않을까요? 여기서 프런트매터의 <code>disable-model-invocation: true</code>가 등장합니다. 저장소 스킬 루트는 모델에게 항상 보이는 스킬 목록에서 빠지고, 대신 모델에게 보이는 것은 <strong>repo-skills-router</strong>라는 라우터 스킬 하나입니다. 에이전트는 라우터를 읽고 분류 체계에서 영역(area) 한두 개를 고르고 → 해당 영역 페이지만 읽고 패키지 패밀리를 비교하고 → 선택된 저장소의 SKILL.md를 열고 → 필요한 하위 스킬과 스크립트만 읽습니다. <a href="/posts/tool-search-deferred-loading/">툴을 지연 로딩하는 것</a>과 같은 원리를 지식에 적용한, 점진적 공개의 대규모 버전입니다.</p>
+
+<figure class="rts-fig">
+<svg viewBox="0 0 860 470" role="img" aria-label="요청이 라우터 스킬을 거쳐 20개 영역, 178개 패키지 패밀리, 1000개 저장소 스킬 그래프로 좁혀지고, 선택된 vLLM 루트 SKILL.md에서 하위 스킬과 references, scripts 중 필요한 가지만 로드되는 과정을 보여주는 깔때기형 다이어그램">
+  <defs>
+    <marker id="rts-ar2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--rts-blue)"/>
+    </marker>
+  </defs>
+
+  <rect x="20" y="30" width="250" height="56" rx="10" fill="none" stroke="var(--rts-violet)" stroke-width="2.2"/>
+  <text x="145" y="54" text-anchor="middle" font-size="13" font-weight="700" fill="var(--rts-violet)">요청</text>
+  <text x="145" y="74" text-anchor="middle" font-size="11.5" fill="var(--rts-gray)">"vLLM과 SGLang 처리량을 비교해 줘"</text>
+
+  <line x1="270" y1="58" x2="330" y2="58" stroke="var(--rts-blue)" stroke-width="1.8" marker-end="url(#rts-ar2)"/>
+
+  <rect x="335" y="30" width="220" height="56" rx="10" fill="none" stroke="var(--rts-blue)" stroke-width="2.2"/>
+  <text x="445" y="54" text-anchor="middle" font-size="13" font-weight="700" fill="var(--rts-blue)">repo-skills-router</text>
+  <text x="445" y="74" text-anchor="middle" font-size="11.5" fill="var(--rts-gray)">모델에게 보이는 건 이것 하나</text>
+
+  <!-- 깔때기 -->
+  <line x1="445" y1="86" x2="445" y2="120" stroke="var(--rts-blue)" stroke-width="1.8" marker-end="url(#rts-ar2)"/>
+  <rect x="120" y="125" width="650" height="46" rx="9" fill="none" stroke="var(--rts-slate)" stroke-width="1.8"/>
+  <text x="445" y="153" text-anchor="middle" font-size="12.5" fill="var(--rts-slate)">① 영역 선택 — 20개 연구 영역 중 한두 개 (예: 배포·서빙)</text>
+  <line x1="445" y1="171" x2="445" y2="196" stroke="var(--rts-blue)" stroke-width="1.8" marker-end="url(#rts-ar2)"/>
+  <rect x="180" y="201" width="530" height="46" rx="9" fill="none" stroke="var(--rts-slate)" stroke-width="1.8"/>
+  <text x="445" y="229" text-anchor="middle" font-size="12.5" fill="var(--rts-slate)">② 패밀리 비교 — 178개 패키지 패밀리의 해당 페이지만 읽기</text>
+  <line x1="445" y1="247" x2="445" y2="272" stroke="var(--rts-blue)" stroke-width="1.8" marker-end="url(#rts-ar2)"/>
+  <rect x="240" y="277" width="410" height="46" rx="9" fill="none" stroke="var(--rts-teal)" stroke-width="2"/>
+  <text x="445" y="305" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-teal)">③ 저장소 스킬 결정 — repo-skills/vllm/SKILL.md</text>
+  <line x1="445" y1="323" x2="445" y2="348" stroke="var(--rts-blue)" stroke-width="1.8" marker-end="url(#rts-ar2)"/>
+
+  <!-- 스킬 그래프 가지 -->
+  <rect x="130" y="353" width="190" height="62" rx="9" fill="none" stroke="var(--rts-gray)" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="225" y="379" text-anchor="middle" font-size="11.5" fill="var(--rts-gray)">sub-skills/offline-inference</text>
+  <text x="225" y="399" text-anchor="middle" font-size="11" fill="var(--rts-gray)">(이번 태스크에선 안 읽음)</text>
+  <rect x="335" y="353" width="220" height="62" rx="9" fill="none" stroke="var(--rts-green)" stroke-width="2.2"/>
+  <text x="445" y="376" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--rts-green)">sub-skills/deployment-performance</text>
+  <text x="445" y="396" text-anchor="middle" font-size="11" fill="var(--rts-green)">+ references/ + scripts/ 필요한 것만</text>
+  <rect x="570" y="353" width="190" height="62" rx="9" fill="none" stroke="var(--rts-gray)" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="665" y="379" text-anchor="middle" font-size="11.5" fill="var(--rts-gray)">sub-skills/openai-serving</text>
+  <text x="665" y="399" text-anchor="middle" font-size="11" fill="var(--rts-gray)">(이번 태스크에선 안 읽음)</text>
+
+  <text x="430" y="450" text-anchor="middle" font-size="12.5" fill="var(--rts-gray)">스킬 5,000개를 설치해도 초기 컨텍스트에는 라우터만 — 점진적 공개가 규모를 감당한다</text>
+</svg>
+<figcaption>그림 2. AREX-Skill의 라우팅 구조. 영역 → 패키지 패밀리 → 저장소 스킬 그래프 → 하위 스킬 순으로 좁혀 가며, 각 단계에서 필요한 문서만 컨텍스트에 올립니다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. DisCo의 4단계 증류 파이프라인</h2>
+
+<p>그럼 이런 스킬을 에이전트가 어떻게 만들까요? 스킬을 만들고(Creator) 쓰는(Researcher) 에이전트가 DisCo이고, Creator의 증류 워크플로는 4단계입니다.</p>
+
+<p>출발점은 <strong>앵커(anchor)</strong>입니다. 앵커가 저장소나 논문 같은 <em>소스</em>면 미리 해 두는 태스크 불특정(task-agnostic) 증류이고 — AREX-Skill 라이브러리가 이렇게 만들어졌습니다 — 앵커가 지금 풀어야 할 <em>문제</em>면 그 자리에서 필요한 스킬을 뽑는 태스크 지향(task-oriented) 증류입니다.</p>
+
+<figure class="rts-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="앵커가 저장소면 태스크 불특정 증류, 문제면 태스크 지향 증류로 나뉘고, 공통으로 범위 설정, 근거 확보, 스킬 그래프 구성, 검증과 정제의 네 단계를 거쳐 검증된 스킬만 라이브러리에 발행되며, 근거와 검증 체크와 남은 공백은 구성 기록에 남는 파이프라인 다이어그램">
+  <defs>
+    <marker id="rts-ar3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--rts-teal)"/>
+    </marker>
+  </defs>
+
+  <!-- 앵커 -->
+  <rect x="20" y="40" width="180" height="60" rx="10" fill="none" stroke="var(--rts-violet)" stroke-width="2"/>
+  <text x="110" y="65" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-violet)">앵커 = 소스 (저장소·논문)</text>
+  <text x="110" y="86" text-anchor="middle" font-size="11" fill="var(--rts-gray)">태스크 불특정 · 미리 증류</text>
+  <rect x="20" y="120" width="180" height="60" rx="10" fill="none" stroke="var(--rts-violet)" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="110" y="145" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-violet)">앵커 = 문제 (지금 태스크)</text>
+  <text x="110" y="166" text-anchor="middle" font-size="11" fill="var(--rts-gray)">태스크 지향 · 그때그때 증류</text>
+
+  <line x1="200" y1="110" x2="248" y2="110" stroke="var(--rts-teal)" stroke-width="2" marker-end="url(#rts-ar3)"/>
+
+  <!-- 4단계 -->
+  <rect x="253" y="80" width="130" height="60" rx="10" fill="none" stroke="var(--rts-teal)" stroke-width="2.2"/>
+  <text x="318" y="105" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-teal)">① 범위 설정</text>
+  <text x="318" y="126" text-anchor="middle" font-size="10.5" fill="var(--rts-gray)">어떤 능력들을 다룰지</text>
+  <line x1="383" y1="110" x2="408" y2="110" stroke="var(--rts-teal)" stroke-width="2" marker-end="url(#rts-ar3)"/>
+  <rect x="413" y="80" width="130" height="60" rx="10" fill="none" stroke="var(--rts-teal)" stroke-width="2.2"/>
+  <text x="478" y="105" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-teal)">② 근거 확보</text>
+  <text x="478" y="126" text-anchor="middle" font-size="10.5" fill="var(--rts-gray)">소스·문서·테스트에 기반</text>
+  <line x1="543" y1="110" x2="568" y2="110" stroke="var(--rts-teal)" stroke-width="2" marker-end="url(#rts-ar3)"/>
+  <rect x="573" y="80" width="130" height="60" rx="10" fill="none" stroke="var(--rts-teal)" stroke-width="2.2"/>
+  <text x="638" y="105" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-teal)">③ 그래프 구성</text>
+  <text x="638" y="126" text-anchor="middle" font-size="10.5" fill="var(--rts-gray)">루트·하위 스킬 후보</text>
+  <line x1="703" y1="110" x2="728" y2="110" stroke="var(--rts-teal)" stroke-width="2" marker-end="url(#rts-ar3)"/>
+  <rect x="733" y="80" width="110" height="60" rx="10" fill="none" stroke="var(--rts-green)" stroke-width="2.4"/>
+  <text x="788" y="105" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--rts-green)">④ 검증·정제</text>
+  <text x="788" y="126" text-anchor="middle" font-size="10.5" fill="var(--rts-gray)">확인 · 수리 · 기록</text>
+
+  <!-- 검증 루프 -->
+  <path d="M 788 140 C 788 185, 638 185, 638 145" fill="none" stroke="var(--rts-rose)" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#rts-ar3)"/>
+  <text x="716" y="192" text-anchor="middle" font-size="11" fill="var(--rts-rose)">실패하면 수리 후 재검증</text>
+
+  <!-- 산출물 -->
+  <line x1="788" y1="140" x2="788" y2="240" stroke="var(--rts-green)" stroke-width="2" marker-end="url(#rts-ar3)"/>
+  <rect x="470" y="245" width="373" height="66" rx="10" fill="none" stroke="var(--rts-green)" stroke-width="2.2"/>
+  <text x="656" y="272" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-green)">발행 — 검증 통과한 스킬만 라이브러리에</text>
+  <text x="656" y="294" text-anchor="middle" font-size="11" fill="var(--rts-gray)">AREX-Skill: 1,000개 저장소 → 검증된 스킬 5,000+개</text>
+
+  <rect x="60" y="245" width="373" height="66" rx="10" fill="none" stroke="var(--rts-slate)" stroke-width="1.8" stroke-dasharray="7 5"/>
+  <text x="246" y="272" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--rts-slate)">구성 기록(construction record)</text>
+  <text x="246" y="294" text-anchor="middle" font-size="11" fill="var(--rts-gray)">근거 출처 · 검증 체크 · 아직 못 메운 공백까지 남긴다</text>
+
+  <text x="430" y="370" text-anchor="middle" font-size="12.5" fill="var(--rts-gray)">"검증 없이 라이브러리에 들어가는 스킬은 없다" — 증류의 절반은 생성이 아니라 검증이다</text>
+</svg>
+<figcaption>그림 3. DisCo Creator의 4단계 증류 워크플로. 앵커(소스 또는 문제)에서 출발해 범위 설정 → 근거 확보 → 스킬 그래프 구성 → 검증·정제를 거치고, 검증을 통과한 스킬만 발행됩니다.</figcaption>
+</figure>
+
+<p>단계별로 풀면 이렇습니다.</p>
+
+<p><strong>① 범위 설정(scope)</strong> — 앵커에서 "이 저장소가 제공하는 능력"의 목록을 뽑습니다. vLLM이라면 오프라인 추론, OpenAI 호환 서빙, 구조화 출력, 배포·성능 튜닝 같은 단위들이죠. 이 단위가 그대로 하위 스킬 후보가 됩니다.</p>
+
+<p><strong>② 근거 확보(ground)</strong> — 각 능력을 <em>허용 가능한 근거</em>에 붙들어 맵니다. 소스 코드, 공식 문서, 예제, 테스트, 패키지 메타데이터처럼 확인 가능한 것들이요. 모델의 사전 지식으로 "아마 이렇겠지"라고 채우는 걸 막는 단계입니다. LLM이 그럴싸하게 지어내는 능력이 뛰어나다는 걸 생각하면, 스킬 증류에서 가장 중요한 방어선입니다.</p>
+
+<p><strong>③ 그래프 구성(construct)</strong> — 근거가 붙은 능력들을 라우팅 가능한 스킬 그래프로 조립합니다. 루트는 라우터, 하위는 워크플로별 스킬, 옆에 references와 scripts.</p>
+
+<p><strong>④ 검증·정제(verify &amp; refine)</strong> — 후보 스킬을 실제로 점검하고, 고칠 수 있으면 고치고, 남은 공백은 공백대로 기록합니다. 검증을 통과하지 못한 스킬은 라이브러리에 들어가지 못합니다. 이때 근거 출처·검증 체크·미해결 공백이 구성 기록(construction record)으로 남아서, 나중에 업스트림이 바뀌었을 때 스킬을 갱신(refresh)하는 기준이 됩니다.</p>
+
+<p>주목할 점: 이 파이프라인에서 <strong>모델 가중치는 전혀 건드리지 않습니다</strong>. 파인 튜닝도, 학습도 없습니다. 늘어나는 건 에이전트가 로드할 수 있는 파일뿐입니다. 그래서 스킬은 git으로 버전 관리하고, diff로 리뷰하고, 다른 에이전트로 들고 갈 수 있습니다. <a href="/posts/agent-memory-consolidation-substrates/">에이전트 메모리를 어떤 기질에 저장할 것인가</a>라는 논의에서 "사람이 읽을 수 있는 파일" 쪽 극단을 대규모로 밀어붙인 사례로 볼 수도 있습니다.</p>
+
+<h2 id="sec-5">5. 숫자 읽는 법 — +134.3%는 무슨 뜻인가</h2>
+
+<p>공식 결과표부터 보겠습니다. 에이전트 설정·harness·실행 예산을 고정하고, AREX 스킬 유무만 바꾼 비교입니다.</p>
+
+<table class="rts-table">
+  <thead>
+    <tr><th>벤치마크</th><th>과제</th><th>지표</th><th>Codex</th><th>+ AREX-Skill</th><th>상대 이득</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>MLE-bench</strong></td><td>ML 엔지니어링 (Kaggle 대회 75개)</td><td>Any Medal rate (%)</td><td class="num">31.11</td><td class="num"><strong>72.89</strong></td><td class="num">+134.3%</td></tr>
+    <tr><td><strong>PaperBench</strong></td><td>논문 재현 (20편)</td><td>Replication score</td><td class="num">29.45</td><td class="num"><strong>39.59</strong></td><td class="num">+34.4%</td></tr>
+    <tr><td><strong>FrontierCS</strong></td><td>알고리즘 최적화 (188개)</td><td>Score</td><td class="num">70.63</td><td class="num"><strong>77.14</strong></td><td class="num">+9.2%</td></tr>
+    <tr><td><strong>PassNet</strong></td><td>컴파일러 패스 최적화 (200개)</td><td>AS Score</td><td class="num">1.343</td><td class="num"><strong>1.531</strong></td><td class="num">+14.0%</td></tr>
+  </tbody>
+</table>
+
+<figure class="rts-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="네 개 벤치마크 각각에서 Codex 단독과 Codex에 AREX 스킬을 얹은 결과를 비교한 막대 그래프. MLE-bench는 31.11에서 72.89로, PaperBench는 29.45에서 39.59로, FrontierCS는 70.63에서 77.14로, PassNet은 1.343에서 1.531로 오른다">
+  <!-- 패널 1: MLE-bench (max 80) -->
+  <text x="115" y="30" text-anchor="middle" font-size="13" font-weight="800" fill="var(--rts-slate)">MLE-bench</text>
+  <text x="115" y="48" text-anchor="middle" font-size="10.5" fill="var(--rts-gray)">Any Medal (%)</text>
+  <rect x="55" y="182.8" width="50" height="77.2" rx="4" fill="var(--rts-gray)" opacity=".55"/>
+  <rect x="125" y="78.9" width="50" height="181.1" rx="4" fill="var(--rts-green)"/>
+  <text x="80" y="174" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--rts-slate)">31.11</text>
+  <text x="150" y="70" text-anchor="middle" font-size="11.5" font-weight="800" fill="var(--rts-green)">72.89</text>
+  <text x="115" y="284" text-anchor="middle" font-size="11" font-weight="700" fill="var(--rts-green)">+134.3%</text>
+
+  <!-- 패널 2: PaperBench (max 45) -->
+  <text x="330" y="30" text-anchor="middle" font-size="13" font-weight="800" fill="var(--rts-slate)">PaperBench</text>
+  <text x="330" y="48" text-anchor="middle" font-size="10.5" fill="var(--rts-gray)">Replication score</text>
+  <rect x="270" y="129" width="50" height="131" rx="4" fill="var(--rts-gray)" opacity=".55"/>
+  <rect x="340" y="84" width="50" height="176" rx="4" fill="var(--rts-green)"/>
+  <text x="295" y="120" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--rts-slate)">29.45</text>
+  <text x="365" y="75" text-anchor="middle" font-size="11.5" font-weight="800" fill="var(--rts-green)">39.59</text>
+  <text x="330" y="284" text-anchor="middle" font-size="11" font-weight="700" fill="var(--rts-green)">+34.4%</text>
+
+  <!-- 패널 3: FrontierCS (max 85) -->
+  <text x="545" y="30" text-anchor="middle" font-size="13" font-weight="800" fill="var(--rts-slate)">FrontierCS</text>
+  <text x="545" y="48" text-anchor="middle" font-size="10.5" fill="var(--rts-gray)">Score</text>
+  <rect x="485" y="93.7" width="50" height="166.3" rx="4" fill="var(--rts-gray)" opacity=".55"/>
+  <rect x="555" y="78.4" width="50" height="181.6" rx="4" fill="var(--rts-green)"/>
+  <text x="510" y="85" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--rts-slate)">70.63</text>
+  <text x="580" y="70" text-anchor="middle" font-size="11.5" font-weight="800" fill="var(--rts-green)">77.14</text>
+  <text x="545" y="284" text-anchor="middle" font-size="11" font-weight="700" fill="var(--rts-green)">+9.2%</text>
+
+  <!-- 패널 4: PassNet (max 1.7) -->
+  <text x="755" y="30" text-anchor="middle" font-size="13" font-weight="800" fill="var(--rts-slate)">PassNet</text>
+  <text x="755" y="48" text-anchor="middle" font-size="10.5" fill="var(--rts-gray)">AS Score</text>
+  <rect x="695" y="102" width="50" height="158" rx="4" fill="var(--rts-gray)" opacity=".55"/>
+  <rect x="765" y="79.9" width="50" height="180.1" rx="4" fill="var(--rts-green)"/>
+  <text x="720" y="93" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--rts-slate)">1.343</text>
+  <text x="780" y="71" text-anchor="middle" font-size="11.5" font-weight="800" fill="var(--rts-green)">1.531</text>
+  <text x="755" y="284" text-anchor="middle" font-size="11" font-weight="700" fill="var(--rts-green)">+14.0%</text>
+
+  <line x1="40" y1="260" x2="830" y2="260" stroke="var(--rts-slate)" stroke-width="1.4"/>
+  <text x="430" y="314" text-anchor="middle" font-size="12" fill="var(--rts-gray)">회색 = Codex 단독 · 초록 = Codex + AREX-Skill (패널마다 축 스케일이 다릅니다 — 지표 단위가 서로 다름)</text>
+</svg>
+<figcaption>그림 4. 스킬 유무만 바꾼 비교 결과(AREX-Skill 저장소 공식 수치). 난도가 높고 운영 지식 의존도가 큰 MLE-bench에서 이득이 가장 큽니다.</figcaption>
+</figure>
+
+<p>이 표를 junior의 눈으로 <em>의심하며</em> 읽는 연습을 해 봅시다.</p>
+
+<p><strong>+134.3%는 절대치가 아니라 상대 이득입니다.</strong> 31.11% → 72.89%니까 절대로는 +41.78%p입니다. 상대 퍼센트는 기저가 낮을수록 커 보인다는 걸 항상 기억하세요. 그래도 Kaggle 대회 75개 중 메달권 결과를 내는 비율이 3분의 1에서 4분의 3으로 올랐다는 건, 방향과 크기 모두 인상적인 결과입니다.</p>
+
+<p><strong>이득이 벤치마크마다 다른 것 자체가 정보입니다.</strong> MLE-bench(+134.3%)는 라이브러리·환경 설정·디버깅 같은 운영 지식이 승부를 가르는 과제라 스킬 효과가 극대화됩니다. 반면 FrontierCS(+9.2%)는 알고리즘적 사고가 중심이라 "절차 카드"가 해 줄 수 있는 게 상대적으로 적습니다. 스킬은 만능이 아니라 <em>운영 지식이 병목인 곳</em>에서 힘을 씁니다. 저자들 표현으로는 "스킬이 비싼 무작정 시행착오를 줄이고, 예산을 실험과 검증에 쓰게 해 준다"입니다.</p>
+
+<p><strong>자기 보고 수치라는 한계도 있습니다.</strong> 이 표는 저자 측 평가이고, 글을 쓰는 시점 기준 세부 방법을 담은 완전한 기술 보고서는 아직 공개 전입니다(저장소에 "forthcoming"으로 명시). 제3자 재현이 나오기 전까지는 "저자 보고 기준 이 정도"로 잡아 두는 게 안전합니다. 반가운 점은 라이브러리와 CLI가 Apache 2.0으로 전부 공개돼 있어서, 누구든 같은 비교를 돌려 볼 수 있다는 것입니다.</p>
+
+<h2 id="sec-6">6. 계보 — '경험을 스킬로'는 하나의 연구 축이 됐다</h2>
+
+<p>Repo-To-Skill이 갑자기 튀어나온 건 아닙니다. 올여름부터 "에이전트의 경험과 인류의 문서를 스킬로 압축한다"는 논문이 줄줄이 나오면서 <strong>스킬 증류(skill distillation)</strong>가 하나의 축으로 자리 잡았습니다. 지도를 그려 보면:</p>
+
+<p><strong>무엇에서 증류하는가</strong>로 나눌 수 있습니다. Microsoft Research의 <a href="https://arxiv.org/abs/2606.26669" target="_blank" rel="noopener">Skill-DisCo</a>(arXiv:2606.26669, 6월)는 에이전트 자신의 <em>성공 트레이스</em>에서 증류합니다. 반복되는 행동 패턴을 파라미터화된 절차(제어 흐름 서브그래프)로 컴파일해서, ALFWorld·WebArena에서 성공률을 올리고 턴 수를 줄였습니다. "같은 유형 문제를 매번 처음부터 푸는 낭비를 없애자"는 문제의식이죠. <a href="https://arxiv.org/abs/2606.29538" target="_blank" rel="noopener">Resource2Skill</a>(arXiv:2606.29538)은 사람이 만든 튜토리얼·문서 같은 <em>멀티모달 자료</em>에서, 그리고 Repo-To-Skill은 <em>GitHub 저장소</em>에서 증류합니다. 소재는 달라도 산출물은 같습니다 — 에이전트가 로드할 수 있는, 검증된 절차 단위.</p>
+
+<p>이 흐름은 이 블로그에서 다뤘던 두 줄기가 만나는 지점이기도 합니다. 하나는 <a href="/posts/agent-skills-failure-lifecycle/">스킬의 수명 주기 관리</a> — 스킬을 언제 만들고 언제 폐기하는가. 다른 하나는 컨텍스트 엔지니어링 — 무엇을 컨텍스트에 올리고 무엇을 미룰 것인가. 스킬 증류는 전자의 "만들기"를 자동화하고, 후자의 라우팅·점진적 공개를 규모 있게 실증했습니다. 그리고 이번 주 MCP 대 스킬 논쟁의 관점에서 보면, 스킬 진영의 가장 약한 고리였던 "그 많은 스킬을 누가 유지보수하나"에 대한 답변 시도이기도 합니다.</p>
+
+<h2 id="sec-7">7. 실전 — 설치해 보고, 내 저장소도 증류해 보기</h2>
+
+<p>직접 만져 보는 게 제일 빠릅니다. 두 가지 실습을 제안합니다.</p>
+
+<p><strong>실습 A — AREX-Skill 라이브러리 써 보기.</strong> DisCo CLI는 npm 패키지(<code>@arex-skill/disco</code>)로 배포됩니다. Node.js 22.19 이상이 필요합니다.</p>
+
+{{< highlight bash >}}
+# DisCo 설치 (postinstall 스크립트 실행을 막는 --ignore-scripts 권장)
+npm install -g --ignore-scripts @arex-skill/disco
+
+# 라이브러리 설치 후 Researcher 모드 시작
+disco repo-skills install
+disco
+# 첫 실행 시 /login 또는 OPENAI_API_KEY / ANTHROPIC_API_KEY 등으로 프로바이더 설정
+{{< /highlight >}}
+
+<p>프롬프트에서 구체적인 과제를 줘 보세요. 예를 들어 "설치된 스킬을 써서 이 머신에서 vLLM과 SGLang을 같은 모델·워크로드·하드웨어 조건으로 벤치마크하고, 재현에 필요한 명령과 측정값을 보존해 줘" 같은 것. 라우터가 관련 저장소 스킬을 고르고, 필요한 지시만 점진적으로 로드하는 걸 지켜볼 수 있습니다. 이미 쓰는 코딩 에이전트가 있다면 스킬만 내보낼 수도 있습니다.</p>
+
+{{< highlight bash >}}
+# vLLM·SGLang 스킬을 Claude Code의 사용자 스킬 디렉터리로 내보내기
+disco --creator -p "/skill:import-repo-skills-to-agent import vllm and sglang to ~/.claude"
+# 내보낸 뒤 대상 에이전트를 재시작해야 새 스킬을 읽습니다
+{{< /highlight >}}
+
+<p><strong>실습 B — 파이프라인을 내 저장소에 흉내 내 보기.</strong> DisCo 없이도 4단계 증류의 핵심은 아무 코딩 에이전트로 재현할 수 있습니다. 회사 코드베이스의 "부족 지식"을 스킬로 만드는 데 그대로 써먹을 수 있는 패턴입니다. 포인트는 프롬프트에 <strong>근거 강제</strong>와 <strong>검증 단계</strong>를 명시하는 것입니다.</p>
+
+{{< highlight text >}}
+이 저장소를 읽고 Agent Skills 포맷의 스킬 그래프를 만들어 줘.
+
+1. (범위) 이 저장소가 제공하는 능력을 3~7개 단위로 나열해.
+2. (근거) 각 능력마다 근거가 되는 파일 경로·문서·테스트를 명시해.
+   README와 코드에서 확인되지 않는 내용은 절대 쓰지 마.
+3. (구성) 루트 SKILL.md는 라우팅 표만 담고, 능력별 sub-skill에
+   절차·명령·흔한 실패와 복구법을 적어. 진단용 스크립트가 가능하면
+   scripts/에 만들어.
+4. (검증) 각 sub-skill의 명령을 실제로 실행해 보고, 실패하면 스킬을
+   고쳐. 실행으로 확인 못 한 항목은 "미검증"으로 표시해.
+{{< /highlight >}}
+
+<p>4번을 빼먹으면 어떻게 되는지 꼭 한번 비교해 보세요. 검증 없는 증류는 "그럴싸하지만 낡았거나 틀린 절차"를 양산합니다. 스킬 품질의 승부처는 생성이 아니라 검증이라는 걸 몸으로 느낄 수 있습니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<p><strong>스킬을 README 요약으로 만들지 마세요.</strong> 요약은 "무엇인가"를 답하지만 스킬은 "언제 쓰고, 뭘 실행하고, 어떻게 검증하고, 어떻게 복구하는가"를 답해야 합니다. 넷 중 검증·복구가 빠져 있다면 그건 스킬이 아니라 소개글입니다.</p>
+
+<p><strong>검증 안 된 스킬은 오염된 컨텍스트입니다.</strong> 에이전트는 스킬을 신뢰하고 따르기 때문에, 틀린 스킬은 프롬프트 인젝션만큼이나 조용히 결과를 망칩니다. AREX처럼 "검증 통과 못 하면 발행 금지 + 확인 못 한 범위는 명시" 원칙을 지키세요.</p>
+
+<p><strong>스킬은 썩습니다.</strong> 업스트림 저장소가 버전업하면 스킬 속 명령과 API가 낡습니다. AREX-Skill이 스킬마다 소스 커밋과 갱신 요건을 기록해 두는 이유입니다. 직접 만들 때도 프로비넌스(어느 커밋 기준인지)를 남기고, 주기적 refresh를 계획에 넣으세요.</p>
+
+<p><strong>스킬 수가 늘면 라우팅이 병목이 됩니다.</strong> 스킬 다섯 개면 설명만 보고 골라도 되지만, 수천 개면 영역→패밀리→저장소 같은 계층 라우터가 필요합니다. 라우터가 잘못 고르면 그 아래가 아무리 좋아도 소용없으니, 스킬 본문보다 <em>description과 라우팅 표</em>에 더 공을 들이세요.</p>
+
+<p><strong>남이 만든 스킬은 남이 만든 코드입니다.</strong> 스킬에는 에이전트가 따를 지시와 실행할 스크립트가 들어 있습니다. 외부 스킬 라이브러리를 설치하는 건 의존성을 설치하는 것과 같은 보안 결정입니다. 읽고, 샌드박스에서 돌려 보고, 신뢰 범위를 정하세요.</p>
+
+<p><strong>벤치마크 이득을 내 워크로드에 그대로 대입하지 마세요.</strong> +134.3%는 "운영 지식이 병목인 ML 엔지니어링 과제"에서의 수치입니다. 운영 지식 의존도가 낮은 작업이라면 FrontierCS처럼 한 자릿수 이득에 가까울 수 있습니다.</p>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>이번 주 화제작 <strong>Repo-To-Skill</strong>(arXiv:2609.02749, BAAI 중심)은 스킬을 사람이 쓰는 대신, <strong>DisCo 에이전트가 GitHub 저장소에서 자동으로 증류</strong>하는 방법을 제시했습니다. 결과물인 AREX-Skill 라이브러리는 저장소 1,000개 → 검증된 스킬 5,000+개(Apache 2.0 공개)입니다.</li>
+  <li>스킬은 저장소 요약이 아니라 <strong>운영 지식의 인터페이스</strong>입니다: 언제 쓰는가 · 무엇을 실행하는가 · 어떻게 검증하는가 · 실패하면 어떻게 복구하는가.</li>
+  <li>증류는 <strong>범위 설정 → 근거 확보 → 그래프 구성 → 검증·정제</strong>의 4단계이고, 검증을 통과한 스킬만 발행됩니다. 모델 가중치는 건드리지 않으므로 스킬은 git으로 버전 관리·리뷰·이식이 됩니다.</li>
+  <li>스킬 5,000개는 <strong>라우터 + 점진적 공개</strong>(영역→패밀리→저장소 그래프→하위 스킬)로 감당합니다. 초기 컨텍스트에는 라우터 하나만 올라갑니다.</li>
+  <li>효과는 저자 보고 기준 MLE-bench 메달률 31.11%→72.89%(+134.3%). 단, <strong>운영 지식이 병목인 과제에서 크고</strong>, 알고리즘 중심 과제(FrontierCS +9.2%)에선 작습니다. 완전한 기술 보고서는 아직 공개 전이니 제3자 재현을 기다릴 필요가 있습니다.</li>
+  <li>실무 교훈: 스킬 품질의 승부처는 생성이 아니라 <strong>검증과 갱신</strong>입니다. 근거를 강제하고, 실행으로 확인하고, 프로비넌스를 남기고, 낡으면 refresh하세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2609.02749" target="_blank" rel="noopener">Repo-To-Skill: Distilling GitHub Repositories Into AI4AI Skills (arXiv:2609.02749)</a></li>
+  <li><a href="https://github.com/VectorSpaceLab/AREX-Skill" target="_blank" rel="noopener">AREX-Skill — GitHub 저장소 (라이브러리 · DisCo CLI · 문서)</a></li>
+  <li><a href="https://huggingface.co/papers/2609.02749" target="_blank" rel="noopener">Hugging Face Papers — Repo-To-Skill 페이지</a></li>
+  <li><a href="https://x.com/TheTuringPost/status/2096240393117692157" target="_blank" rel="noopener">Turing Post — AREX-Skill 소개 스레드 (X)</a></li>
+  <li><a href="https://arxiv.org/abs/2606.26669" target="_blank" rel="noopener">Skill-DisCo: Distilling and Compiling Agent Traces into Reusable Procedural Skills (arXiv:2606.26669)</a></li>
+  <li><a href="https://arxiv.org/abs/2606.29538" target="_blank" rel="noopener">Resource2Skill: Distilling Executable Agent Skills from Human-Created Multimodal Resources (arXiv:2606.29538)</a></li>
+  <li><a href="https://github.com/agentskills/agentskills" target="_blank" rel="noopener">Agent Skills — 공개 스킬 포맷 사양</a></li>
+  <li><a href="https://arize.com/blog/mcp-vs-cli-skills-for-agents-what-our-eval-found-and-which-you-should-use/" target="_blank" rel="noopener">Arize — MCP vs. CLI/Skills for agents: what our eval found</a></li>
+  <li>(한국어) <a href="/posts/agent-skills-skill-md/">에이전트에게 SKILL.md로 전문성을 심는 법 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/agent-skills-failure-lifecycle/">에이전트 스킬의 수명 주기 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/tool-search-deferred-loading/">툴 검색과 지연 로딩 — 이 블로그</a></li>
+</ul>

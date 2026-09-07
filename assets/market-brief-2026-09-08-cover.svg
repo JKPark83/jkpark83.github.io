@@ -1,0 +1,32 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="비트코인 주간 캔들이 매수 전환선 8만1,000달러에 650달러 못 미친 8만350달러에 마감해 판정이 미충족으로 끝났고, 같은 날 코스피는 OpenAI Astra발 반도체 랠리로 4.61% 올라 6,995.39로 7,000선 문앞에 섰음을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.08 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">판정 미충족 — 주간 마감 8만350달러 · 코스피는 Astra 랠리로 7,000선 문앞</text>
+
+  <g transform="translate(120,280)">
+    <text x="200" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">비트코인 주간 판정</text>
+    <line x1="20" y1="90" x2="380" y2="90" stroke="#22c55e" stroke-width="4" stroke-dasharray="10 7"/>
+    <text x="380" y="76" text-anchor="end" font-family="sans-serif" font-size="19" fill="#4ade80">매수 전환선 8만1,000</text>
+    <rect x="150" y="130" width="100" height="130" rx="8" fill="#38bdf8" opacity="0.9"/>
+    <text x="200" y="115" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#f1f5f9">8만350</text>
+    <text x="200" y="292" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">650달러 부족 · 미충족</text>
+  </g>
+
+  <g transform="translate(640,280)">
+    <text x="230" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코스피 — Astra 랠리</text>
+    <rect x="40" y="200" width="80" height="60" rx="6" fill="#64748b" opacity="0.8"/>
+    <text x="80" y="188" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#cbd5e1">금 6,687</text>
+    <rect x="180" y="60" width="80" height="200" rx="6" fill="#22c55e" opacity="0.95"/>
+    <text x="220" y="48" text-anchor="middle" font-family="sans-serif" font-size="19" font-weight="700" fill="#4ade80">월 6,995 (+4.61%)</text>
+    <line x1="20" y1="52" x2="440" y2="52" stroke="#facc15" stroke-width="3" stroke-dasharray="8 6"/>
+    <text x="440" y="40" text-anchor="end" font-family="sans-serif" font-size="18" fill="#facc15">7,000선</text>
+    <text x="230" y="292" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">SK하이닉스 +8.26% · 삼성전자 +5.68%</text>
+  </g>
+</svg>

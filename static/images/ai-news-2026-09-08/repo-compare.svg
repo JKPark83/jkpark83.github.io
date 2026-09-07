@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="380" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">오늘의 오픈소스 3종 비교 — 에이전트 개발 스택에서의 위치</text>
+
+  <!-- graphify -->
+  <rect x="24" y="56" width="240" height="270" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="144" y="84" text-anchor="middle" font-size="15" font-weight="700" fill="#1d4ed8">graphify</text>
+  <text x="144" y="104" text-anchor="middle" font-size="11" fill="#64748b">Python · Graphify Labs</text>
+  <line x1="44" y1="116" x2="244" y2="116" stroke="#bfdbfe"/>
+  <text x="40" y="140" font-size="12" font-weight="700" fill="#0f172a">역할: 컨텍스트 공급</text>
+  <text x="40" y="162" font-size="12" fill="#475569">코드+문서를 지식 그래프로</text>
+  <text x="40" y="180" font-size="12" fill="#475569">변환, MCP로 질의 제공</text>
+  <text x="40" y="208" font-size="12" font-weight="700" fill="#0f172a">쓸 곳:</text>
+  <text x="40" y="228" font-size="12" fill="#475569">대형 코드베이스에서 grep</text>
+  <text x="40" y="246" font-size="12" fill="#475569">대신 호출 관계·의존성 질의</text>
+  <text x="40" y="274" font-size="12" font-weight="700" fill="#0f172a">상태:</text>
+  <text x="40" y="294" font-size="12" fill="#475569">v0.9.56 · 9/7 커밋 활발</text>
+  <text x="40" y="312" font-size="12" fill="#475569">10개국어 README</text>
+
+  <!-- humanizer -->
+  <rect x="280" y="56" width="240" height="270" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="400" y="84" text-anchor="middle" font-size="15" font-weight="700" fill="#15803d">humanizer</text>
+  <text x="400" y="104" text-anchor="middle" font-size="11" fill="#64748b">Markdown 스킬 · blader</text>
+  <line x1="300" y1="116" x2="500" y2="116" stroke="#bbf7d0"/>
+  <text x="296" y="140" font-size="12" font-weight="700" fill="#0f172a">역할: 출력 후처리</text>
+  <text x="296" y="162" font-size="12" fill="#475569">AI 특유의 문체 패턴을</text>
+  <text x="296" y="180" font-size="12" fill="#475569">의미 보존하며 제거</text>
+  <text x="296" y="208" font-size="12" font-weight="700" fill="#0f172a">쓸 곳:</text>
+  <text x="296" y="228" font-size="12" fill="#475569">문서·릴리즈노트·블로그 등</text>
+  <text x="296" y="246" font-size="12" fill="#475569">사람이 읽을 텍스트 마감</text>
+  <text x="296" y="274" font-size="12" font-weight="700" fill="#0f172a">상태:</text>
+  <text x="296" y="294" font-size="12" fill="#475569">이번 주 트렌딩 1위권</text>
+  <text x="296" y="312" font-size="12" fill="#475569">스킬 지원 에이전트 공용</text>
+
+  <!-- portless -->
+  <rect x="536" y="56" width="240" height="270" rx="10" fill="#fdf4ff" stroke="#e9d5ff"/>
+  <text x="656" y="84" text-anchor="middle" font-size="15" font-weight="700" fill="#7e22ce">portless</text>
+  <text x="656" y="104" text-anchor="middle" font-size="11" fill="#64748b">TypeScript · vercel-labs</text>
+  <line x1="556" y1="116" x2="756" y2="116" stroke="#e9d5ff"/>
+  <text x="552" y="140" font-size="12" font-weight="700" fill="#0f172a">역할: 로컬 인프라</text>
+  <text x="552" y="162" font-size="12" fill="#475569">포트 번호 대신 안정적인</text>
+  <text x="552" y="180" font-size="12" fill="#475569">이름 기반 .localhost URL</text>
+  <text x="552" y="208" font-size="12" font-weight="700" fill="#0f172a">쓸 곳:</text>
+  <text x="552" y="228" font-size="12" fill="#475569">에이전트가 dev 서버 여러 개</text>
+  <text x="552" y="246" font-size="12" fill="#475569">띄울 때 주소 충돌 방지</text>
+  <text x="552" y="274" font-size="12" font-weight="700" fill="#0f172a">상태:</text>
+  <text x="552" y="294" font-size="12" fill="#475569">pre-1.0 · HTTPS 기본</text>
+  <text x="552" y="312" font-size="12" fill="#475569">사람+에이전트 겸용 설계</text>
+
+  <text x="400" y="356" text-anchor="middle" font-size="11" fill="#94a3b8">세 저장소 모두 클론으로 직접 확인 · 스타 수는 API 제한으로 미검증 (트렌딩 집계 기준 상위권)</text>
+</svg>

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="430" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">리플렉션 게이팅: 무엇을 보고 메모리를 업데이트할 것인가 (BCR, arXiv 2609.02750)</text>
+
+  <!-- 공통 시작 -->
+  <rect x="300" y="56" width="200" height="46" rx="8" fill="#e0e7ff" stroke="#818cf8"/>
+  <text x="400" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="#3730a3">에이전트 실행 결과</text>
+  <text x="400" y="93" text-anchor="middle" font-size="11" fill="#475569">리플렉션 → 메모리 수정 후보 생성</text>
+
+  <line x1="330" y1="102" x2="200" y2="140" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="470" y1="102" x2="600" y2="140" stroke="#94a3b8" stroke-width="2"/>
+
+  <!-- 왼쪽: 트랜스크립트 게이트 -->
+  <rect x="40" y="140" width="330" height="200" rx="10" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="205" y="168" text-anchor="middle" font-size="14" font-weight="700" fill="#b91c1c">❌ 트랜스크립트만 보는 게이트</text>
+  <text x="60" y="196" font-size="12" fill="#0f172a">LLM이 자기 로그를 읽고</text>
+  <text x="60" y="214" font-size="12" fill="#0f172a">"이 교훈이 좋아 보인다"로 채택 결정</text>
+  <text x="60" y="244" font-size="12" fill="#7f1d1d">논문의 불가능성 정리:</text>
+  <text x="60" y="262" font-size="12" fill="#7f1d1d">텍스트로 구분 안 되는 환경들에서는</text>
+  <text x="60" y="280" font-size="12" fill="#7f1d1d">어떤 게이트도 일관된 개선 불가</text>
+  <text x="60" y="310" font-size="12" fill="#991b1b" font-weight="700">→ 그럴듯한 나쁜 교훈이 누적됨</text>
+
+  <!-- 오른쪽: 환경 기반 게이트 -->
+  <rect x="430" y="140" width="330" height="200" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="595" y="168" text-anchor="middle" font-size="14" font-weight="700" fill="#15803d">✅ 환경 기반 게이트 (SRMA)</text>
+  <text x="450" y="196" font-size="12" fill="#0f172a">메모리 수정 후보를 실제 평가셋에서</text>
+  <text x="450" y="214" font-size="12" fill="#0f172a">돌려보고, 리스크(실패율)가</text>
+  <text x="450" y="232" font-size="12" fill="#0f172a">확실히 내려갈 때만 채택</text>
+  <text x="450" y="262" font-size="12" fill="#14532d">수렴 보장 (기하/다항 속도)</text>
+  <text x="450" y="280" font-size="12" fill="#14532d">노이즈 평가엔 신뢰도 게이팅 추가</text>
+  <text x="450" y="310" font-size="12" fill="#15803d" font-weight="700">→ SWE-bench 500: 72.2% (기준 70.8%)</text>
+
+  <rect x="120" y="362" width="560" height="44" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="400" y="381" text-anchor="middle" font-size="12" font-weight="700" fill="#92400e">실무 요약: CLAUDE.md·스킬·메모리 자동 업데이트는 "평가 점수가 내려가면 거부"를 기본값으로</text>
+  <text x="400" y="398" text-anchor="middle" font-size="11" fill="#a16207">UCL · Univ. of Liverpool · Huawei — 수치는 논문 자체 보고 기준</text>
+</svg>

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="470" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 — 2026-09-08</text>
+
+  <!-- 모델 -->
+  <rect x="24" y="56" width="368" height="180" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="40" y="82" font-size="15" font-weight="700" fill="#1d4ed8">🤖 모델</text>
+  <text x="40" y="108" font-size="13" fill="#0f172a">Qwen3.8-Max-0902 스냅샷</text>
+  <text x="40" y="128" font-size="12" fill="#475569">· 코딩·에이전트 특화 재튜닝</text>
+  <text x="40" y="146" font-size="12" fill="#475569">· 1M 컨텍스트 · 가격 동결 ($2/$6)</text>
+  <text x="40" y="164" font-size="12" fill="#475569">· 멀티툴 오케스트레이션 강화</text>
+  <text x="40" y="192" font-size="12" fill="#64748b">그 외 프런티어 릴리즈는 조용한 하루</text>
+  <text x="40" y="212" font-size="12" fill="#64748b">(지난주 릴리즈 러시 소화 구간)</text>
+
+  <!-- 논문 -->
+  <rect x="408" y="56" width="368" height="180" rx="10" fill="#fdf4ff" stroke="#e9d5ff"/>
+  <text x="424" y="82" font-size="15" font-weight="700" fill="#7e22ce">📚 논문</text>
+  <text x="424" y="108" font-size="13" fill="#0f172a">BCR: 멀티에이전트 리플렉션 이론</text>
+  <text x="424" y="128" font-size="12" fill="#475569">· 트랜스크립트만 보는 게이트의 한계 증명</text>
+  <text x="424" y="146" font-size="12" fill="#475569">· 환경 기반 게이트(SRMA) → SWE-bench 72.2%</text>
+  <text x="424" y="174" font-size="13" fill="#0f172a">MaxKernel: TPU 커널 생성 에이전트 (Google)</text>
+  <text x="424" y="194" font-size="12" fill="#475569">· 계획→구현→디버그→프로파일 서브에이전트</text>
+  <text x="424" y="212" font-size="12" fill="#475569">· JaxBench 50개 과제 · 오픈소스 공개</text>
+
+  <!-- 오픈소스 -->
+  <rect x="24" y="252" width="368" height="180" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="40" y="278" font-size="15" font-weight="700" fill="#15803d">🛠 오픈소스</text>
+  <text x="40" y="304" font-size="13" fill="#0f172a">graphify — 코드베이스 → 지식 그래프</text>
+  <text x="40" y="322" font-size="12" fill="#475569">· MCP로 코딩 에이전트에 그래프 질의 제공</text>
+  <text x="40" y="348" font-size="13" fill="#0f172a">humanizer — AI 문체 제거 스킬</text>
+  <text x="40" y="366" font-size="12" fill="#475569">· SKILL.md 하나로 모든 에이전트에서 동작</text>
+  <text x="40" y="392" font-size="13" fill="#0f172a">portless — 포트 번호 대신 이름 URL</text>
+  <text x="40" y="410" font-size="12" fill="#475569">· 에이전트가 dev 서버 주소를 안 잃게</text>
+
+  <!-- 도구/팁 -->
+  <rect x="408" y="252" width="368" height="180" rx="10" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="424" y="278" font-size="15" font-weight="700" fill="#b45309">🧑‍💻 도구 &amp; 팁</text>
+  <text x="424" y="304" font-size="13" fill="#0f172a">Codex: execpolicy 규칙 엔진</text>
+  <text x="424" y="322" font-size="12" fill="#475569">· 명령 자동승인/금지를 Starlark 규칙으로</text>
+  <text x="424" y="348" font-size="13" fill="#0f172a">Claude Code: /diff 사이드 패널</text>
+  <text x="424" y="366" font-size="12" fill="#475569">· 대화 옆에서 미커밋 변경 실시간 확인</text>
+  <text x="424" y="392" font-size="13" fill="#0f172a">공통: 메모리 업데이트도 평가로 게이팅</text>
+  <text x="424" y="410" font-size="12" fill="#475569">· "성찰 텍스트"보다 환경 성적표를 믿기</text>
+
+  <text x="400" y="456" text-anchor="middle" font-size="11" fill="#94a3b8">jkpark83.github.io · AI 데일리 브리핑</text>
+</svg>

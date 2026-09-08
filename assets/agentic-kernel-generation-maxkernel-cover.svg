@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트가 Pallas 커널 코드를 작성해 TPU에서 실행하고, 컴파일러 에러·수치 검증·프로파일러 트레이스라는 세 가지 하드웨어 피드백이 다시 에이전트로 돌아오는 폐쇄 루프를 그린 그림. 오른쪽에 JaxBench 1.58배, 프로덕션 커널에서 사람 2.02배 대 에이전트 2.32배라는 결과가 적혀 있다">
+  <defs>
+    <linearGradient id="mkc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1a2436"/>
+    </linearGradient>
+    <marker id="mkc-arw-g" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/>
+    </marker>
+    <marker id="mkc-arw-s" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="mkc-arw-a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#mkc-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">커널을 쓰는 에이전트</text>
+  <text x="60" y="118" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">MaxKernel — 컴파일러·테스트·프로파일러가 채점하는 TPU 커널 최적화 루프</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 에이전트 박스 -->
+    <rect x="70" y="200" width="270" height="180" rx="14" fill="#1e293b" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="205" y="238" text-anchor="middle" font-size="20" font-weight="700" fill="#4ade80">에이전트 (Gemini)</text>
+    <text x="205" y="270" text-anchor="middle" font-size="14" fill="#94a3b8">계획 · 구현 · 자가 디버깅</text>
+    <text x="205" y="292" text-anchor="middle" font-size="14" fill="#94a3b8">테스트 · 프로파일링 서브에이전트</text>
+    <rect x="100" y="315" width="210" height="40" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+    <text x="205" y="341" text-anchor="middle" font-size="14" font-weight="700" fill="#a5b4fc">그래프 탐색: 병렬 · 빔 서치</text>
+
+    <!-- 코드 화살표 -->
+    <path d="M340 260 L 480 260" fill="none" stroke="#4ade80" stroke-width="3" marker-end="url(#mkc-arw-g)"/>
+    <text x="410" y="242" text-anchor="middle" font-size="15" font-weight="700" fill="#4ade80">Pallas 커널</text>
+
+    <!-- TPU 칩 -->
+    <rect x="490" y="185" width="230" height="210" rx="16" fill="#1e293b" stroke="#fbbf24" stroke-width="2.5"/>
+    <rect x="530" y="225" width="150" height="130" rx="8" fill="#0f172a" stroke="#fbbf24" stroke-width="1.8"/>
+    <text x="605" y="285" text-anchor="middle" font-size="22" font-weight="800" fill="#fbbf24">TPU</text>
+    <text x="605" y="315" text-anchor="middle" font-size="13" fill="#94a3b8">MXU · VMEM · HBM</text>
+    <g stroke="#fbbf24" stroke-width="2">
+      <line x1="510" y1="205" x2="530" y2="225"/><line x1="700" y1="205" x2="680" y2="225"/>
+      <line x1="510" y1="375" x2="530" y2="355"/><line x1="700" y1="375" x2="680" y2="355"/>
+    </g>
+
+    <!-- 피드백 화살표 (아래로 돌아오는 루프) -->
+    <path d="M605 395 C 605 470, 400 480, 215 470 C 180 468, 170 440, 185 385" fill="none" stroke="#38bdf8" stroke-width="3" stroke-dasharray="9 7" marker-end="url(#mkc-arw-s)"/>
+    <text x="420" y="505" text-anchor="middle" font-size="15.5" font-weight="700" fill="#38bdf8">컴파일러 에러 · 수치 검증 결과 · 프로파일러 트레이스</text>
+
+    <!-- 결과 패널 -->
+    <rect x="790" y="185" width="350" height="300" rx="14" fill="#111c2e" stroke="#334155" stroke-width="2"/>
+    <text x="965" y="225" text-anchor="middle" font-size="17" font-weight="700" fill="#e2e8f0">JaxBench 50개 태스크</text>
+
+    <text x="820" y="268" font-size="14" fill="#94a3b8">XLA 참조 대비</text>
+    <rect x="820" y="280" width="200" height="22" rx="5" fill="#38bdf8" opacity="0.85"/>
+    <text x="1030" y="297" font-size="15" font-weight="700" fill="#38bdf8">1.58×</text>
+
+    <text x="820" y="340" font-size="14" fill="#94a3b8">프로덕션 커널 8개 — 사람</text>
+    <rect x="820" y="352" width="180" height="22" rx="5" fill="#64748b" opacity="0.9"/>
+    <text x="1010" y="369" font-size="15" font-weight="700" fill="#94a3b8">2.02×</text>
+
+    <text x="820" y="412" font-size="14" fill="#94a3b8">프로덕션 커널 8개 — 에이전트</text>
+    <rect x="820" y="424" width="207" height="22" rx="5" fill="#4ade80" opacity="0.9"/>
+    <text x="1037" y="441" font-size="15" font-weight="700" fill="#4ade80">2.32×</text>
+
+    <text x="965" y="472" text-anchor="middle" font-size="12.5" fill="#64748b">(논문 자체 보고 · arXiv:2609.04523)</text>
+  </g>
+
+  <text x="60" y="590" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#64748b">완벽한 채점기가 있는 곳에서 에이전트 루프는 가장 세게 돈다 — 단, 채점기가 정말 완벽할 때만</text>
+</svg>

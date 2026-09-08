@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="470" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 — 2026-09-09</text>
+
+  <!-- 모델 -->
+  <rect x="24" y="56" width="368" height="180" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="40" y="82" font-size="15" font-weight="700" fill="#1d4ed8">🤖 모델 &amp; 릴리즈</text>
+  <text x="40" y="108" font-size="13" fill="#0f172a">HydraFusion (GitHub, 리서치 프리뷰)</text>
+  <text x="40" y="128" font-size="12" fill="#475569">· 여러 모델을 한 턴에 오케스트레이션</text>
+  <text x="40" y="146" font-size="12" fill="#475569">· TB2.1 +4.9%p, 비용 최대 -67% (자체 평가)</text>
+  <text x="40" y="172" font-size="13" fill="#0f172a">MiniCPM5-2B (OpenBMB, 9/7)</text>
+  <text x="40" y="192" font-size="12" fill="#475569">· 온디바이스 에이전트용 2B 밀집 모델</text>
+  <text x="40" y="210" font-size="12" fill="#475569">· Apache-2.0 + 학습 데이터까지 공개</text>
+
+  <!-- 논문 -->
+  <rect x="408" y="56" width="368" height="180" rx="10" fill="#fdf4ff" stroke="#e9d5ff"/>
+  <text x="424" y="82" font-size="15" font-weight="700" fill="#7e22ce">📚 논문</text>
+  <text x="424" y="108" font-size="13" fill="#0f172a">Uno: 디퓨전으로 AR 모델 무손실 가속</text>
+  <text x="424" y="128" font-size="12" fill="#475569">· 드래프트 모델 없이 최대 3× 처리량</text>
+  <text x="424" y="146" font-size="12" fill="#475569">· 품질은 원본 AR 모델과 동일 (무손실)</text>
+  <text x="424" y="172" font-size="13" fill="#0f172a">FlowBalance: 검증기로 자기개선 보정</text>
+  <text x="424" y="192" font-size="12" fill="#475569">· 자기 확신이 아니라 verifier가 방향 결정</text>
+  <text x="424" y="210" font-size="12" fill="#475569">· 정답 전략 다양성 유지하며 성능 향상</text>
+
+  <!-- 오픈소스 -->
+  <rect x="24" y="252" width="368" height="180" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="40" y="278" font-size="15" font-weight="700" fill="#15803d">🛠 오픈소스</text>
+  <text x="40" y="304" font-size="13" fill="#0f172a">ifm-ai/uno — 코드·체크포인트 공개</text>
+  <text x="40" y="322" font-size="12" fill="#475569">· Qwen3-8B·K2-Horizon용 Uno 가중치</text>
+  <text x="40" y="340" font-size="12" fill="#475569">· nano-vllm 기반 추론 엔진 포함</text>
+  <text x="40" y="366" font-size="13" fill="#0f172a">OpenBMB/MiniCPM — 배포용 Agent Skills</text>
+  <text x="40" y="384" font-size="12" fill="#475569">· vLLM·llama.cpp·MLX 배포 스킬 14종</text>
+  <text x="40" y="402" font-size="12" fill="#475569">· 문서 대신 스킬로 배포법을 제공하는 흐름</text>
+
+  <!-- 도구/팁 -->
+  <rect x="408" y="252" width="368" height="180" rx="10" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="424" y="278" font-size="15" font-weight="700" fill="#b45309">🧑‍💻 도구 &amp; 팁</text>
+  <text x="424" y="304" font-size="13" fill="#0f172a">Codex: codex exec fork</text>
+  <text x="424" y="322" font-size="12" fill="#475569">· 세션을 갈라 여러 접근을 병렬 실험</text>
+  <text x="424" y="348" font-size="13" fill="#0f172a">Claude Code 2.1.265: --plugin-dir 폴더</text>
+  <text x="424" y="366" font-size="12" fill="#475569">· 플러그인 폴더 통째 로드 + 핫리로드</text>
+  <text x="424" y="392" font-size="13" fill="#0f172a">공통: 캐스케이드 라우팅 패턴</text>
+  <text x="424" y="410" font-size="12" fill="#475569">· 싼 모델 먼저, 게이트 통과 못 하면 승격</text>
+
+  <text x="400" y="458" text-anchor="middle" font-size="11" fill="#94a3b8">오늘의 축: "모델 하나 고르기"에서 "모델 조합 워크플로 고르기"로</text>
+</svg>

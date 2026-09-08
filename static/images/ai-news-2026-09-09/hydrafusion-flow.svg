@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="430" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a">HydraFusion — 작업마다 워크플로를 즉석 조립</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- 입력 -->
+  <rect x="30" y="58" width="150" height="46" rx="8" fill="#e0e7ff" stroke="#818cf8"/>
+  <text x="105" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#3730a3">코딩 작업 입력</text>
+  <text x="105" y="95" text-anchor="middle" font-size="11" fill="#475569">Copilot CLI /experimental</text>
+
+  <!-- 플래너 -->
+  <rect x="230" y="58" width="170" height="46" rx="8" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="315" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#92400e">런타임 플래너</text>
+  <text x="315" y="95" text-anchor="middle" font-size="11" fill="#475569">성능·비용·지연 트레이드오프</text>
+  <line x1="180" y1="81" x2="228" y2="81" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- 3 patterns -->
+  <line x1="315" y1="104" x2="120" y2="140" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="315" y1="104" x2="400" y2="140" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="315" y1="104" x2="650" y2="140" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Single -->
+  <rect x="30" y="145" width="185" height="150" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="122" y="170" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">① Single</text>
+  <rect x="55" y="185" width="135" height="34" rx="6" fill="#ffffff" stroke="#93c5fd"/>
+  <text x="122" y="206" text-anchor="middle" font-size="12" fill="#0f172a">적합한 모델 1개 선택</text>
+  <text x="122" y="245" text-anchor="middle" font-size="11" fill="#475569">단순 작업 → 라우팅만으로</text>
+  <text x="122" y="263" text-anchor="middle" font-size="11" fill="#475569">비용·지연 최소화</text>
+
+  <!-- Cascade -->
+  <rect x="240" y="145" width="240" height="150" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="360" y="170" text-anchor="middle" font-size="14" font-weight="700" fill="#15803d">② Cascade + 품질 게이트</text>
+  <rect x="258" y="185" width="90" height="32" rx="6" fill="#ffffff" stroke="#86efac"/>
+  <text x="303" y="205" text-anchor="middle" font-size="11" fill="#0f172a">저비용 모델</text>
+  <rect x="372" y="185" width="90" height="32" rx="6" fill="#ffffff" stroke="#86efac"/>
+  <text x="417" y="205" text-anchor="middle" font-size="11" fill="#0f172a">상위 모델 승격</text>
+  <line x1="348" y1="201" x2="370" y2="201" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="360" y="245" text-anchor="middle" font-size="11" fill="#475569">게이트 통과 → 그대로 종료</text>
+  <text x="360" y="263" text-anchor="middle" font-size="11" fill="#475569">실패 → 강한 모델로 에스컬레이션</text>
+
+  <!-- Critique -->
+  <rect x="505" y="145" width="265" height="150" rx="10" fill="#fdf4ff" stroke="#e9d5ff"/>
+  <text x="637" y="170" text-anchor="middle" font-size="14" font-weight="700" fill="#7e22ce">③ Critique (교차 검토)</text>
+  <rect x="523" y="185" width="80" height="32" rx="6" fill="#ffffff" stroke="#e9d5ff"/>
+  <text x="563" y="205" text-anchor="middle" font-size="11" fill="#0f172a">초안 작성</text>
+  <rect x="623" y="185" width="130" height="32" rx="6" fill="#ffffff" stroke="#e9d5ff"/>
+  <text x="688" y="205" text-anchor="middle" font-size="11" fill="#0f172a">다른 계열 모델이 비평</text>
+  <line x1="603" y1="201" x2="621" y2="201" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="637" y="245" text-anchor="middle" font-size="11" fill="#475569">비평 반영해 수정 후 결과 융합</text>
+  <text x="637" y="263" text-anchor="middle" font-size="11" fill="#475569">같은 계열의 맹점을 교차로 상쇄</text>
+
+  <!-- 결과 -->
+  <rect x="30" y="320" width="740" height="86" rx="10" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="50" y="346" font-size="13" font-weight="700" fill="#b45309">자체 평가 결과 (GitHub 공개 수치, 오프라인 평가)</text>
+  <text x="50" y="370" font-size="12" fill="#0f172a">· TerminalBench 2.1: Claude Opus 5 단독 대비 검증 품질 +4.9%p, 추정 비용 -67%</text>
+  <text x="50" y="392" font-size="12" fill="#0f172a">· TB2.1 · DeepSWE · CheckpointBench 전반: Opus 5 수준 품질에 비용 36~67% 절감 · 과금은 사용 모델별 표준 단가</text>
+</svg>

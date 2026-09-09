@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="브렌트유 100달러 돌파와 10년물 금리 4.85%라는 두 역풍에 뉴욕 3대 지수가 사흘 연속 하락하는 동안, 코스피는 7,051.64로 33거래일 만에 7,000선을 회복했음을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.10 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">두 개의 역풍 — 유가 100달러 · 10년물 4.85% · 뉴욕 사흘째 하락</text>
+
+  <g transform="translate(110,280)">
+    <text x="210" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">두 개의 역풍</text>
+    <rect x="30" y="40" width="170" height="150" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="115" y="100" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#fbbf24">$100.4</text>
+    <text x="115" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fcd34d">브렌트유 (7월 이후 처음)</text>
+    <rect x="230" y="40" width="170" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="315" y="100" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#f87171">4.85%</text>
+    <text x="315" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fca5a5">10년물 (3년 만의 최고)</text>
+    <text x="215" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">나스닥 26,253 (-0.64%) · 사흘 연속 하락</text>
+    <text x="215" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">비트코인 7만8,800달러 · 전환선과 역주행</text>
+  </g>
+
+  <g transform="translate(640,280)">
+    <text x="230" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">AI 온도는 다릅니다</text>
+    <rect x="60" y="160" width="80" height="100" rx="6" fill="#64748b" opacity="0.8"/>
+    <text x="100" y="148" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#cbd5e1">전일 6,955</text>
+    <rect x="200" y="80" width="80" height="180" rx="6" fill="#22c55e" opacity="0.95"/>
+    <text x="240" y="68" text-anchor="middle" font-family="sans-serif" font-size="19" font-weight="700" fill="#4ade80">7,051.64 (+1.40%)</text>
+    <line x1="30" y1="98" x2="440" y2="98" stroke="#facc15" stroke-width="3" stroke-dasharray="8 6"/>
+    <text x="440" y="86" text-anchor="end" font-family="sans-serif" font-size="18" fill="#facc15">7,000선 회복</text>
+    <text x="235" y="292" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">코스피 33거래일 만의 7,000 · 메타 Muse +6.5%</text>
+  </g>
+</svg>

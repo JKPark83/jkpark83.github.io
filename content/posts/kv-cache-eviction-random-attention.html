@@ -1,0 +1,391 @@
+---
+title: "고르지 말고 그냥 버리세요 — KV 캐시 축출의 상식을 뒤집은 Random Attention"
+date: 2026-09-10T07:30:00+09:00
+draft: false
+tags: ["AI", "KV 캐시", "KV cache eviction", "Random Attention", "리즈닝 모델", "vLLM", "서빙 최적화", "SnapKV", "H2O", "StreamingLLM", "R-KV", "attention sink", "인퍼런스", "메모리 최적화", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "리즈닝 모델이 수만 토큰짜리 사고 과정을 쏟아내면서 KV 캐시가 서빙 메모리의 최대 병목이 됐습니다. 지난 3년간 이 문제의 정답은 '중요한 토큰을 점수로 골라 남기는 것'이었습니다 — H2O, SnapKV, R-KV까지 전부요. 그런데 이번 주 Hugging Face 트렌딩에 오른 Salesforce AI Research의 Random Attention(arXiv:2609.03430)은 정반대를 말합니다. 프롬프트만 통째로 지키고 나머지는 head별로 균등 랜덤으로 버렸더니, 점수 하나 계산하지 않고도 최강 축출 기법과 정확도가 대등했고 vLLM 처리량은 32~43% 더 높았다는 겁니다. 점수가 하던 일의 정체는 무엇이었는지, 왜 리즈닝 트레이스는 랜덤하게 잘라도 버티는지, 그리고 이 결과를 프로덕션에 가져갈 때 주의할 점까지 — KV 캐시 축출의 계보부터 미니 구현까지 junior 개발자 눈높이에서 쉽고 자세하게 다룹니다."
+ShowToc: false
+cover:
+  image: "kv-cache-eviction-random-attention-cover.svg"
+  alt: "점수 기반 KV 캐시 축출과 프롬프트 보존 + 균등 랜덤 축출을 비교한 다이어그램. 두 경로의 정확도는 같고 랜덤 쪽 처리량이 32~43% 높다"
+  caption: "3년간 쌓아 온 '중요 토큰 선별' 기법들 — 그 점수 신호가 실제로 기여한 몫은 얼마였을까"
+  relative: false
+---
+
+<style>
+/* ── Random Attention 포스트 전용 스타일 (ra- 접두사) ── */
+.ra-fig{
+  --ra-violet:#7c3aed; --ra-sky:#0284c7; --ra-green:#16a34a; --ra-rose:#e11d48;
+  --ra-amber:#d97706; --ra-slate:#64748b; --ra-teal:#0d9488; --ra-blue:#2563eb;
+  --ra-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .ra-fig{
+  --ra-violet:#a78bfa; --ra-sky:#38bdf8; --ra-green:#4ade80; --ra-rose:#fb7185;
+  --ra-amber:#fbbf24; --ra-slate:#94a3b8; --ra-teal:#2dd4bf; --ra-blue:#60a5fa;
+  --ra-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .ra-fig{
+    --ra-violet:#a78bfa; --ra-sky:#38bdf8; --ra-green:#4ade80; --ra-rose:#fb7185;
+    --ra-amber:#fbbf24; --ra-slate:#94a3b8; --ra-teal:#2dd4bf; --ra-blue:#60a5fa;
+    --ra-gray:#64748b;
+  }
+}
+.ra-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.ra-fig text{font-family:inherit}
+.ra-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.ra-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.ra-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.ra-toc ol{margin:0;padding-left:1.25rem}
+.ra-toc li{margin:.22rem 0;font-size:.95rem}
+.ra-toc a{text-decoration:none}
+.ra-toc a:hover{text-decoration:underline}
+.ra-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.ra-table th,.ra-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left}
+.ra-table th{background:var(--entry)}
+</style>
+
+<div class="ra-toc">
+  <div class="ra-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 3년치 상식에 던져진 질문</a></li>
+    <li><a href="#sec-2">배경 — KV 캐시는 왜 병목이 되나</a></li>
+    <li><a href="#sec-3">축출의 계보 — 싱크, 헤비 히터, 그리고 점수의 시대</a></li>
+    <li><a href="#sec-4">Random Attention — 점수 없이 버리기</a></li>
+    <li><a href="#sec-5">왜 랜덤이 통할까 — 깨지기 쉬운 프롬프트, 스스로를 지키는 트레이스</a></li>
+    <li><a href="#sec-6">실전 — 미니 랜덤 축출 정책 만들어 보기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 3년치 상식에 던져진 질문</h2>
+
+<p>연구 분야가 하나 통째로 무안해지는 논문이 가끔 나옵니다. 이번 주 Hugging Face 데일리 페이퍼 트렌딩에 오른 Salesforce AI Research의 <a href="https://arxiv.org/abs/2609.03430" target="_blank" rel="noopener">Random Attention: Rethinking KV Cache Eviction for Efficient Reasoning</a>(arXiv:2609.03430)이 그런 경우입니다. 주장을 한 줄로 요약하면 이렇습니다. <strong>"KV 캐시에서 무엇을 버릴지 점수로 고르는 그 모든 정교한 신호가, 사실상 아무 기여도 하지 않는다."</strong></p>
+
+<p>맥락 없이 들으면 그냥 도발처럼 들리니 배경부터 깔겠습니다. 2023년 이후 KV 캐시 축출(eviction) 연구는 사실상 하나의 패러다임 위에 서 있었습니다. <em>캐시에 든 토큰마다 "앞으로 얼마나 중요할지"를 어떤 신호로 추정해 점수를 매기고, 상위 토큰만 남긴다.</em> 누적 어텐션 점수를 쓰든(H2O), 관찰 윈도의 어텐션 패턴을 쓰든(SnapKV), 키 벡터의 중복도를 쓰든(R-KV), "무엇을 남길지 잘 고르는 것"이 이 분야의 본체였습니다. 논문 수십 편이 이 점수 함수를 다듬는 데 바쳐졌습니다.</p>
+
+<p>Random Attention은 그 점수 계산을 전부 들어냅니다. 규칙은 두 줄입니다. <strong>프롬프트는 통째로 지킨다. 나머지는 attention head마다 균등 랜덤으로 버린다.</strong> 이게 전부인데, 4개 모델 · 6개 리즈닝 태스크에서 가장 강한 기존 축출 기법과 정확도가 대등했고, vLLM 서빙에서는 점수 계산이 없는 덕에 처리량이 <strong>32~43% 더 높았습니다</strong>. <a href="https://github.com/SalesforceAIResearch/Random-Attention" target="_blank" rel="noopener">코드도 공개</a>돼 있습니다.</p>
+
+<p>이 글은 이 결과를 세 겹으로 뜯어봅니다. KV 캐시가 왜 병목인지(배경), 기존 방법들이 무엇을 하고 있었는지(계보), 그리고 랜덤이 통하는 진짜 이유(메커니즘). 마지막 메커니즘 부분이 이 논문의 백미인데, 결론만 미리 말하면 — <em>점수 기법들 사이의 성능 차이는 대부분 "그 점수가 우연히 프롬프트를 지켜 줬느냐"의 차이였습니다.</em> 서빙 최적화를 하는 사람에게도, 평가를 설계하는 사람에게도 배울 게 많은 이야기입니다.</p>
+
+<h2 id="sec-2">2. 배경 — KV 캐시는 왜 병목이 되나</h2>
+
+<p>따라오는 데 필요한 최소한만 짚습니다.</p>
+
+<p>트랜스포머가 토큰을 하나 생성할 때는 이전 토큰 전부에 어텐션을 겁니다. 이때 이전 토큰들의 키(K)·값(V) 벡터를 매번 다시 계산하면 낭비이므로, 한 번 계산한 K·V를 GPU 메모리에 쌓아 두고 재사용합니다. 이 저장소가 <strong>KV 캐시(KV cache)</strong>입니다. 덕분에 생성 속도가 살지만, 대가가 있습니다. <strong>시퀀스가 길어질수록 캐시가 선형으로 자란다</strong>는 것입니다.</p>
+
+<p>얼마나 자라는지 감을 잡아 봅시다. 토큰 하나가 차지하는 KV 캐시 크기는 다음처럼 계산합니다.</p>
+
+{{< highlight text >}}
+토큰당 KV 캐시 = 2 (K와 V) × 레이어 수 × KV head 수 × head 차원 × 바이트/원소
+{{< /highlight >}}
+
+<p>논문의 실험 모델 중 하나인 DeepSeek-R1-Distill-Llama-8B(Llama-3.1-8B 아키텍처: 32개 레이어, KV head 8개, head 차원 128, BF16 기준)로 계산하면 <code>2 × 32 × 8 × 128 × 2바이트 = 128KB/토큰</code>입니다. 별것 아닌 것 같지만, 리즈닝 모델이 문제 하나에 32K 토큰짜리 사고 과정(chain-of-thought)을 쏟아내면 <strong>요청 하나에 4GB</strong>입니다. 동시 요청 16개면 64GB — 모델 가중치(약 16GB)의 4배를 캐시가 먹습니다. 서빙에서 배치 크기, 즉 처리량을 결정하는 건 이제 가중치가 아니라 KV 캐시입니다.</p>
+
+<p>여기서 중요한 포인트: <strong>리즈닝 모델이 이 문제를 질적으로 키웠습니다.</strong> 예전 긴 컨텍스트 문제는 주로 "입력(프롬프트)이 길다"였습니다. 리즈닝은 반대로 <em>출력이 깁니다</em>. 짧은 수학 문제 하나에 모델이 혼자 수만 토큰을 생성하면서 캐시가 실시간으로 불어납니다. 미리 압축해 둘 수도 없고, 생성 도중에 계속 관리해야 합니다.</p>
+
+<p>대응 수단은 크게 세 갈래이고, 서로 다른 물건이니 구분해 두면 좋습니다.</p>
+
+<table class="ra-table">
+  <tr><th>갈래</th><th>하는 일</th><th>손실 여부</th><th>대표</th></tr>
+  <tr><td><strong>양자화(quantization)</strong></td><td>캐시 원소를 FP8·INT4 등 저정밀도로 저장</td><td>거의 무손실에 가까움</td><td>vLLM FP8 KV cache</td></tr>
+  <tr><td><strong>오프로딩(offloading)</strong></td><td>안 쓰는 캐시를 CPU RAM·디스크로 내림</td><td>무손실 (대신 전송 지연)</td><td>vLLM·LMCache 계열</td></tr>
+  <tr><td><strong>축출(eviction)</strong></td><td>캐시에서 토큰을 아예 <em>버림</em></td><td><strong>손실 — 버린 토큰은 복구 불가</strong></td><td>H2O, SnapKV, R-KV, 오늘의 주인공</td></tr>
+</table>
+
+<p>양자화와 오프로딩은 이 블로그에서 각각 다룬 적이 있으니(<a href="/posts/llm-quantization-fp8-int4-fp4/">양자화 편</a>, <a href="/posts/kv-cache-offloading-tiered-serving/">오프로딩 편</a>) 오늘은 세 번째, 가장 과감한 갈래인 축출 이야기입니다. 무언가를 영영 버리는 만큼 "무엇을 버릴 것인가"가 전부처럼 보였고, 그래서 다들 점수를 만들었습니다.</p>
+
+<h2 id="sec-3">3. 축출의 계보 — 싱크, 헤비 히터, 그리고 점수의 시대</h2>
+
+<p>Random Attention이 무엇을 뒤집었는지 보려면 먼저 계보를 알아야 합니다. 대표 선수 넷만 짚습니다.</p>
+
+<p><strong>StreamingLLM(2023, <a href="https://arxiv.org/abs/2309.17453" target="_blank" rel="noopener">arXiv:2309.17453</a>)</strong>은 이 분야의 출발점 같은 논문입니다. 발견은 이상했습니다. 시퀀스 <em>맨 앞</em> 토큰 몇 개를 버리는 순간 모델이 무너진다는 것. 내용상 중요해서가 아니라, 소프트맥스 어텐션이 남는 확률 질량을 쏟아 둘 "배수구"로 초반 토큰을 쓰기 때문입니다. 이 현상을 <strong>어텐션 싱크(attention sink)</strong>라 부릅니다. 처방은 단순합니다: 싱크 몇 개 + 최근 토큰 윈도만 남기기. 점수 없는 <em>구조적 규칙</em>이었다는 점을 기억해 두세요.</p>
+
+<p><strong>H2O(2023, <a href="https://arxiv.org/abs/2306.14048" target="_blank" rel="noopener">arXiv:2306.14048</a>)</strong>부터 점수의 시대가 열립니다. 누적 어텐션 점수가 높은 토큰 — 헤비 히터(heavy hitter) — 이 중요하다는 관찰에서, "어텐션을 많이 받아 온 토큰을 남기자"는 정책이 나왔습니다. <strong>SnapKV(2024, <a href="https://arxiv.org/abs/2404.14469" target="_blank" rel="noopener">arXiv:2404.14469</a>)</strong>는 프롬프트 끝부분의 관찰 윈도가 어디에 어텐션을 거는지 보고 프롬프트에서 중요 토큰을 골라내는, 긴 입력 압축의 표준이 됐습니다. 그리고 리즈닝 시대에 맞춰 나온 <strong>R-KV(2025, <a href="https://arxiv.org/abs/2505.24133" target="_blank" rel="noopener">arXiv:2505.24133</a>)</strong>는 리즈닝 트레이스의 고질병인 중복 — 같은 말 되풀이하기, 재검토, 장황한 자기 대화 — 을 키 벡터 유사도로 잡아내 중요도와 중복도를 함께 점수화합니다. 캐시의 10~34%만 남기고도 성능을 유지했다고 보고해 주목받았습니다.</p>
+
+<p>정리하면 계보는 이렇게 흘렀습니다. <em>구조적 규칙(StreamingLLM) → 점점 정교해지는 점수(H2O → SnapKV → R-KV, 그리고 VaSE·TriAttention 같은 최신 변형)</em>. 다들 "점수를 더 잘 만들면 더 잘 버릴 수 있다"는 가정 위에서 경쟁했습니다.</p>
+
+<figure class="ra-fig">
+<svg viewBox="0 0 860 440" role="img" aria-label="네 가지 KV 캐시 축출 정책이 각각 무엇을 남기는지 비교한 다이어그램. StreamingLLM은 싱크와 최근 윈도, H2O는 누적 어텐션 상위 토큰, SnapKV와 R-KV는 점수 기반 선별, Random Attention은 프롬프트 전체와 최근 윈도에 랜덤 표본을 더해 남긴다">
+  <defs>
+    <marker id="ra-f1a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--ra-slate)"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="28" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--ra-slate)">각 정책은 캐시에서 무엇을 남기나 (■ = 유지, · = 축출)</text>
+
+  <!-- 캐시 축 -->
+  <text x="120" y="62" font-size="11.5" fill="var(--ra-gray)">← 프롬프트 →</text>
+  <text x="480" y="62" font-size="11.5" fill="var(--ra-gray)">← 생성된 리즈닝 트레이스 (계속 자람) →</text>
+
+  <!-- StreamingLLM -->
+  <text x="20" y="105" font-size="12.5" font-weight="700" fill="var(--ra-sky)">StreamingLLM</text>
+  <text x="20" y="121" font-size="10.5" fill="var(--ra-gray)">싱크 + 최근 윈도</text>
+  <g fill="var(--ra-sky)">
+    <rect x="150" y="92" width="26" height="16" rx="3"/>
+    <rect x="770" y="92" width="70" height="16" rx="3"/>
+  </g>
+  <g fill="var(--ra-gray)" font-size="13"><text x="190" y="105">· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·</text></g>
+
+  <!-- H2O -->
+  <text x="20" y="175" font-size="12.5" font-weight="700" fill="var(--ra-amber)">H2O</text>
+  <text x="20" y="191" font-size="10.5" fill="var(--ra-gray)">누적 어텐션 상위(헤비 히터)</text>
+  <g fill="var(--ra-amber)">
+    <rect x="150" y="162" width="14" height="16" rx="3"/>
+    <rect x="235" y="162" width="14" height="16" rx="3"/>
+    <rect x="330" y="162" width="14" height="16" rx="3"/>
+    <rect x="452" y="162" width="14" height="16" rx="3"/>
+    <rect x="530" y="162" width="14" height="16" rx="3"/>
+    <rect x="655" y="162" width="14" height="16" rx="3"/>
+    <rect x="790" y="162" width="50" height="16" rx="3"/>
+  </g>
+  <g fill="var(--ra-gray)" font-size="13"><text x="170" y="175">· · ·</text><text x="255" y="175">· · · ·</text><text x="350" y="175">· · · · ·</text><text x="472" y="175">· · ·</text><text x="550" y="175">· · · · ·</text><text x="675" y="175">· · · · ·</text></g>
+  <text x="150" y="200" font-size="10.5" fill="var(--ra-rose)">점수가 프롬프트를 지켜 줄지는 운에 달렸다</text>
+
+  <!-- SnapKV / R-KV -->
+  <text x="20" y="255" font-size="12.5" font-weight="700" fill="var(--ra-violet)">SnapKV · R-KV</text>
+  <text x="20" y="271" font-size="10.5" fill="var(--ra-gray)">어텐션 패턴·중복도 점수</text>
+  <g fill="var(--ra-violet)">
+    <rect x="150" y="242" width="22" height="16" rx="3"/>
+    <rect x="196" y="242" width="14" height="16" rx="3"/>
+    <rect x="262" y="242" width="14" height="16" rx="3"/>
+    <rect x="360" y="242" width="14" height="16" rx="3"/>
+    <rect x="470" y="242" width="14" height="16" rx="3"/>
+    <rect x="588" y="242" width="14" height="16" rx="3"/>
+    <rect x="700" y="242" width="14" height="16" rx="3"/>
+    <rect x="790" y="242" width="50" height="16" rx="3"/>
+  </g>
+  <g fill="var(--ra-gray)" font-size="13"><text x="216" y="255">· · ·</text><text x="282" y="255">· · · · ·</text><text x="380" y="255">· · · · · ·</text><text x="490" y="255">· · · · · ·</text><text x="608" y="255">· · · · ·</text><text x="720" y="255">· · · ·</text></g>
+  <text x="150" y="280" font-size="10.5" fill="var(--ra-gray)">스코어링 패스: 어텐션·키 통계 계산 + 동기화 → 서빙 오버헤드</text>
+
+  <!-- Random Attention -->
+  <text x="20" y="340" font-size="12.5" font-weight="700" fill="var(--ra-teal)">Random Attention</text>
+  <text x="20" y="356" font-size="10.5" fill="var(--ra-gray)">프롬프트 보존 + head별 랜덤</text>
+  <g fill="var(--ra-teal)">
+    <rect x="150" y="327" width="130" height="16" rx="3"/>
+    <rect x="320" y="327" width="14" height="16" rx="3"/>
+    <rect x="392" y="327" width="14" height="16" rx="3"/>
+    <rect x="438" y="327" width="14" height="16" rx="3"/>
+    <rect x="545" y="327" width="14" height="16" rx="3"/>
+    <rect x="612" y="327" width="14" height="16" rx="3"/>
+    <rect x="702" y="327" width="14" height="16" rx="3"/>
+    <rect x="790" y="327" width="50" height="16" rx="3"/>
+  </g>
+  <g fill="var(--ra-gray)" font-size="13"><text x="290" y="340">· ·</text><text x="340" y="340">· · ·</text><text x="458" y="340">· · · · ·</text><text x="565" y="340">· · ·</text><text x="632" y="340">· · · ·</text><text x="722" y="340">· · ·</text></g>
+  <text x="150" y="365" font-size="10.5" fill="var(--ra-green)">프롬프트는 전부 · 트레이스는 균등 랜덤(head마다 다른 표본) · 점수 계산 0회</text>
+
+  <line x1="150" y1="385" x2="150" y2="80" stroke="var(--ra-gray)" stroke-width="1" stroke-dasharray="3 4" opacity=".5"/>
+  <line x1="300" y1="385" x2="300" y2="80" stroke="var(--ra-gray)" stroke-width="1" stroke-dasharray="3 4" opacity=".5"/>
+  <text x="430" y="420" text-anchor="middle" font-size="12" fill="var(--ra-slate)">위 세 줄의 공통 가정: "무엇을 남길지 잘 골라야 한다" — 마지막 줄은 그 가정 자체를 시험한다</text>
+</svg>
+<figcaption>그림 1. 축출 정책 계보 비교. 점수 기반 방법들은 "잘 고르기"에 투자했지만, Random Attention은 프롬프트 보존이라는 구조적 규칙 하나만 남기고 선택을 무작위에 맡긴다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. Random Attention — 점수 없이 버리기</h2>
+
+<p>방법을 그대로 옮기면 이렇습니다. 캐시가 예산(budget)을 넘으면:</p>
+
+<ol>
+  <li><strong>프롬프트 토큰은 전부 남긴다.</strong> 문제 서술, 시스템 프롬프트 — 입력에 해당하는 부분은 축출 대상에서 아예 뺍니다.</li>
+  <li><strong>최근 토큰 윈도를 짧게 남긴다.</strong> 지금 쓰는 중인 문장의 연속성을 위한 보험입니다.</li>
+  <li><strong>나머지 생성 토큰은 KV head마다 독립적으로, 균등 랜덤으로 버린다.</strong> 어텐션 점수도, 키 통계도, 캘리브레이션 데이터도 읽지 않습니다. 난수만 뽑습니다.</li>
+</ol>
+
+<p>결과는 두 축 모두에서 인상적입니다. <strong>정확도</strong>: Qwen3-4B/14B/32B와 Phi-4-reasoning에 대해 MATH-500, GPQA-Diamond, AIME, HMMT, LiveCodeBench 등 6개 리즈닝 태스크에서, 같은 캐시 예산일 때 SnapKV·R-KV·VaSE·TriAttention 같은 점수 기반 선별기와 대등하거나 더 나았습니다. <strong>속도</strong>: Hugging Face 하네스와 vLLM 서빙 스택 양쪽에서 가장 빠른 축출기였고, vLLM 배포 기준 최강 기존 기법보다 처리량이 <strong>32~43% 높았습니다</strong>.</p>
+
+<p>속도 차이가 왜 이렇게 크게 나는지는 서빙을 해 본 사람이라면 바로 감이 옵니다. 점수 기반 축출은 버리기 전에 <strong>스코어링 패스</strong>가 필요합니다. 캐시 전체의 어텐션 통계나 키 유사도를 읽고 top-k를 뽑는 연산인데, 이게 단순 계산 비용으로 끝나지 않습니다. 배치 디코딩이 빽빽하게 돌아가는 서빙 환경에서는 <em>추가 커널 런치와 동기화 지점</em>이 생긴다는 게 진짜 비용입니다. 랜덤 축출은 캐시 내용을 들여다볼 필요가 없으니 난수 생성만 하면 되고, 축출 한 번의 비용이 사실상 <strong>메모리 압축(compaction) 그 자체</strong>로 줄어듭니다. "정확도가 같다면" 서빙 관점에서는 비교가 안 되는 겁니다.</p>
+
+<p>그러니 질문은 하나로 좁혀집니다. <em>어떻게 정확도가 같을 수가 있지?</em></p>
+
+<h2 id="sec-5">5. 왜 랜덤이 통할까 — 깨지기 쉬운 프롬프트, 스스로를 지키는 트레이스</h2>
+
+<p>논문이 통제 실험으로 보여주는 답은 두 조각입니다. 이 부분이 이 논문의 진짜 기여입니다.</p>
+
+<h3>① 캐시에서 깨지기 쉬운 건 프롬프트뿐이다</h3>
+
+<p>프롬프트를 잃으면 성능이 무너집니다. 당연합니다 — 문제 조건이 사라지면 모델은 무엇을 풀고 있었는지조차 잊습니다. 반면 트레이스를 랜덤하게 잘라내는 건 치명적이지 않았습니다. 여기서 핵심 반전이 나옵니다. <strong>기존 점수 기법들 사이의 성능 격차는, 대부분 그 점수가 "우연히 프롬프트를 지켜 줬느냐"의 차이였다</strong>는 것입니다. 어떤 점수는 프롬프트 토큰에 높은 값을 주는 경향이 있어 살아남았고, 어떤 점수는 아니어서 무너졌습니다. 정교한 신호처럼 보였던 것의 정체가 사실은 "프롬프트 보호 규칙의 우회 구현"이었던 셈입니다.</p>
+
+<p>증거로, 프롬프트만 명시적으로 보존하면 <strong>단순 recency 윈도(최근 것만 남기기)조차 최강 baseline과 2점 이내</strong>로 붙습니다. StreamingLLM의 어텐션 싱크 발견과 놓인 자리가 같습니다 — 그때도 답은 점수가 아니라 "맨 앞은 건드리지 마라"는 구조적 규칙이었죠. 2026년 들어 같은 결론의 연구가 더 나오고 있습니다. 제목부터 노골적인 <a href="https://arxiv.org/abs/2605.18053" target="_blank" rel="noopener">"Protection Is (Nearly) All You Need"</a>(arXiv:2605.18053)는 전역 예산 축출에서 구조적 보호가 점수를 지배한다고 보고합니다.</p>
+
+<h3>② 리즈닝 트레이스는 두 겹의 중복으로 스스로를 지킨다</h3>
+
+<p>그래도 트레이스에서 하필 중요한 걸 랜덤으로 버릴 수도 있지 않을까요? 논문의 두 번째 답: 리즈닝 트레이스에는 <strong>중복이 두 층위로 내장돼 있어서</strong>, 웬만큼 버려도 필요한 정보의 사본이 남습니다.</p>
+
+<ul>
+  <li><strong>텍스트 층위:</strong> 리즈닝 모델은 일하면서 자기가 아직 필요한 것을 계속 다시 말합니다. "따라서 x = 3이고, 앞서 구한 y = 5를 대입하면…" — 중간 결론이 트레이스 곳곳에 여러 번 등장합니다. R-KV가 "제거해야 할 비효율"로 봤던 그 장황함이, 랜덤 축출 아래에서는 <em>백업 사본</em> 역할을 합니다.</li>
+  <li><strong>Head 층위:</strong> 축출을 head마다 <em>독립적으로</em> 랜덤 수행하는 게 묘수입니다. 각 attention head가 트레이스의 서로 다른 랜덤 부분집합을 들고 있으므로, 한 head에서 지워진 토큰이 다른 head에는 살아 있습니다. 모델 전체로 보면 트레이스가 여러 head에 분산 복제된 셈입니다.</li>
+</ul>
+
+<p>비유하자면 이렇습니다. 회의록(트레이스)은 같은 결론이 여러 번 반복되는 데다 참석자(head)마다 제각각 메모를 남기니, 페이지를 무작위로 찢어도 회의 내용은 복원됩니다. 하지만 회의 안건지(프롬프트)는 원본이 한 장뿐이라, 그걸 찢으면 끝입니다.</p>
+
+<figure class="ra-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="랜덤 축출이 통하는 두 가지 메커니즘. 왼쪽은 프롬프트가 원본 한 부뿐이라 깨지기 쉬움을, 오른쪽은 리즈닝 트레이스가 텍스트 재진술과 head별 독립 표본이라는 두 겹의 중복으로 보호됨을 보여준다">
+  <text x="430" y="30" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--ra-slate)">랜덤 축출이 통하는 이유 — 비대칭적인 취약성</text>
+
+  <!-- 왼쪽: 프롬프트 -->
+  <rect x="30" y="60" width="380" height="300" rx="14" fill="none" stroke="var(--ra-rose)" stroke-width="2.2"/>
+  <text x="220" y="92" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ra-rose)">프롬프트 = 깨지기 쉬움</text>
+  <rect x="90" y="115" width="260" height="54" rx="9" fill="none" stroke="var(--ra-rose)" stroke-width="1.6"/>
+  <text x="220" y="138" text-anchor="middle" font-size="12" fill="var(--ra-rose)">문제 조건 · 제약 · 질문</text>
+  <text x="220" y="157" text-anchor="middle" font-size="11" fill="var(--ra-gray)">원본이 캐시에 딱 한 부</text>
+  <text x="220" y="205" text-anchor="middle" font-size="12" fill="var(--ra-slate)">일부라도 잃으면 → 성능 붕괴</text>
+  <text x="220" y="240" text-anchor="middle" font-size="11.5" fill="var(--ra-gray)">점수 기법 간 격차의 대부분은</text>
+  <text x="220" y="258" text-anchor="middle" font-size="11.5" fill="var(--ra-gray)">"점수가 우연히 프롬프트를 지켰는가"의 차이</text>
+  <rect x="90" y="285" width="260" height="52" rx="9" fill="none" stroke="var(--ra-green)" stroke-width="2"/>
+  <text x="220" y="307" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ra-green)">처방: 규칙으로 전부 보존</text>
+  <text x="220" y="325" text-anchor="middle" font-size="11" fill="var(--ra-gray)">점수가 아니라 구조적 보호</text>
+
+  <!-- 오른쪽: 트레이스 -->
+  <rect x="450" y="60" width="380" height="300" rx="14" fill="none" stroke="var(--ra-teal)" stroke-width="2.2"/>
+  <text x="640" y="92" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ra-teal)">리즈닝 트레이스 = 스스로를 지킴</text>
+
+  <text x="640" y="122" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ra-sky)">중복 ① 텍스트: 필요한 걸 계속 재진술</text>
+  <g font-size="10.5" fill="var(--ra-gray)">
+    <text x="640" y="142" text-anchor="middle">"x=3… 앞서 구한 x=3을 쓰면… 검산하면 역시 x=3"</text>
+  </g>
+
+  <text x="640" y="178" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ra-violet)">중복 ② head: 각자 다른 랜덤 표본 보유</text>
+  <!-- head rows -->
+  <g font-size="10.5">
+    <text x="490" y="205" fill="var(--ra-gray)">head 1</text>
+    <g fill="var(--ra-violet)"><rect x="540" y="196" width="12" height="11" rx="2"/><rect x="585" y="196" width="12" height="11" rx="2"/><rect x="660" y="196" width="12" height="11" rx="2"/><rect x="735" y="196" width="12" height="11" rx="2"/></g>
+    <text x="490" y="228" fill="var(--ra-gray)">head 2</text>
+    <g fill="var(--ra-violet)"><rect x="558" y="219" width="12" height="11" rx="2"/><rect x="625" y="219" width="12" height="11" rx="2"/><rect x="700" y="219" width="12" height="11" rx="2"/><rect x="775" y="219" width="12" height="11" rx="2"/></g>
+    <text x="490" y="251" fill="var(--ra-gray)">head 3</text>
+    <g fill="var(--ra-violet)"><rect x="540" y="242" width="12" height="11" rx="2"/><rect x="608" y="242" width="12" height="11" rx="2"/><rect x="680" y="242" width="12" height="11" rx="2"/><rect x="758" y="242" width="12" height="11" rx="2"/></g>
+  </g>
+  <text x="640" y="280" text-anchor="middle" font-size="11" fill="var(--ra-gray)">한 head에서 지워진 토큰이 다른 head에는 살아 있음</text>
+
+  <rect x="510" y="295" width="260" height="52" rx="9" fill="none" stroke="var(--ra-green)" stroke-width="2"/>
+  <text x="640" y="317" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ra-green)">처방: 균등 랜덤으로 충분</text>
+  <text x="640" y="335" text-anchor="middle" font-size="11" fill="var(--ra-gray)">사본이 살아남을 확률이 충분히 높다</text>
+</svg>
+<figcaption>그림 2. 캐시의 두 영역은 취약성이 다르다. 원본 한 부뿐인 프롬프트는 규칙으로 지키고, 이중 중복으로 보호되는 트레이스는 랜덤에 맡겨도 된다는 것이 Random Attention의 핵심 관찰이다.</figcaption>
+</figure>
+
+<p>엔지니어링 관점에서 이 결과를 한 문장으로 옮기면: <strong>"어디를 절대 건드리면 안 되는가"라는 구조 문제를 풀고 나면, "무엇을 버릴까"라는 선택 문제는 거의 공짜로 풀린다.</strong> 비싼 선택 알고리즘을 싼 불변 조건(invariant)으로 대체한 사례입니다.</p>
+
+<h2 id="sec-6">6. 실전 — 미니 랜덤 축출 정책 만들어 보기</h2>
+
+<p>개념을 코드로 굳혀 봅시다. 실제 서빙 엔진의 축출은 paged attention의 블록 테이블 위에서 일어나지만, 정책 자체는 아래처럼 단순한 형태로 이해할 수 있습니다. head 하나의 캐시 인덱스를 관리하는 장난감 구현입니다.</p>
+
+{{< highlight python >}}
+import torch
+
+def random_evict_indices(
+    seq_len: int,        # 현재 캐시에 든 전체 토큰 수
+    prompt_len: int,     # 프롬프트 길이 — 이 구간은 절대 안 버림
+    budget: int,         # 이 head가 유지할 최대 토큰 수
+    recent_window: int,  # 마지막 N개는 보존 (진행 중인 문장 보호)
+) -> torch.Tensor:
+    """유지할 토큰 인덱스를 반환. head마다 독립적으로 호출한다."""
+    if seq_len <= budget:
+        return torch.arange(seq_len)
+
+    protected_head = torch.arange(prompt_len)                  # 규칙 1: 프롬프트 전부
+    protected_tail = torch.arange(seq_len - recent_window, seq_len)  # 규칙 2: 최근 윈도
+
+    # 규칙 3: 나머지 트레이스에서 남은 예산만큼 '균등 랜덤'으로 선발
+    middle = torch.arange(prompt_len, seq_len - recent_window)
+    n_keep = budget - len(protected_head) - len(protected_tail)
+    picked = middle[torch.randperm(len(middle))[:n_keep]]      # 점수 계산이 없다!
+
+    return torch.cat([protected_head, picked.sort().values, protected_tail])
+
+# head마다 다른 난수를 쓰는 것이 핵심 — 사본이 head들에 분산된다
+keep_per_head = [
+    random_evict_indices(seq_len=8192, prompt_len=350, budget=2048, recent_window=64)
+    for _ in range(num_kv_heads)
+]
+{{< /highlight >}}
+
+<p>점수 기반 정책과 비교해 보면 차이가 선명합니다. SnapKV류라면 <code>picked</code>를 뽑는 자리에서 어텐션 행렬을 읽고, head별 통계를 모으고, top-k를 돌려야 합니다. 캐시 내용에 대한 읽기가 전혀 없다는 것 — <code>randperm</code> 한 줄 — 이 32~43% 처리량 차이의 출처입니다.</p>
+
+<p>직접 실험해 보고 싶다면 공개 저장소 <a href="https://github.com/SalesforceAIResearch/Random-Attention" target="_blank" rel="noopener">SalesforceAIResearch/Random-Attention</a>(Apache-2.0)이 좋은 출발점입니다. 논문의 축출 엔진(방법 이름 <code>random_pp</code>)과 평가 하네스, vLLM 통합, 그리고 5장의 메커니즘 실험을 재현하는 도구까지 들어 있습니다. 작게 시작하려면 위 장난감 정책을 Hugging Face <code>DynamicCache</code>에 물려서, MATH-500 문제 몇 개로 <em>budget을 줄여 가며 정확도가 언제 꺾이는지</em> 그려 보세요. 프롬프트 보존을 끄는 순간 그래프가 절벽이 되는 걸 직접 보면 5장이 몸으로 이해됩니다.</p>
+
+<figure class="ra-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="KV 캐시 메모리 대응 수단 선택 가이드. 손실을 감수할 수 없으면 양자화와 오프로딩을 먼저 쓰고, 리즈닝처럼 트레이스가 긴 워크로드에서 더 줄여야 할 때 축출을 검토하되 프롬프트 보존을 전제로 한다는 결정 흐름">
+  <defs>
+    <marker id="ra-f3a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--ra-slate)"/>
+    </marker>
+  </defs>
+  <text x="430" y="28" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--ra-slate)">KV 캐시가 터질 때 — 무엇부터 쓸까</text>
+
+  <rect x="320" y="48" width="220" height="46" rx="10" fill="none" stroke="var(--ra-sky)" stroke-width="2"/>
+  <text x="430" y="76" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ra-sky)">KV 캐시 메모리 부족</text>
+
+  <line x1="430" y1="94" x2="430" y2="122" stroke="var(--ra-slate)" stroke-width="1.6" marker-end="url(#ra-f3a)"/>
+
+  <rect x="70" y="127" width="220" height="62" rx="10" fill="none" stroke="var(--ra-green)" stroke-width="2"/>
+  <text x="180" y="150" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ra-green)">1순위: 양자화 (FP8 등)</text>
+  <text x="180" y="170" text-anchor="middle" font-size="11" fill="var(--ra-gray)">손실 거의 없음 · 절반~¼ 절감</text>
+
+  <rect x="320" y="127" width="220" height="62" rx="10" fill="none" stroke="var(--ra-green)" stroke-width="2"/>
+  <text x="430" y="150" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ra-green)">2순위: 오프로딩</text>
+  <text x="430" y="170" text-anchor="middle" font-size="11" fill="var(--ra-gray)">무손실 · 전송 지연이 비용</text>
+
+  <rect x="570" y="127" width="220" height="62" rx="10" fill="none" stroke="var(--ra-amber)" stroke-width="2"/>
+  <text x="680" y="150" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ra-amber)">그래도 부족? → 축출</text>
+  <text x="680" y="170" text-anchor="middle" font-size="11" fill="var(--ra-gray)">손실 있음 · 워크로드 확인 필수</text>
+
+  <line x1="680" y1="189" x2="680" y2="217" stroke="var(--ra-slate)" stroke-width="1.6" marker-end="url(#ra-f3a)"/>
+  <line x1="290" y1="158" x2="315" y2="158" stroke="var(--ra-slate)" stroke-width="1.4" marker-end="url(#ra-f3a)"/>
+  <line x1="540" y1="158" x2="565" y2="158" stroke="var(--ra-slate)" stroke-width="1.4" marker-end="url(#ra-f3a)"/>
+
+  <rect x="450" y="222" width="220" height="76" rx="10" fill="none" stroke="var(--ra-teal)" stroke-width="2.2"/>
+  <text x="560" y="245" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ra-teal)">리즈닝(긴 트레이스) 워크로드</text>
+  <text x="560" y="265" text-anchor="middle" font-size="11" fill="var(--ra-gray)">프롬프트 보존 + 랜덤 축출부터 시도</text>
+  <text x="560" y="284" text-anchor="middle" font-size="11" fill="var(--ra-gray)">복잡한 점수 기법은 그 다음 문제</text>
+
+  <rect x="690" y="222" width="150" height="76" rx="10" fill="none" stroke="var(--ra-rose)" stroke-width="2"/>
+  <text x="765" y="248" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--ra-rose)">정확 회상 워크로드</text>
+  <text x="765" y="268" text-anchor="middle" font-size="10.5" fill="var(--ra-gray)">긴 문서 QA · 코드 참조</text>
+  <text x="765" y="286" text-anchor="middle" font-size="10.5" fill="var(--ra-gray)">축출 자체가 위험</text>
+</svg>
+<figcaption>그림 3. 실무 결정 가이드. 축출은 손실이 있는 마지막 수단이며, 그 안에서도 워크로드 성격(자기 중복이 많은 리즈닝 vs 원본 회상이 필요한 태스크)에 따라 적용 여부가 갈린다.</figcaption>
+</figure>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"랜덤도 되니까 아무 데나 축출 켜기."</strong> 이 논문의 결과는 <em>리즈닝 벤치마크</em> — 짧은 프롬프트 + 길고 자기 중복적인 트레이스 — 라는 레짐에서 나온 겁니다. 긴 문서 QA나 코드베이스 참조처럼 <em>캐시 어딘가의 원본 한 조각을 정확히 회상해야 하는</strong> 워크로드는 중복 보호가 없어서, 랜덤이든 점수든 축출 자체가 위험합니다. 리즈닝에서도 압축의 부작용을 따져 보는 후속 연구(<a href="https://arxiv.org/abs/2512.12008" target="_blank" rel="noopener">Hold Onto That Thought</a>)가 있을 만큼, 자기 워크로드에서의 평가 없이 켜면 안 됩니다.</li>
+  <li><strong>에이전트 루프에서 "프롬프트"의 경계를 착각하는 것.</strong> 이 논문의 프롬프트/트레이스 구분은 단일 문제 리즈닝 기준입니다. 멀티턴 에이전트에서는 툴 출력·파일 내용이 턴마다 컨텍스트에 쌓이고, 그 상당수는 "한 부뿐인 원본"이라 성격상 프롬프트에 가깝습니다. "생성된 것 = 버려도 됨"으로 단순 치환하면 에이전트가 툴 결과를 잊습니다.</li>
+  <li><strong>재현성 잊기.</strong> 축출이 랜덤이면 같은 요청도 실행마다 다른 캐시 상태를 가질 수 있습니다. 디버깅·회귀 테스트에서는 축출 난수 시드를 고정하고, 시드도 로그에 남기세요.</li>
+  <li><strong>baseline 비교에서 프롬프트 보존을 통제하지 않는 것.</strong> 이 논문의 방법론적 교훈입니다. 축출 기법 A가 B를 이겼을 때, 그 차이가 점수 함수 덕인지 "우연한 프롬프트 보존" 덕인지는 프롬프트 보존을 양쪽에 똑같이 걸어 봐야 압니다. 자기 기법을 평가할 때도 <em>랜덤 + 구조적 보호</em>를 반드시 baseline에 넣으세요 — 이제 이 분야에서 랜덤은 "약한 baseline"이 아닙니다.</li>
+  <li><strong>정확도만 보고 처리량을 안 재는 것.</strong> 축출의 목적은 어차피 서빙 효율입니다. 스코어링 패스가 무거우면 "정확도는 지켰는데 커널 런치와 동기화로 이득을 도로 뱉는" 일이 실제로 생깁니다. HF 하네스 숫자와 vLLM 같은 실제 서빙 스택 숫자를 둘 다 확인하세요.</li>
+  <li><strong>축출을 1순위 수단으로 꺼내는 것.</strong> 양자화(거의 무손실)와 오프로딩(무손실)이 먼저입니다. 손실 있는 축출은 그다음이고, 켠다면 프롬프트 보존은 협상 대상이 아닙니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>리즈닝 모델의 긴 사고 과정 때문에 KV 캐시가 서빙 메모리의 최대 병목이 됐습니다. 8B 모델 기준 토큰당 약 128KB — 32K 토큰 트레이스면 요청 하나에 4GB입니다.</li>
+  <li>이번 주 HF 트렌딩에 오른 Salesforce의 <strong>Random Attention</strong>(arXiv:2609.03430)은 "중요 토큰을 점수로 골라 남긴다"는 3년치 축출 패러다임에 반례를 제시합니다: <strong>프롬프트만 통째로 지키고 나머지는 head별 균등 랜덤으로 버려도</strong>, 4개 모델 · 6개 리즈닝 태스크에서 최강 점수 기법(SnapKV·R-KV·VaSE·TriAttention)과 정확도가 대등했습니다.</li>
+  <li>점수 계산이 없으니 스코어링 패스의 커널 런치·동기화가 사라져 <strong>vLLM 처리량이 32~43% 더 높았습니다</strong>. 코드는 Apache-2.0으로 공개돼 있습니다.</li>
+  <li>이유는 두 가지: ① 캐시에서 깨지기 쉬운 건 <strong>프롬프트뿐</strong>이고, 기존 점수 기법 간 격차의 대부분은 프롬프트를 우연히 지켰는지의 차이였다(프롬프트만 지키면 단순 recency도 최강 baseline과 2점 이내). ② 리즈닝 트레이스는 <strong>텍스트 재진술 + head별 독립 표본</strong>이라는 두 겹의 중복으로 스스로를 지킨다.</li>
+  <li>엔지니어링 교훈: 비싼 선택 알고리즘보다 <strong>싼 구조적 불변 조건</strong>("여긴 절대 건드리지 마라")이 문제의 본체일 수 있습니다. 그리고 새 기법을 평가할 땐 <em>랜덤 + 구조적 보호</em>를 baseline으로 꼭 세우세요.</li>
+  <li>단, 결과의 유효 범위는 "짧은 프롬프트 + 자기 중복이 많은 긴 트레이스" 레짐입니다. 정확 회상이 필요한 워크로드와 멀티턴 에이전트 컨텍스트에는 그대로 이식하면 안 됩니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2609.03430" target="_blank" rel="noopener">Random Attention: Rethinking KV Cache Eviction for Efficient Reasoning (arXiv:2609.03430)</a></li>
+  <li><a href="https://github.com/SalesforceAIResearch/Random-Attention" target="_blank" rel="noopener">SalesforceAIResearch/Random-Attention — 공개 코드 (GitHub, Apache-2.0)</a></li>
+  <li><a href="https://huggingface.co/papers/2609.03430" target="_blank" rel="noopener">Random Attention — Hugging Face Daily Papers</a></li>
+  <li><a href="https://arxiv.org/abs/2309.17453" target="_blank" rel="noopener">Efficient Streaming Language Models with Attention Sinks — StreamingLLM (arXiv:2309.17453)</a></li>
+  <li><a href="https://arxiv.org/abs/2306.14048" target="_blank" rel="noopener">H2O: Heavy-Hitter Oracle for Efficient Generative Inference of LLMs (arXiv:2306.14048)</a></li>
+  <li><a href="https://arxiv.org/abs/2404.14469" target="_blank" rel="noopener">SnapKV: LLM Knows What You are Looking for Before Generation (arXiv:2404.14469)</a></li>
+  <li><a href="https://arxiv.org/abs/2505.24133" target="_blank" rel="noopener">R-KV: Redundancy-aware KV Cache Compression for Reasoning Models (arXiv:2505.24133)</a></li>
+  <li><a href="https://arxiv.org/abs/2605.18053" target="_blank" rel="noopener">Protection Is (Nearly) All You Need: Structural Protection Dominates Scoring in Globally Capped KV Eviction (arXiv:2605.18053)</a></li>
+  <li><a href="https://arxiv.org/abs/2512.12008" target="_blank" rel="noopener">Hold Onto That Thought: Assessing KV Cache Compression On Reasoning (arXiv:2512.12008)</a></li>
+  <li><a href="https://arxiv.org/abs/2412.19442" target="_blank" rel="noopener">A Survey on LLM Acceleration based on KV Cache Management (arXiv:2412.19442)</a></li>
+  <li><a href="https://docs.vllm.ai/en/latest/features/quantization/quantized_kvcache.html" target="_blank" rel="noopener">Quantized KV Cache — vLLM 공식 문서</a></li>
+  <li><a href="https://github.com/AtharvaDomale/Daily-HuggingFace-AI-Papers" target="_blank" rel="noopener">Daily HuggingFace AI Papers 아카이브 — 주간 트렌딩 집계 (GitHub)</a></li>
+</ul>

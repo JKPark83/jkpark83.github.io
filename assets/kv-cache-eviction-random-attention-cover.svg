@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="점수 기반 KV 캐시 축출과 랜덤 축출을 비교한 그림. 왼쪽 경로는 토큰마다 중요도 점수를 계산해 상위 토큰을 남기고, 오른쪽 경로는 프롬프트만 보존한 채 나머지를 균등 랜덤으로 버리는데 두 경로의 정확도는 같고 랜덤 쪽 처리량이 32~43% 높다">
+  <defs>
+    <linearGradient id="ra-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#134e4a"/>
+    </linearGradient>
+    <marker id="ra-car1" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="ra-car2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2dd4bf"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#ra-bg)"/>
+
+  <text x="60" y="80" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">점수는 거의 아무 일도 안 하고 있었다</text>
+  <text x="60" y="122" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">리즈닝 KV 캐시 축출의 상식을 뒤집은 Random Attention</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 공통 입력: KV 캐시 -->
+    <rect x="470" y="170" width="260" height="80" rx="12" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="600" y="203" text-anchor="middle" font-size="19" font-weight="700" fill="#38bdf8">리즈닝 KV 캐시</text>
+    <text x="600" y="230" text-anchor="middle" font-size="14" fill="#64748b">긴 CoT로 계속 자라는 중</text>
+
+    <line x1="520" y1="250" x2="330" y2="315" stroke="#94a3b8" stroke-width="2" marker-end="url(#ra-car1)"/>
+    <line x1="680" y1="250" x2="870" y2="315" stroke="#2dd4bf" stroke-width="2" marker-end="url(#ra-car2)"/>
+
+    <!-- 왼쪽: 점수 기반 -->
+    <rect x="100" y="325" width="420" height="170" rx="14" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="310" y="358" text-anchor="middle" font-size="19" font-weight="700" fill="#cbd5e1">기존: 점수 기반 축출</text>
+    <text x="310" y="385" text-anchor="middle" font-size="14" fill="#94a3b8">H2O · SnapKV · R-KV …</text>
+    <text x="310" y="412" text-anchor="middle" font-size="14" fill="#94a3b8">토큰마다 중요도 계산 → top-k 유지</text>
+    <text x="310" y="446" text-anchor="middle" font-size="15" fill="#fbbf24">스코어링 패스 = 오버헤드</text>
+    <text x="310" y="474" text-anchor="middle" font-size="15" fill="#e2e8f0">정확도 기준선</text>
+
+    <!-- 오른쪽: 랜덤 -->
+    <rect x="680" y="325" width="420" height="170" rx="14" fill="#134e4a" stroke="#2dd4bf" stroke-width="2.5"/>
+    <text x="890" y="358" text-anchor="middle" font-size="19" font-weight="700" fill="#2dd4bf">Random Attention</text>
+    <text x="890" y="385" text-anchor="middle" font-size="14" fill="#99f6e4">프롬프트는 전부 보존</text>
+    <text x="890" y="412" text-anchor="middle" font-size="14" fill="#99f6e4">나머지는 head별 균등 랜덤 축출</text>
+    <text x="890" y="446" text-anchor="middle" font-size="15" fill="#fbbf24">점수 계산 0회</text>
+    <text x="890" y="474" text-anchor="middle" font-size="15" fill="#e2e8f0">정확도 동급 · vLLM 처리량 +32~43%</text>
+  </g>
+
+  <text x="60" y="582" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="16" fill="#64748b">Salesforce AI Research · arXiv:2609.03430 · jkpark83.github.io</text>
+</svg>

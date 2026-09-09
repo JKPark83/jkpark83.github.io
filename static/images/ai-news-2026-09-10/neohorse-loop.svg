@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="430" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">NeoHorse-1의 평가–선택–업데이트 루프</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- 1 라우팅 하니스 -->
+  <rect x="40" y="70" width="220" height="92" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="150" y="96" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">① 라우팅 하니스</text>
+  <text x="150" y="118" text-anchor="middle" font-size="12" fill="#475569">이종 모델 풀에 작업 배정</text>
+  <text x="150" y="136" text-anchor="middle" font-size="12" fill="#475569">능력 수요·서비스 티어 기록</text>
+
+  <!-- 2 기록 -->
+  <rect x="300" y="70" width="220" height="92" rx="10" fill="#eef2ff" stroke="#a5b4fc"/>
+  <text x="410" y="96" text-anchor="middle" font-size="14" font-weight="700" fill="#4338ca">② 실행 기록</text>
+  <text x="410" y="118" text-anchor="middle" font-size="12" fill="#475569">추론·툴 호출·하니스 컨텍스트를</text>
+  <text x="410" y="136" text-anchor="middle" font-size="12" fill="#475569">그대로 보존한 학습 예제로 변환</text>
+
+  <!-- 3 검증 게이트 -->
+  <rect x="560" y="70" width="200" height="92" rx="10" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="660" y="96" text-anchor="middle" font-size="14" font-weight="700" fill="#b91c1c">③ 검증 게이트</text>
+  <text x="660" y="118" text-anchor="middle" font-size="12" fill="#475569">구조 검증 · 6차원 의미 평가</text>
+  <text x="660" y="136" text-anchor="middle" font-size="12" fill="#475569">장면 단위 라벨링 후 입장 허용</text>
+
+  <!-- 4 학습 -->
+  <rect x="560" y="230" width="200" height="92" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="660" y="256" text-anchor="middle" font-size="14" font-weight="700" fill="#15803d">④ 학습</text>
+  <text x="660" y="278" text-anchor="middle" font-size="12" fill="#475569">3단계 커리큘럼 SFT +</text>
+  <text x="660" y="296" text-anchor="middle" font-size="12" fill="#475569">라우팅 유도 on-policy 증류</text>
+
+  <!-- 5 배분 -->
+  <rect x="300" y="230" width="220" height="92" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="410" y="256" text-anchor="middle" font-size="14" font-weight="700" fill="#c2410c">⑤ 능력 기반 배분</text>
+  <text x="410" y="278" text-anchor="middle" font-size="12" fill="#475569">평가 피드백으로 다음 학습</text>
+  <text x="410" y="296" text-anchor="middle" font-size="12" fill="#475569">데이터 믹스를 재구성</text>
+
+  <!-- 결과 카드 -->
+  <rect x="40" y="230" width="220" height="92" rx="10" fill="#fdf4ff" stroke="#e9d5ff"/>
+  <text x="150" y="256" text-anchor="middle" font-size="14" font-weight="700" fill="#7e22ce">11개 벤치 매크로 평균</text>
+  <text x="150" y="280" text-anchor="middle" font-size="13" fill="#0f172a">4B: 58.94 → 64.87</text>
+  <text x="150" y="300" text-anchor="middle" font-size="13" fill="#0f172a">9B: 65.60 → 69.04</text>
+
+  <!-- 화살표 -->
+  <line x1="260" y1="116" x2="296" y2="116" stroke="#64748b" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="520" y1="116" x2="556" y2="116" stroke="#64748b" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="660" y1="162" x2="660" y2="226" stroke="#64748b" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="556" y1="276" x2="524" y2="276" stroke="#64748b" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="300" y1="276" x2="264" y2="276" stroke="#64748b" stroke-width="2" marker-end="url(#arr)"/>
+  <path d="M 150 230 L 150 166" stroke="#64748b" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+  <text x="128" y="202" font-size="11" fill="#94a3b8" transform="rotate(-90 128 202)">업데이트된 모델 복귀</text>
+
+  <text x="400" y="400" text-anchor="middle" font-size="11" fill="#94a3b8">배운 것이 다음에 배울 데이터를 결정한다 — 하니스 매개 재귀적 자기개선(RSI)의 프로토타입 (arXiv 2609.08183)</text>
+</svg>

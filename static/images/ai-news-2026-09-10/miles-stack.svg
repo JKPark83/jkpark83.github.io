@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="400" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">Miles v0.1 — 프로덕션 RL 사후학습 스택</text>
+
+  <!-- 롤아웃 층 -->
+  <rect x="40" y="60" width="440" height="80" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="60" y="88" font-size="14" font-weight="700" fill="#1d4ed8">롤아웃 엔진 — SGLang</text>
+  <text x="60" y="110" font-size="12" fill="#475569">완전 비동기 에이전틱 롤아웃 · 온/오프폴리시 스케줄 설정 가능</text>
+
+  <!-- 트레이너 층 -->
+  <rect x="40" y="156" width="440" height="80" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="60" y="184" font-size="14" font-weight="700" fill="#15803d">트레이너 — 백엔드 2종</text>
+  <text x="60" y="206" font-size="12" fill="#475569">NVIDIA Megatron-LM(레시피·최대 규모) 또는 PyTorch FSDP</text>
+
+  <!-- 동기화 층 -->
+  <rect x="40" y="252" width="440" height="80" rx="10" fill="#fdf4ff" stroke="#e9d5ff"/>
+  <text x="60" y="280" font-size="14" font-weight="700" fill="#7e22ce">가중치 동기화 — 3가지 전송 방식</text>
+  <text x="60" y="302" font-size="12" fill="#475569">배포 토폴로지에 맞춰 선택 · 검증되고 교체 가능한 컴포넌트</text>
+
+  <!-- 세로 화살표 -->
+  <defs>
+    <marker id="arr2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <line x1="260" y1="140" x2="260" y2="152" stroke="#64748b" stroke-width="2" marker-end="url(#arr2)"/>
+  <line x1="260" y1="236" x2="260" y2="248" stroke="#64748b" stroke-width="2" marker-end="url(#arr2)"/>
+
+  <!-- 지원 모드 -->
+  <rect x="512" y="60" width="248" height="128" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="532" y="88" font-size="14" font-weight="700" fill="#c2410c">지원 학습 모드</text>
+  <text x="532" y="112" font-size="12" fill="#475569">· 풀파라미터 RL / LoRA RL</text>
+  <text x="532" y="132" font-size="12" fill="#475569">· on-policy 증류 · SFT</text>
+  <text x="532" y="152" font-size="12" fill="#475569">· true-on-policy 정렬</text>
+  <text x="532" y="172" font-size="12" fill="#475569">· 디퓨전 모델 확장</text>
+
+  <!-- 사례 연구 -->
+  <rect x="512" y="204" width="248" height="128" rx="10" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="532" y="232" font-size="14" font-weight="700" fill="#b91c1c">엔드투엔드 사례 연구</text>
+  <text x="532" y="256" font-size="12" fill="#0f172a">GLM-5.2 744B-A40B 비동기</text>
+  <text x="532" y="276" font-size="12" fill="#0f172a">에이전틱 RL (터미널 코딩 과제)</text>
+  <text x="532" y="300" font-size="12" fill="#475569">64× NVIDIA GB300</text>
+  <text x="532" y="320" font-size="12" fill="#475569">스텝 중앙값 263초 (초기 30스텝)</text>
+
+  <text x="400" y="372" text-anchor="middle" font-size="11" fill="#94a3b8">slime의 설계를 이어받아 "검증되고, 깔끔하고, 교체 가능한" 컴포넌트를 원칙으로 삼는다 (arXiv 2609.08368)</text>
+</svg>

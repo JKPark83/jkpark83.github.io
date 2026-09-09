@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+  <rect width="800" height="470" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">오늘의 AI 변화 지도 — 2026-09-10</text>
+
+  <!-- 모델 -->
+  <rect x="24" y="56" width="368" height="180" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="40" y="82" font-size="15" font-weight="700" fill="#1d4ed8">🤖 모델 &amp; 릴리즈</text>
+  <text x="40" y="108" font-size="13" fill="#0f172a">NeoHorse-1 4B·9B (TokenRhythm)</text>
+  <text x="40" y="128" font-size="12" fill="#475569">· 에이전트 네이티브, Apache 2.0, GGUF 동봉</text>
+  <text x="40" y="146" font-size="12" fill="#475569">· Qwen3.5 기반 에이전틱 사후학습</text>
+  <text x="40" y="172" font-size="13" fill="#0f172a">Codex CLI 0.154.0 · Claude Code 2.1.267</text>
+  <text x="40" y="192" font-size="12" fill="#475569">· Codex: /worktree 격리 체크아웃 (실험)</text>
+  <text x="40" y="210" font-size="12" fill="#475569">· CC: maxEffortLevel로 노력 수준 상한</text>
+
+  <!-- 논문 -->
+  <rect x="408" y="56" width="368" height="180" rx="10" fill="#fdf4ff" stroke="#e9d5ff"/>
+  <text x="424" y="82" font-size="15" font-weight="700" fill="#7e22ce">📚 논문</text>
+  <text x="424" y="108" font-size="13" fill="#0f172a">NeoHorse-1: 라우팅 하니스로 RSI 실험</text>
+  <text x="424" y="128" font-size="12" fill="#475569">· 하니스 로그 → 검증 → 다음 학습 믹스</text>
+  <text x="424" y="146" font-size="12" fill="#475569">· 4B 58.94→64.87, 9B 65.60→69.04</text>
+  <text x="424" y="172" font-size="13" fill="#0f172a">Miles v0.1: 프로덕션급 RL 사후학습</text>
+  <text x="424" y="192" font-size="12" fill="#475569">· SGLang 롤아웃 + Megatron/FSDP 트레이너</text>
+  <text x="424" y="210" font-size="12" fill="#475569">· 744B MoE 비동기 에이전틱 RL 사례 공개</text>
+
+  <!-- 오픈소스 -->
+  <rect x="24" y="252" width="368" height="180" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="40" y="278" font-size="15" font-weight="700" fill="#15803d">🛠 오픈소스</text>
+  <text x="40" y="304" font-size="13" fill="#0f172a">radixark/miles — 오픈소스 RL 인프라</text>
+  <text x="40" y="322" font-size="12" fill="#475569">· slime 후속, 풀파라미터·LoRA RL·증류·SFT</text>
+  <text x="40" y="340" font-size="12" fill="#475569">· 에이전트 RL을 직접 돌릴 수 있는 스택</text>
+  <text x="40" y="366" font-size="13" fill="#0f172a">TokenRhythm/NeoHorse — 모델 릴리즈 저장소</text>
+  <text x="40" y="384" font-size="12" fill="#475569">· 기술 보고서·예제·GGUF 배포 링크</text>
+
+  <!-- 실전 팁 -->
+  <rect x="408" y="252" width="368" height="180" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="424" y="278" font-size="15" font-weight="700" fill="#c2410c">🧑‍💻 실전 팁</text>
+  <text x="424" y="304" font-size="13" fill="#0f172a">🟩 Codex: --worktree / /worktree</text>
+  <text x="424" y="322" font-size="12" fill="#475569">· 세션마다 격리된 체크아웃에서 병렬 작업</text>
+  <text x="424" y="348" font-size="13" fill="#0f172a">🟦 Claude Code: maxEffortLevel</text>
+  <text x="424" y="366" font-size="12" fill="#475569">· 팀 설정으로 비용·지연 상한 걸기</text>
+  <text x="424" y="392" font-size="13" fill="#0f172a">🟪 공통: 트랜스크립트 = 데이터 자산</text>
+  <text x="424" y="410" font-size="12" fill="#475569">· 검증 게이트 통과분만 학습·메모리에 반영</text>
+
+  <text x="400" y="456" text-anchor="middle" font-size="11" fill="#94a3b8">오늘의 공통 주제: 에이전트 하니스 로그가 다음 모델의 학습 데이터가 된다</text>
+</svg>

@@ -1,0 +1,415 @@
+---
+title: "모델은 업그레이드했는데, 기억은 이사를 못 갔다 — 에이전트 메모리 이식성(memory portability) 엔지니어링"
+date: 2026-09-11T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트 메모리", "memory portability", "모델 업그레이드", "임베딩 마이그레이션", "RAG", "지식 그래프", "Mem0", "Letta", "Zep", "회귀 평가", "re-embedding", "Drift-Adapter", "provenance", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "9월 들어 모델 릴리스가 쏟아졌습니다. Fable 5.1은 캐시 읽기 요금을 75% 내렸고, 새 모델로 갈아타는 건 코드 한 줄이면 됩니다. 그런데 오래 굴린 에이전트에는 코드 한 줄로 안 옮겨지는 것이 있습니다 — 지금까지 쌓아 온 기억입니다. 이번 주 화제가 된 arXiv:2609.05339는 이 문제를 처음으로 통제 실험으로 다뤘습니다. 결과는 저장 형태에 따라 극단적으로 갈립니다. 고정 스키마 지식 그래프는 모델을 바꿔도 정확도 변화가 사실상 0인데, 모델이 압축한 자연어 노트는 ±10%p대로 요동치고, 임베딩을 절반만 갈아 끼운 혼합 인덱스는 업그레이드 이득의 60%를 날립니다. 기억이 왜 모델에 묶이는지, 무엇이 이사를 버티고 무엇이 깨지는지, 그리고 안전한 업그레이드 runbook까지 — junior 개발자 눈높이에서 쉽고 자세하게 다룹니다."
+ShowToc: false
+cover:
+  image: "agent-memory-portability-model-upgrade-cover.svg"
+  alt: "모델 v1에서 v2로 업그레이드할 때 메모리 스토어의 운명. 고정 스키마 그래프는 온전하고, 모델이 압축한 노트는 금이 가고, 구버전 임베딩 벡터는 어긋난다"
+  caption: "기억은 모델 밖 DB에 있지만, 모델의 언어로 쓰여 있다 — 업그레이드가 기억을 깨뜨리는 이유"
+  relative: false
+---
+
+<style>
+/* ── 메모리 이식성 포스트 전용 스타일 (mp- 접두사) ── */
+.mp-fig{
+  --mp-violet:#7c3aed; --mp-sky:#0284c7; --mp-green:#16a34a; --mp-rose:#e11d48;
+  --mp-amber:#d97706; --mp-slate:#64748b; --mp-teal:#0d9488; --mp-blue:#2563eb;
+  --mp-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .mp-fig{
+  --mp-violet:#a78bfa; --mp-sky:#38bdf8; --mp-green:#4ade80; --mp-rose:#fb7185;
+  --mp-amber:#fbbf24; --mp-slate:#94a3b8; --mp-teal:#2dd4bf; --mp-blue:#60a5fa;
+  --mp-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .mp-fig{
+    --mp-violet:#a78bfa; --mp-sky:#38bdf8; --mp-green:#4ade80; --mp-rose:#fb7185;
+    --mp-amber:#fbbf24; --mp-slate:#94a3b8; --mp-teal:#2dd4bf; --mp-blue:#60a5fa;
+    --mp-gray:#64748b;
+  }
+}
+.mp-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.mp-fig text{font-family:inherit}
+.mp-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.mp-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.mp-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.mp-toc ol{margin:0;padding-left:1.25rem}
+.mp-toc li{margin:.22rem 0;font-size:.95rem}
+.mp-toc a{text-decoration:none}
+.mp-toc a:hover{text-decoration:underline}
+.mp-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.mp-table th,.mp-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left}
+.mp-table th{background:var(--entry)}
+</style>
+
+<div class="mp-toc">
+  <div class="mp-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 업그레이드는 한 줄, 기억은 한 줄이 아니다</a></li>
+    <li><a href="#sec-2">배경 — 기억을 쓴 모델, 읽을 모델, 찾아줄 모델</a></li>
+    <li><a href="#sec-3">실험 — 네 가지 저장 형태, 갈리는 운명</a></li>
+    <li><a href="#sec-4">임베딩 축 — 같은 1024차원인데 왜 어긋나나</a></li>
+    <li><a href="#sec-5">복구 — 원본이 없으면 고칠 수도 없다</a></li>
+    <li><a href="#sec-6">실전 — 안전한 모델 업그레이드 runbook</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 업그레이드는 한 줄, 기억은 한 줄이 아니다</h2>
+
+<p>9월 들어 모델 릴리스가 쏟아지고 있습니다. Anthropic은 9월 1일 <a href="https://techcrunch.com/2026/09/01/anthropics-new-fable-release-is-cheaper-less-restrictive/" target="_blank" rel="noopener">Fable 5.1</a>을 내놓으면서 1M 토큰 컨텍스트에 캐시 읽기 요금을 $1에서 $0.25로 75% 내렸고, OpenAI도 같은 주에 제품 라인을 갈아엎었습니다. 장기 실행 에이전트의 운영 비용이 뚝 떨어지니, 지금 돌고 있는 에이전트의 모델 ID를 바꾸고 싶은 유혹이 큽니다. 실제로 바꾸는 건 코드 한 줄입니다.</p>
+
+<p>그런데 오래 굴린 에이전트에는 코드 한 줄로 안 옮겨지는 것이 있습니다. <strong>지금까지 쌓아 온 기억</strong>입니다. 유저 선호, 과거 결정, 프로젝트 맥락 — 몇 달치 대화에서 추출해 DB에 쌓아 둔 그 상태 말입니다. "메모리는 모델 밖 DB에 있으니 모델을 바꿔도 안전하다"고 생각하기 쉽습니다. 이번 주 실무자들 사이에서 화제가 된 <a href="https://arxiv.org/abs/2609.05339" target="_blank" rel="noopener">Does Your Agent's Memory Survive a Model Upgrade?</a>(arXiv:2609.05339, 9월 4일 공개)는 바로 그 가정을 통제 실험으로 검증했습니다.</p>
+
+<p>결론부터 말하면, <strong>저장 형태에 따라 운명이 극단적으로 갈립니다.</strong> 고정 스키마 지식 그래프에 넣은 기억은 모델을 바꿔도 정확도 변화가 사실상 0이었습니다. 반면 모델이 자연어로 압축해 둔 노트는 새 모델이 읽는 순간 정확도가 <strong>+9.91%p 오르거나 −13.28%p 떨어지는</strong>, 방향조차 예측할 수 없는 요동을 보였습니다. 임베딩을 절반만 새로 갈아 끼운 혼합 인덱스는 업그레이드로 얻을 수 있던 이득의 60%를 날렸습니다. 같은 DB, 같은 데이터인데도요.</p>
+
+<p>이 글은 이 결과를 발판 삼아 한 단계 위의 질문을 다룹니다. <em>에이전트 밑에서 모델을 갈아 끼우는 일은 어떤 엔지니어링 이벤트이고, 무엇을 준비해야 하는가.</em> 메모리 이식성(memory portability)이라는 렌즈로 보면, 업그레이드는 버전 숫자 바꾸기가 아니라 <strong>데이터 마이그레이션</strong>입니다.</p>
+
+<h2 id="sec-2">2. 배경 — 기억을 쓴 모델, 읽을 모델, 찾아줄 모델</h2>
+
+<p>따라오는 데 필요한 최소한만 짚겠습니다. 에이전트 메모리 시스템에는 서로 다른 역할의 모델이 최소 셋 얽혀 있습니다.</p>
+
+<ul>
+  <li><strong>writer</strong> — 대화·이벤트에서 기억할 내용을 뽑아 <em>쓰는</em> 모델. 요약하고, 노트로 압축하고, 그래프 노드로 정규화합니다.</li>
+  <li><strong>reader</strong> — 나중에 그 기억을 <em>읽고</em> 답을 만드는 모델. 보통 writer와 같은 모델이지만, 업그레이드하는 순간 달라집니다.</li>
+  <li><strong>임베딩 모델</strong> — 기억을 벡터로 바꿔 <em>찾아주는</em> 모델. 검색 기반 메모리라면 반드시 끼어 있습니다.</li>
+</ul>
+
+<p>업그레이드란 이 셋 중 하나 이상을 갈아 끼우는 일입니다. 문제는 기억이 <strong>중립적인 데이터가 아니라는 점</strong>입니다. "요약 노트"는 writer 모델이 무엇이 중요한지 판단하고 자기 언어 습관으로 눌러 담은 결과물입니다. 사람으로 치면, 전임자가 자기만 알아보게 갈겨 쓴 인수인계 노트를 후임자가 물려받는 셈입니다. 전임자에게는 완벽한 기록이 후임자에게는 수수께끼일 수 있습니다.</p>
+
+<p>논문은 같은 히스토리를 네 가지 형태로 저장해 비교합니다. 실무 프레임워크와 대응시켜 보면 감이 빠릅니다.</p>
+
+<table class="mp-table">
+  <tr><th>형태</th><th>저장 방식</th><th>모델 개입 정도</th><th>실무에서 비슷한 것</th></tr>
+  <tr><td><strong>LC-RAW</strong></td><td>원본 히스토리를 통째로 보존, 긴 컨텍스트로 읽기</td><td>없음 (무손실)</td><td>대화 로그 전체 재주입</td></tr>
+  <tr><td><strong>RAG</strong></td><td>원본을 청크로 잘라 임베딩 검색</td><td>임베딩 모델만</td><td>벡터 DB 기반 검색 메모리</td></tr>
+  <tr><td><strong>NOTES</strong></td><td>모델이 자연어 노트로 압축</td><td><strong>높음 — writer의 해석이 곧 데이터</strong></td><td>Mem0의 추출 노트, Letta의 메모리 블록</td></tr>
+  <tr><td><strong>KG-fixed</strong></td><td>고정 스키마 지식 그래프로 정규화</td><td>추출에만 개입, 형식은 스키마가 강제</td><td>Zep류 그래프 메모리, 구조화 프로필</td></tr>
+</table>
+
+<p>여기서 핵심 축이 보입니다. <strong>모델의 해석이 데이터에 얼마나 스며들어 있는가.</strong> LC-RAW는 해석이 0이고, NOTES는 해석 그 자체이고, KG-fixed는 해석을 스키마라는 틀에 가둡니다. 이 축이 이식성을 결정합니다.</p>
+
+<figure class="mp-fig">
+<svg viewBox="0 0 860 420" role="img" aria-label="writer 모델이 원본 히스토리를 네 가지 형태로 저장하고 reader 모델이 읽는 구조. LC-RAW에서 KG-fixed, RAG, NOTES로 갈수록 모델 해석의 개입이 커지고 이식성이 낮아진다">
+  <defs>
+    <marker id="mp-f1a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--mp-slate)"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="26" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--mp-slate)">기억은 어디까지 "모델의 해석"인가</text>
+
+  <!-- 원본 -->
+  <rect x="30" y="60" width="150" height="64" rx="10" fill="none" stroke="var(--mp-slate)" stroke-width="2"/>
+  <text x="105" y="87" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mp-slate)">원본 히스토리</text>
+  <text x="105" y="106" text-anchor="middle" font-size="11" fill="var(--mp-gray)">대화·이벤트 로그</text>
+
+  <!-- writer -->
+  <rect x="240" y="60" width="130" height="64" rx="10" fill="none" stroke="var(--mp-violet)" stroke-width="2.5"/>
+  <text x="305" y="87" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mp-violet)">writer 모델</text>
+  <text x="305" y="106" text-anchor="middle" font-size="11" fill="var(--mp-gray)">추출·압축·정규화</text>
+
+  <line x1="180" y1="92" x2="234" y2="92" stroke="var(--mp-slate)" stroke-width="2" marker-end="url(#mp-f1a)"/>
+  <line x1="370" y1="92" x2="424" y2="92" stroke="var(--mp-slate)" stroke-width="2" marker-end="url(#mp-f1a)"/>
+
+  <!-- 4가지 스토어 -->
+  <g font-size="12.5" font-weight="700">
+    <rect x="430" y="48" width="180" height="46" rx="9" fill="none" stroke="var(--mp-green)" stroke-width="2"/>
+    <text x="520" y="68" text-anchor="middle" fill="var(--mp-green)">LC-RAW · 원본 그대로</text>
+    <text x="520" y="85" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">해석 개입 없음</text>
+
+    <rect x="430" y="104" width="180" height="46" rx="9" fill="none" stroke="var(--mp-teal)" stroke-width="2"/>
+    <text x="520" y="124" text-anchor="middle" fill="var(--mp-teal)">KG-fixed · 고정 스키마</text>
+    <text x="520" y="141" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">해석을 스키마에 가둠</text>
+
+    <rect x="430" y="160" width="180" height="46" rx="9" fill="none" stroke="var(--mp-amber)" stroke-width="2"/>
+    <text x="520" y="180" text-anchor="middle" fill="var(--mp-amber)">RAG · 청크 + 벡터</text>
+    <text x="520" y="197" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">임베딩 공간에 의존</text>
+
+    <rect x="430" y="216" width="180" height="46" rx="9" fill="none" stroke="var(--mp-rose)" stroke-width="2"/>
+    <text x="520" y="236" text-anchor="middle" fill="var(--mp-rose)">NOTES · 압축 노트</text>
+    <text x="520" y="253" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">writer의 해석 = 데이터</text>
+  </g>
+
+  <!-- reader -->
+  <rect x="690" y="118" width="140" height="70" rx="10" fill="none" stroke="var(--mp-blue)" stroke-width="2.5"/>
+  <text x="760" y="146" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mp-blue)">reader 모델</text>
+  <text x="760" y="166" text-anchor="middle" font-size="11" fill="var(--mp-gray)">업그레이드로 교체됨</text>
+
+  <line x1="610" y1="71" x2="684" y2="135" stroke="var(--mp-gray)" stroke-width="1.6" marker-end="url(#mp-f1a)"/>
+  <line x1="610" y1="127" x2="684" y2="145" stroke="var(--mp-gray)" stroke-width="1.6" marker-end="url(#mp-f1a)"/>
+  <line x1="610" y1="183" x2="684" y2="158" stroke="var(--mp-gray)" stroke-width="1.6" marker-end="url(#mp-f1a)"/>
+  <line x1="610" y1="239" x2="684" y2="172" stroke="var(--mp-gray)" stroke-width="1.6" marker-end="url(#mp-f1a)"/>
+
+  <!-- 이식성 축 -->
+  <line x1="120" y1="330" x2="740" y2="330" stroke="var(--mp-slate)" stroke-width="2.5" marker-end="url(#mp-f1a)"/>
+  <text x="120" y="316" font-size="12" font-weight="700" fill="var(--mp-green)">이식성 높음 (원본 보존)</text>
+  <text x="740" y="316" text-anchor="end" font-size="12" font-weight="700" fill="var(--mp-rose)">이식성 낮음 (모델 결합)</text>
+  <g font-size="12" font-weight="700">
+    <text x="170" y="360" text-anchor="middle" fill="var(--mp-green)">LC-RAW</text>
+    <text x="360" y="360" text-anchor="middle" fill="var(--mp-teal)">KG-fixed</text>
+    <text x="550" y="360" text-anchor="middle" fill="var(--mp-amber)">RAG</text>
+    <text x="700" y="360" text-anchor="middle" fill="var(--mp-rose)">NOTES</text>
+  </g>
+  <text x="430" y="395" text-anchor="middle" font-size="11.5" fill="var(--mp-gray)">← 압축률(토큰 절약)은 반대 방향으로 커진다 — 이식성과 압축은 트레이드오프 →</text>
+</svg>
+<figcaption>그림 1. 네 가지 메모리 저장 형태와 이식성 축. 오른쪽으로 갈수록 토큰은 아끼지만 writer 모델의 해석이 데이터에 깊이 스며들어, 모델 교체 시 깨지기 쉽다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 실험 — 네 가지 저장 형태, 갈리는 운명</h2>
+
+<p>실험 설계는 검소하지만 통제가 좋습니다. 정답 코드를 랜덤화한 <strong>합성 히스토리 48개</strong>를 만들고(사전 지식으로 답을 맞힐 수 없게), 각 히스토리를 위 네 형태로 저장한 뒤, 정확 일치(exact match)로 채점합니다. 모델은 10B 미만 오픈웨이트 2종을 써서 writer와 reader를 서로 갈아 끼웁니다. 핵심 조작은 두 가지입니다.</p>
+
+<ul>
+  <li><strong>writer swap</strong> — 기억은 구모델이 썼는데, 신모델이 읽는 상황. 우리가 겪는 "업그레이드 직후"입니다.</li>
+  <li><strong>임베딩 swap</strong> — 기억 본문은 그대로인데, 임베딩 모델 버전이 갈리는 상황. 다음 섹션에서 다룹니다.</li>
+</ul>
+
+<p>writer swap 결과가 이 논문의 첫 번째 펀치라인입니다.</p>
+
+<ul>
+  <li><strong>KG-fixed</strong>: 정확도 변화 <strong>+0.0004 ± 0.0020</strong>. 사실상 0입니다. 스키마가 강제하는 <code>(주어, 관계, 값)</code> 형식은 어느 모델이 읽어도 같은 뜻이기 때문입니다.</li>
+  <li><strong>NOTES</strong>: 모델 조합에 따라 <strong>+9.91%p 또는 −13.28%p</strong>. 크기도 문제지만 진짜 문제는 <em>비대칭</em>입니다. 어떤 조합에서는 오르고 어떤 조합에서는 떨어지는데, 미리 예측할 방법이 없습니다.</li>
+</ul>
+
+<p>NOTES가 왜 흔들리는지는 앞의 인수인계 비유로 설명됩니다. 압축 노트는 writer가 "무엇을 남기고 무엇을 버릴지" 판단한 결과이고, 그 판단은 writer 자신의 독해 습관에 최적화되어 있습니다. reader가 바뀌면 같은 문장을 다르게 해석하거나, writer가 "당연해서 생략한" 부분을 복원하지 못합니다. 더 좋은 모델로 바꿔도 마찬가지입니다 — <strong>신모델이 더 똑똑한 것과, 구모델의 축약을 잘 알아듣는 것은 다른 능력</strong>이기 때문입니다.</p>
+
+<p>실무로 번역하면 이렇습니다. Letta처럼 모델이 직접 관리하는 자연어 메모리 블록, Mem0처럼 LLM이 추출한 사실 노트를 쓰는 시스템은 모두 NOTES 계열의 결합을 안고 있습니다. 반면 Zep류의 스키마 있는 그래프 메모리, 또는 직접 설계한 고정 스키마 프로필(<code>{"선호_언어": "한국어", "타임존": "KST"}</code> 같은)은 KG-fixed 쪽에 가깝습니다. 지난 글 <a href="/posts/agent-memory-consolidation-substrates/">메모리 통합(consolidation) 편</a>에서 "무엇으로 굳힐 것인가"를 다뤘다면, 이번 결과는 그 선택에 <strong>이식성이라는 새 평가 기준</strong>을 추가합니다.</p>
+
+<h2 id="sec-4">4. 임베딩 축 — 같은 1024차원인데 왜 어긋나나</h2>
+
+<p>두 번째 펀치라인은 RAG 쪽에서 나옵니다. 임베딩 모델을 v1.0에서 v1.5로 올리면서 인덱스 전체를 새로 임베딩하면 정확도가 <strong>+11.90%p</strong> 오릅니다. 여기까지는 예상대로입니다. 문제는 중간 상태입니다. 운영 중인 시스템에서 흔히 하듯 <em>새 문서만 새 모델로, 옛 문서는 그대로</em> 두는 50/50 혼합 인덱스를 만들면, 이득이 <strong>+4.96%p</strong>로 쪼그라듭니다. 잠재 이득의 60%가 증발한 겁니다.</p>
+
+<p>왜 이럴까요? 두 임베딩 모델이 <strong>같은 1024차원 벡터</strong>를 내놓아도, 벡터가 사는 공간의 기하가 다릅니다. v1.0이 만든 벡터와 v1.5가 만든 질의 벡터 사이의 코사인 유사도는 의미적 유사성을 반영하지 않는 그냥 숫자입니다. 혼합 인덱스에서는 옛 벡터로 저장된 기억이 검색에서 체계적으로 밀려나고, 에이전트는 그 시기의 경험을 <em>사실상 잊습니다</em>. 데이터는 DB에 멀쩡히 있는데도요.</p>
+
+<p>낯선 얘기가 아닙니다. OpenAI가 <a href="https://openai.com/index/new-embedding-models-and-api-updates/" target="_blank" rel="noopener">text-embedding-3 시리즈</a>를 내놨을 때도 같았습니다. <code>text-embedding-3-small</code>은 ada-002와 같은 1536차원으로 설정할 수 있지만 두 공간은 호환되지 않아서, 갈아타려면 코퍼스 전체를 다시 임베딩해야 했습니다. 덤으로 <a href="https://www.pinecone.io/learn/openai-embeddings-v3/" target="_blank" rel="noopener">유사도 점수의 분포 자체가 달라지므로</a>, ada-002 기준으로 잡아 둔 컷오프 0.85 같은 임계값도 다시 캘리브레이션해야 합니다.</p>
+
+<p>재임베딩이 부담스러운 규모라면 선택지는 세 가지입니다.</p>
+
+<table class="mp-table">
+  <tr><th>전략</th><th>방법</th><th>트레이드오프</th></tr>
+  <tr><td><strong>전체 재임베딩</strong></td><td>백그라운드 잡으로 전 레코드를 새 모델로 다시 임베딩 후 컷오버</td><td>가장 깔끔. 대신 코퍼스가 크면 비용·시간이 큼</td></tr>
+  <tr><td><strong>이중 인덱스 (dual-index)</strong></td><td>마이그레이션 동안 v1·v2 필드를 병행, 질의도 두 모델로 각각 임베딩해 양쪽 검색 후 병합</td><td>다운타임 없음. 질의 비용 2배, 병합 랭킹 필요</td></tr>
+  <tr><td><strong>어댑터 (Drift-Adapter류)</strong></td><td>새 질의 벡터를 구공간으로 사상하는 가벼운 변환층 학습 (<a href="https://arxiv.org/abs/2509.23471" target="_blank" rel="noopener">arXiv:2509.23471</a>)</td><td>재임베딩 회피. 근사이므로 품질 상한이 낮고, 변환층 관리가 늘어남</td></tr>
+</table>
+
+<p>혼합 인덱스를 "일단 두고 천천히" 방치하는 것만은 피해야 합니다. 위 숫자가 보여 주듯, 그 상태는 과도기가 아니라 <strong>조용한 성능 저하가 상시화된 상태</strong>입니다.</p>
+
+<figure class="mp-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="논문의 핵심 수치 두 묶음. 왼쪽은 writer swap 시 KG-fixed의 변화는 0에 가깝고 NOTES는 +9.91%p 또는 -13.28%p로 요동함을, 오른쪽은 임베딩 전체 재임베딩이 +11.90%p, 50/50 혼합 인덱스는 +4.96%p에 그침을 막대로 보여준다">
+  <text x="430" y="26" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--mp-slate)">arXiv:2609.05339 핵심 수치 (정확도 변화, %p)</text>
+
+  <!-- 왼쪽: writer swap -->
+  <text x="215" y="58" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mp-slate)">① writer swap — 구모델이 쓴 기억을 신모델이 읽으면</text>
+  <line x1="60" y1="200" x2="380" y2="200" stroke="var(--mp-gray)" stroke-width="1.5"/>
+  <text x="46" y="204" text-anchor="end" font-size="10.5" fill="var(--mp-gray)">0</text>
+
+  <!-- KG-fixed bar (거의 0) -->
+  <rect x="90" y="197" width="60" height="3" fill="var(--mp-teal)"/>
+  <text x="120" y="185" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mp-teal)">+0.0004</text>
+  <text x="120" y="230" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mp-teal)">KG-fixed</text>
+  <text x="120" y="247" text-anchor="middle" font-size="10.5" fill="var(--mp-gray)">± 0.0020 — 사실상 불변</text>
+
+  <!-- NOTES up -->
+  <rect x="215" y="121" width="60" height="79" fill="var(--mp-rose)" opacity=".55"/>
+  <text x="245" y="110" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mp-rose)">+9.91</text>
+  <!-- NOTES down -->
+  <rect x="295" y="200" width="60" height="106" fill="var(--mp-rose)"/>
+  <text x="325" y="325" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mp-rose)">−13.28</text>
+  <text x="285" y="355" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mp-rose)">NOTES (모델 조합별)</text>
+  <text x="285" y="372" text-anchor="middle" font-size="10.5" fill="var(--mp-gray)">방향조차 예측 불가한 비대칭 요동</text>
+
+  <!-- 구분선 -->
+  <line x1="430" y1="48" x2="430" y2="380" stroke="var(--mp-gray)" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <!-- 오른쪽: embedding -->
+  <text x="645" y="58" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mp-slate)">② 임베딩 업그레이드 — 재임베딩 범위별 이득</text>
+  <line x1="480" y1="300" x2="820" y2="300" stroke="var(--mp-gray)" stroke-width="1.5"/>
+  <text x="466" y="304" text-anchor="end" font-size="10.5" fill="var(--mp-gray)">0</text>
+
+  <!-- full re-embed -->
+  <rect x="530" y="110" width="90" height="190" fill="var(--mp-green)"/>
+  <text x="575" y="98" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mp-green)">+11.90</text>
+  <text x="575" y="325" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mp-green)">전체 재임베딩</text>
+
+  <!-- mixed -->
+  <rect x="680" y="221" width="90" height="79" fill="var(--mp-amber)"/>
+  <text x="725" y="209" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mp-amber)">+4.96</text>
+  <text x="725" y="325" text-anchor="middle" font-size="12" font-weight="700" fill="var(--mp-amber)">50/50 혼합 인덱스</text>
+  <text x="725" y="342" text-anchor="middle" font-size="10.5" fill="var(--mp-gray)">이득의 약 60% 증발</text>
+
+  <text x="645" y="372" text-anchor="middle" font-size="10.5" fill="var(--mp-gray)">두 모델 모두 1024차원 — 차원이 같아도 공간은 호환되지 않는다</text>
+</svg>
+<figcaption>그림 2. 저장 형태별 업그레이드 내성. 고정 스키마는 흔들리지 않고, 압축 노트는 방향 없이 요동하며, 임베딩은 절반만 갈아 끼우면 이득 대부분을 잃는다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 복구 — 원본이 없으면 고칠 수도 없다</h2>
+
+<p>업그레이드로 기억이 흐려졌다면 고치면 되지 않을까요? 논문은 복구를 두 종류로 나눕니다. 이 구분이 실무적으로 가장 값집니다.</p>
+
+<ul>
+  <li><strong>raw-retained repair</strong> — 원본 대화·이벤트 히스토리가 남아 있어, 신모델이 원본에서 기억을 <em>다시 뽑는</em> 복구. 구노트가 빠뜨리거나 왜곡한 사실까지 되살릴 수 있습니다.</li>
+  <li><strong>store-only repair</strong> — 원본은 지웠고 스토어만 남은 상태에서, 기존 노트를 신모델이 <em>고쳐 쓰는</em> 복구. 이미 노트에 없는 증거는 어떤 모델도 되살릴 수 없습니다. 흐린 사진을 다시 찍을 수는 없는 것과 같습니다.</li>
+</ul>
+
+<p>당연한 얘기 같지만, 많은 메모리 시스템이 토큰 비용을 아끼려고 <strong>압축본만 남기고 원본을 버리는</strong> 설계를 택합니다. 이 결과는 그 설계의 숨은 비용을 보여 줍니다. 원본 히스토리는 스토리지 낭비가 아니라 <strong>다음 업그레이드 때 기억을 다시 구울 수 있는 원판</strong>입니다. 스토리지는 싸고, 잃어버린 맥락은 비쌉니다. <a href="/posts/programmatic-context-management-scroll/">Scroll 편</a>에서 다룬 append-only 이벤트 로그 설계가 여기서도 빛을 발합니다 — 로그를 진실의 원천으로 두고 압축본을 파생물로 취급하면, 모델이 몇 번 바뀌어도 기억을 재생성할 수 있습니다.</p>
+
+<h2 id="sec-6">6. 실전 — 안전한 모델 업그레이드 runbook</h2>
+
+<p>이제 종합해서, 메모리 있는 에이전트의 모델을 갈아 끼울 때의 절차를 만들어 봅시다. 핵심 원칙은 두 가지입니다. <strong>① 기억 레코드마다 "누가 언제 무엇으로 썼는지"를 남긴다. ② 컷오버 전에 같은 기억을 새 모델로 읽혀 회귀를 측정한다.</strong></p>
+
+<p>먼저 메모리 레코드에 provenance(출처 정보) 메타데이터를 심습니다. 나중에 마이그레이션 대상을 골라내고, 문제가 생겼을 때 원인을 추적하는 기반입니다.</p>
+
+{{< highlight python >}}
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+@dataclass
+class MemoryRecord:
+    content: str                      # 기억 본문 (노트/그래프 트리플 직렬화)
+    kind: str                         # "note" | "kg_triple" | "raw_chunk"
+    # ── provenance: 이게 없으면 마이그레이션 대상 선별이 불가능해진다 ──
+    writer_model: str                 # 예: "claude-opus-4-8"
+    embedding_model: str              # 예: "text-embedding-3-small@1536"
+    schema_version: str               # 고정 스키마라면 그 버전
+    source_ref: str                   # 원본 이벤트 로그의 위치 (raw-retained repair의 생명줄)
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc))
+
+def needs_reembedding(rec: MemoryRecord, current: str) -> bool:
+    # 임베딩 버전이 다른 레코드 = 검색에서 밀려나는 중인 레코드
+    return rec.embedding_model != current
+{{< /highlight >}}
+
+<p>다음은 컷오버 게이트입니다. 배포 전에, <em>운영 스토어의 스냅샷</em>을 새 reader로 읽혀 구 reader와 나란히 채점합니다. 논문의 교훈대로 벤치마크 점수가 아니라 <strong>내 스토어, 내 질의</strong>로 재야 합니다 — NOTES의 요동은 모델 조합마다 다르므로 남의 숫자는 참고가 안 됩니다.</p>
+
+{{< highlight python >}}
+def upgrade_gate(memory_snapshot, eval_queries, old_reader, new_reader,
+                 max_regression: float = 0.02):
+    """같은 메모리 스토어를 두 모델로 읽혀 회귀를 측정하는 게이트.
+    eval_queries: (질의, 기대 답) 쌍 — 실제 트래픽과 과거 장애에서 수집한 것.
+    """
+    def score(reader):
+        hits = sum(
+            grade(reader.answer(q, memory_snapshot), expected)  # exact/rubric 채점
+            for q, expected in eval_queries)
+        return hits / len(eval_queries)
+
+    old_acc, new_acc = score(old_reader), score(new_reader)
+    if new_acc < old_acc - max_regression:
+        # 컷오버 중단 → raw-retained repair(원본에서 재추출) 후 재시도
+        raise BlockUpgrade(f"memory regression: {old_acc:.3f} → {new_acc:.3f}")
+    return {"old": old_acc, "new": new_acc}
+{{< /highlight >}}
+
+<p>전체 절차를 그림으로 정리하면 다음과 같습니다.</p>
+
+<figure class="mp-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="모델 업그레이드 runbook 5단계. 스토어 스냅샷, 섀도 평가 게이트, 임베딩 백필, 컷오버, 그리고 회귀 발생 시 원본 로그에서 재추출하는 repair 경로로 이어진다">
+  <defs>
+    <marker id="mp-f3a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--mp-slate)"/>
+    </marker>
+    <marker id="mp-f3r" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--mp-rose)"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="26" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--mp-slate)">메모리 있는 에이전트의 모델 업그레이드 runbook</text>
+
+  <g font-size="12.5" font-weight="700">
+    <rect x="30" y="60" width="140" height="72" rx="10" fill="none" stroke="var(--mp-sky)" stroke-width="2.5"/>
+    <text x="100" y="90" text-anchor="middle" fill="var(--mp-sky)">① 스냅샷</text>
+    <text x="100" y="110" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">스토어 + 원본 로그 확보</text>
+
+    <rect x="200" y="60" width="150" height="72" rx="10" fill="none" stroke="var(--mp-violet)" stroke-width="2.5"/>
+    <text x="275" y="84" text-anchor="middle" fill="var(--mp-violet)">② 섀도 평가</text>
+    <text x="275" y="103" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">같은 스토어를 신·구 reader로</text>
+    <text x="275" y="119" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">읽혀 나란히 채점</text>
+
+    <rect x="380" y="60" width="150" height="72" rx="10" fill="none" stroke="var(--mp-amber)" stroke-width="2.5"/>
+    <text x="455" y="84" text-anchor="middle" fill="var(--mp-amber)">③ 임베딩 백필</text>
+    <text x="455" y="103" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">전체 재임베딩 or 이중 인덱스</text>
+    <text x="455" y="119" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">혼합 인덱스 방치 금지</text>
+
+    <rect x="560" y="60" width="130" height="72" rx="10" fill="none" stroke="var(--mp-green)" stroke-width="2.5"/>
+    <text x="625" y="84" text-anchor="middle" fill="var(--mp-green)">④ 컷오버</text>
+    <text x="625" y="103" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">게이트 통과 시에만</text>
+    <text x="625" y="119" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">threshold 재캘리브레이션</text>
+
+    <rect x="720" y="60" width="120" height="72" rx="10" fill="none" stroke="var(--mp-teal)" stroke-width="2.5"/>
+    <text x="780" y="90" text-anchor="middle" fill="var(--mp-teal)">⑤ 관측</text>
+    <text x="780" y="110" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--mp-gray)">기억 회상 지표 모니터링</text>
+  </g>
+
+  <line x1="170" y1="96" x2="194" y2="96" stroke="var(--mp-slate)" stroke-width="2" marker-end="url(#mp-f3a)"/>
+  <line x1="350" y1="96" x2="374" y2="96" stroke="var(--mp-slate)" stroke-width="2" marker-end="url(#mp-f3a)"/>
+  <line x1="530" y1="96" x2="554" y2="96" stroke="var(--mp-slate)" stroke-width="2" marker-end="url(#mp-f3a)"/>
+  <line x1="690" y1="96" x2="714" y2="96" stroke="var(--mp-slate)" stroke-width="2" marker-end="url(#mp-f3a)"/>
+
+  <!-- repair 경로 -->
+  <path d="M275,132 L275,215" fill="none" stroke="var(--mp-rose)" stroke-width="2" marker-end="url(#mp-f3r)"/>
+  <text x="290" y="180" font-size="11" font-weight="700" fill="var(--mp-rose)">회귀 감지 시</text>
+
+  <rect x="140" y="220" width="290" height="66" rx="10" fill="none" stroke="var(--mp-rose)" stroke-width="2.5"/>
+  <text x="285" y="246" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--mp-rose)">raw-retained repair</text>
+  <text x="285" y="266" text-anchor="middle" font-size="10.5" fill="var(--mp-gray)">원본 이벤트 로그에서 신모델로 기억 재추출 → ② 재시도</text>
+
+  <rect x="490" y="220" width="290" height="66" rx="10" fill="none" stroke="var(--mp-gray)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="635" y="246" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--mp-gray)">store-only repair (막다른 길)</text>
+  <text x="635" y="266" text-anchor="middle" font-size="10.5" fill="var(--mp-gray)">원본을 버렸다면 노트에 없는 증거는 복구 불가</text>
+
+  <path d="M430,253 L484,253" fill="none" stroke="var(--mp-gray)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#mp-f3a)"/>
+  <text x="457" y="243" text-anchor="middle" font-size="10" fill="var(--mp-gray)">원본 없음</text>
+</svg>
+<figcaption>그림 3. 업그레이드 runbook. 게이트를 통과해야 컷오버하고, 회귀가 나면 원본 로그에서 기억을 다시 굽는다. 원본을 버린 시스템에는 오른쪽 막다른 길만 남는다.</figcaption>
+</figure>
+
+<p>여기에 임베딩까지 바꾼다면 4절의 전략표에서 하나를 고릅니다. 규모가 작으면 전체 재임베딩이 답이고, 크면 이중 인덱스로 무중단 이전을 한 뒤 v1 인덱스를 폐기합니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"메모리는 DB에 있으니 모델과 무관하다"는 착각.</strong> 이 글의 출발점입니다. 데이터가 모델 밖에 있어도, 그 데이터를 만든 것도 해석하는 것도 모델입니다. 결합은 저장 위치가 아니라 <em>형식</em>에 있습니다.</li>
+  <li><strong>업그레이드 게이트를 벤치마크 점수로 대신하기.</strong> 공개 벤치마크가 오른 모델도 <em>내 구노트</em>는 못 읽을 수 있습니다. NOTES의 요동이 조합마다 다르다는 게 논문의 요지입니다. 게이트는 내 스토어 스냅샷 + 실트래픽에서 수집한 질의로 돌리세요. 이런 회귀 스위트 만드는 법은 <a href="https://www.promptfoo.dev/blog/model-upgrades-break-agent-safety/" target="_blank" rel="noopener">Promptfoo의 업그레이드 회귀 글</a>과 <a href="/posts/agent-evals-reliability/">에이전트 평가 편</a>을 참고하세요.</li>
+  <li><strong>임베딩 버전 혼합을 "과도기"로 방치.</strong> 50/50 혼합 인덱스는 이득의 60%를 버리는 상태입니다. 마이그레이션 잡에 종료 기한을 박고, <code>embedding_model</code> 메타데이터로 잔여 구버전 레코드 수를 대시보드에 올리세요. 0이 되기 전까지는 끝난 게 아닙니다.</li>
+  <li><strong>유사도 임계값 재사용.</strong> 임베딩 모델이 바뀌면 점수 분포가 통째로 이동합니다. 구모델에서 튜닝한 컷오프 0.85는 새 모델에서 너무 빡빡하거나 너무 헐거울 수 있습니다. 검증 세트로 임계값을 다시 잡으세요.</li>
+  <li><strong>압축본만 남기고 원본 로그 삭제.</strong> raw-retained repair의 길을 스스로 닫는 결정입니다. 원본은 콜드 스토리지에라도 남기세요. 토큰 예산이 문제라면 컨텍스트에 안 올리면 될 뿐, 지울 이유는 없습니다.</li>
+  <li><strong>reader와 judge를 동시에 업그레이드.</strong> 평가 채점용 judge 모델까지 같이 바꾸면 회귀가 모델 탓인지 잣대 탓인지 알 수 없게 됩니다. <a href="/posts/model-agnostic-llm-layer/">모델-애그노스틱 레이어 편</a>에서 다룬 judge pinning 그대로 — 게이트를 돌리는 동안 judge는 고정하세요.</li>
+  <li><strong>이 논문을 과신하는 것도 금물.</strong> 히스토리 48개, 10B 미만 모델 2종의 통제 실험입니다. 방향(형식별 이식성 차이, 혼합 인덱스의 손실)은 설득력 있지만, 숫자 자체를 프런티어 모델 조합에 그대로 이식할 수는 없습니다. 그래서 더더욱, 내 시스템의 숫자는 내 게이트로 재야 합니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>모델 업그레이드는 코드 한 줄이 아니라 <strong>데이터 마이그레이션</strong>이다. 기억은 모델 밖에 있어도 모델의 언어로 쓰여 있다.</li>
+  <li><a href="https://arxiv.org/abs/2609.05339" target="_blank" rel="noopener">arXiv:2609.05339</a>의 통제 실험: 고정 스키마 그래프(KG-fixed)는 writer swap에도 정확도 변화 <strong>≈ 0</strong>, 모델이 압축한 노트(NOTES)는 <strong>+9.91/−13.28%p</strong>로 방향조차 예측 불가하게 요동.</li>
+  <li>임베딩은 차원이 같아도 공간이 다르다. 전체 재임베딩은 <strong>+11.90%p</strong>, 50/50 혼합 인덱스는 <strong>+4.96%p</strong> — 혼합 방치는 이득의 60%를 버리는 것.</li>
+  <li>복구는 원본이 있어야 가능하다(raw-retained repair). 압축본만 남기고 원본 로그를 지우면 어떤 신모델도 잃은 증거를 되살리지 못한다.</li>
+  <li>runbook: 레코드마다 <code>writer_model</code>·<code>embedding_model</code>·<code>source_ref</code> provenance를 남기고 → 내 스토어 스냅샷으로 섀도 평가 게이트 → 임베딩 백필(기한 있는) → 컷오버 + 임계값 재캘리브레이션 → 회귀 시 원본에서 재추출.</li>
+  <li>이식성과 압축률은 트레이드오프다. 오래 살아남아야 하는 기억일수록 스키마 있는 형식으로, 원본과 함께 보관하라.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2609.05339" target="_blank" rel="noopener">Goyal &amp; Ray, "Does Your Agent's Memory Survive a Model Upgrade? A Controlled Study of Memory Portability" (arXiv:2609.05339)</a> — 이 글의 중심 논문</li>
+  <li><a href="https://kenashe.ai/blog/2026-09-07-when-you-upgrade-the-model-does-the-agents-memory-come-with-it" target="_blank" rel="noopener">Ken Ashe, "When You Upgrade the Model, Does the Agent's Memory Come With It?"</a> — 논문에 대한 실무자 해설</li>
+  <li><a href="https://www.promptfoo.dev/blog/model-upgrades-break-agent-safety/" target="_blank" rel="noopener">Promptfoo, "Your model upgrade just broke your agent's safety"</a> — 업그레이드 회귀 스위트 설계</li>
+  <li><a href="https://www.arthur.ai/column/model-deprecation-version-drift-agents" target="_blank" rel="noopener">Arthur AI, "Model Deprecation: How to Migrate an Agent Safely"</a> — 버전 드리프트와 마이그레이션 절차</li>
+  <li><a href="https://hackernoon.com/your-embedding-model-will-deprecate-heres-what-to-do" target="_blank" rel="noopener">HackerNoon, "Your Embedding Model Will Deprecate. Here's What to Do."</a> — 이중 인덱스 마이그레이션 패턴</li>
+  <li><a href="https://weaviate.io/blog/when-good-models-go-bad" target="_blank" rel="noopener">Weaviate, "When Good Models Go Bad"</a> — 임베딩 버전 혼합이 검색을 깨는 이유</li>
+  <li><a href="https://arxiv.org/abs/2509.23471" target="_blank" rel="noopener">"Drift-Adapter: Near Zero-Downtime Embedding Model Upgrades in Vector Databases" (arXiv:2509.23471)</a> — 어댑터 기반 무중단 이전</li>
+  <li><a href="https://openai.com/index/new-embedding-models-and-api-updates/" target="_blank" rel="noopener">OpenAI, "New embedding models and API updates"</a> — ada-002 → text-embedding-3 세대 교체</li>
+  <li><a href="https://www.pinecone.io/learn/openai-embeddings-v3/" target="_blank" rel="noopener">Pinecone, "OpenAI's Text Embeddings v3"</a> — 세대 간 비호환과 임계값 캘리브레이션</li>
+  <li><a href="https://techcrunch.com/2026/09/01/anthropics-new-fable-release-is-cheaper-less-restrictive/" target="_blank" rel="noopener">TechCrunch, "Anthropic's new Fable release is cheaper, less restrictive"</a> — 이번 릴리스 러시의 맥락</li>
+  <li><a href="https://codepointer.substack.com/p/agent-memory-systems-and-knowledge" target="_blank" rel="noopener">CodePointer, "Agent Memory Systems and Knowledge Graphs: Letta, Mem0, Graphiti, and Cognee"</a> — 프레임워크별 저장 형식 비교</li>
+  <li>(한국어) <a href="/posts/agent-memory-consolidation-substrates/">에이전트 메모리 통합(consolidation) 편</a>, <a href="/posts/programmatic-context-management-scroll/">프로그래머틱 컨텍스트 관리 편</a>, <a href="/posts/model-agnostic-llm-layer/">모델-애그노스틱 LLM 레이어 편</a> — 이 블로그의 관련 글</li>
+</ul>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="430" rx="12" fill="#f8fafc"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">DeepSeek-V4.1-Flash 한눈에 보기 (모델 카드 기준)</text>
+
+  <!-- left: architecture facts -->
+  <rect x="36" y="58" width="340" height="330" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="56" y="88" font-size="15" font-weight="700" fill="#1d4ed8">아키텍처 · 효율</text>
+
+  <text x="56" y="120" font-size="13" font-weight="700" fill="#0f172a">백본 552B MoE + 비전 인코더</text>
+  <text x="56" y="139" font-size="12" fill="#334155">Causal Encoder-Decoder · DeepSeek-ViT(2D-RoPE)</text>
+
+  <text x="56" y="171" font-size="13" font-weight="700" fill="#0f172a">활성 파라미터</text>
+  <text x="56" y="190" font-size="12" fill="#334155">프리필 8B / 디코드 16B — 입력 위주 워크로드 최적화</text>
+
+  <text x="56" y="222" font-size="13" font-weight="700" fill="#0f172a">KV 캐시 890B/token (CSA2 + FP4)</text>
+  <rect x="56" y="232" width="240" height="14" rx="4" fill="#dbeafe"/>
+  <rect x="56" y="232" width="60" height="14" rx="4" fill="#3b82f6"/>
+  <text x="56" y="262" font-size="11" fill="#64748b">V4-Flash 대비 약 1/4 수준</text>
+
+  <text x="56" y="294" font-size="13" font-weight="700" fill="#0f172a">컨텍스트 최대 1M 토큰</text>
+  <text x="56" y="313" font-size="12" fill="#334155">이미지+텍스트 네이티브 멀티모달</text>
+
+  <text x="56" y="345" font-size="13" font-weight="700" fill="#0f172a">라이선스 MIT · HF 가중치 공개</text>
+  <text x="56" y="364" font-size="12" fill="#334155">Rust/Python 레퍼런스 툴킷 동봉</text>
+
+  <!-- right: benchmark bars -->
+  <rect x="412" y="58" width="352" height="330" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="432" y="88" font-size="15" font-weight="700" fill="#0f172a">벤치마크 (max reasoning effort, %)</text>
+
+  <!-- axis 0..100 mapped to width 0..280, x start 432 -->
+  <g font-size="12" fill="#0f172a">
+    <text x="432" y="128">DeepSWE v1.1 (resolved)</text>
+    <rect x="432" y="136" width="280" height="16" rx="4" fill="#e2e8f0"/>
+    <rect x="432" y="136" width="208" height="16" rx="4" fill="#0ea5e9"/>
+    <text x="648" y="149" font-size="12" font-weight="700" fill="#0f172a">74.2</text>
+
+    <text x="432" y="192">Terminal-Bench 2.1 (pass)</text>
+    <rect x="432" y="200" width="280" height="16" rx="4" fill="#e2e8f0"/>
+    <rect x="432" y="200" width="254" height="16" rx="4" fill="#0ea5e9"/>
+    <text x="694" y="213" font-size="12" font-weight="700" fill="#0f172a">90.6</text>
+
+    <text x="432" y="256">GPQA Diamond (pass@1)</text>
+    <rect x="432" y="264" width="280" height="16" rx="4" fill="#e2e8f0"/>
+    <rect x="432" y="264" width="254" height="16" rx="4" fill="#0ea5e9"/>
+    <text x="694" y="277" font-size="12" font-weight="700" fill="#0f172a">90.9</text>
+  </g>
+
+  <text x="432" y="320" font-size="12" fill="#64748b">에이전트형 과제(코딩·터미널)에 초점을 맞춘</text>
+  <text x="432" y="338" font-size="12" fill="#64748b">"작고 싼 활성 파라미터 + 큰 컨텍스트" 조합.</text>
+  <text x="432" y="368" font-size="11" fill="#94a3b8">출처: Hugging Face 모델 카드 (deepseek-ai/DeepSeek-V4.1-Flash)</text>
+</svg>

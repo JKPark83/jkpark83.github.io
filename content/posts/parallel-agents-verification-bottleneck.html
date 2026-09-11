@@ -1,0 +1,362 @@
+---
+title: "에이전트는 넷인데 리뷰어는 하나 — 병렬 에이전트 시대의 검증 병목(verification bottleneck) 엔지니어링"
+date: 2026-09-12T07:30:00+09:00
+draft: false
+tags: ["AI", "병렬 에이전트", "verification bottleneck", "코드 리뷰", "git worktree", "코딩 에이전트", "OpenAI", "research acceleration", "머지 큐", "AI 코드 리뷰", "blast radius", "에이전트 오케스트레이션", "개발 생산성", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 OpenAI가 '자동화된 리서치 인턴' 목표를 달성했다고 발표했습니다. 연구 조직이 사람 하루당 3.1일치의 에이전트 노동을 쓰고, 중간값 연구자가 하루 600달러어치 추론을 태운다는 숫자가 화제였지만, 발표문에서 정말 곱씹을 문장은 따로 있었습니다 — '성공으로 집계한 4~8시간짜리 실행의 절반 이상이 도중에 사람 개입을 필요로 했다.' 코드 생성은 에이전트를 늘리면 병렬로 확장되는데, 검증은 여전히 사람 한 명의 직렬 작업입니다. GitLab 설문의 85%가 '병목이 작성에서 리뷰로 이동했다'고 답하고, Faros AI 텔레메트리에서 PR 크기가 2년 연속 폭증한 지금, 에이전트를 한 대 더 띄우는 것보다 중요한 질문은 '검증 용량을 어떻게 늘릴 것인가'입니다. 태스크 분해 → 격리 → 자동 게이트 → 병합이라는 4계층 구조로, 병렬 에이전트 워크플로를 검증 중심으로 설계하는 법을 junior 개발자 눈높이에서 쉽고 자세하게 다룹니다."
+ShowToc: false
+cover:
+  image: "parallel-agents-verification-bottleneck-cover.svg"
+  alt: "네 개의 코딩 에이전트가 병렬로 코드를 쏟아내지만, 검증 게이트를 지나 사람 리뷰어 한 명에게 모이는 깔때기 그림"
+  caption: "생성은 병렬로 확장되는데 검증은 직렬로 남는다 — 병목은 이제 코드를 쓰는 쪽이 아니다"
+  relative: false
+---
+
+<style>
+/* ── 검증 병목 포스트 전용 스타일 (pav- 접두사) ── */
+.pav-fig{
+  --pav-violet:#7c3aed; --pav-sky:#0284c7; --pav-green:#16a34a; --pav-rose:#e11d48;
+  --pav-amber:#d97706; --pav-slate:#64748b; --pav-teal:#0d9488; --pav-blue:#2563eb;
+  --pav-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .pav-fig{
+  --pav-violet:#a78bfa; --pav-sky:#38bdf8; --pav-green:#4ade80; --pav-rose:#fb7185;
+  --pav-amber:#fbbf24; --pav-slate:#94a3b8; --pav-teal:#2dd4bf; --pav-blue:#60a5fa;
+  --pav-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .pav-fig{
+    --pav-violet:#a78bfa; --pav-sky:#38bdf8; --pav-green:#4ade80; --pav-rose:#fb7185;
+    --pav-amber:#fbbf24; --pav-slate:#94a3b8; --pav-teal:#2dd4bf; --pav-blue:#60a5fa;
+    --pav-gray:#64748b;
+  }
+}
+.pav-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.pav-fig text{font-family:inherit}
+.pav-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.pav-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.pav-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.pav-toc ol{margin:0;padding-left:1.25rem}
+.pav-toc li{margin:.22rem 0;font-size:.95rem}
+.pav-toc a{text-decoration:none}
+.pav-toc a:hover{text-decoration:underline}
+.pav-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.pav-table th,.pav-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left}
+.pav-table th{background:var(--entry)}
+</style>
+
+<div class="pav-toc">
+  <div class="pav-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 3.1일치 노동보다 무서운 문장</a></li>
+    <li><a href="#sec-2">배경 — 병목은 이미 이동했다, 데이터로 보기</a></li>
+    <li><a href="#sec-3">구조 — 병렬 에이전트 워크플로의 4계층</a></li>
+    <li><a href="#sec-4">핵심 — 검증 용량을 늘리는 게이트 설계</a></li>
+    <li><a href="#sec-5">실전 — worktree 3대 + 게이트 스크립트로 시작하기</a></li>
+    <li><a href="#sec-6">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-7">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 3.1일치 노동보다 무서운 문장</h2>
+
+<p>이번 주 AI 엔지니어링 동네를 가장 크게 흔든 글은 논문이 아니라 회사 블로그였습니다. 9월 6일(현지 시간) OpenAI가 <a href="https://openai.com/index/research-acceleration-view-inside-openai/" target="_blank" rel="noopener">Research acceleration: The view inside OpenAI</a>라는 글에서, 작년 가을에 세운 "2026년 9월까지 자동화된 리서치 인턴(automated research intern)을 만든다"는 목표를 달성했다고 발표했습니다. 여기서 리서치 인턴이란 <em>사람의 지시 아래 잘 정의된 연구 태스크를 수행하는 시스템</em>을 말합니다. 발표에 담긴 내부 수치가 연일 인용되며 화제가 됐습니다.</p>
+
+<figure class="pav-fig">
+<svg viewBox="0 0 860 300" role="img" aria-label="OpenAI 연구 조직의 에이전트 사용 지표 네 가지. 사람 하루당 에이전트 3.1일치 노동, 중간값 연구자 하루 600달러 초과 추론 지출, 상위 10% 연구자 하루 7000달러 초과, 그리고 성공한 4~8시간 실행의 절반 이상이 사람 개입 필요">
+  <text x="430" y="30" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--pav-slate)">OpenAI 연구 조직의 에이전트 지표 (2026년 8월 중순, 자체 보고)</text>
+
+  <g>
+    <rect x="20" y="55" width="195" height="150" rx="12" fill="none" stroke="var(--pav-blue)" stroke-width="2"/>
+    <text x="117" y="115" text-anchor="middle" font-size="34" font-weight="700" fill="var(--pav-blue)">3.1일</text>
+    <text x="117" y="145" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">사람 1일당 에이전트</text>
+    <text x="117" y="163" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">노동량 (8시간 기준)</text>
+    <text x="117" y="190" text-anchor="middle" font-size="11" fill="var(--pav-gray)">6월 전엔 1 미만이었다</text>
+  </g>
+  <g>
+    <rect x="230" y="55" width="195" height="150" rx="12" fill="none" stroke="var(--pav-teal)" stroke-width="2"/>
+    <text x="327" y="115" text-anchor="middle" font-size="34" font-weight="700" fill="var(--pav-teal)">$600+</text>
+    <text x="327" y="145" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">중간값 연구자의</text>
+    <text x="327" y="163" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">하루 추론 지출</text>
+    <text x="327" y="190" text-anchor="middle" font-size="11" fill="var(--pav-gray)">API 단가 환산 기준</text>
+  </g>
+  <g>
+    <rect x="440" y="55" width="195" height="150" rx="12" fill="none" stroke="var(--pav-amber)" stroke-width="2"/>
+    <text x="537" y="115" text-anchor="middle" font-size="34" font-weight="700" fill="var(--pav-amber)">$7,000+</text>
+    <text x="537" y="145" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">상위 10% 연구자의</text>
+    <text x="537" y="163" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">하루 토큰 지출</text>
+    <text x="537" y="190" text-anchor="middle" font-size="11" fill="var(--pav-gray)">4개+ 에이전트 동시 운용 확산</text>
+  </g>
+  <g>
+    <rect x="650" y="55" width="195" height="150" rx="12" fill="none" stroke="var(--pav-rose)" stroke-width="2.5"/>
+    <text x="747" y="115" text-anchor="middle" font-size="34" font-weight="700" fill="var(--pav-rose)">&gt;50%</text>
+    <text x="747" y="145" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">"성공한" 4~8시간 실행 중</text>
+    <text x="747" y="163" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">사람 개입이 필요했던 비율</text>
+    <text x="747" y="190" text-anchor="middle" font-size="11" font-weight="700" fill="var(--pav-rose)">← 오늘의 주인공</text>
+  </g>
+
+  <text x="430" y="245" text-anchor="middle" font-size="12" fill="var(--pav-gray)">활동량(agent-workdays)은 병렬·중복·실패 실행을 모두 포함한다 — OpenAI 스스로 "진척과 비례하지 않는다"고 경고</text>
+  <text x="430" y="268" text-anchor="middle" font-size="12" fill="var(--pav-gray)">예산 관점에서 청구서에 찍히는 건 3.1이라는 배수가 아니라 하루 $600이라는 지출이다</text>
+</svg>
+<figcaption>OpenAI 발표(2026-09-06)의 핵심 수치. 왼쪽 세 개는 생성 쪽 규모, 오른쪽 하나는 검증 쪽 현실입니다.</figcaption>
+</figure>
+
+<p>사람 하루(8시간)당 에이전트 3.1일치 노동. 중간값 연구자가 하루 600달러, 상위 10%는 7,000달러 넘게 추론을 태운다. 실험자 1인당 실험 수는 집계를 시작한 2025년 1월 이래 최고치. 연구 인프라 트러블슈팅을 도와주던 사내 오피스 아워는 참석자가 줄어 한 팀은 아예 세션을 접었다 — 대단한 숫자들이고, 다음 목표가 <strong>2028년 3월까지 자동화된 AI 연구자</strong>라는 선언까지 이어집니다. <a href="https://fortune.com/2026/09/08/openai-rsi-progress-jakub-pachocki-warns-dangers-slowdown-safety-rules/" target="_blank" rel="noopener">Fortune 보도</a>처럼 "AI가 AI 연구를 가속한다"는 관점에서 읽는 기사가 대부분이었습니다.</p>
+
+<p>그런데 실무자 눈에 밟히는 문장은 따로 있습니다. OpenAI가 직접 달아 둔 단서입니다. <strong>"4~8시간짜리 태스크에서, 성공으로 집계한 실행의 절반 이상이 도중에 최소 한 번의 사람 개입을 필요로 했다."</strong> 그리고 "에이전트 실행 시간은 병렬적이거나, 중복이거나, 실패했거나, 사람이 강하게 조종한 것일 수 있으므로 연구 진척이 이 숫자에 비례하지는 않는다"는 경고도 함께요.</p>
+
+<p>즉 세계에서 에이전트를 가장 잘 쓴다는 조직에서도, <em>생성</em>은 에이전트를 늘려 병렬로 확장했지만 <em>검증</em> — 이 결과물이 맞는지 확인하고, 막힌 곳을 뚫어 주고, 병합해도 되는지 판단하는 일 — 은 여전히 사람이 직렬로 감당하고 있다는 뜻입니다. 에이전트 4대를 동시에 굴리는 워크플로가 흔해진 지금, 병목은 "에이전트가 얼마나 잘 만드나"에서 <strong>"사람이 얼마나 빨리 믿고 받아들일 수 있나"</strong>로 옮겨 갔습니다. 이 병목을 검증 병목(verification bottleneck)이라 부릅니다. 오늘은 이 병목을 데이터로 확인하고, 병렬 에이전트 워크플로를 검증 중심으로 설계하는 법을 정리합니다.</p>
+
+<h2 id="sec-2">2. 배경 — 병목은 이미 이동했다, 데이터로 보기</h2>
+
+<p>"리뷰가 병목"이라는 말은 체감담처럼 들리지만, 올해는 수치가 꽤 쌓였습니다.</p>
+
+<p>먼저 설문. GitLab의 2026년 AI Accountability Report에서는 응답자의 <strong>85%가 "AI 때문에 병목이 코드 작성에서 코드 리뷰로 이동했다"에 동의</strong>했습니다(<a href="https://thenewstack.io/ai-code-bottleneck-myth/" target="_blank" rel="noopener">The New Stack 보도</a>). 다음은 텔레메트리. 약 2만 2천 명의 개발자를 관측한 Faros AI 데이터에 따르면 <strong>PR 크기가 2025년에 154% 커졌고 2026년에 다시 51.3% 더 커졌으며</strong>, 개발자가 하루에 오가는 PR 컨텍스트는 67.4% 늘었습니다(<a href="https://devops.com/ai-has-turned-verification-into-the-new-devops-bottleneck/" target="_blank" rel="noopener">DevOps.com 보도</a>). 코드는 더 많이, 더 큰 덩어리로 쏟아지는데 그걸 읽는 눈의 수는 그대로라는 얘기입니다.</p>
+
+<p>플랫폼도 반응했습니다. GitHub은 올해 7월 PR 대시보드를 받은편지함(inbox) 형태로 갈아엎으면서 <strong>에이전트가 대신 연 PR을 <code>author:@me</code>로 잡아 주는 필터</strong>를 넣었고(<a href="https://devops.com/githubs-redesigned-pr-inbox-tackles-the-review-bottleneck-ai-created/" target="_blank" rel="noopener">DevOps.com</a>), 8월에는 큰 변경을 작게 쪼개 순서대로 리뷰·병합하는 <strong>스택 PR(stacked pull requests)</strong>을 프리뷰로 내놨습니다(<a href="https://www.infoq.com/news/2026/08/github-stacked-pull-requests/" target="_blank" rel="noopener">InfoQ</a>). 리뷰 병목이 플랫폼 로드맵을 움직일 만큼 보편적인 문제가 됐다는 방증입니다.</p>
+
+<p>여기에 오래된 교훈 하나를 겹쳐 봅시다. METR가 2025년에 수행한 무작위 대조 실험(<a href="https://arxiv.org/abs/2507.09089" target="_blank" rel="noopener">arXiv:2507.09089</a>)에서, 숙련 오픈소스 개발자 16명은 AI 도구를 쓸 때 자신이 <em>20% 빨라졌다고 믿었지만 실제로는 19% 느려졌습니다</em>. 원인 분석에서 큰 몫을 차지한 게 바로 AI 출력물을 읽고 고치고 검증하는 시간이었습니다. METR 스스로 <a href="https://metr.org/blog/2026-02-24-uplift-update/" target="_blank" rel="noopener">올해 2월 "이 결과는 이제 역사적 기록이며 현재 도구·워크플로를 반영하지 않는다"</a>고 선을 그었을 만큼 도구는 그사이 좋아졌지만, 실험이 남긴 교훈은 유효합니다. <strong>검증 비용은 체감되지 않는다는 것.</strong> 생성이 빨라지는 건 눈에 보이는데, 그만큼 늘어난 검증 부담은 "그냥 일이 많네"로 느껴질 뿐 병목으로 인식되지 않습니다.</p>
+
+<p>제약 이론(Theory of Constraints)의 한 줄 요약이 여기에 정확히 들어맞습니다. <em>병목이 아닌 곳을 최적화하면 처리량은 늘지 않고 재고만 쌓인다.</em> 병렬 에이전트 워크플로에서 재고란 <strong>리뷰되지 않은 diff 더미</strong>입니다. 에이전트를 한 대 더 띄우는 건 병목이 아닌 곳(생성)을 최적화하는 일이라서, 검증 설계 없이 대수만 늘리면 쌓이는 건 성과가 아니라 읽다 만 PR입니다.</p>
+
+<h2 id="sec-3">3. 구조 — 병렬 에이전트 워크플로의 4계층</h2>
+
+<p>그럼 어떻게 설계해야 할까요. 올해 쏟아진 실무 가이드들(<a href="https://www.augmentcode.com/guides/how-to-run-a-multi-agent-coding-workspace" target="_blank" rel="noopener">Augment Code</a>, <a href="https://agentsroom.dev/blog/run-coding-agents-in-parallel" target="_blank" rel="noopener">Agents Room</a>, <a href="https://nimbalyst.com/blog/git-worktrees-for-ai-coding-agents-complete-guide/" target="_blank" rel="noopener">Nimbalyst</a> 등)이 수렴하는 구조는 놀랄 만큼 비슷합니다. 4개 계층으로 정리할 수 있습니다.</p>
+
+<figure class="pav-fig">
+<svg viewBox="0 0 860 470" role="img" aria-label="병렬 에이전트 워크플로의 4계층 구조. 위에서부터 태스크 분해, 격리 실행, 자동 검증 게이트, 병합·리뷰 순서로 흐르며, 에이전트 4대가 병렬로 실행되지만 게이트를 지나 사람 리뷰어 한 명으로 좁아지는 깔때기 모양">
+  <defs>
+    <marker id="pav-f2a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--pav-slate)"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="28" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--pav-slate)">병렬 에이전트 워크플로의 4계층 — 넓게 만들고, 좁게 통과시킨다</text>
+
+  <!-- L1 분해 -->
+  <rect x="60" y="50" width="740" height="66" rx="12" fill="none" stroke="var(--pav-blue)" stroke-width="2"/>
+  <text x="90" y="78" font-size="13.5" font-weight="700" fill="var(--pav-blue)">① 태스크 분해</text>
+  <text x="90" y="99" font-size="12" fill="var(--pav-slate)">독립적으로 완결되는 spec 단위로 쪼갠다 — 서로 같은 파일을 만지지 않게, 완료 조건을 기계가 판정할 수 있게</text>
+
+  <line x1="430" y1="116" x2="430" y2="140" stroke="var(--pav-slate)" stroke-width="2" marker-end="url(#pav-f2a)"/>
+
+  <!-- L2 격리: 4 agents -->
+  <rect x="60" y="145" width="740" height="96" rx="12" fill="none" stroke="var(--pav-teal)" stroke-width="2"/>
+  <text x="90" y="171" font-size="13.5" font-weight="700" fill="var(--pav-teal)">② 격리 실행</text>
+  <g font-size="12">
+    <rect x="95"  y="185" width="150" height="40" rx="8" fill="none" stroke="var(--pav-teal)" stroke-width="1.5"/>
+    <text x="170" y="210" text-anchor="middle" fill="var(--pav-slate)">에이전트 A · worktree</text>
+    <rect x="270" y="185" width="150" height="40" rx="8" fill="none" stroke="var(--pav-teal)" stroke-width="1.5"/>
+    <text x="345" y="210" text-anchor="middle" fill="var(--pav-slate)">에이전트 B · worktree</text>
+    <rect x="445" y="185" width="150" height="40" rx="8" fill="none" stroke="var(--pav-teal)" stroke-width="1.5"/>
+    <text x="520" y="210" text-anchor="middle" fill="var(--pav-slate)">에이전트 C · 컨테이너</text>
+    <rect x="620" y="185" width="150" height="40" rx="8" fill="none" stroke="var(--pav-teal)" stroke-width="1.5"/>
+    <text x="695" y="210" text-anchor="middle" fill="var(--pav-slate)">에이전트 D · 클라우드</text>
+  </g>
+
+  <line x1="430" y1="241" x2="430" y2="265" stroke="var(--pav-slate)" stroke-width="2" marker-end="url(#pav-f2a)"/>
+
+  <!-- L3 게이트 (funnel) -->
+  <path d="M 140 270 L 720 270 L 600 336 L 260 336 Z" fill="none" stroke="var(--pav-amber)" stroke-width="2"/>
+  <text x="430" y="296" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--pav-amber)">③ 자동 검증 게이트</text>
+  <text x="430" y="318" text-anchor="middle" font-size="12" fill="var(--pav-slate)">빌드 · lint · 테스트 · diff 예산 · AI 리뷰 — 기계가 걸러낸 것만 아래로</text>
+
+  <line x1="430" y1="336" x2="430" y2="360" stroke="var(--pav-slate)" stroke-width="2" marker-end="url(#pav-f2a)"/>
+
+  <!-- L4 병합 -->
+  <rect x="230" y="365" width="400" height="66" rx="12" fill="none" stroke="var(--pav-rose)" stroke-width="2.5"/>
+  <text x="430" y="392" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--pav-rose)">④ 병합 · 사람 리뷰 (직렬)</text>
+  <text x="430" y="413" text-anchor="middle" font-size="12" fill="var(--pav-slate)">작은 PR · 스택 PR · blast radius 기준 라우팅 · 머지 큐</text>
+
+  <text x="430" y="456" text-anchor="middle" font-size="12" fill="var(--pav-gray)">①②는 넓힐수록 좋고, ③은 촘촘할수록 좋고, ④는 좁다는 사실을 인정하고 설계한다</text>
+</svg>
+<figcaption>4계층 구조. 위쪽 두 계층(분해·격리)은 병렬로 넓히는 게 목적이고, 아래쪽 두 계층(게이트·병합)은 좁은 검증 용량을 아껴 쓰는 게 목적입니다.</figcaption>
+</figure>
+
+<p><strong>① 태스크 분해.</strong> 병렬화의 성패는 에이전트 성능이 아니라 태스크를 어떻게 쪼갰는지에서 갈립니다. 원칙은 두 개입니다. 첫째, <em>서로 겹치지 않게</em> — 두 에이전트가 같은 파일을 만지면 병합 지옥이 열립니다. 둘째, <em>완료 조건을 기계가 판정할 수 있게</em> — "로그인 개선"이 아니라 "이 테스트 5개가 통과하면 완료"처럼요. 완료 조건이 기계 판정 가능해야 다음 계층의 게이트가 작동합니다.</p>
+
+<p><strong>② 격리 실행.</strong> 에이전트마다 독립된 작업 공간을 줍니다. 가장 가벼운 수단이 <code>git worktree</code>입니다. 저장소 하나에서 브랜치별로 별도 디렉터리를 체크아웃해 주므로, 클론을 여러 개 뜨지 않고도 에이전트 N대가 서로의 변경을 밟지 않습니다. 더 강한 격리가 필요하면 컨테이너, 로컬 자원이 모자라면 클라우드 실행 환경으로 올립니다. 실무 가이드들이 공통으로 말하는 감각적 한계도 있습니다. 로컬에서는 빌드·테스트가 도는 순간 RAM과 CPU가 먼저 바닥나서 <strong>4~5대가 현실적 상한</strong>이고, 보드를 잘 갖춰도 <strong>3~8대를 넘기면 리뷰가 감당이 안 돼</strong> 병렬화의 이득이 사라진다는 겁니다.</p>
+
+<p><strong>③ 자동 검증 게이트.</strong> 사람 눈에 닿기 전에 기계가 최대한 걸러냅니다. 다음 절에서 자세히 다룹니다.</p>
+
+<p><strong>④ 병합·사람 리뷰.</strong> 마지막 관문은 여전히 직렬이라는 사실을 인정하고, 그 좁은 통로를 아껴 씁니다. PR을 작게 유지하고, 큰 변경은 스택 PR로 층층이 쪼개고, 변경의 영향 범위에 따라 리뷰 강도를 달리하는 라우팅(뒤에서 설명할 blast radius)을 겁니다. 이 계층의 구조적 설계는 <a href="/posts/multi-agent-orchestration/">멀티에이전트 오케스트레이션 편</a>과도 이어지니 함께 보면 좋습니다.</p>
+
+<h2 id="sec-4">4. 핵심 — 검증 용량을 늘리는 게이트 설계</h2>
+
+<p>병목을 넓히는 유일한 방법은 <strong>신뢰할 수 있는 검증 용량(trusted verification capacity)</strong>을 늘리는 것입니다. 사람을 더 뽑는 방법도 있지만, 엔지니어링으로 늘릴 수 있는 몫이 큽니다. 요령은 검증을 단일 행위("리뷰한다")가 아니라 <em>비용이 다른 여러 단계의 파이프라인</em>으로 보는 겁니다.</p>
+
+<figure class="pav-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="검증 게이트 파이프라인. 왼쪽에서 에이전트 산출물이 들어와 1단계 기계 게이트(빌드, lint, 타입체크), 2단계 테스트 게이트(기존 테스트, 신규 테스트, diff 예산), 3단계 AI 리뷰(리뷰 봇, 다른 모델), 4단계 사람 리뷰 순으로 지나며, 단계가 갈수록 통과 물량은 줄고 단위 비용은 커진다">
+  <defs>
+    <marker id="pav-f3a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--pav-slate)"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="28" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--pav-slate)">검증 파이프라인 — 싼 게이트부터, 비싼 눈은 마지막에</text>
+
+  <g>
+    <rect x="30" y="60" width="180" height="140" rx="12" fill="none" stroke="var(--pav-green)" stroke-width="2"/>
+    <text x="120" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--pav-green)">1. 기계 게이트</text>
+    <text x="120" y="112" text-anchor="middle" font-size="11.5" fill="var(--pav-slate)">빌드 · lint · 타입체크</text>
+    <text x="120" y="130" text-anchor="middle" font-size="11.5" fill="var(--pav-slate)">포맷 · 시크릿 스캔</text>
+    <text x="120" y="160" text-anchor="middle" font-size="11" fill="var(--pav-gray)">수 초 · 결정적</text>
+    <text x="120" y="178" text-anchor="middle" font-size="11" fill="var(--pav-gray)">실패 시 에이전트에게 반송</text>
+  </g>
+  <line x1="210" y1="130" x2="238" y2="130" stroke="var(--pav-slate)" stroke-width="2" marker-end="url(#pav-f3a)"/>
+  <g>
+    <rect x="242" y="60" width="180" height="140" rx="12" fill="none" stroke="var(--pav-teal)" stroke-width="2"/>
+    <text x="332" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--pav-teal)">2. 테스트 게이트</text>
+    <text x="332" y="112" text-anchor="middle" font-size="11.5" fill="var(--pav-slate)">기존 테스트 전부 green</text>
+    <text x="332" y="130" text-anchor="middle" font-size="11.5" fill="var(--pav-slate)">신규 테스트 요구 · diff 예산</text>
+    <text x="332" y="160" text-anchor="middle" font-size="11" fill="var(--pav-gray)">수 분 · 준결정적</text>
+    <text x="332" y="178" text-anchor="middle" font-size="11" fill="var(--pav-gray)">태스크 spec의 완료 조건 판정</text>
+  </g>
+  <line x1="422" y1="130" x2="450" y2="130" stroke="var(--pav-slate)" stroke-width="2" marker-end="url(#pav-f3a)"/>
+  <g>
+    <rect x="454" y="60" width="180" height="140" rx="12" fill="none" stroke="var(--pav-amber)" stroke-width="2"/>
+    <text x="544" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--pav-amber)">3. AI 리뷰</text>
+    <text x="544" y="112" text-anchor="middle" font-size="11.5" fill="var(--pav-slate)">리뷰 봇이 diff에 코멘트</text>
+    <text x="544" y="130" text-anchor="middle" font-size="11.5" fill="var(--pav-slate)">생성 모델과 다른 모델로</text>
+    <text x="544" y="160" text-anchor="middle" font-size="11" fill="var(--pav-gray)">확률적 · 놓침 존재</text>
+    <text x="544" y="178" text-anchor="middle" font-size="11" fill="var(--pav-gray)">사람은 "리뷰의 리뷰"</text>
+  </g>
+  <line x1="634" y1="130" x2="662" y2="130" stroke="var(--pav-slate)" stroke-width="2" marker-end="url(#pav-f3a)"/>
+  <g>
+    <rect x="666" y="60" width="164" height="140" rx="12" fill="none" stroke="var(--pav-rose)" stroke-width="2.5"/>
+    <text x="748" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--pav-rose)">4. 사람 리뷰</text>
+    <text x="748" y="112" text-anchor="middle" font-size="11.5" fill="var(--pav-slate)">blast radius 큰 것만</text>
+    <text x="748" y="130" text-anchor="middle" font-size="11.5" fill="var(--pav-slate)">설계 · 보안 · 계약 변경</text>
+    <text x="748" y="160" text-anchor="middle" font-size="11" fill="var(--pav-gray)">가장 비싸고 가장 느림</text>
+    <text x="748" y="178" text-anchor="middle" font-size="11" fill="var(--pav-gray)">여기 도달량이 곧 병목 부하</text>
+  </g>
+
+  <text x="430" y="240" text-anchor="middle" font-size="12.5" fill="var(--pav-slate)">← 물량 많음 · 단위 비용 낮음 ｜ 물량 적음 · 단위 비용 높음 →</text>
+  <line x1="120" y1="258" x2="740" y2="258" stroke="var(--pav-gray)" stroke-width="1.5" marker-end="url(#pav-f3a)"/>
+  <text x="430" y="282" text-anchor="middle" font-size="12" fill="var(--pav-gray)">오른쪽으로 갈수록 통과 물량은 줄고 단위 비용은 커진다 — 각 단계의 반송률을 계측하면 병목이 보인다</text>
+  <text x="430" y="305" text-anchor="middle" font-size="12" fill="var(--pav-gray)">1·2단계 실패는 사람을 거치지 않고 에이전트에게 자동 반송하는 것이 핵심</text>
+</svg>
+<figcaption>검증 파이프라인의 4단계. 목표는 사람 리뷰(4단계)에 도달하는 물량을 구조적으로 줄이는 것입니다.</figcaption>
+</figure>
+
+<p>단계별로 짚습니다.</p>
+
+<p><strong>1~2단계: 기계 게이트는 "자동 반송"이 핵심입니다.</strong> 빌드 실패, lint 위반, 테스트 빨간불은 사람이 볼 일이 아닙니다. 실패 로그를 그대로 에이전트에게 돌려보내 스스로 고치게 하고, N회 재시도 후에도 실패하면 그때만 사람에게 올립니다. 이 루프만 제대로 깔아도 사람 눈에 닿는 diff의 품질 바닥이 확 올라갑니다. CI 실패를 에이전트가 자동 분류·수리하는 패턴은 <a href="/posts/ci-failure-triage-agent/">CI 실패 트리아지 에이전트 편</a>에서 자세히 다뤘습니다. 여기에 <strong>diff 예산</strong>(변경 줄 수 상한)을 게이트로 거는 걸 추천합니다. Faros 데이터가 보여 주듯 AI 시대 PR은 방치하면 커지기만 하고, 큰 PR은 리뷰 품질을 지수적으로 떨어뜨립니다. "800줄 넘으면 쪼개서 다시 와라"를 기계가 말하게 하세요.</p>
+
+<p><strong>3단계: AI 리뷰 — 사람은 "리뷰의 리뷰"로 물러난다.</strong> Pragmatic Engineer의 Gergely Orosz가 <a href="https://newsletter.pragmaticengineer.com/p/what-is-happening-with-code-reviews" target="_blank" rel="noopener">올해 정리한 업계 현황</a>에 따르면, 이제 가장 흔한 구성은 모든 PR에 AI 코드 리뷰 단계를 넣고(CodeRabbit, Greptile, GitHub Copilot Code Review, Qodo 등), <strong>사람은 코드가 아니라 AI가 남긴 리뷰를 리뷰</strong>하는 방식입니다. 리뷰 봇이 지적한 항목이 타당한지, 놓친 영역은 없는지를 판단하는 쪽이 diff를 처음부터 읽는 것보다 훨씬 쌉니다. 한 가지 원칙만 지키세요. <strong>생성한 모델과 리뷰하는 모델을 다르게</strong> 하는 겁니다. 같은 모델은 같은 맹점을 공유하므로, 자기가 만든 버그를 자기가 눈치챌 확률이 낮습니다. LLM을 채점자로 쓸 때의 편향과 한계는 <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-Judge 편</a>에서 다룬 그대로 여기에도 적용됩니다.</p>
+
+<p><strong>4단계: 사람 리뷰 — blast radius로 라우팅한다.</strong> 모든 변경이 같은 강도의 리뷰를 받을 이유가 없습니다. Orosz가 소개한 실무 패턴처럼, 변경의 <strong>폭발 반경(blast radius)</strong> — 잘못됐을 때 터지는 범위 — 기준으로 분류합니다. 내부 스크립트의 오타 수정과 결제 API의 스키마 변경이 같은 큐에 줄 서면 안 됩니다. 전자는 게이트 통과만으로 자동 병합하고, 후자는 시니어의 눈을 예약하는 식으로, 좁은 인간 리뷰 용량을 위험도가 높은 곳에 몰아주는 겁니다.</p>
+
+<p>마지막으로, 게이트 파이프라인은 <strong>계측이 있어야 완성</strong>입니다. 단계별 반송률(1단계에서 몇 %가 튕기나), 사람 개입 횟수, 병합된 PR당 총비용을 남기세요. OpenAI 발표의 교훈처럼 3.1배라는 활동량 수치는 진척을 말해 주지 않습니다. 청구서에 찍히는 건 하루 600달러 쪽이고, 그 돈이 병합된 코드로 바뀌는 비율이야말로 여러분이 볼 지표입니다. 토큰 지출 계측은 <a href="/posts/agent-token-economics/">에이전트 토큰 이코노믹스 편</a>의 코드로 시작할 수 있습니다.</p>
+
+<h2 id="sec-5">5. 실전 — worktree 3대 + 게이트 스크립트로 시작하기</h2>
+
+<p>거창한 오케스트레이션 도구 없이, git과 셸만으로 최소 구성을 만들어 봅시다. 먼저 태스크를 기계 판정 가능한 spec으로 씁니다.</p>
+
+{{< highlight yaml >}}
+# tasks/T-101.yaml — 태스크 카드: 완료 조건을 기계가 판정할 수 있게 쓴다
+id: T-101
+title: "주문 조회 API에 페이지네이션 추가"
+branch: agent/T-101-orders-pagination
+scope:                       # 이 파일 밖을 건드리면 게이트에서 반려
+  - src/api/orders.py
+  - tests/api/test_orders.py
+done_when:                   # '완료'의 정의 — 사람 취향이 아니라 기계 판정
+  - "pytest tests/api/test_orders.py 통과"
+  - "신규 테스트 3개 이상 추가"
+diff_budget: 400             # 변경 줄 수 상한
+blast_radius: low            # low는 게이트 통과 시 자동 병합 후보
+{{< /highlight >}}
+
+<p>다음으로 태스크마다 worktree를 파고 에이전트를 붙입니다. worktree는 저장소 하나를 공유하면서 브랜치별 독립 디렉터리를 만들어 주므로, 에이전트끼리 파일을 밟을 일이 없습니다.</p>
+
+{{< highlight bash >}}
+# 태스크별 worktree 생성 — 클론 없이 격리된 작업 공간 3개
+git worktree add ../wt-T-101 -b agent/T-101-orders-pagination
+git worktree add ../wt-T-102 -b agent/T-102-rate-limit
+git worktree add ../wt-T-103 -b agent/T-103-audit-log
+
+# 각 디렉터리에서 에이전트 실행 (사용하는 CLI에 맞게)
+# 포인트: 태스크 spec을 통째로 프롬프트에 넣고, scope 밖 수정 금지를 명시한다
+(cd ../wt-T-101 && coding-agent --task ../repo/tasks/T-101.yaml) &
+(cd ../wt-T-102 && coding-agent --task ../repo/tasks/T-102.yaml) &
+(cd ../wt-T-103 && coding-agent --task ../repo/tasks/T-103.yaml) &
+wait
+
+# 끝난 worktree 정리
+git worktree remove ../wt-T-101
+{{< /highlight >}}
+
+<p>핵심은 게이트 스크립트입니다. 에이전트가 "끝났다"고 말해도 이 스크립트가 통과시키기 전까지는 끝난 게 아닙니다.</p>
+
+{{< highlight bash >}}
+#!/usr/bin/env bash
+# gate.sh <worktree-dir> <task-yaml> — 사람 눈에 닿기 전의 자동 검증 게이트
+set -euo pipefail
+WT="$1"; TASK="$2"
+cd "$WT"
+
+# 1단계: 기계 게이트 — 실패 로그는 사람이 아니라 에이전트에게 돌아간다
+ruff check .            || { echo "GATE:LINT_FAIL";  exit 1; }
+mypy src/               || { echo "GATE:TYPE_FAIL";  exit 1; }
+
+# 2단계: 테스트 게이트 + diff 예산 + scope 검사
+pytest -q               || { echo "GATE:TEST_FAIL";  exit 1; }
+
+BUDGET=$(yq '.diff_budget' "$TASK")
+CHANGED=$(git diff --stat main | tail -1 | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
+[ "${CHANGED:-0}" -le "$BUDGET" ] || { echo "GATE:DIFF_OVER_BUDGET ($CHANGED > $BUDGET)"; exit 1; }
+
+# scope 밖 파일을 건드렸는지 — 에이전트의 흔한 일탈을 기계가 잡는다
+ALLOWED=$(yq -r '.scope[]' "$TASK")
+git diff --name-only main | while read -r f; do
+  echo "$ALLOWED" | grep -qx "$f" || { echo "GATE:OUT_OF_SCOPE $f"; exit 1; }
+done
+
+echo "GATE:PASS — AI 리뷰 단계로 넘긴다 (생성 모델과 다른 모델로!)"
+{{< /highlight >}}
+
+<p>게이트가 <code>PASS</code>를 찍은 브랜치만 PR을 열고, AI 리뷰 봇을 거쳐, <code>blast_radius</code>에 따라 자동 병합 또는 사람 큐로 라우팅합니다. 병합은 한 번에 하나씩, 병합 직후 다음 브랜치를 리베이스해서 검증하는 머지 큐 방식이 안전합니다. 이 뼈대에 익숙해진 다음에 Warp 같은 상용 오케스트레이션 레이어나 클라우드 실행 환경을 얹으면, 도구가 무엇을 대신해 주는지 정확히 알고 쓸 수 있습니다.</p>
+
+<h2 id="sec-6">6. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>에이전트 수부터 늘리기.</strong> 가장 흔한 실수입니다. 제약 이론을 기억하세요 — 병목(검증)이 그대로면 생성을 늘려 봐야 리뷰 안 된 diff 재고만 쌓입니다. 순서는 반대입니다. <em>게이트를 먼저 깔고, 게이트가 남아돌 때 에이전트를 늘린다.</em> 실무 가이드들의 "3~8대 한계"도 결국 리뷰 용량 얘기입니다.</li>
+  <li><strong>러버스탬프로 미끄러지기.</strong> 리뷰가 밀리기 시작하면 팀은 조용히 LGTM 머신이 됩니다. Orosz가 전한 사례처럼 "리뷰해 봐야 소용없다"며 아예 접는 베테랑도 나옵니다. 이건 병목의 해소가 아니라 <em>검증의 무단 폐기</em>입니다. 리뷰를 줄이려면 게이트와 blast radius 라우팅으로 <em>구조적으로</em> 줄여야지, 피로에 밀려 암묵적으로 줄이면 안 됩니다.</li>
+  <li><strong>생성 모델에게 자기 검증 맡기기.</strong> 같은 모델은 같은 맹점을 공유합니다. 리뷰 봇, 테스트 생성, LLM 채점 어디든 <strong>생성 계열과 다른 모델</strong>을 쓰세요. 에이전트가 자기 완료 보고를 스스로 채점하게 두면 "성공했다고 말하는 능력"만 늘어납니다 — <a href="/posts/agent-reward-hacking-evals/">리워드 해킹 편</a>에서 본 그 패턴입니다.</li>
+  <li><strong>완료 조건 없는 태스크 던지기.</strong> "성능 좀 개선해 줘"처럼 완료를 기계가 판정할 수 없는 태스크는 게이트를 무력화합니다. 판정 불가능한 태스크는 병렬로 돌릴 자격이 없다고 생각하세요 — 그런 건 사람이 붙어서 하는 탐색 작업입니다.</li>
+  <li><strong>공유 상태를 잊는 것.</strong> worktree는 파일만 격리합니다. 개발 서버 포트, 로컬 DB, 캐시 디렉터리, <code>node_modules</code> 심볼릭 링크는 여전히 충돌합니다. 태스크 spec에 포트 번호를 배정하거나, 테스트가 임시 디렉터리·임시 DB를 쓰도록 강제하세요.</li>
+  <li><strong>활동량 지표에 취하는 것.</strong> "에이전트가 이번 주 PR 40개 열었다"는 성과가 아닙니다. OpenAI조차 agent-workdays에 "중복·실패·강한 조종 포함, 진척과 비례하지 않음"이라는 단서를 달았습니다. 볼 지표는 <em>병합된 변경당 비용</em>, <em>게이트 반송률</em>, <em>사람 개입 횟수</em>입니다.</li>
+</ul>
+
+<h2 id="sec-7">7. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>이번 주 OpenAI가 "자동화된 리서치 인턴" 목표 달성을 발표했습니다. 사람 하루당 에이전트 3.1일치 노동, 중간값 연구자 하루 $600+ 추론 지출 — 그러나 성공한 4~8시간 실행의 <strong>절반 이상이 사람 개입을 필요</strong>로 했습니다. 생성은 병렬로 확장됐지만 검증은 여전히 사람의 직렬 작업입니다.</li>
+  <li>데이터도 같은 방향입니다. GitLab 설문 85%가 "병목이 작성에서 리뷰로 이동"에 동의했고, Faros AI 텔레메트리에서 PR 크기는 2025년 +154%, 2026년 +51.3% 커졌습니다. GitHub이 PR 인박스 개편과 스택 PR을 내놓은 것도 같은 압력의 산물입니다.</li>
+  <li>설계 원칙은 4계층입니다: <strong>① 기계 판정 가능한 spec으로 태스크 분해 → ② worktree/컨테이너로 격리 실행 → ③ 자동 검증 게이트 → ④ 좁은 사람 리뷰를 blast radius로 라우팅.</strong> 게이트 실패는 사람을 거치지 않고 에이전트에게 자동 반송합니다.</li>
+  <li>사람의 역할은 "diff를 처음부터 읽는 사람"에서 <strong>"리뷰의 리뷰어"</strong>로 이동 중입니다. AI 리뷰 봇을 모든 PR에 붙이되, 생성 모델과 다른 모델을 쓰세요.</li>
+  <li>순서가 전부입니다. <strong>게이트 먼저, 에이전트 증설은 그다음.</strong> 병목이 그대로면 에이전트를 늘려도 리뷰 안 된 diff 재고만 쌓입니다.</li>
+  <li>지표는 활동량(PR 수, agent-workdays)이 아니라 <strong>병합된 변경당 비용 · 게이트 반송률 · 사람 개입 횟수</strong>로 잡으세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://openai.com/index/research-acceleration-view-inside-openai/" target="_blank" rel="noopener">Research acceleration: The view inside OpenAI — OpenAI 공식 블로그 (2026-09-06)</a></li>
+  <li><a href="https://fortune.com/2026/09/08/openai-rsi-progress-jakub-pachocki-warns-dangers-slowdown-safety-rules/" target="_blank" rel="noopener">OpenAI details how AI is accelerating its own work — Fortune (2026-09-08)</a></li>
+  <li><a href="https://www.popularai.org/p/openai-3-1-agent-workdays-research-productivity" target="_blank" rel="noopener">OpenAI now runs 3.1 AI-agent workdays for every human research day — Popular AI 분석</a></li>
+  <li><a href="https://thenewstack.io/ai-code-bottleneck-myth/" target="_blank" rel="noopener">AI hasn't shifted the bottleneck from coding to code review — The New Stack (GitLab 2026 설문 인용)</a></li>
+  <li><a href="https://devops.com/ai-has-turned-verification-into-the-new-devops-bottleneck/" target="_blank" rel="noopener">AI Has Turned Verification Into the New DevOps Bottleneck — DevOps.com (Faros AI 텔레메트리 인용)</a></li>
+  <li><a href="https://devops.com/githubs-redesigned-pr-inbox-tackles-the-review-bottleneck-ai-created/" target="_blank" rel="noopener">GitHub's Redesigned PR Inbox Tackles the Review Bottleneck AI Created — DevOps.com</a></li>
+  <li><a href="https://www.infoq.com/news/2026/08/github-stacked-pull-requests/" target="_blank" rel="noopener">GitHub Brings Stacked Pull Requests to Public Preview — InfoQ (2026-08)</a></li>
+  <li><a href="https://newsletter.pragmaticengineer.com/p/what-is-happening-with-code-reviews" target="_blank" rel="noopener">What is happening with code reviews? — The Pragmatic Engineer (Gergely Orosz)</a></li>
+  <li><a href="https://arxiv.org/abs/2507.09089" target="_blank" rel="noopener">Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity — METR (arXiv:2507.09089)</a></li>
+  <li><a href="https://metr.org/blog/2026-02-24-uplift-update/" target="_blank" rel="noopener">We are Changing our Developer Productivity Experiment Design — METR (2026-02-24)</a></li>
+  <li><a href="https://www.augmentcode.com/guides/how-to-run-a-multi-agent-coding-workspace" target="_blank" rel="noopener">How to Run a Multi-Agent Coding Workspace — Augment Code 가이드</a></li>
+  <li><a href="https://agentsroom.dev/blog/run-coding-agents-in-parallel" target="_blank" rel="noopener">How to Run 3 to 8 Coding Agents in Parallel Without Losing Track — Agents Room</a></li>
+  <li><a href="https://nimbalyst.com/blog/git-worktrees-for-ai-coding-agents-complete-guide/" target="_blank" rel="noopener">How to Run Coding Agents in Parallel with Git Worktrees — Nimbalyst</a></li>
+</ul>

@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="네 개의 코딩 에이전트가 병렬로 diff를 쏟아내지만, 자동 검증 게이트를 지나 사람 리뷰어 한 명에게 모이는 깔때기 그림. 생성은 병렬, 검증은 직렬이라는 대비를 보여준다">
+  <defs>
+    <linearGradient id="pav-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e3a5f"/>
+    </linearGradient>
+    <marker id="pav-car" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7dd3fc"/>
+    </marker>
+    <marker id="pav-car2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fda4af"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#pav-bg)"/>
+
+  <text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">에이전트는 넷인데 리뷰어는 하나</text>
+  <text x="60" y="120" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">병렬 에이전트 시대의 검증 병목(verification bottleneck) 엔지니어링</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 4 agents (parallel) -->
+    <g>
+      <rect x="80" y="185" width="200" height="72" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+      <text x="180" y="216" text-anchor="middle" font-size="19" font-weight="700" fill="#7dd3fc">에이전트 A</text>
+      <text x="180" y="242" text-anchor="middle" font-size="13" fill="#64748b">worktree · diff 생성</text>
+
+      <rect x="80" y="272" width="200" height="72" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+      <text x="180" y="303" text-anchor="middle" font-size="19" font-weight="700" fill="#7dd3fc">에이전트 B</text>
+      <text x="180" y="329" text-anchor="middle" font-size="13" fill="#64748b">worktree · diff 생성</text>
+
+      <rect x="80" y="359" width="200" height="72" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+      <text x="180" y="390" text-anchor="middle" font-size="19" font-weight="700" fill="#7dd3fc">에이전트 C</text>
+      <text x="180" y="416" text-anchor="middle" font-size="13" fill="#64748b">컨테이너 · diff 생성</text>
+
+      <rect x="80" y="446" width="200" height="72" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+      <text x="180" y="477" text-anchor="middle" font-size="19" font-weight="700" fill="#7dd3fc">에이전트 D</text>
+      <text x="180" y="503" text-anchor="middle" font-size="13" fill="#64748b">클라우드 · diff 생성</text>
+    </g>
+    <text x="180" y="555" text-anchor="middle" font-size="16" font-weight="700" fill="#38bdf8">생성 = 병렬</text>
+
+    <!-- arrows to gate -->
+    <line x1="290" y1="221" x2="430" y2="300" stroke="#7dd3fc" stroke-width="2.5" marker-end="url(#pav-car)"/>
+    <line x1="290" y1="308" x2="430" y2="330" stroke="#7dd3fc" stroke-width="2.5" marker-end="url(#pav-car)"/>
+    <line x1="290" y1="395" x2="430" y2="365" stroke="#7dd3fc" stroke-width="2.5" marker-end="url(#pav-car)"/>
+    <line x1="290" y1="482" x2="430" y2="398" stroke="#7dd3fc" stroke-width="2.5" marker-end="url(#pav-car)"/>
+
+    <!-- gate funnel -->
+    <path d="M 445 250 L 740 250 L 740 450 L 445 450 Z" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+    <text x="592" y="295" text-anchor="middle" font-size="20" font-weight="700" fill="#fbbf24">자동 검증 게이트</text>
+    <text x="592" y="330" text-anchor="middle" font-size="14" fill="#94a3b8">빌드 · lint · 테스트</text>
+    <text x="592" y="355" text-anchor="middle" font-size="14" fill="#94a3b8">diff 예산 · scope 검사</text>
+    <text x="592" y="380" text-anchor="middle" font-size="14" fill="#94a3b8">AI 리뷰 (다른 모델로)</text>
+    <text x="592" y="418" text-anchor="middle" font-size="13" fill="#64748b">실패는 사람 안 거치고 자동 반송 ↩</text>
+
+    <!-- arrow to human -->
+    <line x1="750" y1="350" x2="880" y2="350" stroke="#fda4af" stroke-width="3" marker-end="url(#pav-car2)"/>
+
+    <!-- human reviewer -->
+    <rect x="895" y="285" width="230" height="130" rx="14" fill="none" stroke="#fb7185" stroke-width="3"/>
+    <circle cx="955" cy="335" r="17" fill="none" stroke="#fda4af" stroke-width="2.5"/>
+    <path d="M 930 378 Q 955 352 980 378" fill="none" stroke="#fda4af" stroke-width="2.5"/>
+    <text x="1050" y="332" text-anchor="middle" font-size="19" font-weight="700" fill="#fda4af">사람 리뷰어</text>
+    <text x="1050" y="358" text-anchor="middle" font-size="13" fill="#94a3b8">리뷰의 리뷰</text>
+    <text x="1050" y="378" text-anchor="middle" font-size="13" fill="#94a3b8">blast radius 큰 것만</text>
+    <text x="1010" y="450" text-anchor="middle" font-size="16" font-weight="700" fill="#fb7185">검증 = 직렬</text>
+  </g>
+
+  <text x="60" y="596" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="15" fill="#64748b">OpenAI: 사람 하루당 에이전트 3.1일치 노동 — 그러나 "성공한" 장시간 실행의 절반 이상은 사람 개입이 필요했다 (2026-09-06)</text>
+</svg>

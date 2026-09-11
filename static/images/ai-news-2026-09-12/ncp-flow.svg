@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="470" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">NCP-ArchPreview — Next Concept Prediction 구조</text>
+  <text x="400" y="54" text-anchor="middle" font-size="13" fill="#666">다음 토큰(NTP)과 다음 &#39;개념&#39;(NCP)을 동시에 예측하는 잠재공간 LM</text>
+
+  <!-- input -->
+  <rect x="40" y="90" width="150" height="56" rx="8" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="115" y="114" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a2e">입력 토큰 시퀀스</text>
+  <text x="115" y="133" text-anchor="middle" font-size="11" fill="#555">t1 t2 t3 t4 …</text>
+
+  <!-- encoder -->
+  <rect x="240" y="90" width="170" height="56" rx="8" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="325" y="114" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a2e">Token Encoder</text>
+  <text x="325" y="133" text-anchor="middle" font-size="11" fill="#555">토큰별 은닉 상태 생성</text>
+
+  <line x1="190" y1="118" x2="240" y2="118" stroke="#555" stroke-width="2"/>
+  <polygon points="240,118 230,112 230,124" fill="#555"/>
+
+  <!-- NTP branch -->
+  <rect x="500" y="70" width="260" height="52" rx="8" fill="#e9f7ef" stroke="#2e9e5b" stroke-width="1.5"/>
+  <text x="630" y="92" text-anchor="middle" font-size="13" font-weight="600" fill="#20713f">NTP: 표준 다음 토큰 예측</text>
+  <text x="630" y="111" text-anchor="middle" font-size="11" fill="#555">토큰 레벨 자기회귀 생성은 그대로 유지</text>
+
+  <line x1="410" y1="102" x2="500" y2="94" stroke="#2e9e5b" stroke-width="2"/>
+  <polygon points="500,94 489,90 491,101" fill="#2e9e5b"/>
+
+  <!-- concept branch -->
+  <line x1="325" y1="146" x2="325" y2="190" stroke="#7c4dbe" stroke-width="2"/>
+  <polygon points="325,190 319,180 331,180" fill="#7c4dbe"/>
+
+  <rect x="180" y="190" width="290" height="60" rx="8" fill="#f3ecff" stroke="#7c4dbe" stroke-width="1.5"/>
+  <text x="325" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#5e3a94">개념 구성: 은닉 상태를 그룹으로 묶어</text>
+  <text x="325" y="234" text-anchor="middle" font-size="13" font-weight="600" fill="#5e3a94">Product-Quantized 개념 어휘 생성</text>
+
+  <line x1="470" y1="220" x2="530" y2="220" stroke="#7c4dbe" stroke-width="2"/>
+  <polygon points="530,220 520,214 520,226" fill="#7c4dbe"/>
+
+  <rect x="530" y="190" width="230" height="60" rx="8" fill="#f3ecff" stroke="#7c4dbe" stroke-width="1.5"/>
+  <text x="645" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#5e3a94">Concept Module</text>
+  <text x="645" y="234" text-anchor="middle" font-size="12" fill="#555">여러 토큰에 걸친 다음 개념 예측</text>
+
+  <!-- feedback -->
+  <path d="M 645 250 L 645 300 L 325 300 L 325 262" fill="none" stroke="#d9822b" stroke-width="2" stroke-dasharray="6 4"/>
+  <polygon points="325,254 319,266 331,266" fill="#d9822b"/>
+  <text x="490" y="292" text-anchor="middle" font-size="12" font-weight="600" fill="#a35d12">예측된 개념을 토큰 레벨로 피드백 → 이후 생성 가이드</text>
+
+  <rect x="40" y="330" width="720" height="52" rx="8" fill="#fff4e5" stroke="#d9822b" stroke-width="1.5"/>
+  <text x="400" y="352" text-anchor="middle" font-size="13" font-weight="600" fill="#a35d12">NTP + NCP 공동 학습(end-to-end) — 토큰보다 굵은 단위의 명시적 예측 목표 추가</text>
+  <text x="400" y="371" text-anchor="middle" font-size="12" fill="#666">개념은 여러 토큰 구간을 커버 → 시퀀스보다 짧은 잠재 시퀀스에 대한 지도 신호</text>
+
+  <text x="400" y="418" text-anchor="middle" font-size="13" fill="#333">규모: 8.9B 파라미터 · Dolma-3 5.73T 토큰 학습 · 잠재공간 LM 최대 규모 실증</text>
+  <text x="400" y="440" text-anchor="middle" font-size="12" fill="#666">가중치: Hugging Face ArchSpace-Collection, Apache 2.0 (중간 체크포인트 포함)</text>
+  <text x="400" y="460" text-anchor="middle" font-size="11" fill="#999">출처: arXiv 2609.10715 (arXiv API로 검증) · Shanghai AI Lab Intern-NCP Team</text>
+</svg>

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 580" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="580" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">Agents API — 관리형 하니스 vs 직접 조립 vs 셀프호스트</text>
+
+  <!-- 직접 조립 -->
+  <rect x="30" y="60" width="355" height="230" rx="10" fill="#fdf0f0" stroke="#c0504d" stroke-width="1.5"/>
+  <text x="207" y="88" text-anchor="middle" font-size="15" font-weight="700" fill="#a33330">어제까지: 직접 조립</text>
+  <text x="50" y="118" font-size="13" fill="#333">• 세션 관리 / 상태 저장</text>
+  <text x="50" y="142" font-size="13" fill="#333">• 컨텍스트 압축(compaction) 직접 구현</text>
+  <text x="50" y="166" font-size="13" fill="#333">• 툴 병렬 실행 / 재시도 · 복구 로직</text>
+  <text x="50" y="190" font-size="13" fill="#333">• 서브에이전트 오케스트레이션</text>
+  <text x="50" y="214" font-size="13" fill="#333">• 샌드박스 프로비저닝 글루 코드</text>
+  <text x="50" y="248" font-size="13" font-weight="600" fill="#a33330">→ 전부 앱 개발자 몫, 앱마다 재발명</text>
+
+  <!-- Agents API -->
+  <rect x="415" y="60" width="355" height="230" rx="10" fill="#eef7ee" stroke="#2e9e5b" stroke-width="1.5"/>
+  <text x="592" y="88" text-anchor="middle" font-size="15" font-weight="700" fill="#20713f">Agents API (퍼블릭 베타, 9/10)</text>
+  <text x="435" y="118" font-size="13" fill="#333">• Codex·ChatGPT를 굴리던 관리형 하니스</text>
+  <text x="435" y="142" font-size="13" fill="#333">• 자동 컨텍스트 관리 · 병렬 툴 · 서브에이전트</text>
+  <text x="435" y="166" font-size="13" fill="#333">• 실행 환경: OpenAI 호스팅 샌드박스</text>
+  <text x="455" y="188" font-size="13" fill="#333">또는 Cloudflare · Vercel · Oracle 파트너</text>
+  <text x="435" y="214" font-size="13" fill="#333">• 별도 수수료 없음 — 토큰·툴 사용량 과금</text>
+  <text x="435" y="248" font-size="13" font-weight="600" fill="#20713f">→ 개발자는 툴 정의와 실행 환경만 고른다</text>
+
+  <!-- arrow -->
+  <line x1="385" y1="175" x2="415" y2="175" stroke="#555" stroke-width="2"/>
+  <polygon points="415,175 405,169 405,181" fill="#555"/>
+
+  <!-- self-host band -->
+  <rect x="30" y="320" width="740" height="200" rx="10" fill="#f0f4fb" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="400" y="348" text-anchor="middle" font-size="15" font-weight="700" fill="#2b56a8">셀프호스트 경로 (오늘 둘 다 9/11 커밋 확인)</text>
+
+  <rect x="55" y="368" width="330" height="130" rx="8" fill="#ffffff" stroke="#7ea0d8"/>
+  <text x="220" y="392" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a2e">openai/openai-agents-js v0.18</text>
+  <text x="72" y="416" font-size="12" fill="#333">• 샌드박스 에이전트 베타: Manifest + capabilities</text>
+  <text x="72" y="437" font-size="12" fill="#333">• 파일시스템 · 셸 · 스킬 · 메모리 · 압축 내장 툴</text>
+  <text x="72" y="458" font-size="12" fill="#333">• 클라이언트: 로컬/Docker/E2B/Modal/Vercel 등</text>
+  <text x="72" y="479" font-size="12" fill="#333">• 세션 · 스냅샷으로 이전 작업 재개</text>
+
+  <rect x="415" y="368" width="330" height="130" rx="8" fill="#ffffff" stroke="#7ea0d8"/>
+  <text x="580" y="392" text-anchor="middle" font-size="14" font-weight="700" fill="#1a1a2e">cloudflare/agents</text>
+  <text x="432" y="416" font-size="12" fill="#333">• Durable Objects 기반 영속 · 상태 유지 에이전트</text>
+  <text x="432" y="437" font-size="12" fill="#333">• 유휴 시 동면(hibernate), 수백만 개 운영 가능</text>
+  <text x="432" y="458" font-size="12" fill="#333">• 실시간 동기화 · 스케줄링 · MCP 내장</text>
+  <text x="432" y="479" font-size="12" fill="#333">• openai-sdk 연동 예제 디렉터리 포함</text>
+
+  <text x="400" y="548" text-anchor="middle" font-size="12" fill="#666">선택 기준: 통제·비용 최적화가 중요하면 셀프호스트, 운영 부담 제거가 중요하면 Agents API</text>
+  <text x="400" y="568" text-anchor="middle" font-size="11" fill="#999">출처: openai.com Agents API 발표(검색 다중 소스) · 두 저장소 클론 확인</text>
+</svg>

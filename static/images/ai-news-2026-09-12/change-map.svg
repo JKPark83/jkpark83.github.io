@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 540" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="540" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-09-12</text>
+  <text x="400" y="56" text-anchor="middle" font-size="13" fill="#666">주제: 하니스의 상품화 — 에이전트 인프라가 API 호출 하나가 되는 날</text>
+
+  <!-- quadrant boxes -->
+  <rect x="30" y="80" width="360" height="200" rx="10" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <rect x="410" y="80" width="360" height="200" rx="10" fill="#f3ecff" stroke="#7c4dbe" stroke-width="1.5"/>
+  <rect x="30" y="300" width="360" height="200" rx="10" fill="#e9f7ef" stroke="#2e9e5b" stroke-width="1.5"/>
+  <rect x="410" y="300" width="360" height="200" rx="10" fill="#fff4e5" stroke="#d9822b" stroke-width="1.5"/>
+
+  <!-- 모델 -->
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#2b56a8">🤖 모델 &amp; 릴리즈</text>
+  <text x="50" y="136" font-size="13" fill="#222" font-weight="600">OpenAI Agents API 퍼블릭 베타 (9/10)</text>
+  <text x="50" y="154" font-size="12" fill="#444">Codex 하니스를 API 하나로 — 세션·압축·서브에이전트</text>
+  <text x="50" y="180" font-size="13" fill="#222" font-weight="600">Sakana Fugu Ultra v2 · Fugu Max (9/11)</text>
+  <text x="50" y="198" font-size="12" fill="#444">라우팅을 학습한 오케스트레이션 모델, $5/$30</text>
+  <text x="50" y="224" font-size="13" fill="#222" font-weight="600">Claude Code 2.1.269</text>
+  <text x="50" y="242" font-size="12" fill="#444">claude plugin eval · 워크플로 동시 에이전트 상향</text>
+
+  <!-- 논문 -->
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#5e3a94">📚 주목 논문</text>
+  <text x="430" y="136" font-size="13" fill="#222" font-weight="600">NCP-ArchPreview (2609.10715)</text>
+  <text x="430" y="154" font-size="12" fill="#444">토큰 대신 &#39;개념&#39;도 예측하는 8.9B 잠재공간 LM</text>
+  <text x="430" y="180" font-size="13" fill="#222" font-weight="600">EvoSafeHarness (2609.05903)</text>
+  <text x="430" y="198" font-size="12" fill="#444">배포별 안전 하니스 자동 합성 — ASR 45.6→10.0%</text>
+  <text x="430" y="224" font-size="12" fill="#666">둘 다 HF Daily 상위 (170 / 36 upvotes)</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="328" font-size="15" font-weight="700" fill="#20713f">🛠 오픈소스</text>
+  <text x="50" y="356" font-size="13" fill="#222" font-weight="600">openai/openai-agents-js v0.18</text>
+  <text x="50" y="374" font-size="12" fill="#444">샌드박스 에이전트 베타 — 워크스페이스·스냅샷 재개</text>
+  <text x="50" y="400" font-size="13" fill="#222" font-weight="600">cloudflare/agents</text>
+  <text x="50" y="418" font-size="12" fill="#444">Durable Objects 기반 영속 에이전트, 유휴 시 동면</text>
+  <text x="50" y="444" font-size="12" fill="#666">둘 다 9/11 커밋 활발 — Agents API 생태계의 양 축</text>
+
+  <!-- 팁 -->
+  <text x="430" y="328" font-size="15" font-weight="700" fill="#a35d12">🧑‍💻 실전 팁</text>
+  <text x="430" y="356" font-size="13" fill="#222" font-weight="600">🟩 Agents API로 하니스 유지보수 덜기</text>
+  <text x="430" y="382" font-size="13" fill="#222" font-weight="600">🟦 claude plugin eval — 플러그인 회귀 테스트</text>
+  <text x="430" y="408" font-size="13" fill="#222" font-weight="600">🟪 안전 하니스는 모델×도메인별로 튜닝</text>
+  <text x="430" y="434" font-size="12" fill="#666">공통분모: 하니스도 이제 측정·자동화 대상이다</text>
+
+  <!-- center badge -->
+  <circle cx="400" cy="290" r="34" fill="#1a1a2e"/>
+  <text x="400" y="285" text-anchor="middle" font-size="11" fill="#fff">2026</text>
+  <text x="400" y="301" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">09·12</text>
+
+  <text x="400" y="526" text-anchor="middle" font-size="11" fill="#999">verified: arXiv API · repo clone · 다중 검색 소스 (star 수치는 GitHub API 차단으로 미표기)</text>
+</svg>

@@ -1,0 +1,33 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="근원 CPI 0.3%로 9월 인상 확률이 90%까지 뛰었지만 유가 되돌림에 뉴욕 증시가 닷새 만에 반등하고 비트코인이 7만9,000달러를 회복했음을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.12 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">안도 랠리의 조건부 — 인상 확률 90% · 유가 -2.8% · 일요일 오만 회동</text>
+
+  <g transform="translate(110,280)">
+    <text x="210" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">인상은 기정사실로</text>
+    <rect x="30" y="40" width="170" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="115" y="100" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#f87171">~90%</text>
+    <text x="115" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fca5a5">9월 인상 확률 (근원 0.3%)</text>
+    <rect x="230" y="40" width="170" height="150" rx="10" fill="#06b6d4" opacity="0.16"/>
+    <text x="315" y="100" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#22d3ee">-2.8%</text>
+    <text x="315" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#67e8f9">브렌트유 (오만 회동 소식)</text>
+    <text x="215" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">CPI 헤드라인 3.4% 부합 · 근원 +0.3% 상회</text>
+    <text x="215" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">10년물 4.93% · 코스피 6,909 (-1.76%)</text>
+  </g>
+
+  <g transform="translate(640,280)">
+    <text x="230" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">닷새 만의 반등</text>
+    <rect x="60" y="40" width="340" height="110" rx="10" fill="#22c55e" opacity="0.14"/>
+    <text x="230" y="90" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#4ade80">나스닥 +0.96% · BTC $79K</text>
+    <text x="230" y="126" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#86efac">26,333.04 마감 · CPI 급락분 8분 만에 회복</text>
+    <text x="230" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">ETF 사흘 유출 -4.5억달러 · 주간 BTC -2%</text>
+    <text x="230" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">심리: 주식 31 공포 · 암호화폐 59~69 탐욕</text>
+  </g>
+</svg>

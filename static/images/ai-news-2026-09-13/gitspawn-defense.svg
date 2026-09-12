@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="sans-serif">
+  <rect width="800" height="440" rx="12" fill="#f8fafc"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="bold" fill="#0f172a">GitSpawn 공격 경로와 방어 레이어</text>
+
+  <!-- attack chain -->
+  <text x="40" y="66" font-size="13" font-weight="bold" fill="#b91c1c">공격 경로 (프롬프트 입력 전에 발동)</text>
+  <g font-size="12" fill="#0f172a">
+    <rect x="40" y="80" width="160" height="58" rx="8" fill="#fee2e2" stroke="#ef4444"/>
+    <text x="120" y="103" text-anchor="middle">악성 레포 배포</text>
+    <text x="120" y="121" text-anchor="middle" font-size="10.5" fill="#7f1d1d">.git/config에 core.fsmonitor</text>
+
+    <rect x="230" y="80" width="160" height="58" rx="8" fill="#fee2e2" stroke="#ef4444"/>
+    <text x="310" y="103" text-anchor="middle">에이전트로 폴더 열기</text>
+    <text x="310" y="121" text-anchor="middle" font-size="10.5" fill="#7f1d1d">승인 클릭 전 단계</text>
+
+    <rect x="420" y="80" width="160" height="58" rx="8" fill="#fee2e2" stroke="#ef4444"/>
+    <text x="500" y="103" text-anchor="middle">백그라운드 git status</text>
+    <text x="500" y="121" text-anchor="middle" font-size="10.5" fill="#7f1d1d">컨텍스트 수집용 자동 실행</text>
+
+    <rect x="610" y="80" width="150" height="58" rx="8" fill="#fecaca" stroke="#b91c1c" stroke-width="2"/>
+    <text x="685" y="103" text-anchor="middle" font-weight="bold">임의 코드 실행</text>
+    <text x="685" y="121" text-anchor="middle" font-size="10.5" fill="#7f1d1d">샌드박스 밖 변종 포함</text>
+  </g>
+  <g stroke="#ef4444" stroke-width="2" fill="none">
+    <path d="M200 109 L226 109"/>
+    <path d="M390 109 L416 109"/>
+    <path d="M580 109 L606 109"/>
+  </g>
+  <g fill="#ef4444">
+    <path d="M226 104 L234 109 L226 114 Z"/>
+    <path d="M416 104 L424 109 L416 114 Z"/>
+    <path d="M606 104 L614 109 L606 114 Z"/>
+  </g>
+  <text x="40" y="162" font-size="11" fill="#7f1d1d">영향: Claude Code · Codex · Cursor · Goose · Qwen Code · Grok Build · Hermes Agent — 8개 결함 중 4건 미패치 보도</text>
+
+  <!-- defense layers -->
+  <text x="40" y="198" font-size="13" font-weight="bold" fill="#15803d">방어 레이어 (겹칠수록 안전)</text>
+  <g font-size="12" fill="#0f172a">
+    <rect x="40" y="212" width="350" height="64" rx="8" fill="#dcfce7" stroke="#22c55e"/>
+    <text x="56" y="234" font-weight="bold">① 열기 전 검사 (비용 0)</text>
+    <text x="56" y="252" font-size="11" fill="#334155">클론이 아닌 압축파일·복사본 레포는 열기 전에</text>
+    <text x="56" y="267" font-size="11" fill="#334155">git config --get core.fsmonitor 확인</text>
+
+    <rect x="410" y="212" width="350" height="64" rx="8" fill="#dcfce7" stroke="#22c55e"/>
+    <text x="426" y="234" font-weight="bold">② 에이전트 최신 버전 유지</text>
+    <text x="426" y="252" font-size="11" fill="#334155">주요 벤더 패치 공개 (예: goose 1.44.0,</text>
+    <text x="426" y="267" font-size="11" fill="#334155">CVE-2026-72718) · Codex 0.154.0 신뢰 확립 전 실행 차단</text>
+
+    <rect x="40" y="290" width="350" height="64" rx="8" fill="#dcfce7" stroke="#22c55e"/>
+    <text x="56" y="312" font-weight="bold">③ 런타임 가드 훅</text>
+    <text x="56" y="330" font-size="11" fill="#334155">agentguard: 위험 명령·비밀 파일 접근·외부 유출을</text>
+    <text x="56" y="345" font-size="11" fill="#334155">실행 직전에 차단, 행위 유발 스킬 추적</text>
+
+    <rect x="410" y="290" width="350" height="64" rx="8" fill="#dcfce7" stroke="#22c55e"/>
+    <text x="426" y="312" font-weight="bold">④ 사전 레드팀 / 세션 감시</text>
+    <text x="426" y="330" font-size="11" fill="#334155">proofagent-harness: 멀티턴 적대 시나리오를 CI에서 돌리고</text>
+    <text x="426" y="345" font-size="11" fill="#334155">proof watch로 작업 중인 코딩 에이전트 세션을 감시</text>
+  </g>
+
+  <text x="400" y="390" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">핵심: "프롬프트를 안 쳤으니 안전하다"는 가정은 깨졌다 — 여는 행위 자체를 방어 대상으로</text>
+  <text x="400" y="414" text-anchor="middle" font-size="10.5" fill="#64748b">출처: Manifold Security GitSpawn 공개(9/1) 및 후속 보도 종합 · 도식은 자체 제작</text>
+</svg>

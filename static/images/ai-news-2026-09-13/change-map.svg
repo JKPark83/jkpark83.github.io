@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="sans-serif">
+  <rect width="800" height="460" rx="12" fill="#f8fafc"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#0f172a">오늘의 AI 변화 지도 — 2026-09-13</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#64748b">키워드: 에이전트 보안 · 저비용 코딩 모델 · 오픈 레시피</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="80" width="360" height="160" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="46" y="106" font-size="15" font-weight="bold" fill="#1d4ed8">🤖 모델 / 릴리즈</text>
+  <text x="46" y="132" font-size="13" fill="#0f172a">Cognition SWE-2 (9/10)</text>
+  <text x="46" y="150" font-size="11.5" fill="#475569">· Kimi K3 베이스 + RL, effort 3단계 단일 학습</text>
+  <text x="46" y="166" font-size="11.5" fill="#475569">· 자체 발표: Fable 5.1 대비 64% 저렴</text>
+  <text x="46" y="192" font-size="13" fill="#0f172a">Codex CLI 0.154.0 (9/9)</text>
+  <text x="46" y="210" font-size="11.5" fill="#475569">· /worktree 병렬 세션 · 작업 중 인라인 질문 답변</text>
+  <text x="46" y="226" font-size="11.5" fill="#475569">· 신뢰 확립 전 워크스페이스 헬퍼 실행 차단</text>
+
+  <!-- 보안 -->
+  <rect x="410" y="80" width="360" height="160" rx="10" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="426" y="106" font-size="15" font-weight="bold" fill="#b91c1c">🚨 보안: GitSpawn</text>
+  <text x="426" y="132" font-size="12.5" fill="#0f172a">레포를 "여는 순간"이 공격면</text>
+  <text x="426" y="150" font-size="11.5" fill="#475569">· .git/config의 core.fsmonitor로 코드 실행</text>
+  <text x="426" y="166" font-size="11.5" fill="#475569">· Claude Code · Codex · Cursor 등 7개 에이전트</text>
+  <text x="426" y="182" font-size="11.5" fill="#475569">· 8개 결함 중 4건 미패치 보도 (9월)</text>
+  <text x="426" y="206" font-size="12" font-weight="bold" fill="#b91c1c">→ 오늘의 체크리스트: 아래 공통 팁 참고</text>
+  <text x="426" y="226" font-size="11.5" fill="#475569">에이전트 업데이트 + 열기 전 .git/config 검사</text>
+
+  <!-- 논문 -->
+  <rect x="30" y="260" width="360" height="170" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="46" y="286" font-size="15" font-weight="bold" fill="#15803d">📚 논문</text>
+  <text x="46" y="312" font-size="13" fill="#0f172a">IMO Gold 오픈 레시피 (NVIDIA)</text>
+  <text x="46" y="330" font-size="11.5" fill="#475569">· 생성→검증→수정 파이프라인으로 IMO 30/42</text>
+  <text x="46" y="346" font-size="11.5" fill="#475569">· 체크포인트·데이터·코드 전부 공개</text>
+  <text x="46" y="372" font-size="13" fill="#0f172a">MetroLLM-Bench</text>
+  <text x="46" y="390" font-size="11.5" fill="#475569">· 지하철 키오스크 = 에이전트 결정론 평가장</text>
+  <text x="46" y="406" font-size="11.5" fill="#475569">· 4B PEFT 학생 모델이 GPT-5.6 추월 (Tier 1)</text>
+
+  <!-- 오픈소스 -->
+  <rect x="410" y="260" width="360" height="170" rx="10" fill="#fefce8" stroke="#eab308"/>
+  <text x="426" y="286" font-size="15" font-weight="bold" fill="#a16207">🛠 오픈소스</text>
+  <text x="426" y="312" font-size="13" fill="#0f172a">GoPlusSecurity/agentguard</text>
+  <text x="426" y="330" font-size="11.5" fill="#475569">· 훅 기반 실시간 가드 + 스킬 스캔 + 일일 점검</text>
+  <text x="426" y="346" font-size="11.5" fill="#475569">· Claude Code / Codex 등 자동 연동 (MIT)</text>
+  <text x="426" y="372" font-size="13" fill="#0f172a">ProofAgent-ai/proofagent-harness</text>
+  <text x="426" y="390" font-size="11.5" fill="#475569">· 멀티턴 레드팀 + CI 릴리즈 게이트</text>
+  <text x="426" y="406" font-size="11.5" fill="#475569">· proof watch로 코딩 에이전트 세션 감시</text>
+</svg>

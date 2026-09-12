@@ -1,0 +1,33 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="비트코인이 안도 랠리를 반납하고 7만7,000달러 경계선 부근으로 내려왔고, ETF는 3주 만의 유출 주간으로 확정됐으며, 오만 회동은 월요일로 밀리고 FOMC가 사흘 앞으로 다가왔음을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.13 · 주말판 — 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">반납된 안도 랠리 — BTC 7만7,000 경계선 · 회동은 월요일로 · FOMC 사흘 앞</text>
+
+  <g transform="translate(110,280)">
+    <text x="210" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주말의 비트코인</text>
+    <rect x="30" y="40" width="170" height="150" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="115" y="100" text-anchor="middle" font-family="sans-serif" font-size="32" font-weight="700" fill="#fbbf24">$77.1K</text>
+    <text x="115" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fcd34d">7만9,000 반납 후 경계선 위</text>
+    <rect x="230" y="40" width="170" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="315" y="100" text-anchor="middle" font-family="sans-serif" font-size="32" font-weight="700" fill="#f87171">-4.6억$</text>
+    <text x="315" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fca5a5">ETF 3주 만의 유출 주간</text>
+    <text x="215" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">금요일 유출은 -1,330만달러로 급감</text>
+    <text x="215" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">같은 날 이더리움 ETF는 +2.16억달러</text>
+  </g>
+
+  <g transform="translate(640,280)">
+    <text x="230" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">다음 주의 두 관문</text>
+    <rect x="60" y="40" width="340" height="110" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="230" y="90" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#a5b4fc">월요일 살랄라 · 화수 FOMC</text>
+    <text x="230" y="126" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">호르무즈 임시 통항 논의 · 인상 확률 79~90%</text>
+    <text x="230" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">나스닥 주간 -0.7% · 경계선 25,980 방어</text>
+    <text x="230" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">심리: 주식 31~33 공포 · 암호화폐 63~66 탐욕</text>
+  </g>
+</svg>

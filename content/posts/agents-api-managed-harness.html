@@ -1,0 +1,469 @@
+---
+title: "하네스, 만들지 말고 사세요? — OpenAI Agents API와 관리형 에이전트 런타임의 시대"
+date: 2026-09-13T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "하네스", "Agents API", "OpenAI", "관리형 하네스", "샌드박스", "컨텍스트 컴팩션", "서브에이전트", "Codex", "Claude Managed Agents", "cloudflare agents", "build vs buy", "벤더 락인", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트를 만들어 본 사람은 압니다 — 모델 호출은 쉽고, 그 주변이 어렵다는 걸요. 세션 상태 저장, 컨텍스트 컴팩션, 서브에이전트 분기, 크래시 복구, 샌드박스 배선. 이 '하네스' 코드를 다들 직접 짜서 유지보수해 왔는데, 9월 10일 OpenAI가 Codex를 굴리던 관리형 하네스를 Agents API 퍼블릭 베타로 열었습니다. 세션·컴팩션·서브에이전트·샌드박스가 API 호출 하나가 된 겁니다. 4월에 나온 Anthropic의 Claude Managed Agents와 정확히 같은 모양이라, '하네스의 상품화'가 이번 주 최대 talking point가 됐습니다. Agents API의 4가지 프리미티브 해부부터, 실행 환경 스펙트럼(호스팅·파트너 샌드박스·셀프호스트), 요금 3미터기 산수, 그리고 Assistants API 일몰의 기억이 만든 락인 논쟁과 '사기 전에 따질 것'까지 — junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agents-api-managed-harness-cover.svg"
+  alt: "직접 조립하던 에이전트 하네스 구성 요소들이 관리형 API 호출 하나로 대체되는 모습을 그린 그림"
+  caption: "세션·컴팩션·서브에이전트·복구·샌드박스 — 직접 짜던 코드가 API 한 줄이 됐다. 그래도 사기 전에 따질 게 있다"
+  relative: false
+---
+
+<style>
+/* ── Agents API 포스트 전용 스타일 (am- 접두사) ── */
+.am-fig{
+  --am-violet:#7c3aed; --am-sky:#0284c7; --am-green:#16a34a; --am-rose:#e11d48;
+  --am-amber:#d97706; --am-slate:#64748b; --am-teal:#0d9488; --am-blue:#2563eb;
+  --am-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .am-fig{
+  --am-violet:#a78bfa; --am-sky:#38bdf8; --am-green:#4ade80; --am-rose:#fb7185;
+  --am-amber:#fbbf24; --am-slate:#94a3b8; --am-teal:#2dd4bf; --am-blue:#60a5fa;
+  --am-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .am-fig{
+    --am-violet:#a78bfa; --am-sky:#38bdf8; --am-green:#4ade80; --am-rose:#fb7185;
+    --am-amber:#fbbf24; --am-slate:#94a3b8; --am-teal:#2dd4bf; --am-blue:#60a5fa;
+    --am-gray:#64748b;
+  }
+}
+.am-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.am-fig text{font-family:inherit}
+.am-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.am-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.am-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.am-toc ol{margin:0;padding-left:1.25rem}
+.am-toc li{margin:.22rem 0;font-size:.95rem}
+.am-toc a{text-decoration:none}
+.am-toc a:hover{text-decoration:underline}
+.am-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.am-table th,.am-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left}
+.am-table th{background:var(--entry)}
+</style>
+
+<div class="am-toc">
+  <div class="am-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 다들 직접 짜던 그 코드가 API가 됐다</a></li>
+    <li><a href="#sec-2">배경 — 하네스에서 가장 아픈 세 조각</a></li>
+    <li><a href="#sec-3">Agents API 해부 — 프리미티브 4개와 하네스가 대신 해 주는 일</a></li>
+    <li><a href="#sec-4">실행 환경 스펙트럼 — 호스팅, 파트너 샌드박스, 셀프호스트</a></li>
+    <li><a href="#sec-5">요금 산수 — 수수료는 없지만 미터기는 3개</a></li>
+    <li><a href="#sec-6">사서 쓸까, 만들까 — 락인 논쟁과 Assistants API의 기억</a></li>
+    <li><a href="#sec-7">실전 — 가장 아픈 조각 하나만 옮겨 보는 실험 설계</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 다들 직접 짜던 그 코드가 API가 됐다</h2>
+
+<p>에이전트를 하나라도 프로덕션에 올려 본 사람은 압니다. <strong>모델 호출은 쉽고, 그 주변이 어렵습니다.</strong> 컨텍스트가 한도에 닿기 전에 요약해 넣는 컴팩션 코드, 몇 시간짜리 작업이 중간에 죽었을 때 이어 가는 복구 코드, 큰 일을 쪼개 서브에이전트에 나눠 주는 오케스트레이션 코드, 그리고 에이전트가 명령을 실행할 샌드박스 배선까지. 이 주변 시스템을 <strong>하네스(harness)</strong>라고 부르는데, 지난주까지는 전부 각자 짜서 각자 유지보수하는 물건이었습니다.</p>
+
+<p>9월 10일, OpenAI가 이 판을 흔들었습니다. Codex와 ChatGPT를 굴리던 자사 관리형 하네스를 <a href="https://openai.com/index/introducing-the-agents-api/" target="_blank" rel="noopener">Agents API 퍼블릭 베타</a>로 공개한 겁니다. 세션 유지, 컨텍스트 컴팩션, 병렬 툴 실행, 서브에이전트 위임, 크래시 복구 — 직접 짜던 코드가 API 호출 하나 뒤로 들어갔습니다. 발표 직후 Hacker News 스레드에 댓글 178개가 달리며 "드디어"와 "또 속을 순 없다"가 정면으로 부딪혔고, 이번 주 에이전트 엔지니어링 최대 talking point가 됐습니다.</p>
+
+<p>중요한 건 이게 OpenAI 혼자만의 방향이 아니라는 점입니다. Anthropic은 이미 4월에 같은 모양의 <a href="https://www.truefoundry.com/blog/claude-agent-sdk-vs-claude-managed-agents" target="_blank" rel="noopener">Claude Managed Agents</a>를 내놨습니다. 두 회사가 각자의 코딩 에이전트를 굴리며 다듬은 하네스를 상품으로 파는 것 — 업계에서는 이 흐름을 <strong>하네스의 상품화(commoditization)</strong>라고 부르기 시작했습니다. 이 글에서는 Agents API를 해부해 보고, "사서 쓸 것인가, 계속 만들 것인가"를 판단할 기준까지 정리합니다.</p>
+
+<h2 id="sec-2">2. 배경 — 하네스에서 가장 아픈 세 조각</h2>
+
+<p>하네스가 무엇인지는 <a href="/posts/harness-engineering/">6월의 하네스 엔지니어링 편</a>에서 기초부터 다뤘으니, 여기서는 이번 발표를 이해하는 데 필요한 부분만 짚습니다. 직접 하네스를 운영해 본 팀들이 공통으로 아파하는 조각은 대략 셋입니다.</p>
+
+<ul>
+  <li><strong>컨텍스트 컴팩션(compaction)</strong> — 몇 시간짜리 작업이면 대화 이력이 컨텍스트 한도를 넘습니다. 언제, 무엇을, 어떻게 요약해 넣을지 정하는 코드는 짜기도 어렵고, 잘못 짜면 에이전트가 방금 한 일을 잊습니다. <a href="/posts/context-compaction-long-horizon-agents/">컴팩션 편</a>에서 다뤘듯 정답이 없는 트레이드오프 덩어리입니다.</li>
+  <li><strong>장기 세션의 저장과 복구</strong> — 프로세스가 재시작되면 에이전트의 "지금까지의 상태"는 어디에 있어야 할까요? 대화 이력, 작업 중이던 파일, 진행 상황을 내구성 있게 저장하고 이어 가는 코드는 사실상 작은 분산 시스템입니다.</li>
+  <li><strong>서브에이전트 오케스트레이션</strong> — 큰 작업을 쪼개 병렬로 위임하고, 결과를 모으고, 실패한 가지만 다시 돌리는 로직. <a href="/posts/multi-agent-orchestration/">멀티에이전트 편</a>에서 봤듯 여기서부터는 프레임워크 없이는 버겁습니다.</li>
+</ul>
+
+<p>Codex 같은 상용 코딩 에이전트가 잘 도는 이유의 절반은 모델이 아니라 이 하네스가 잘 만들어져 있기 때문이라는 게 업계의 중론이었습니다. 그 하네스가 이제 분리되어 팔리기 시작한 겁니다.</p>
+
+<h2 id="sec-3">3. Agents API 해부 — 프리미티브 4개와 하네스가 대신 해 주는 일</h2>
+
+<p><a href="https://developers.openai.com/api/docs/guides/agents-api/overview" target="_blank" rel="noopener">공식 문서</a> 기준으로 Agents API는 프리미티브 4개로 조립됩니다.</p>
+
+<table class="am-table">
+  <tr><th>프리미티브</th><th>무엇인가</th></tr>
+  <tr><td><strong>Agent</strong></td><td>모델 + instructions + 툴 + MCP 서버. "이 에이전트가 무엇을 할 수 있는가"의 선언</td></tr>
+  <tr><td><strong>Environment</strong></td><td>에이전트가 파일을 만지고 명령을 실행할 샌드박스(선택 사항). 어디서 실행할지 고른다</td></tr>
+  <tr><td><strong>Session</strong></td><td>에이전트의 <em>내구성 있는(durable)</em> 실행 인스턴스. 턴을 넘어 상태가 유지된다</td></tr>
+  <tr><td><strong>Events · Items</strong></td><td>세션에 넣는 입력과, 세션이 뿜는 출력 스트림(툴 호출, 진행 상황, 결과물)</td></tr>
+</table>
+
+<p>코드로 보면 감이 빠릅니다. 세션을 만들면서 에이전트 정의와 실행 환경을 넘기고, 이벤트 스트림을 받아 읽는 게 전부입니다.</p>
+
+{{< highlight python >}}
+from openai import OpenAI
+
+with OpenAI() as client:
+    with client.beta.agents.sessions.create(
+        agent={
+            "model": "gpt-6-astra",
+            "instructions": "코드를 깔끔하게 쓰고, 실행해 보고, 실제 출력을 보고해라.",
+        },
+        environment={"type": "openai_hosted"},   # 샌드박스는 OpenAI가 띄운다
+        input="tree.py를 만들어서 디렉터리 트리를 출력하게 해줘",
+        stream=True,
+    ) as events:
+        for event in events:                     # 툴 호출·진행 상황·결과가 이벤트로 흘러온다
+            print(event.to_json(indent=None), flush=True)
+{{< /highlight >}}
+
+<p>겉보기엔 평범한 API인데, 핵심은 이 <code>session</code> 뒤에서 하네스가 대신 해 주는 일들입니다.</p>
+
+<ul>
+  <li><strong>자동 컨텍스트 컴팩션</strong> — 세션이 컨텍스트 한도에 다가가면 이전 이력을 알아서 요약·압축합니다. 애플리케이션 쪽에서 상태 관리 코드를 짤 필요가 없습니다.</li>
+  <li><strong>tool search</strong> — 툴 수십 개를 전부 컨텍스트에 넣는 대신, 필요할 때 관련 툴 정의만 로드합니다. 토큰과 프롬프트 캐시를 아끼는, <a href="/posts/tool-search-deferred-loading/">툴 검색 편</a>에서 다룬 바로 그 패턴이 기본값이 된 겁니다.</li>
+  <li><strong>서브에이전트 병렬 위임</strong> — 복잡한 작업을 독립 조각으로 쪼개, 각자 컨텍스트를 가진 서브에이전트들에 나눠 돌립니다.</li>
+  <li><strong>내구성과 복구</strong> — 세션 상태가 OpenAI 인프라에 durable하게 저장됩니다. 수 시간~수 일짜리 작업을 이어 가고, 끊긴 지점에서 재개합니다.</li>
+</ul>
+
+<figure class="am-fig">
+<svg viewBox="0 0 860 560" role="img" aria-label="Agents API의 구조. 내 애플리케이션이 입력을 보내고 이벤트 스트림을 받으면, 관리형 하네스인 세션이 컨텍스트 컴팩션, tool search, 서브에이전트 위임, 내구성과 복구를 처리하고, 그 아래 실행 환경은 OpenAI 호스팅 샌드박스, 파트너 샌드박스, 자체 인프라 중에서 고른다">
+  <defs>
+    <marker id="am-f1a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--am-slate)"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="28" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--am-slate)">Agents API — 무엇이 내 코드에서 하네스로 넘어가나</text>
+
+  <!-- 내 애플리케이션 -->
+  <rect x="280" y="50" width="300" height="58" rx="10" fill="none" stroke="var(--am-sky)" stroke-width="2"/>
+  <text x="430" y="75" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--am-sky)">내 애플리케이션</text>
+  <text x="430" y="95" text-anchor="middle" font-size="11" fill="var(--am-gray)">input 전송 · 이벤트 스트림 수신 · 툴/MCP 제공</text>
+
+  <line x1="380" y1="108" x2="380" y2="148" stroke="var(--am-slate)" stroke-width="2" marker-end="url(#am-f1a)"/>
+  <line x1="480" y1="148" x2="480" y2="108" stroke="var(--am-slate)" stroke-width="2" marker-end="url(#am-f1a)"/>
+  <text x="340" y="133" text-anchor="end" font-size="11" fill="var(--am-gray)">input · items</text>
+  <text x="520" y="133" font-size="11" fill="var(--am-gray)">events (스트림)</text>
+
+  <!-- 세션(하네스) -->
+  <rect x="90" y="150" width="680" height="210" rx="12" fill="none" stroke="var(--am-violet)" stroke-width="2.5"/>
+  <text x="430" y="177" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--am-violet)">Session — OpenAI가 운영하는 관리형 하네스 (durable)</text>
+
+  <g stroke="var(--am-violet)" stroke-width="1.5" fill="none">
+    <rect x="115" y="196" width="150" height="72" rx="8"/>
+    <rect x="285" y="196" width="150" height="72" rx="8"/>
+    <rect x="455" y="196" width="150" height="72" rx="8"/>
+    <rect x="625" y="196" width="120" height="72" rx="8"/>
+  </g>
+  <g font-size="12" font-weight="700" fill="var(--am-violet)">
+    <text x="190" y="222" text-anchor="middle">컨텍스트 컴팩션</text>
+    <text x="360" y="222" text-anchor="middle">tool search</text>
+    <text x="530" y="222" text-anchor="middle">서브에이전트</text>
+    <text x="685" y="222" text-anchor="middle">복구</text>
+  </g>
+  <g font-size="10.5" fill="var(--am-gray)">
+    <text x="190" y="242" text-anchor="middle">한도 접근 시</text>
+    <text x="190" y="257" text-anchor="middle">이력 자동 요약</text>
+    <text x="360" y="242" text-anchor="middle">필요한 툴 정의만</text>
+    <text x="360" y="257" text-anchor="middle">그때그때 로드</text>
+    <text x="530" y="242" text-anchor="middle">작업 분해 후</text>
+    <text x="530" y="257" text-anchor="middle">병렬 위임</text>
+    <text x="685" y="242" text-anchor="middle">상태 저장·재개</text>
+    <text x="685" y="257" text-anchor="middle">끊긴 지점부터</text>
+  </g>
+
+  <text x="430" y="300" text-anchor="middle" font-size="11.5" fill="var(--am-gray)">Agent 정의(모델 · instructions · 툴 · MCP 서버)를 넘기면 세션이 이 4가지를 대신 처리</text>
+  <text x="430" y="340" text-anchor="middle" font-size="11.5" fill="var(--am-amber)">과거 이 층은 전부 "내가 짜서 내가 유지보수"하던 코드였다</text>
+
+  <line x1="430" y1="360" x2="430" y2="398" stroke="var(--am-slate)" stroke-width="2" marker-end="url(#am-f1a)"/>
+  <text x="445" y="384" font-size="11" fill="var(--am-gray)">파일 조작 · 명령 실행</text>
+
+  <!-- 실행 환경 -->
+  <rect x="90" y="400" width="680" height="130" rx="12" fill="none" stroke="var(--am-teal)" stroke-width="2.5"/>
+  <text x="430" y="427" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--am-teal)">Environment — 실행 환경은 내가 고른다</text>
+  <g stroke="var(--am-teal)" stroke-width="1.5" fill="none">
+    <rect x="115" y="444" width="190" height="66" rx="8"/>
+    <rect x="335" y="444" width="190" height="66" rx="8"/>
+    <rect x="555" y="444" width="190" height="66" rx="8"/>
+  </g>
+  <g font-size="12" font-weight="700" fill="var(--am-teal)">
+    <text x="210" y="468" text-anchor="middle">OpenAI 호스팅</text>
+    <text x="430" y="468" text-anchor="middle">파트너 샌드박스</text>
+    <text x="650" y="468" text-anchor="middle">자체 인프라</text>
+  </g>
+  <g font-size="10.5" fill="var(--am-gray)">
+    <text x="210" y="487" text-anchor="middle">openai_hosted</text>
+    <text x="210" y="501" text-anchor="middle">컨테이너 과금</text>
+    <text x="430" y="487" text-anchor="middle">Cloudflare · Vercel · E2B</text>
+    <text x="430" y="501" text-anchor="middle">Modal · Oracle 등 9곳</text>
+    <text x="650" y="487" text-anchor="middle">셀프호스트</text>
+    <text x="650" y="501" text-anchor="middle">통제 최대</text>
+  </g>
+</svg>
+<figcaption>그림 1. Agents API의 4가지 프리미티브. 애플리케이션은 입력과 툴만 제공하고, 하네스 층(보라색)이 통째로 관리형이 된다. 실행 환경(청록색)만 선택지가 남는다.</figcaption>
+</figure>
+
+<p>한 줄로 요약하면 이렇습니다. <strong>"모델을 파는 API"에서 "에이전트 런타임을 파는 API"로.</strong> 발표를 분석한 한 글의 제목처럼, "개발자들이 만들기 싫어하던 오케스트레이션 레이어"가 통째로 상품이 된 셈입니다.</p>
+
+<h2 id="sec-4">4. 실행 환경 스펙트럼 — 호스팅, 파트너 샌드박스, 셀프호스트</h2>
+
+<p>하네스는 OpenAI가 관리하지만, <strong>에이전트가 실제로 파일을 만지고 명령을 실행하는 곳</strong>은 세 갈래 중에서 고를 수 있습니다.</p>
+
+<p>첫째, <strong>OpenAI 호스팅 샌드박스</strong>. 위 코드의 <code>{"type": "openai_hosted"}</code>가 이겁니다. 제일 편하지만 컨테이너 요금이 붙습니다(다음 절). 둘째, <strong>파트너 샌드박스</strong>. 발표와 함께 Blaxel, Cloudflare, Daytona, DigitalOcean, E2B, Modal, Oracle, Runloop, Vercel — 9개 파트너 연동이 공개됐습니다. 하네스는 OpenAI, 실행 환경은 이미 쓰던 클라우드에 두는 조합입니다. 셋째, <strong>자체 인프라(셀프호스트)</strong>. 규제나 데이터 요건 때문에 코드가 회사 밖으로 못 나가는 팀의 선택지입니다.</p>
+
+<p>흥미로운 건 관리형 API로 가지 않아도 같은 패턴을 라이브러리로 조립할 수 있게 해 뒀다는 점입니다. <a href="https://github.com/openai/openai-agents-js" target="_blank" rel="noopener">openai-agents-js</a>(v0.18)의 베타 기능 <strong>SandboxAgent</strong>가 그 물건인데, 워크스페이스를 <code>Manifest</code>로 선언하고 capability를 붙이는 방식입니다.</p>
+
+{{< highlight typescript >}}
+import { run } from '@openai/agents';
+import { Capabilities, Manifest, SandboxAgent, localDir } from '@openai/agents/sandbox';
+import { UnixLocalSandboxClient } from '@openai/agents/sandbox/local';
+
+// 워크스페이스 선언: 이 디렉터리를 샌드박스에 스테이징한다
+const manifest = new Manifest({
+  entries: { repo: localDir({ src: './repo' }) },
+});
+
+const agent = new SandboxAgent({
+  name: 'Sandbox engineer',
+  model: 'gpt-5.6-sol',
+  instructions: 'repo/task.md를 읽고 문제를 고친 뒤, 돌린 검증 명령을 보고해라.',
+  defaultManifest: manifest,
+  capabilities: [...Capabilities.default()],  // 파일시스템·셸·스킬·메모리·컴팩션
+});
+
+// 클라이언트만 바꾸면 로컬 → Docker → E2B·Modal·Vercel·Cloudflare 호스팅으로 이동
+const result = await run(agent, 'repo/task.md의 이슈를 해결해줘', {
+  sandbox: { client: new UnixLocalSandboxClient() },
+});
+{{< /highlight >}}
+
+<p>주목할 설계는 두 가지입니다. capability 목록에 파일시스템·셸과 나란히 <strong>메모리와 컴팩션이 "장착하는 부품"</strong>으로 들어가 있다는 것, 그리고 <code>sandbox.session</code>·<code>sandbox.snapshot</code>으로 이전 작업 상태를 저장하고 재개할 수 있다는 것. 관리형 세션의 축소판을 셀프호스트로 먼저 검증해 보고, 맞으면 Agents API로 올라가는 경로가 의도적으로 깔려 있습니다.</p>
+
+<p>파트너 쪽 생태계도 따로 볼 만합니다. 예컨대 <a href="https://github.com/cloudflare/agents" target="_blank" rel="noopener">cloudflare/agents</a>는 Durable Objects 위에 에이전트를 "영속 상태를 가진 실행 환경"으로 올리는 프레임워크로, 에이전트마다 독립 상태·스토리지를 갖고 유휴 시 동면(hibernate)해서 수백만 개를 띄워도 비활성 비용이 없습니다. 사용자별로 오래 사는 개인 비서 같은 아키텍처라면 이쪽 모델이 더 자연스럽습니다.</p>
+
+<p>그리고 이 그림에서 빼놓을 수 없는 게 Anthropic입니다. 4월에 나온 <strong>Claude Managed Agents</strong>는 샌드박스 코드 실행, 체크포인팅, credential scoping, 트레이싱을 REST 엔드포인트 3개로 제공합니다 — 애플리케이션이 세션에 이벤트를 넣고, 하네스와 샌드박스는 Anthropic 인프라에서 돌고, 이벤트 스트림을 돌려받는 구조. 어디서 많이 본 모양이죠? <strong>두 벤더가 "durable session + 이벤트 스트림 + 관리형 샌드박스"라는 같은 형태로 수렴</strong>하고 있습니다.</p>
+
+<figure class="am-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="에이전트 런타임의 스펙트럼. 왼쪽부터 직접 조립, 셀프호스트 라이브러리, 파트너 샌드박스 결합, 완전 관리형 순으로 늘어서 있고, 왼쪽으로 갈수록 통제가 커지고 오른쪽으로 갈수록 운영 부담이 줄어든다. 아래에는 OpenAI와 Anthropic이 세션과 이벤트라는 같은 모양으로 수렴했다는 설명이 있다">
+  <defs>
+    <marker id="am-f2a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--am-slate)"/>
+    </marker>
+    <marker id="am-f2b" markerWidth="9" markerHeight="9" refX="2" refY="4.5" orient="auto">
+      <path d="M9,0 L0,4.5 L9,9 z" fill="var(--am-slate)"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="28" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--am-slate)">에이전트 런타임 스펙트럼 — 어디까지 직접 들고 갈 것인가</text>
+
+  <!-- 스펙트럼 축 -->
+  <line x1="60" y1="70" x2="800" y2="70" stroke="var(--am-slate)" stroke-width="2" marker-start="url(#am-f2b)" marker-end="url(#am-f2a)"/>
+  <text x="80" y="58" font-size="11.5" fill="var(--am-gray)">← 통제 최대 · 운영 부담 최대</text>
+  <text x="780" y="58" text-anchor="end" font-size="11.5" fill="var(--am-gray)">운영 부담 최소 · 벤더 의존 최대 →</text>
+
+  <!-- 4단계 -->
+  <g stroke-width="2" fill="none">
+    <rect x="60" y="95" width="165" height="128" rx="10" stroke="var(--am-rose)"/>
+    <rect x="252" y="95" width="165" height="128" rx="10" stroke="var(--am-amber)"/>
+    <rect x="444" y="95" width="165" height="128" rx="10" stroke="var(--am-teal)"/>
+    <rect x="636" y="95" width="165" height="128" rx="10" stroke="var(--am-green)"/>
+  </g>
+  <g font-size="12.5" font-weight="700">
+    <text x="142" y="120" text-anchor="middle" fill="var(--am-rose)">직접 조립</text>
+    <text x="334" y="120" text-anchor="middle" fill="var(--am-amber)">셀프호스트 SDK</text>
+    <text x="526" y="120" text-anchor="middle" fill="var(--am-teal)">하네스 관리형</text>
+    <text x="718" y="120" text-anchor="middle" fill="var(--am-green)">완전 관리형</text>
+  </g>
+  <g font-size="10.5" fill="var(--am-gray)">
+    <text x="142" y="142" text-anchor="middle">루프·컴팩션·복구를</text>
+    <text x="142" y="157" text-anchor="middle">전부 자체 코드로</text>
+    <text x="142" y="180" text-anchor="middle" font-style="italic">최대 유연성,</text>
+    <text x="142" y="195" text-anchor="middle" font-style="italic">최대 유지보수</text>
+    <text x="334" y="142" text-anchor="middle">openai-agents-js</text>
+    <text x="334" y="157" text-anchor="middle">Claude Agent SDK</text>
+    <text x="334" y="180" text-anchor="middle">cloudflare/agents</text>
+    <text x="334" y="195" text-anchor="middle">내 인프라에서 실행</text>
+    <text x="526" y="142" text-anchor="middle">Agents API</text>
+    <text x="526" y="157" text-anchor="middle">+ 파트너 샌드박스 9곳</text>
+    <text x="526" y="180" text-anchor="middle">하네스는 벤더,</text>
+    <text x="526" y="195" text-anchor="middle">실행 환경은 내 클라우드</text>
+    <text x="718" y="142" text-anchor="middle">Agents API (hosted)</text>
+    <text x="718" y="157" text-anchor="middle">Claude Managed Agents</text>
+    <text x="718" y="180" text-anchor="middle">하네스도 샌드박스도</text>
+    <text x="718" y="195" text-anchor="middle">벤더 인프라에서</text>
+  </g>
+
+  <!-- 수렴 박스 -->
+  <rect x="120" y="265" width="620" height="130" rx="12" fill="none" stroke="var(--am-violet)" stroke-width="2.5"/>
+  <text x="430" y="293" text-anchor="middle" font-size="13" font-weight="700" fill="var(--am-violet)">벤더는 달라도 모양은 하나로 수렴 중</text>
+  <text x="430" y="322" text-anchor="middle" font-size="12" fill="var(--am-gray)">durable <tspan font-weight="700" fill="var(--am-violet)">Session</tspan> + <tspan font-weight="700" fill="var(--am-violet)">이벤트 스트림</tspan> + 관리형 <tspan font-weight="700" fill="var(--am-violet)">샌드박스</tspan></text>
+  <text x="430" y="350" text-anchor="middle" font-size="11" fill="var(--am-gray)">OpenAI Agents API (2026-09) · Anthropic Claude Managed Agents (2026-04)</text>
+  <text x="430" y="375" text-anchor="middle" font-size="11" fill="var(--am-amber)">→ 같은 모양이라는 건, 추상화 레이어 하나로 양쪽을 갈아 끼울 수 있다는 뜻이기도 하다</text>
+</svg>
+<figcaption>그림 2. 어디까지 직접 들고 갈지의 스펙트럼. 오른쪽으로 갈수록 운영 부담이 줄고 벤더 의존이 커진다. 두 벤더의 관리형 하네스가 같은 형태로 수렴한 덕에, 어댑터 한 층이면 이동 여지를 남길 수 있다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 요금 산수 — 수수료는 없지만 미터기는 3개</h2>
+
+<p>Agents API 자체에는 추가 수수료가 없습니다. 대신 청구서에는 미터기가 3개 돕니다.</p>
+
+<table class="am-table">
+  <tr><th>미터기</th><th>과금 대상</th><th>비고</th></tr>
+  <tr><td><strong>① 모델 토큰</strong></td><td>세션이 소비한 입력·출력 토큰</td><td>장기 세션에선 이게 지배 항목. 컴팩션·tool search가 여길 줄여 준다</td></tr>
+  <tr><td><strong>② 툴 사용료</strong></td><td>웹 검색 등 OpenAI 제공 툴</td><td>내가 가져온 함수·MCP 툴은 해당 없음</td></tr>
+  <tr><td><strong>③ 컨테이너</strong></td><td>OpenAI 호스팅 샌드박스</td><td>20분 세션-컨테이너당 1GB $0.03 · 4GB $0.12 · 16GB $0.48 · 64GB $1.92, 분 단위 과금(최소 5분)</td></tr>
+</table>
+
+<p>봉투 뒷면 계산을 해 보면, 4GB 컨테이너로 1시간 돌리면 컨테이너 요금은 $0.36 — 사실상 무시할 수준입니다. <strong>진짜 비용은 언제나 ①번, 토큰입니다.</strong> <a href="/posts/agent-token-economics/">토큰 이코노믹스 편</a>에서 봤듯 에이전트 루프는 매 턴 이력을 재전송하는 O(N²) 구조라, 몇 시간짜리 세션의 토큰 청구서는 컨테이너 요금의 수백 배가 될 수 있습니다. 관리형 하네스의 컴팩션·tool search·프롬프트 캐시 관리가 얼마나 잘 동작하느냐가 곧 비용 성능인 셈이고, 그래서 "관리형이 더 싸다"는 벤더 주장은 자기 워크로드로 검증해 봐야 합니다.</p>
+
+<p>실제로 OpenAI가 공개한 초기 사례 수치도 이 방향입니다 — SafetyKit은 케이스 리뷰 워크플로를 이전해 케이스당 비용을 60% 줄였고, Hypha는 하네스와 샌드박스를 분리해 실패 응답을 86% 줄였으며, Cirridae는 지연을 4배 개선했다고 합니다. 단, 셋 다 <strong>벤더가 고른 성공 사례의 자체 보고 수치</strong>라는 점은 감안하고 읽어야 합니다.</p>
+
+<h2 id="sec-6">6. 사서 쓸까, 만들까 — 락인 논쟁과 Assistants API의 기억</h2>
+
+<p>발표 직후 Hacker News 스레드(338포인트, 댓글 178개)에서 벌어진 논쟁이 이 주제의 실무 쟁점을 잘 보여 줍니다. 진영은 크게 셋이었습니다.</p>
+
+<p><strong>"살 수밖에 없다" 진영</strong>은 이렇게 말합니다. 하네스의 진짜 어려움은 API 모양이 아니라 "상태가 어디에 지속되는가" 같은 근본 문제인데, 이걸 개별 팀이 OpenAI·Anthropic 엔지니어링 조직과 경쟁하며 풀 수는 없다는 겁니다. Codex를 수백만 세션 굴리며 다듬은 하네스를 API로 받는 건 공짜 점심에 가깝다는 논리입니다.</p>
+
+<p><strong>"또 속을 순 없다" 진영</strong>의 근거는 역사입니다. OpenAI의 <em>이전</em> 관리형 에이전트 인프라였던 Assistants API는 <a href="https://community.openai.com/t/assistants-api-beta-deprecation-august-26-2026-sunset/1354666" target="_blank" rel="noopener">2026년 8월 26일에 완전히 꺼졌습니다</a> — Agents API 발표 <strong>불과 2주 전</strong>입니다. 자동 마이그레이션 도구도 없어서, Threads에 쌓인 상태는 각자 알아서 옮겨야 했습니다. "Assistants에 데인 뒤로는 직접 만든다"는 댓글이 괜히 나온 게 아닙니다. 관리형 하네스에 상태를 맡긴다는 건, 벤더의 제품 로드맵에 내 아키텍처를 거는 일입니다.</p>
+
+<p><strong>"애초에 종속을 설계로 피하자" 진영</strong>도 있습니다. 툴이 MCP 서버이고 instructions가 마크다운 파일이면, 밑의 모델·하네스를 바꾸는 건 재작성이 아니라 설정 변경이라는 겁니다. 두 벤더의 관리형 하네스가 같은 모양으로 수렴한 지금은 이 전략의 실행 비용이 오히려 낮아졌습니다.</p>
+
+<figure class="am-fig">
+<svg viewBox="0 0 860 470" role="img" aria-label="사서 쓸지 만들지 고르는 결정 흐름도. 하네스 유지보수가 실제로 아픈지, 실행 환경 통제가 규제상 필요한지, 상태를 내보낼 출구가 있는지를 차례로 묻고, 답에 따라 직접 조립 유지, 셀프호스트 SDK나 파트너 샌드박스, 어댑터를 갖춘 관리형 도입으로 갈라진다">
+  <defs>
+    <marker id="am-f3a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="var(--am-slate)"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="28" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--am-slate)">관리형 하네스, 우리 팀 기준 결정 흐름</text>
+
+  <!-- Q1 -->
+  <rect x="280" y="50" width="300" height="62" rx="10" fill="none" stroke="var(--am-sky)" stroke-width="2"/>
+  <text x="430" y="76" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-sky)">Q1. 컴팩션·복구·서브에이전트 코드가</text>
+  <text x="430" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-sky)">지금 실제로 유지보수 고통인가?</text>
+
+  <line x1="290" y1="112" x2="180" y2="160" stroke="var(--am-slate)" stroke-width="2" marker-end="url(#am-f3a)"/>
+  <text x="215" y="132" font-size="11.5" font-weight="700" fill="var(--am-gray)">아니오</text>
+  <rect x="60" y="162" width="240" height="66" rx="10" fill="none" stroke="var(--am-rose)" stroke-width="2"/>
+  <text x="180" y="189" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-rose)">지금 구조 유지</text>
+  <text x="180" y="210" text-anchor="middle" font-size="10.5" fill="var(--am-gray)">단순 루프면 관리형은 과잉이다</text>
+
+  <line x1="480" y1="112" x2="480" y2="158" stroke="var(--am-slate)" stroke-width="2" marker-end="url(#am-f3a)"/>
+  <text x="497" y="140" font-size="11.5" font-weight="700" fill="var(--am-gray)">예</text>
+
+  <!-- Q2 -->
+  <rect x="330" y="160" width="300" height="62" rx="10" fill="none" stroke="var(--am-sky)" stroke-width="2"/>
+  <text x="480" y="186" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-sky)">Q2. 코드·데이터가 규제상</text>
+  <text x="480" y="205" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-sky)">실행 환경 통제를 요구하는가?</text>
+
+  <line x1="340" y1="222" x2="220" y2="270" stroke="var(--am-slate)" stroke-width="2" marker-end="url(#am-f3a)"/>
+  <text x="262" y="243" font-size="11.5" font-weight="700" fill="var(--am-gray)">예</text>
+  <rect x="60" y="272" width="300" height="80" rx="10" fill="none" stroke="var(--am-amber)" stroke-width="2"/>
+  <text x="210" y="299" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-amber)">셀프호스트 SDK 또는 파트너 샌드박스</text>
+  <text x="210" y="320" text-anchor="middle" font-size="10.5" fill="var(--am-gray)">SandboxAgent · Claude Agent SDK ·</text>
+  <text x="210" y="335" text-anchor="middle" font-size="10.5" fill="var(--am-gray)">cloudflare/agents + 하네스만 관리형 검토</text>
+
+  <line x1="560" y1="222" x2="560" y2="268" stroke="var(--am-slate)" stroke-width="2" marker-end="url(#am-f3a)"/>
+  <text x="577" y="250" font-size="11.5" font-weight="700" fill="var(--am-gray)">아니오</text>
+
+  <!-- Q3 -->
+  <rect x="410" y="270" width="300" height="62" rx="10" fill="none" stroke="var(--am-sky)" stroke-width="2"/>
+  <text x="560" y="296" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-sky)">Q3. 세션 상태를 내보낼 출구와</text>
+  <text x="560" y="315" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-sky)">어댑터 레이어를 마련했는가?</text>
+
+  <line x1="560" y1="332" x2="560" y2="378" stroke="var(--am-slate)" stroke-width="2" marker-end="url(#am-f3a)"/>
+  <text x="577" y="360" font-size="11.5" font-weight="700" fill="var(--am-gray)">예 (필수 조건)</text>
+
+  <rect x="410" y="380" width="300" height="72" rx="10" fill="none" stroke="var(--am-green)" stroke-width="2.5"/>
+  <text x="560" y="408" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--am-green)">관리형 하네스 도입 (베타 감안, 점진 이전)</text>
+  <text x="560" y="429" text-anchor="middle" font-size="10.5" fill="var(--am-gray)">가장 아픈 조각부터 세션으로 — 7절의 실험 설계로</text>
+
+  <text x="200" y="420" text-anchor="middle" font-size="10.5" fill="var(--am-amber)">Assistants API의 교훈: 출구 없는 도입은</text>
+  <text x="200" y="437" text-anchor="middle" font-size="10.5" fill="var(--am-amber)">일몰 공지 하나로 마이그레이션 프로젝트가 된다</text>
+</svg>
+<figcaption>그림 3. 사서 쓸지 만들지의 결정 흐름. 핵심은 Q3 — 상태를 내보낼 출구와 어댑터 없이 관리형에 직결하는 게 최악의 수다.</figcaption>
+</figure>
+
+<p>덧붙이면, 이 상품화 흐름은 하네스에 그치지 않습니다. 같은 주에 GitHub는 여러 모델을 캐스케이드·교차 검토로 조립하는 <a href="https://github.blog/ai-and-ml/github-copilot/project-hydrafusion-frontier-quality-via-multi-model-orchestration/" target="_blank" rel="noopener">HydraFusion</a>을 리서치 프리뷰로 열었고, Sakana AI는 모델 풀 라우팅 자체를 학습한 Fugu Ultra v2를 냈습니다. 라우팅도, 오케스트레이션도, 하네스도 — <strong>에이전트 스택의 중간층이 통째로 플랫폼 기능이 되는 중</strong>입니다.</p>
+
+<h2 id="sec-7">7. 실전 — 가장 아픈 조각 하나만 옮겨 보는 실험 설계</h2>
+
+<p>"전면 이전"은 베타 API에 걸기엔 큰 판돈입니다. 추천하는 건 <strong>어댑터 한 층을 깔고, 가장 아픈 조각 하나만 옮겨서 숫자로 비교하는 것</strong>입니다. 먼저 자기 루프와 관리형 세션을 같은 인터페이스 뒤에 세웁니다.</p>
+
+{{< highlight python >}}
+from typing import Protocol, Iterator
+
+class AgentRuntime(Protocol):
+    """우리 앱이 하네스에 기대하는 것만 정의한다 — 벤더 타입을 앱에 새지 않게."""
+    def start(self, task: str) -> str: ...                 # 세션(또는 자체 루프) 시작 → session_id
+    def events(self, session_id: str) -> Iterator[dict]: ...  # 진행 이벤트 스트림
+    def resume(self, session_id: str) -> None: ...         # 끊긴 작업 재개
+
+class SelfHostedRuntime:
+    """지금 쓰는 자체 루프를 이 인터페이스로 감싼다."""
+    ...
+
+class AgentsAPIRuntime:
+    """같은 인터페이스의 Agents API 구현. 앱 코드는 이 교체를 모른다."""
+    def start(self, task: str) -> str:
+        session = self.client.beta.agents.sessions.create(
+            agent={"model": "gpt-6-astra", "instructions": self.instructions},
+            environment={"type": "openai_hosted"},
+            input=task,
+        )
+        return session.id
+{{< /highlight >}}
+
+<p>그다음 평가를 겁니다. <a href="/posts/agent-evals-reliability/">에이전트 평가 편</a>에서 만든 것 같은 대표 태스크 셋(20~50개면 충분합니다)을 양쪽 런타임에서 돌리고, 세 숫자를 나란히 놓습니다.</p>
+
+<ul>
+  <li><strong>태스크 성공률</strong> — 관리형 컴팩션이 우리 컴팩션보다 긴 작업에서 덜 잊는가?</li>
+  <li><strong>태스크당 비용</strong> — usage 필드로 토큰을, 대시보드로 컨테이너 요금을 집계. "60% 절감" 같은 벤더 수치를 <em>우리 워크로드</em>로 재현해 본다</li>
+  <li><strong>p95 소요 시간</strong> — 서브에이전트 병렬화가 실제로 벽시계 시간을 줄이는가?</li>
+</ul>
+
+<p>이 비교표가 있으면 "사서 쓸까"는 감이 아니라 데이터의 문제가 됩니다. 그리고 어댑터 덕에, 결과가 나쁘거나 훗날 일몰 공지가 와도 되돌리는 비용이 통제됩니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>베타 API를 애플리케이션 코어에 직결하기.</strong> Agents API는 퍼블릭 베타라 형태가 바뀔 수 있습니다. 위의 어댑터 없이 <code>client.beta.agents...</code>가 코드베이스 곳곳에 박히면, API 변경이 전면 수리가 됩니다. Assistants → Responses 마이그레이션이 "엔드포인트 교체가 아니라 아키텍처 변경"이 됐던 이유가 정확히 이겁니다.</li>
+  <li><strong>세션을 켜 두고 잊기.</strong> durable 세션은 편한 만큼 놓아 주는 걸 잊기 쉽습니다. 컨테이너는 분 단위 과금이고, 장기 세션의 토큰 소비는 O(N²)로 큽니다. 세션 수명 상한과 유휴 타임아웃, 태스크당 예산 가드를 처음부터 정하세요.</li>
+  <li><strong>관측성을 벤더에 통째로 맡기기.</strong> 하네스가 관리형이 되면 내부가 블랙박스가 됩니다. 이벤트 스트림을 그냥 소비하고 버리지 말고, 자체 트레이싱(<a href="/posts/agent-observability-tracing/">관측성 편</a>)에 남기세요. 장애가 났을 때 "우리 쪽 로그"가 없으면 디버깅도 벤더 티켓 대기열입니다.</li>
+  <li><strong>벤더 사례 수치를 그대로 옮겨 말하기.</strong> "비용 60% 절감"은 벤더가 고른 성공 사례의 자체 보고입니다. 우리 팀 기획서에 쓸 숫자는 7절의 실험에서 나와야 합니다.</li>
+  <li><strong>"관리형이니까 보안도 해결"이라고 믿기.</strong> 관리형 샌드박스는 격리 기본값을 올려 주지만, 프롬프트 인젝션이나 이번 주 화제였던 GitSpawn(악성 <code>.git/config</code>로 에이전트가 레포를 여는 순간 코드 실행) 같은 <em>입력 쪽</em> 공격면은 그대로 남습니다. 에이전트에 물리는 레포·데이터 검증은 여전히 우리 몫입니다.</li>
+  <li><strong>상태의 출구를 확인하지 않고 쌓기.</strong> 세션에 쌓이는 이력·작업 상태를 주기적으로 내보내 우리 저장소에 복제할 수 있는지 도입 첫 주에 확인하세요. 출구 없는 durable 상태는, 일몰 공지 하나로 인질이 됩니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>9월 10일 OpenAI가 Codex를 굴리던 관리형 하네스를 <strong>Agents API 퍼블릭 베타</strong>로 공개했습니다. 세션·컨텍스트 컴팩션·tool search·서브에이전트·복구가 API 호출 하나 뒤로 들어갔고, 프리미티브는 Agent / Environment / Session / Events 4개입니다.</li>
+  <li>실행 환경은 스펙트럼입니다 — OpenAI 호스팅 샌드박스, 파트너 9곳(Cloudflare·Vercel·E2B·Modal·Oracle 등), 자체 인프라. 셀프호스트 쪽엔 openai-agents-js의 <code>SandboxAgent</code>(Manifest + capability + snapshot)와 cloudflare/agents(Durable Objects, 동면) 같은 선택지가 있습니다.</li>
+  <li>API 수수료는 없지만 미터기는 3개(토큰·툴·컨테이너)이고, 지배 항목은 언제나 토큰입니다. 컨테이너는 4GB 기준 시간당 $0.36 수준. SafetyKit −60% 비용, Hypha −86% 실패 같은 사례 수치는 벤더 자체 보고로 읽으세요.</li>
+  <li>Anthropic도 4월부터 같은 모양의 Claude Managed Agents를 팔고 있습니다 — <strong>"durable session + 이벤트 스트림 + 관리형 샌드박스"로 벤더들이 수렴 중</strong>이고, 그래서 어댑터 한 층의 가치가 커졌습니다.</li>
+  <li>락인 우려는 근거가 있습니다. 직전 관리형 인프라였던 Assistants API가 발표 2주 전인 8월 26일에 자동 마이그레이션 도구 없이 완전히 꺼졌습니다. <strong>상태의 출구와 어댑터 없이 관리형에 직결하지 마세요.</strong></li>
+  <li>추천 경로: 하네스에서 가장 아픈 조각(컴팩션·복구·서브에이전트 중 하나)만 어댑터 뒤에서 관리형으로 옮기고, 같은 태스크 셋으로 성공률·비용·p95를 자기 워크로드에서 비교해 결정하세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://openai.com/index/introducing-the-agents-api/" target="_blank" rel="noopener">Introducing the Agents API — OpenAI 공식 발표 (2026-09-10)</a></li>
+  <li><a href="https://developers.openai.com/api/docs/guides/agents-api/overview" target="_blank" rel="noopener">Agents API Overview — OpenAI 공식 문서</a></li>
+  <li><a href="https://developers.openai.com/api/docs/guides/agents-api/quickstart" target="_blank" rel="noopener">Agents API Quickstart — OpenAI 공식 문서</a></li>
+  <li><a href="https://developers.openai.com/api/docs/pricing" target="_blank" rel="noopener">OpenAI API Pricing — 컨테이너 요금 포함 공식 요금표</a></li>
+  <li><a href="https://community.openai.com/t/introducing-the-agents-api-and-hosted-sandboxes/1396481" target="_blank" rel="noopener">Introducing the Agents API and hosted sandboxes — OpenAI 커뮤니티 공지</a></li>
+  <li><a href="https://www.marktechpost.com/2026/09/10/openai-launches-the-agents-api-in-public-beta-putting-the-codex-harness-behind-one-api-call/" target="_blank" rel="noopener">OpenAI Launches the Agents API in Public Beta — MarkTechPost</a></li>
+  <li><a href="https://www.investing.com/news/stock-market-news/openai-launches-agents-api-in-public-beta-for-developers-93CH-4896757" target="_blank" rel="noopener">OpenAI launches Agents API in public beta — Investing.com (파트너 9곳 목록)</a></li>
+  <li><a href="https://aicybr.com/blog/openai-agents-api-codex-harness-hosted-sandboxes" target="_blank" rel="noopener">OpenAI Agents API: Codex Harness, Hosted Sandboxes, Subagents and Pricing — AiCybr</a></li>
+  <li><a href="https://agentconn.com/blog/openai-agents-api-hosted-codex-harness/" target="_blank" rel="noopener">OpenAI's Agents API Is Really a Hosted Codex Harness — AgentConn (HN 반응 정리 포함)</a></li>
+  <li><a href="https://alphasignal.ai/news/openai-s-agents-api-kills-the-orchestration-layer-developers-hate-building" target="_blank" rel="noopener">OpenAI's Agents API Kills the Orchestration Layer Developers Hate Building — AlphaSignal</a></li>
+  <li><a href="https://github.com/openai/openai-agents-js" target="_blank" rel="noopener">openai/openai-agents-js — Agents SDK (SandboxAgent 베타 포함, GitHub)</a></li>
+  <li><a href="https://openai.github.io/openai-agents-js/ko/guides/sandbox-agents/" target="_blank" rel="noopener">Sandbox Agents 가이드 — OpenAI Agents SDK 공식 문서 🇰🇷 (한국어 번역 제공)</a></li>
+  <li><a href="https://github.com/cloudflare/agents" target="_blank" rel="noopener">cloudflare/agents — Durable Objects 기반 에이전트 프레임워크 (GitHub)</a></li>
+  <li><a href="https://www.truefoundry.com/blog/claude-agent-sdk-vs-claude-managed-agents" target="_blank" rel="noopener">Claude Agent SDK vs Claude Managed Agents — TrueFoundry</a></li>
+  <li><a href="https://hatchworks.com/blog/claude/claude-agent-sdk-and-managed-agents/" target="_blank" rel="noopener">Claude Agent SDK and Managed Agents: Where to Run Production Agents — HatchWorks</a></li>
+  <li><a href="https://community.openai.com/t/assistants-api-beta-deprecation-august-26-2026-sunset/1354666" target="_blank" rel="noopener">Assistants API beta deprecation — August 26, 2026 sunset — OpenAI 커뮤니티 공지</a></li>
+  <li><a href="https://github.blog/ai-and-ml/github-copilot/project-hydrafusion-frontier-quality-via-multi-model-orchestration/" target="_blank" rel="noopener">Project HydraFusion: frontier quality via multi-model orchestration — GitHub Blog</a></li>
+  <li><a href="https://thehackernews.com/2026/09/malicious-git-configs-can-make-claude.html" target="_blank" rel="noopener">Malicious Git Configs Can Make Claude Code and Other AI Agents Execute Code — The Hacker News (GitSpawn)</a></li>
+</ul>

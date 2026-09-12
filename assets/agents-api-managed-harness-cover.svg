@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="직접 조립하던 에이전트 하네스 구성 요소들이 관리형 API 호출 하나로 대체되는 모습을 그린 표지. 왼쪽에는 세션 관리, 컨텍스트 컴팩션, 서브에이전트, 복구 로직, 샌드박스 배선 등 직접 유지보수하던 코드 블록이 쌓여 있고, 오른쪽에는 sessions.create 한 줄이 있다">
+  <defs>
+    <linearGradient id="am-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+    <marker id="am-car" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a5b4fc"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#am-bg)"/>
+
+  <text x="60" y="82" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="40" font-weight="700" fill="#e2e8f0">하네스, 만들지 말고 사세요?</text>
+  <text x="60" y="124" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="21" fill="#94a3b8">OpenAI Agents API와 관리형 에이전트 런타임의 시대</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 왼쪽: 직접 조립 스택 -->
+    <text x="255" y="196" text-anchor="middle" font-size="18" font-weight="700" fill="#f472b6">직접 조립 · 직접 유지보수</text>
+    <g stroke="#475569" stroke-width="1.5">
+      <rect x="90" y="215" width="330" height="52" rx="10" fill="#1e293b"/>
+      <rect x="90" y="279" width="330" height="52" rx="10" fill="#1e293b"/>
+      <rect x="90" y="343" width="330" height="52" rx="10" fill="#1e293b"/>
+      <rect x="90" y="407" width="330" height="52" rx="10" fill="#1e293b"/>
+      <rect x="90" y="471" width="330" height="52" rx="10" fill="#1e293b"/>
+    </g>
+    <g font-size="17" fill="#cbd5e1">
+      <text x="255" y="247" text-anchor="middle">세션 상태 저장·복원 코드</text>
+      <text x="255" y="311" text-anchor="middle">컨텍스트 컴팩션 로직</text>
+      <text x="255" y="375" text-anchor="middle">서브에이전트 오케스트레이션</text>
+      <text x="255" y="439" text-anchor="middle">크래시 복구 · 재시도</text>
+      <text x="255" y="503" text-anchor="middle">샌드박스 배선 · 권한</text>
+    </g>
+    <g font-size="15" fill="#f472b6">
+      <text x="404" y="247" text-anchor="end">🔧</text>
+      <text x="404" y="311" text-anchor="end">🔧</text>
+      <text x="404" y="375" text-anchor="end">🔧</text>
+      <text x="404" y="439" text-anchor="end">🔧</text>
+      <text x="404" y="503" text-anchor="end">🔧</text>
+    </g>
+
+    <!-- 화살표 -->
+    <line x1="470" y1="369" x2="640" y2="369" stroke="#a5b4fc" stroke-width="3.5" marker-end="url(#am-car)"/>
+    <text x="555" y="350" text-anchor="middle" font-size="15" fill="#a5b4fc">2026-09-10</text>
+
+    <!-- 오른쪽: 관리형 API -->
+    <text x="905" y="196" text-anchor="middle" font-size="18" font-weight="700" fill="#34d399">관리형 하네스 (Agents API)</text>
+    <rect x="680" y="300" width="450" height="140" rx="14" fill="#022c22" stroke="#34d399" stroke-width="2"/>
+    <text x="905" y="358" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="19" fill="#6ee7b7">client.beta.agents</text>
+    <text x="905" y="392" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="19" fill="#6ee7b7">.sessions.create(...)</text>
+    <text x="905" y="478" text-anchor="middle" font-size="15.5" fill="#94a3b8">세션 · 컴팩션 · 서브에이전트 · 복구 · 샌드박스</text>
+    <text x="905" y="504" text-anchor="middle" font-size="15.5" fill="#94a3b8">— 전부 하네스가 알아서</text>
+  </g>
+
+  <text x="60" y="592" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="16" fill="#64748b">그래도 "사기 전에 따질 것"이 있습니다 — 요금 3미터기 · 락인 · 상태 소유권</text>
+</svg>

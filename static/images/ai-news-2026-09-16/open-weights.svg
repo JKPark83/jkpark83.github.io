@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 620" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="620" fill="#fafafa"/>
+  <text x="420" y="36" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">같은 주에 풀린 오픈 웨이트 에이전틱 모델 — 양 극단</text>
+  <text x="420" y="58" text-anchor="middle" font-size="12" fill="#6b7280">둘 다 MIT 라이선스 · 256K 컨텍스트 · 파라미터는 100배 차이</text>
+
+  <!-- Atria card -->
+  <rect x="40" y="80" width="370" height="330" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="60" y="112" font-size="16" font-weight="700" fill="#1d4ed8">Atria Dawn Preview</text>
+  <text x="60" y="132" font-size="11.5" fill="#4b5563">상하이 AI 랩 (HF: internlm) · 9/11 공개</text>
+  <text x="60" y="164" font-size="13" fill="#111827">• 744B MoE — GLM-5.2 베이스 포스트트레이닝</text>
+  <text x="60" y="188" font-size="13" fill="#111827">• 용도: 장기 리서치·엔지니어링 에이전트</text>
+  <text x="60" y="212" font-size="13" fill="#111827">• 배포: vLLM / SGLang + 무료 프리뷰 API</text>
+  <text x="60" y="236" font-size="13" fill="#111827">• 텍스트 전용 (멀티모달 미지원)</text>
+  <text x="60" y="272" font-size="12" font-weight="700" fill="#374151">모델 카드 벤치마크 (자체 발표)</text>
+  <text x="60" y="294" font-size="12" fill="#374151">DeepSearchQA 96.0 · BrowseComp 92.5</text>
+  <text x="60" y="314" font-size="12" fill="#374151">MLE-bench Lite 86.2 · CyberGym 86.5</text>
+  <text x="60" y="334" font-size="12" fill="#374151">Terminal-Bench 78.3 · BFCL v4 77.0</text>
+  <text x="60" y="374" font-size="12" font-weight="700" fill="#1d4ed8">→ "프론티어급 에이전트를 자체 호스팅"</text>
+  <text x="60" y="392" font-size="11.5" fill="#4b5563">단, 744B라 자체 서빙 진입 장벽은 높다</text>
+
+  <!-- ZGCM card -->
+  <rect x="430" y="80" width="370" height="330" rx="12" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="450" y="112" font-size="16" font-weight="700" fill="#6d28d9">ZGCM-1</text>
+  <text x="450" y="132" font-size="11.5" fill="#4b5563">중관춘 아카데미·중관춘 AI 연구원 · 9/11 공개</text>
+  <text x="450" y="164" font-size="13" fill="#111827">• 7.39B dense — 처음부터 자체 학습</text>
+  <text x="450" y="188" font-size="13" fill="#111827">• 용도: 수학 추론 + 툴 기반 검색 에이전트</text>
+  <text x="450" y="212" font-size="13" fill="#111827">• 전 단계 가중치·중간 체크포인트·데이터·</text>
+  <text x="450" y="230" font-size="13" fill="#111827">&#160;&#160;학습 코드·W&amp;B 로그까지 전부 공개</text>
+  <text x="450" y="272" font-size="12" font-weight="700" fill="#374151">기술 리포트 벤치마크 (자체 발표)</text>
+  <text x="450" y="294" font-size="12" fill="#374151">MATH-500 97.13 · AIME 2026 75.0</text>
+  <text x="450" y="314" font-size="12" fill="#374151">HMMT 2025 70.42 · WebWalkerQA 63.09</text>
+  <text x="450" y="334" font-size="12" fill="#374151">Binary Function Search 62.0</text>
+  <text x="450" y="374" font-size="12" font-weight="700" fill="#6d28d9">→ "도메인 특화 소형 에이전트의 레시피"</text>
+  <text x="450" y="392" font-size="11.5" fill="#4b5563">FP8 Muon · 하이브리드 어텐션 · 256K</text>
+
+  <!-- BrowseComp bar comparison -->
+  <text x="60" y="452" font-size="13" font-weight="700" fill="#111827">규모의 격차가 그대로 드러나는 지점 — BrowseComp (광역 웹 리서치)</text>
+  <rect x="60" y="470" width="640" height="26" rx="6" fill="#e5e7eb"/>
+  <rect x="60" y="470" width="592" height="26" rx="6" fill="#3b82f6"/>
+  <text x="66" y="488" font-size="12" font-weight="700" fill="#ffffff">Atria Dawn 744B — 92.5</text>
+  <rect x="60" y="504" width="640" height="26" rx="6" fill="#e5e7eb"/>
+  <rect x="60" y="504" width="124" height="26" rx="6" fill="#8b5cf6"/>
+  <text x="192" y="522" font-size="12" font-weight="700" fill="#374151">ZGCM-1 7.39B — 19.4</text>
+  <text x="60" y="556" font-size="11.5" fill="#4b5563">반대로 좁은 툴 검색(WebWalkerQA 63.1)과 수학(AIME 2026 75.0)에서는 7B가 프론티어급과 경쟁 —</text>
+  <text x="60" y="574" font-size="11.5" fill="#4b5563">태스크가 좁을수록 소형 오픈 모델의 가성비가 올라간다.</text>
+
+  <text x="420" y="604" text-anchor="middle" font-size="11" fill="#9ca3af">출처: HF 모델 카드(internlm/Atria-Dawn-Preview) · arXiv 2609.13356 / zgcagi/ZGCM-1 README · 모두 자체 발표 수치</text>
+</svg>

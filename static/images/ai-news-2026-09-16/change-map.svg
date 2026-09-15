@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 560" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="560" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-16</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">키워드: 오픈 웨이트 에이전틱 모델, 같은 주에 744B와 7B가 함께 풀렸다</text>
+
+  <!-- center node -->
+  <rect x="320" y="255" width="200" height="56" rx="12" fill="#111827"/>
+  <text x="420" y="278" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">오픈 웨이트</text>
+  <text x="420" y="296" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">에이전틱 위크</text>
+
+  <!-- connecting lines -->
+  <line x1="320" y1="270" x2="230" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="270" x2="610" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="320" y1="300" x2="230" y2="400" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="300" x2="610" y2="400" stroke="#d1d5db" stroke-width="2"/>
+
+  <!-- Q1: 모델 -->
+  <rect x="40" y="80" width="330" height="130" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="56" y="104" font-size="14" font-weight="700" fill="#1d4ed8">🤖 모델</text>
+  <text x="56" y="128" font-size="12.5" fill="#111827">Atria Dawn Preview — 744B MoE, MIT</text>
+  <text x="56" y="146" font-size="11.5" fill="#4b5563">상하이 AI 랩 · GLM-5.2 기반 · 256K · 프리뷰 API</text>
+  <text x="56" y="170" font-size="12.5" fill="#111827">Claude Code 2.1.271→273</text>
+  <text x="56" y="188" font-size="11.5" fill="#4b5563">명령별 allowed_domains 샌드박스 · omitClaudeMd</text>
+  <!-- Q2: 논문 -->
+  <rect x="470" y="80" width="330" height="130" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="486" y="104" font-size="14" font-weight="700" fill="#6d28d9">📚 논문</text>
+  <text x="486" y="128" font-size="12.5" fill="#111827">ZGCM-1 — 7.39B 풀오픈 (2609.13356)</text>
+  <text x="486" y="146" font-size="11.5" fill="#4b5563">수학 + 에이전틱 검색 · 전 단계 가중치/데이터 공개</text>
+  <text x="486" y="170" font-size="12.5" fill="#111827">Dream-RSI (2609.14858)</text>
+  <text x="486" y="188" font-size="11.5" fill="#4b5563">발견 히스토리 → 리플레이 시뮬레이터로 탐색 개선</text>
+  <!-- Q3: 오픈소스 -->
+  <rect x="40" y="360" width="330" height="130" rx="10" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="56" y="384" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="56" y="408" font-size="12.5" fill="#111827">atria-asi/Atria-Dawn-Preview</text>
+  <text x="56" y="426" font-size="11.5" fill="#4b5563">가중치 + 기술 리포트 + vLLM/SGLang 배포 가이드</text>
+  <text x="56" y="450" font-size="12.5" fill="#111827">zgcagi/ZGCM-1</text>
+  <text x="56" y="468" font-size="11.5" fill="#4b5563">data-process→pretrain→midtrain→sft→rl 전체 레시피</text>
+  <!-- Q4: 팁 -->
+  <rect x="470" y="360" width="330" height="130" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="486" y="384" font-size="14" font-weight="700" fill="#c2410c">🧑‍💻 팁</text>
+  <text x="486" y="408" font-size="12.5" fill="#111827">🟩 Codex — Skills (SKILL.md · $이름 호출)</text>
+  <text x="486" y="426" font-size="11.5" fill="#4b5563">~/.codex/skills/ 에 두면 자동 발견</text>
+  <text x="486" y="450" font-size="12.5" fill="#111827">🟦 Claude Code — /ralph-loop</text>
+  <text x="486" y="468" font-size="11.5" fill="#4b5563">Stop hook으로 완료 조건까지 자동 반복</text>
+
+  <text x="420" y="540" text-anchor="middle" font-size="11" fill="#9ca3af">모든 항목은 arXiv API·저장소 클론·HF 모델 카드로 검증 (2026-09-16 07:00 KST 기준)</text>
+</svg>

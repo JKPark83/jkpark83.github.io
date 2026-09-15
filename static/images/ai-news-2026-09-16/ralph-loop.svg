@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 400" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="400" fill="#fafafa"/>
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrO" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#f97316"/>
+    </marker>
+  </defs>
+  <text x="420" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">/ralph-loop — Stop hook이 만드는 세션 내 자동 반복</text>
+
+  <!-- start -->
+  <rect x="40" y="80" width="200" height="64" rx="10" fill="#111827"/>
+  <text x="140" y="106" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">/ralph-loop "작업 설명"</text>
+  <text x="140" y="126" text-anchor="middle" font-size="11.5" fill="#d1d5db">--completion-promise "DONE"</text>
+
+  <!-- work -->
+  <rect x="320" y="80" width="200" height="64" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="420" y="106" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">Claude가 작업</text>
+  <text x="420" y="126" text-anchor="middle" font-size="11.5" fill="#4b5563">파일·git 이력에 결과 누적</text>
+
+  <!-- try exit -->
+  <rect x="600" y="80" width="200" height="64" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="700" y="106" text-anchor="middle" font-size="13" font-weight="700" fill="#c2410c">턴 종료 시도</text>
+  <text x="700" y="126" text-anchor="middle" font-size="11.5" fill="#4b5563">Stop hook이 가로챔</text>
+
+  <!-- check -->
+  <rect x="600" y="220" width="200" height="72" rx="10" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="700" y="248" text-anchor="middle" font-size="13" font-weight="700" fill="#b91c1c">완료 약속 검사</text>
+  <text x="700" y="268" text-anchor="middle" font-size="11.5" fill="#4b5563">출력에 "DONE"이 있나?</text>
+  <text x="700" y="284" text-anchor="middle" font-size="11.5" fill="#4b5563">max-iterations 초과했나?</text>
+
+  <!-- reinject -->
+  <rect x="320" y="224" width="200" height="64" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="420" y="250" text-anchor="middle" font-size="13" font-weight="700" fill="#6d28d9">같은 프롬프트 재주입</text>
+  <text x="420" y="270" text-anchor="middle" font-size="11.5" fill="#4b5563">이전 작업물은 파일로 남아 있음</text>
+
+  <!-- done -->
+  <rect x="40" y="224" width="200" height="64" rx="10" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="140" y="250" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">세션 종료</text>
+  <text x="140" y="270" text-anchor="middle" font-size="11.5" fill="#4b5563">완료 약속 확인됨 (또는 /cancel-ralph)</text>
+
+  <!-- arrows -->
+  <line x1="240" y1="112" x2="316" y2="112" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="520" y1="112" x2="596" y2="112" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="700" y1="144" x2="700" y2="216" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="600" y1="256" x2="524" y2="256" stroke="#f97316" stroke-width="2" marker-end="url(#arrO)"/>
+  <text x="562" y="246" text-anchor="middle" font-size="11" fill="#c2410c">아니오</text>
+  <path d="M420,224 L420,180 L420,148" stroke="#f97316" stroke-width="2" fill="none" marker-end="url(#arrO)"/>
+  <text x="440" y="190" font-size="11" fill="#c2410c">반복</text>
+  <line x1="320" y1="256" x2="244" y2="256" stroke="#10b981" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="282" y="246" text-anchor="middle" font-size="11" fill="#047857">예</text>
+
+  <text x="420" y="340" text-anchor="middle" font-size="12" fill="#4b5563">외부 bash 루프 없이 현재 세션 안에서 도는 것이 핵심 — 프롬프트는 고정, 진행 상태는 파일과 git 이력이 담당</text>
+  <text x="420" y="376" text-anchor="middle" font-size="11" fill="#9ca3af">출처: anthropics/claude-code plugins/ralph-wiggum README (클론으로 확인) · 도식은 자체 제작</text>
+</svg>

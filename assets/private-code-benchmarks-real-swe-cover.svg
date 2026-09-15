@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="공개 리더보드에서는 96%까지 오른 코딩 에이전트 점수가 비공개 사내 코드에서는 평균 26.9%로 떨어지는 간극을 그린 표지. 왼쪽 막대는 공개 SWE-bench Verified 점수, 오른쪽 막대는 Real-SWE 프라이빗 코드 점수를 나타낸다">
+  <defs>
+    <linearGradient id="rs-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#134e4a"/>
+    </linearGradient>
+    <linearGradient id="rs-bar1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#059669"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+    <linearGradient id="rs-bar2" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#e11d48"/>
+      <stop offset="1" stop-color="#fb7185"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#rs-bg)"/>
+
+  <text x="60" y="86" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="42" font-weight="700" fill="#e2e8f0">리더보드 96%, 우리 코드에선 27%</text>
+  <text x="60" y="130" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="22" fill="#94a3b8">프라이빗 코드 벤치마크의 시대 — Real-SWE가 보여준 간극</text>
+
+  <g font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <!-- 기준선 -->
+    <line x1="150" y1="520" x2="1050" y2="520" stroke="#475569" stroke-width="2"/>
+
+    <!-- 왼쪽 막대: 공개 벤치마크 -->
+    <rect x="230" y="190" width="200" height="330" rx="12" fill="url(#rs-bar1)"/>
+    <text x="330" y="172" text-anchor="middle" font-size="46" font-weight="800" fill="#6ee7b7">~96%</text>
+    <text x="330" y="556" text-anchor="middle" font-size="21" font-weight="700" fill="#cbd5e1">공개 SWE-bench Verified</text>
+    <text x="330" y="584" text-anchor="middle" font-size="17" fill="#94a3b8">모두가 학습해 버린 시험지</text>
+
+    <!-- 간극 화살표 -->
+    <path d="M470,300 C560,300 640,380 700,430" stroke="#fbbf24" stroke-width="4" fill="none" stroke-dasharray="10 8"/>
+    <text x="590" y="300" text-anchor="middle" font-size="22" font-weight="700" fill="#fbbf24">-69%p</text>
+
+    <!-- 오른쪽 막대: 프라이빗 코드 -->
+    <rect x="770" y="428" width="200" height="92" rx="12" fill="url(#rs-bar2)"/>
+    <text x="870" y="408" text-anchor="middle" font-size="46" font-weight="800" fill="#fda4af">26.9%</text>
+    <text x="870" y="556" text-anchor="middle" font-size="21" font-weight="700" fill="#cbd5e1">Real-SWE (비공개 사내 코드)</text>
+    <text x="870" y="584" text-anchor="middle" font-size="17" fill="#94a3b8">모델이 한 번도 본 적 없는 코드</text>
+  </g>
+</svg>

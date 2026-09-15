@@ -1,0 +1,33 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="크립토 법안 부결로 비트코인이 7만5,000달러대로 밀렸고, 나스닥은 매도 경계선 위 1.6포인트에서 마감했으며, FOMC 결과가 한국시간 목요일 새벽 3시에 나온다는 것을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.16 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">법안 부결·회동 무산 — BTC 7만5,000달러대 · 나스닥 경계선 위 1.6포인트 · FOMC 판정 임박</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">부결의 밤</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="32" font-weight="700" fill="#f87171">$75.7K</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fca5a5">비트코인 · 8/21 이후 최저</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#fbbf24">부결</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fcd34d">CLARITY 60표 문턱 실패</text>
+    <text x="225" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">연내 시장구조 입법 사실상 종료</text>
+    <text x="225" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">코인베이스 -6.7% · 서클 -8%</text>
+  </g>
+
+  <g transform="translate(630,280)">
+    <text x="240" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">판정의 밤</text>
+    <rect x="60" y="40" width="360" height="110" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="240" y="90" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#a5b4fc">나스닥 25,981 · 10년물 5%</text>
+    <text x="240" y="126" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">경계선 25,980 위 1.6포인트 · 2007년 이후 첫 5%</text>
+    <text x="240" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">FOMC 결과 목요일 새벽 3시(KST)</text>
+    <text x="240" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">25bp 인상 확률 92~93% · 나스닥 관망 / 암호화폐 관망</text>
+  </g>
+</svg>

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="코디네이터 에이전트가 여러 워커 에이전트에게 일을 나눠 주고, 공유 컨텍스트 파일에 배운 것을 쌓는 구조를 그린 표지. 가운데 코디네이터 노드에서 아래 워커 노드들로 선이 뻗고, 오른쪽에 컨텍스트 파일 더미가 있다">
+  <defs>
+    <linearGradient id="cp-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="cp-coord" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#cp-bg)"/>
+
+  <!-- 코디네이터 -->
+  <circle cx="600" cy="200" r="86" fill="url(#cp-coord)" opacity="0.95"/>
+  <text x="600" y="190" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#ffffff">코디네이터</text>
+  <text x="600" y="228" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#e0e7ff">계획 · 위임 · 검수</text>
+
+  <!-- 위임 선 -->
+  <g stroke="#818cf8" stroke-width="3" opacity="0.8">
+    <line x1="540" y1="264" x2="290" y2="420"/>
+    <line x1="580" y1="282" x2="480" y2="420"/>
+    <line x1="620" y1="282" x2="720" y2="420"/>
+    <line x1="660" y1="264" x2="910" y2="420"/>
+  </g>
+
+  <!-- 워커 에이전트 -->
+  <g font-family="sans-serif" font-size="18" fill="#c7d2fe" text-anchor="middle">
+    <circle cx="280" cy="460" r="44" fill="#1e293b" stroke="#38bdf8" stroke-width="3"/>
+    <text x="280" y="467">워커</text>
+    <circle cx="480" cy="460" r="44" fill="#1e293b" stroke="#38bdf8" stroke-width="3"/>
+    <text x="480" y="467">워커</text>
+    <circle cx="720" cy="460" r="44" fill="#1e293b" stroke="#38bdf8" stroke-width="3"/>
+    <text x="720" y="467">워커</text>
+    <circle cx="920" cy="460" r="44" fill="#1e293b" stroke="#34d399" stroke-width="3" stroke-dasharray="7 5"/>
+    <text x="920" y="467">로컬</text>
+  </g>
+
+  <!-- 공유 컨텍스트 파일 더미 -->
+  <g>
+    <rect x="1000" y="150" width="150" height="44" rx="8" fill="#fbbf24" opacity="0.92"/>
+    <rect x="1012" y="204" width="150" height="44" rx="8" fill="#f59e0b" opacity="0.92"/>
+    <rect x="1024" y="258" width="150" height="44" rx="8" fill="#d97706" opacity="0.92"/>
+    <text x="1075" y="178" text-anchor="middle" font-family="monospace" font-size="17" fill="#1c1917">learnings</text>
+    <text x="1087" y="232" text-anchor="middle" font-family="monospace" font-size="17" fill="#1c1917">plan.md</text>
+    <text x="1099" y="286" text-anchor="middle" font-family="monospace" font-size="17" fill="#fef3c7">context</text>
+    <path d="M 700 180 Q 860 150 995 180" stroke="#fbbf24" stroke-width="3" fill="none" stroke-dasharray="8 6" opacity="0.8"/>
+  </g>
+
+  <!-- 타이틀 -->
+  <text x="70" y="90" font-family="sans-serif" font-size="44" font-weight="800" fill="#f8fafc">코드를 안 쓰는 에이전트가 제일 바쁘다</text>
+  <text x="70" y="576" font-family="sans-serif" font-size="26" fill="#a5b4fc">Cursor Projects와 코디네이터 에이전트 아키텍처 — 몇 달짜리 컨텍스트를 파일로 쌓는 법</text>
+</svg>

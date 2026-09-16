@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 540" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="540" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">MoE 스트리밍 추론 — colibri vs edge0</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">공통 아이디어: 저장장치까지 메모리 계층으로 끌어들여, 활성 expert만 위로 올린다</text>
+
+  <!-- shared tier diagram -->
+  <rect x="40" y="80" width="760" height="96" rx="12" fill="#f9fafb" stroke="#e5e7eb"/>
+  <rect x="64" y="102" width="200" height="52" rx="8" fill="#e5e7eb"/>
+  <text x="164" y="124" text-anchor="middle" font-size="12.5" font-weight="700" fill="#374151">SSD / 디스크</text>
+  <text x="164" y="142" text-anchor="middle" font-size="11" fill="#6b7280">전체 expert 웨이트 상주</text>
+  <line x1="264" y1="128" x2="312" y2="128" stroke="#9ca3af" stroke-width="2"/>
+  <path d="M312 128 l-9 -5 v10 z" fill="#9ca3af"/>
+  <rect x="318" y="102" width="200" height="52" rx="8" fill="#dbeafe"/>
+  <text x="418" y="124" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1e40af">RAM</text>
+  <text x="418" y="142" text-anchor="middle" font-size="11" fill="#3b82f6">자주 쓰는 expert 캐시</text>
+  <line x1="518" y1="128" x2="566" y2="128" stroke="#9ca3af" stroke-width="2"/>
+  <path d="M566 128 l-9 -5 v10 z" fill="#9ca3af"/>
+  <rect x="572" y="102" width="200" height="52" rx="8" fill="#dcfce7"/>
+  <text x="672" y="124" text-anchor="middle" font-size="12.5" font-weight="700" fill="#166534">VRAM / 통합 메모리</text>
+  <text x="672" y="142" text-anchor="middle" font-size="11" fill="#16a34a">이번 토큰의 활성 expert</text>
+
+  <!-- colibri card -->
+  <rect x="40" y="204" width="370" height="290" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="60" y="234" font-size="15" font-weight="700" fill="#047857">🐦 JustVugg/colibri</text>
+  <text x="60" y="260" font-size="12" fill="#111827">언어: pure C (엔진 의존성 0)</text>
+  <text x="60" y="282" font-size="12" fill="#111827">대상: 744B ~ 2.8T 프론티어 MoE</text>
+  <text x="60" y="304" font-size="12" fill="#111827">모델: GLM-5.2/5.3 · Kimi K3 · DeepSeek V4/V4.1</text>
+  <text x="60" y="322" font-size="12" fill="#111827">Qwen3.8/3.6 · Inkling · OLMoE — 9개 계열</text>
+  <text x="60" y="344" font-size="12" fill="#111827">플랫폼: CPU 단독 ~ 이기종 멀티 GPU</text>
+  <text x="60" y="366" font-size="12" fill="#111827">프론트엔드: coli chat / serve / web</text>
+  <text x="60" y="392" font-size="11.5" fill="#047857" font-weight="700">정책: 속도 SLA 없음, 시맨틱스는 보장</text>
+  <text x="60" y="410" font-size="11" fill="#4b5563">(정밀도·라우터 동작을 몰래 바꾸지 않는다)</text>
+  <text x="60" y="436" font-size="11.5" fill="#6b7280">활용: H100 없이 로컬에서 프론티어급</text>
+  <text x="60" y="454" font-size="11.5" fill="#6b7280">오픈 웨이트를 평가·서빙하는 백엔드</text>
+  <text x="60" y="478" font-size="10.5" fill="#9ca3af">README 기준 v1.11.0 · 마지막 커밋 9/15 (클론 확인)</text>
+
+  <!-- edge0 card -->
+  <rect x="430" y="204" width="370" height="290" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="450" y="234" font-size="15" font-weight="700" fill="#1d4ed8">📱 Edge0-AI/edge0</text>
+  <text x="450" y="260" font-size="12" fill="#111827">언어: Python (MLX 백엔드)</text>
+  <text x="450" y="282" font-size="12" fill="#111827">대상: 8B~35B 스파스 MoE를 초저메모리로</text>
+  <text x="450" y="304" font-size="12" fill="#111827">기법: SSD expert 오프로드 + Recover-LoRA</text>
+  <text x="450" y="322" font-size="12" fill="#111827">+ prerouter (다음 expert 라우팅 예측·프리페치)</text>
+  <text x="450" y="344" font-size="12" fill="#111827">플랫폼: Apple Silicon (CUDA는 로드맵)</text>
+  <text x="450" y="366" font-size="12" fill="#111827">체크포인트: 35B-A3B · 8B-A1B (4-bit, Apache 2.0)</text>
+  <text x="450" y="392" font-size="11.5" fill="#1d4ed8" font-weight="700">35B 모델을 활성 메모리 약 3GiB로 구동</text>
+  <text x="450" y="410" font-size="11" fill="#4b5563">(모델 카드 기준 · 벤치 평균 -3.9p 트레이드오프)</text>
+  <text x="450" y="436" font-size="11.5" fill="#6b7280">활용: MacBook 로컬 에이전트 백엔드 —</text>
+  <text x="450" y="454" font-size="11.5" fill="#6b7280">단, 카드 스스로 "에이전틱 태스크는 아직 약함"</text>
+  <text x="450" y="478" font-size="10.5" fill="#9ca3af">마지막 커밋 9/16 (클론 확인) · star 수 API 제한으로 미확인</text>
+
+  <text x="420" y="520" text-anchor="middle" font-size="11" fill="#9ca3af">두 저장소 모두 이 세션에서 클론으로 실재를 확인 · 성능 수치는 각 프로젝트 자체 발표</text>
+</svg>

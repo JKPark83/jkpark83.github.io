@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 560" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="560" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-17</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">키워드: 생성과 판단의 분리, 그리고 실시간 음성 에이전트</text>
+
+  <!-- center node -->
+  <rect x="310" y="255" width="220" height="56" rx="12" fill="#111827"/>
+  <text x="420" y="278" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">에이전트 스택이</text>
+  <text x="420" y="296" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">계층별로 쪼개진다</text>
+
+  <!-- connecting lines -->
+  <line x1="320" y1="270" x2="230" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="270" x2="610" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="320" y1="300" x2="230" y2="400" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="300" x2="610" y2="400" stroke="#d1d5db" stroke-width="2"/>
+
+  <!-- Q1: 모델 -->
+  <rect x="40" y="80" width="330" height="130" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="56" y="104" font-size="14" font-weight="700" fill="#1d4ed8">🤖 모델</text>
+  <text x="56" y="128" font-size="12.5" fill="#111827">Jev — 생성 없이 판단만 하는 System One 모델</text>
+  <text x="56" y="146" font-size="11.5" fill="#4b5563">TypeSafe AI · 구조화 결정 + 확률 · 웨이트리스트</text>
+  <text x="56" y="170" font-size="12.5" fill="#111827">Gemini 3.8 Live / Live Extended Thinking</text>
+  <text x="56" y="188" font-size="11.5" fill="#4b5563">대화 끊김 없는 백그라운드 툴 실행 · Live API</text>
+
+  <!-- Q2: 논문 -->
+  <rect x="470" y="80" width="330" height="130" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="486" y="104" font-size="14" font-weight="700" fill="#6d28d9">📚 논문</text>
+  <text x="486" y="128" font-size="12.5" fill="#111827">장기 기억 CL 조합 연구 (2609.06986)</text>
+  <text x="486" y="146" font-size="11.5" fill="#4b5563">JHU · 앵커 3종 + merged LoRA → 보존율 28배</text>
+  <text x="486" y="170" font-size="12.5" fill="#111827">StepAudio 3 Realtime (2609.14005)</text>
+  <text x="486" y="188" font-size="11.5" fill="#4b5563">Think-While-Speaking · 말하면서 비공개 추론</text>
+
+  <!-- Q3: 오픈소스 -->
+  <rect x="40" y="350" width="330" height="130" rx="10" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="56" y="374" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="56" y="398" font-size="12.5" fill="#111827">colibri — 744B~2.8T MoE를 소비자 하드웨어에</text>
+  <text x="56" y="416" font-size="11.5" fill="#4b5563">pure C · SSD/RAM/VRAM 멀티티어 · 9개 모델 계열</text>
+  <text x="56" y="440" font-size="12.5" fill="#111827">edge0 — 35B MoE를 3GiB로 스트리밍</text>
+  <text x="56" y="458" font-size="11.5" fill="#4b5563">Apple Silicon MLX · SSD 오프로드 + prerouter</text>
+
+  <!-- Q4: 팁 -->
+  <rect x="470" y="350" width="330" height="130" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="486" y="374" font-size="14" font-weight="700" fill="#c2410c">🧑‍💻 팁</text>
+  <text x="486" y="398" font-size="12.5" fill="#111827">codex cloud — 터미널에서 클라우드 태스크 위임</text>
+  <text x="486" y="416" font-size="11.5" fill="#4b5563">exec --attempts N 베스트오브N · diff/apply 회수</text>
+  <text x="486" y="440" font-size="12.5" fill="#111827">security-guidance — 3계층 보안 리뷰 플러그인</text>
+  <text x="486" y="458" font-size="11.5" fill="#4b5563">패턴 훅 + LLM diff 리뷰 + 커밋 시 에이전트 리뷰</text>
+
+  <text x="420" y="530" text-anchor="middle" font-size="11" fill="#9ca3af">벤치마크·가격 수치는 각 사 발표 기준 · 저장소는 클론으로 실재 확인</text>
+</svg>

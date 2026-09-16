@@ -1,0 +1,33 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="연준이 3년 만에 금리를 25bp 인상해 3.75~4.00%가 됐고, 다우는 631포인트 하락했으며, 나스닥은 매도 경계선 아래 1.58포인트에서 마감해 판정이 오늘 밤 종가로 넘어갔다는 것을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.17 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">3년 만의 인상 — 3.75~4.00% · 점도표 '한 번 더' · 나스닥 경계선 아래 1.58포인트</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">인상의 밤</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#f87171">+25bp</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fca5a5">3.75~4.00% · 만장일치</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#fbbf24">16/18</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fcd34d">점도표 '연내 한 번 더'</text>
+    <text x="225" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">2023년 7월 이후 첫 인상 · 워시 "물가가 여전히 높다"</text>
+    <text x="225" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">10년물 5.0% · 다우 -631포인트(골드만 주도)</text>
+  </g>
+
+  <g transform="translate(630,280)">
+    <text x="240" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">판정은 오늘 밤으로</text>
+    <rect x="60" y="40" width="360" height="110" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="240" y="90" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#a5b4fc">나스닥 25,978.42</text>
+    <text x="240" y="126" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">경계선 25,980 아래 1.58포인트 · 하루 -0.01%</text>
+    <text x="240" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">BTC 7만5,400~7만6,300달러 — 전환선 7만5,500 공방</text>
+    <text x="240" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">심리 주식 29(공포)·암호화폐 48(중립) · 나스닥 관망 / 암호화폐 관망</text>
+  </g>
+</svg>

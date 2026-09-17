@@ -1,0 +1,385 @@
+---
+title: "말하지 않는 모델이 HN 1위에 올랐다 — 결정 전용 모델 Jev와 System One Models"
+date: 2026-09-18T07:30:00+09:00
+draft: false
+tags: ["AI", "Jev", "TypeSafe AI", "System One Models", "결정 전용 모델", "분류", "라우팅", "가드레일", "calibration", "에이전트", "structured outputs", "추론 비용", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "9월 15일 TypeSafe AI가 스텔스를 벗고 Jev를 공개했습니다. 텍스트를 한 글자도 생성하지 않는 모델입니다. 상태(state)와 타입이 정해진 질문들을 넣으면, 70–500ms 만에 choice·score·확률 값만 돌려줍니다. HN 1,800점을 넘기며 이번 주 AI 엔지니어링 최대 화제가 됐는데요 — 지금 에이전트 파이프라인의 LLM 호출 중 상당수가 사실은 '문장'이 아니라 '결정'을 원한다는 문제의식, calibration이 정확히 무슨 뜻인지, 자체 벤치마크 숫자를 어떻게 걸러 읽어야 하는지, 그리고 가드레일·라우팅에 직접 붙여 보는 예제까지 — junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "system-one-models-jev-cover.svg"
+  alt: "비정형 상태가 System One 모델을 지나 타입이 붙은 결정 값으로 나오는 구조를 그린 표지. 말풍선에는 금지 표시가 있다"
+  caption: "생성을 포기하면 무엇을 얻는가 — 결정 전용 모델의 거래 조건"
+  relative: false
+---
+
+<style>
+/* ── System One / Jev 포스트 전용 스타일 (s1- 접두사) ── */
+.s1-fig{
+  --s1-green:#16a34a; --s1-rose:#e11d48; --s1-amber:#d97706; --s1-sky:#0284c7;
+  --s1-violet:#7c3aed; --s1-slate:#64748b; --s1-teal:#0d9488; --s1-blue:#2563eb;
+  --s1-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .s1-fig{
+  --s1-green:#4ade80; --s1-rose:#fb7185; --s1-amber:#fbbf24; --s1-sky:#38bdf8;
+  --s1-violet:#a78bfa; --s1-slate:#94a3b8; --s1-teal:#2dd4bf; --s1-blue:#60a5fa;
+  --s1-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .s1-fig{
+    --s1-green:#4ade80; --s1-rose:#fb7185; --s1-amber:#fbbf24; --s1-sky:#38bdf8;
+    --s1-violet:#a78bfa; --s1-slate:#94a3b8; --s1-teal:#2dd4bf; --s1-blue:#60a5fa;
+    --s1-gray:#64748b;
+  }
+}
+.s1-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.s1-fig text{font-family:inherit}
+.s1-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.s1-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.s1-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.s1-toc ol{margin:0;padding-left:1.25rem}
+.s1-toc li{margin:.22rem 0;font-size:.95rem}
+.s1-toc a{text-decoration:none}
+.s1-toc a:hover{text-decoration:underline}
+.s1-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.s1-table th,.s1-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left}
+.s1-table th{background:var(--entry)}
+</style>
+
+<div class="s1-toc">
+  <div class="s1-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 스위치문에 프론티어 LLM을 쓰고 있진 않나요</a></li>
+    <li><a href="#sec-2">배경 — 지금까지 '결정'을 시키던 네 가지 방법과 그 한계</a></li>
+    <li><a href="#sec-3">Jev 해부 — 상태 + 타입 질문 → 확률 붙은 결정</a></li>
+    <li><a href="#sec-4">숫자 읽기 — 가격·지연·벤치마크, 그리고 걸러 들을 것</a></li>
+    <li><a href="#sec-5">실전 — 에이전트 루프에 결정 전용 모델 붙여 보기</a></li>
+    <li><a href="#sec-6">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-7">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 스위치문에 프론티어 LLM을 쓰고 있진 않나요</h2>
+
+<p>에이전트나 LLM 파이프라인 코드를 열어 보면 의외의 사실이 보입니다. LLM 호출 중 상당수가 <strong>문장을 원하지 않습니다</strong>. "이 티켓은 환불 문의인가 버그 신고인가", "다음에 어떤 툴을 부를까", "이 출력은 정책 위반인가", "이 답변은 몇 점짜리인가" — 전부 답이 <strong>선택지 하나, 점수 하나, 참/거짓 하나</strong>인 질문들입니다. 그런데 답을 받는 방법은 늘 같습니다. 프론티어 LLM에게 프롬프트를 보내고, 몇 초를 기다려, JSON으로 포장된 문장을 받아서, 파싱하고, 파싱이 깨지면 재시도합니다. 본질은 스위치문인데 비용은 에세이 값을 내는 셈입니다.</p>
+
+<p>9월 15일, 이 지점을 정면으로 겨눈 회사가 스텔스를 벗었습니다. OpenAI에서 RLHF·InstructGPT·ChatGPT 개발에 참여했던 Diogo Almeida가 세운 <a href="https://typesafe.ai/blog/introducing-system-one-models-and-jev" target="_blank" rel="noopener">TypeSafe AI</a>입니다. DCVC 주도로 시드 4,000만 달러를 받았고, 첫 모델 <strong>Jev</strong>를 공개했습니다. Jev의 특징은 하나로 요약됩니다. <strong>텍스트를 생성하지 않습니다.</strong> 상태(state)와 타입이 정해진 질문들을 넣으면, 선택지·점수·확률 같은 <strong>타입 있는 결정(typed decision)</strong>만 돌려줍니다. TypeSafe는 이 모델 계열을 <strong>System One Models</strong>라고 부릅니다.</p>
+
+<p>반응은 뜨거웠습니다. 발표 글이 <a href="https://news.ycombinator.com/item?id=49717558" target="_blank" rel="noopener">Hacker News에서 1,800점을 넘기며 1위</a>에 올랐고, <a href="https://www.latent.space/p/ainews-jev-a-system-one-model-that" target="_blank" rel="noopener">AINews는 "결정·분류·라우팅·스코어링만 하는 모델, 소형 프론티어 LLM보다 100배 이상 빠르고 200배 이상 싸다"</a>는 헤드라인으로 다뤘습니다. 물론 저 숫자에는 걸러 들어야 할 부분이 많고, 이 글의 절반은 그 걸러 읽기에 쓸 겁니다. 하지만 "생성 모델로 결정까지 처리하는 게 맞는가"라는 질문 자체는, 파이프라인에 LLM 호출이 늘어날수록 피해 갈 수 없는 엔지니어링 질문입니다.</p>
+
+<h2 id="sec-2">2. 배경 — 지금까지 '결정'을 시키던 네 가지 방법과 그 한계</h2>
+
+<p>이름부터 짚고 가겠습니다. System One은 심리학자 대니얼 카너먼의 구분에서 온 말입니다. 사람의 사고를 빠르고 직관적인 <strong>시스템 1</strong>과 느리고 숙고하는 <strong>시스템 2</strong>로 나눴는데, TypeSafe는 지금의 LLM을 시스템 2에, 자기네 모델을 시스템 1에 대응시킵니다. 문장을 한 토큰씩 이어 쓰는 대신, 정해진 선택지 위의 확률분포를 곧바로 내놓는다는 뜻입니다.</p>
+
+<p>그럼 지금까지는 파이프라인 속 결정을 어떻게 처리했을까요? 크게 네 가지였고, 각각 아픈 데가 있습니다.</p>
+
+<table class="s1-table">
+  <tr><th>방법</th><th>장점</th><th>한계</th></tr>
+  <tr><td>LLM + structured outputs<br>(constrained decoding)</td><td>스키마 위반 원천 차단, 기존 모델 그대로 사용</td><td><strong>형식</strong>만 보장. 비용·지연은 생성 모델 그대로, 확률(확신도)은 안 줌</td></tr>
+  <tr><td>LLM + logprobs</td><td>토큰 확률로 확신도 근사 가능</td><td>API마다 지원이 들쑥날쑥, 토큰 분절 문제, 보정 안 된 확률</td></tr>
+  <tr><td>소형 분류기 파인튜닝<br>(BERT류, LoRA 등)</td><td>빠르고 쌈, 확률 나옴</td><td>라벨 데이터 수집·학습·배포·재학습 루프가 통째로 내 몫. 질문이 바뀌면 다시 학습</td></tr>
+  <tr><td>임베딩 기반 라우터</td><td>매우 빠름, 학습 부담 적음</td><td>의미 유사도로만 판단. "환불 요청이면서 정책 위반인가" 같은 조합 질문에 약함</td></tr>
+</table>
+
+<p>structured outputs가 왜 형식만 보장하고 비용은 못 줄이는지는 <a href="/posts/structured-outputs-constrained-decoding/">constrained decoding 편</a>에서 다뤘습니다. 요약하면, 네 방법 모두 "제로샷으로 질문을 바꿔 가며 물을 수 있고 + 빠르고 싸고 + 보정된 확률까지 주는" 조합은 만들지 못했습니다. Jev가 파는 것이 정확히 그 조합입니다.</p>
+
+<figure class="s1-fig">
+<svg viewBox="0 0 860 440" role="img" aria-label="에이전트 루프 안의 결정 지점을 표시한 다이어그램. 사용자 입력이 들어오면 입력 분류, 툴 선택, 출력 검증, 결과 스코어링 네 개의 결정 지점을 지나며, 기존에는 네 곳 모두 LLM 호출이었지만 이 중 생성이 필요 없는 결정은 결정 전용 모델로 대체할 수 있음을 보여준다">
+  <g font-family="inherit">
+    <text x="430" y="30" text-anchor="middle" font-size="16" font-weight="700" fill="var(--s1-slate)">에이전트 루프 안의 '결정 지점'들</text>
+
+    <rect x="20" y="60" width="150" height="56" rx="12" fill="none" stroke="var(--s1-slate)" stroke-width="2"/>
+    <text x="95" y="93" text-anchor="middle" font-size="14" fill="var(--s1-slate)">사용자 입력</text>
+
+    <line x1="170" y1="88" x2="230" y2="88" stroke="var(--s1-gray)" stroke-width="2"/>
+    <rect x="232" y="60" width="170" height="56" rx="12" fill="none" stroke="var(--s1-teal)" stroke-width="2.5"/>
+    <text x="317" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="var(--s1-teal)">① 입력 분류/라우팅</text>
+    <text x="317" y="104" text-anchor="middle" font-size="12" fill="var(--s1-gray)">"어느 팀/어느 에이전트?"</text>
+
+    <line x1="402" y1="88" x2="462" y2="88" stroke="var(--s1-gray)" stroke-width="2"/>
+    <rect x="464" y="60" width="170" height="56" rx="12" fill="none" stroke="var(--s1-teal)" stroke-width="2.5"/>
+    <text x="549" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="var(--s1-teal)">② 툴/서브에이전트 선택</text>
+    <text x="549" y="104" text-anchor="middle" font-size="12" fill="var(--s1-gray)">"다음 행동은?"</text>
+
+    <line x1="634" y1="88" x2="694" y2="88" stroke="var(--s1-gray)" stroke-width="2"/>
+    <rect x="696" y="60" width="145" height="56" rx="12" fill="none" stroke="var(--s1-violet)" stroke-width="2.5"/>
+    <text x="768" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="var(--s1-violet)">본작업 (LLM 생성)</text>
+
+    <line x1="768" y1="116" x2="768" y2="170" stroke="var(--s1-gray)" stroke-width="2"/>
+    <rect x="620" y="172" width="220" height="56" rx="12" fill="none" stroke="var(--s1-teal)" stroke-width="2.5"/>
+    <text x="730" y="196" text-anchor="middle" font-size="14" font-weight="700" fill="var(--s1-teal)">③ 출력 검증/가드레일</text>
+    <text x="730" y="216" text-anchor="middle" font-size="12" fill="var(--s1-gray)">"정책 위반? 근거 있음?"</text>
+
+    <line x1="618" y1="200" x2="400" y2="200" stroke="var(--s1-gray)" stroke-width="2"/>
+    <rect x="180" y="172" width="218" height="56" rx="12" fill="none" stroke="var(--s1-teal)" stroke-width="2.5"/>
+    <text x="289" y="196" text-anchor="middle" font-size="14" font-weight="700" fill="var(--s1-teal)">④ 결과 스코어링</text>
+    <text x="289" y="216" text-anchor="middle" font-size="12" fill="var(--s1-gray)">"품질 점수? 재시도 필요?"</text>
+
+    <rect x="60" y="290" width="740" height="110" rx="14" fill="none" stroke="var(--s1-amber)" stroke-width="2" stroke-dasharray="7 5"/>
+    <text x="430" y="322" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--s1-amber)">①②③④의 공통점: 답이 '문장'이 아니라 선택지·점수·참/거짓</text>
+    <text x="430" y="348" text-anchor="middle" font-size="13.5" fill="var(--s1-gray)">지금까지는 네 곳 모두 생성형 LLM 호출 → 결정 전용 모델의 타깃이 되는 자리</text>
+    <text x="430" y="374" text-anchor="middle" font-size="13.5" fill="var(--s1-gray)">본작업(코드 작성·답변 생성)은 여전히 생성형 LLM의 몫</text>
+  </g>
+</svg>
+<figcaption>그림 1. 에이전트 루프에서 생성이 필요한 곳은 생각보다 적다 — 분류·선택·검증·스코어링은 전부 '결정'이고, Jev가 노리는 자리가 여기다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. Jev 해부 — 상태 + 타입 질문 → 확률 붙은 결정</h2>
+
+<p>API 형태부터 보겠습니다. Jev 호출은 채팅이 아니라 <strong>평가(evaluation)</strong>입니다. 두 가지를 보냅니다.</p>
+
+<ul>
+  <li><strong>state</strong> — 판단 대상이 되는 비정형 상태. 문자열, 객체, 배열 무엇이든 됩니다. 고객 메시지, 에이전트 트레이스, 티켓 내용 같은 것들입니다.</li>
+  <li><strong>questions</strong> — 그 상태에 대해 묻고 싶은 질문들의 맵. 각 질문에 <strong>타입</strong>이 붙습니다.</li>
+</ul>
+
+<p>질문 타입은 세 가지입니다.</p>
+
+<ul>
+  <li><strong>choice</strong> — 선택지 중 하나를 고릅니다. 각 선택지에 설명(criteria)을 달 수 있고, 응답에는 선택 결과와 함께 선택지별 확률분포가 옵니다.</li>
+  <li><strong>score</strong> — 순서 있는 루브릭(예: poor → acceptable → excellent)에 대해 점수를 매깁니다. 결과는 정수 인덱스가 아니라 <code>[0, 단계수-1]</code> 구간의 <strong>확률 가중 평균</strong>인 소수(예: 1.78)입니다.</li>
+  <li><strong>boolean</strong> — 문장이 참일 확률을 돌려줍니다. 공식 문서는 이 답 타입을 <strong>noul</strong>이라는 프리미티브로 부르는데, 0에 가까우면 "아니오", 1에 가까우면 "예", 0.5 근처면 모델도 확신이 없다는 뜻입니다. 코드에서는 보통 임계값을 걸어 하드한 참/거짓으로 바꿉니다.</li>
+</ul>
+
+<p><a href="https://github.com/jtsang4/jev-cli" target="_blank" rel="noopener">jev-cli</a>가 문서화한 요청/응답을 보면 감이 옵니다.</p>
+
+{{< highlight json >}}
+// 요청: state 하나 + 타입 질문 셋
+{
+  "state": "상담원이 40달러 전액을 환불하고 사과했다.",
+  "questions": {
+    "refunded": { "type": "boolean", "instructions": "환불이 이루어졌는가?" },
+    "tone": {
+      "type": "choice", "instructions": "상담원의 어조는?",
+      "criteria": { "warm": "친절하고 인간적", "curt": "퉁명스럽거나 무시함" }
+    },
+    "quality": {
+      "type": "score", "instructions": "처리 품질을 평가하라.",
+      "criteria": ["poor", "acceptable", "excellent"]
+    }
+  }
+}
+{{< /highlight >}}
+
+{{< highlight json >}}
+// 응답: 문장 없이 타입 있는 값만
+{
+  "refunded": { "type": "boolean", "probability": 0.99 },
+  "tone": { "type": "choice", "choice": "warm",
+            "probabilities": { "curt": 0.02, "warm": 0.98 } },
+  "quality": { "type": "score", "score": 1.78,
+               "probabilities": { "0": 0, "1": 0.22, "2": 0.78 } }
+}
+{{< /highlight >}}
+
+<p>구조에서 세 가지가 따라 나옵니다.</p>
+
+<p><strong>첫째, 스키마 밖 출력이 물리적으로 불가능합니다.</strong> 가능한 출력이 사전에 타입으로 정의되므로, 모델은 스키마 밖 문자열을 만들 수 없습니다. 없는 필드를 지어내는 환각도, JSON 파싱 실패도 원리적으로 없습니다. 문자열을 생성하지 않으니까요.</p>
+
+<p><strong>둘째, 질문 여러 개를 한 번의 병렬 패스로 처리합니다.</strong> 토큰을 순서대로 생성하는 autoregressive 디코딩이 없으므로, 질문 10개를 넣어도 순차 생성 없이 한 패스에 전부 답합니다. TypeSafe가 밝힌 응답 시간은 end-to-end <strong>70–500ms</strong>입니다. 다만 컨텍스트 예산이 있습니다. state와 질문 전체가 합쳐서 약 64K 토큰, state + 가장 긴 질문 하나가 약 32K 토큰 안에 들어와야 합니다.</p>
+
+<p><strong>셋째, 확률이 보정(calibration)되어 있다고 주장합니다.</strong> 여기서 calibration은 정확한 뜻이 있습니다. 모델이 80% 확신이라고 답한 예측들을 모아 보면 실제로 약 80%가 맞는다 — 즉 <strong>예측 집단의 성질</strong>입니다. 개별 답 하나가 맞는지는 알려 주지 않습니다. TypeSafe는 이를 위해 RLCD(Reinforcement Learning for Calibrated Decisions)라는 학습 기법을 썼다고 하는데, 사람 선호가 아니라 "확신이 높을수록 실제로 더 정확하도록" 최적화했다는 설명입니다. 이 확률이 왜 중요하냐면, <strong>에스컬레이션 설계</strong>가 가능해지기 때문입니다. 확신이 낮은 케이스만 골라 비싼 LLM이나 사람에게 넘기는 구조를, 보정 안 된 확률로는 만들 수 없습니다.</p>
+
+<figure class="s1-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="Jev의 처리 구조 다이어그램. 왼쪽에서 state와 타입 질문 세 개가 들어오고, 가운데 System One 모델이 한 번의 병렬 패스로 처리하며, 오른쪽에 각 질문에 대한 타입 있는 답과 확률분포가 나온다. 아래에는 autoregressive LLM이 토큰을 순차 생성하는 것과의 대비가 그려져 있다">
+  <g font-family="inherit">
+    <rect x="20" y="40" width="215" height="180" rx="14" fill="none" stroke="var(--s1-slate)" stroke-width="2"/>
+    <text x="127" y="68" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--s1-slate)">입력</text>
+    <text x="127" y="95" text-anchor="middle" font-size="13" fill="var(--s1-gray)">state (비정형, ~64K 예산)</text>
+    <rect x="40" y="112" width="175" height="26" rx="7" fill="none" stroke="var(--s1-sky)" stroke-width="1.8"/>
+    <text x="127" y="130" text-anchor="middle" font-size="12.5" fill="var(--s1-sky)">Q1: choice</text>
+    <rect x="40" y="146" width="175" height="26" rx="7" fill="none" stroke="var(--s1-amber)" stroke-width="1.8"/>
+    <text x="127" y="164" text-anchor="middle" font-size="12.5" fill="var(--s1-amber)">Q2: score</text>
+    <rect x="40" y="180" width="175" height="26" rx="7" fill="none" stroke="var(--s1-green)" stroke-width="1.8"/>
+    <text x="127" y="198" text-anchor="middle" font-size="12.5" fill="var(--s1-green)">Q3: boolean</text>
+
+    <line x1="235" y1="130" x2="300" y2="130" stroke="var(--s1-gray)" stroke-width="2.5"/>
+    <path d="M292 122 L308 130 L292 138 Z" fill="var(--s1-gray)"/>
+
+    <rect x="310" y="70" width="240" height="120" rx="16" fill="none" stroke="var(--s1-teal)" stroke-width="3"/>
+    <text x="430" y="112" text-anchor="middle" font-size="16" font-weight="700" fill="var(--s1-teal)">Jev (System One)</text>
+    <text x="430" y="138" text-anchor="middle" font-size="13" fill="var(--s1-gray)">모든 질문을 한 번의</text>
+    <text x="430" y="158" text-anchor="middle" font-size="13" fill="var(--s1-gray)">병렬 패스로 · 70–500ms</text>
+
+    <line x1="550" y1="130" x2="615" y2="130" stroke="var(--s1-gray)" stroke-width="2.5"/>
+    <path d="M607 122 L623 130 L607 138 Z" fill="var(--s1-gray)"/>
+
+    <rect x="625" y="40" width="215" height="180" rx="14" fill="none" stroke="var(--s1-slate)" stroke-width="2"/>
+    <text x="732" y="68" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--s1-slate)">출력 (스키마 밖 불가능)</text>
+    <text x="732" y="100" text-anchor="middle" font-size="12.5" fill="var(--s1-sky)">"환불팀" p=0.96</text>
+    <text x="732" y="130" text-anchor="middle" font-size="12.5" fill="var(--s1-amber)">score 1.78 (가중 평균)</text>
+    <text x="732" y="160" text-anchor="middle" font-size="12.5" fill="var(--s1-green)">참일 확률 0.92</text>
+    <text x="732" y="196" text-anchor="middle" font-size="12" fill="var(--s1-gray)">+ 질문별 확률분포</text>
+
+    <line x1="30" y1="260" x2="830" y2="260" stroke="var(--s1-gray)" stroke-width="1" stroke-dasharray="4 5"/>
+
+    <text x="430" y="292" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--s1-rose)">비교: 생성형 LLM으로 같은 일을 하면</text>
+    <g font-size="12.5" fill="var(--s1-gray)">
+      <rect x="120" y="310" width="56" height="30" rx="6" fill="none" stroke="var(--s1-rose)" stroke-width="1.6"/><text x="148" y="330" text-anchor="middle">{"la</text>
+      <rect x="186" y="310" width="56" height="30" rx="6" fill="none" stroke="var(--s1-rose)" stroke-width="1.6"/><text x="214" y="330" text-anchor="middle">bel"</text>
+      <rect x="252" y="310" width="56" height="30" rx="6" fill="none" stroke="var(--s1-rose)" stroke-width="1.6"/><text x="280" y="330" text-anchor="middle">: "환</text>
+      <rect x="318" y="310" width="56" height="30" rx="6" fill="none" stroke="var(--s1-rose)" stroke-width="1.6"/><text x="346" y="330" text-anchor="middle">불팀"</text>
+      <rect x="384" y="310" width="56" height="30" rx="6" fill="none" stroke="var(--s1-rose)" stroke-width="1.6"/><text x="412" y="330" text-anchor="middle">, "re</text>
+      <text x="470" y="330" font-size="15" fill="var(--s1-rose)">…</text>
+      <text x="640" y="330" text-anchor="middle" font-size="12.5" fill="var(--s1-gray)">토큰 순차 생성 → 수 초 + 파싱 + 출력 과금</text>
+    </g>
+  </g>
+</svg>
+<figcaption>그림 2. Jev의 계약 — 타입 질문 여러 개를 한 번의 병렬 패스로 답하고, 답마다 확률분포를 붙인다. 아래는 같은 일을 생성형 LLM이 처리할 때의 모습.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 숫자 읽기 — 가격·지연·벤치마크, 그리고 걸러 들을 것</h2>
+
+<p>공개된 숫자는 이렇습니다. 가격은 입력 토큰 100만 개당 <strong>$0.042</strong>, 출력은 무료입니다(생성하는 토큰이 사실상 없으니 자연스러운 과금 구조입니다). TypeSafe가 만든 4개 워크플로(보안 인시던트 대응, 에이전트 트레이스 관측, 인보이스 처리, 고객 지원) 자체 벤치마크에서 Jev는 정확도 <strong>67.8%</strong>로 GPT-5.6 Terra(67.9%)와 사실상 동률이었고, 케이스당 비용은 약 <strong>$0.0004 대 $0.0304–0.1761</strong>, 지연은 <strong>0.4초 대 10–38초</strong>였습니다. "동급 정확도에 약 76분의 1 비용, 25배 속도"라는 게 TypeSafe의 주장입니다.</p>
+
+<p>여기서 엔지니어답게 걸러 읽어야 할 게 세 가지 있습니다. HN 스레드에서 나온 비판과 겹칩니다.</p>
+
+<ul>
+  <li><strong>기준 답(ground truth)이 없습니다.</strong> 이 벤치마크는 GPT-6 Astra와 Claude Fable 5.1의 예측 평균을 정답 삼아 채점했습니다. 즉 저 67.8%는 "얼마나 맞았나"가 아니라 <strong>"프론티어 LLM 두 개와 얼마나 비슷하게 답했나"</strong>에 가깝습니다. 셀프 벤치마크이고, 제3자 검증은 아직 없습니다.</li>
+  <li><strong>지연 비교는 조건이 다릅니다.</strong> 타입 필드 하나를 내놓는 모델과 reasoning을 곁들여 문단을 생성하는 모델은 같은 경주를 뛰는 게 아닙니다. "100배, 200배" 같은 헤드라인 배수는 비교 대상과 조건에 따라 크게 출렁입니다.</li>
+  <li><strong>RLCD와 병렬 처리 구조는 논문이 없습니다.</strong> 이번 발표에서 처음 등장한 용어이고, ablation도 없습니다. 그럴듯한 엔지니어링이지만, 검증 가능해지기 전까지는 마케팅 언어로 취급하는 게 안전합니다.</li>
+</ul>
+
+<figure class="s1-fig">
+<svg viewBox="0 0 860 380" role="img" aria-label="TypeSafe 자체 벤치마크 비교 차트. 정확도는 Jev 67.8%와 GPT-5.6 Terra 67.9%로 거의 같고, 케이스당 비용은 Jev 0.0004달러 대 LLM 0.0304에서 0.1761달러, 케이스당 지연은 Jev 0.4초 대 LLM 10에서 38초로 큰 차이가 있음을 막대로 보여준다">
+  <g font-family="inherit">
+    <text x="430" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="var(--s1-slate)">TypeSafe 자체 4-워크플로 벤치마크 (셀프 리포트 · 기준 답 = 프론티어 모델 평균)</text>
+
+    <text x="60" y="80" font-size="13.5" font-weight="700" fill="var(--s1-slate)">정확도</text>
+    <rect x="200" y="62" width="475" height="22" rx="5" fill="var(--s1-teal)" opacity="0.85"/>
+    <text x="688" y="79" font-size="12.5" fill="var(--s1-teal)">Jev 67.8%</text>
+    <rect x="200" y="92" width="476" height="22" rx="5" fill="var(--s1-slate)" opacity="0.75"/>
+    <text x="688" y="109" font-size="12.5" fill="var(--s1-slate)">Terra 67.9%</text>
+
+    <text x="60" y="170" font-size="13.5" font-weight="700" fill="var(--s1-slate)">케이스당 비용</text>
+    <rect x="200" y="152" width="4" height="22" rx="2" fill="var(--s1-teal)"/>
+    <text x="214" y="169" font-size="12.5" fill="var(--s1-teal)">Jev $0.0004</text>
+    <rect x="200" y="182" width="440" height="22" rx="5" fill="var(--s1-rose)" opacity="0.8"/>
+    <text x="652" y="199" font-size="12.5" fill="var(--s1-rose)">LLM $0.0304–0.1761</text>
+
+    <text x="60" y="260" font-size="13.5" font-weight="700" fill="var(--s1-slate)">케이스당 지연</text>
+    <rect x="200" y="242" width="7" height="22" rx="2" fill="var(--s1-teal)"/>
+    <text x="218" y="259" font-size="12.5" fill="var(--s1-teal)">Jev 0.4s</text>
+    <rect x="200" y="272" width="500" height="22" rx="5" fill="var(--s1-rose)" opacity="0.8"/>
+    <text x="712" y="289" font-size="12.5" fill="var(--s1-rose)">LLM 10–38s</text>
+
+    <text x="430" y="345" text-anchor="middle" font-size="12.5" fill="var(--s1-gray)">비용·지연 막대는 로그 스케일이 아닌 상대 크기 표현 · 출처: TypeSafe 발표 자료 (제3자 검증 없음)</text>
+  </g>
+</svg>
+<figcaption>그림 3. 셀프 벤치마크 기준 — 정확도는 동률, 비용·지연은 자릿수가 다르다. 단, 정답 자체가 프론티어 LLM 평균이라 "정확도"는 "프론티어 모델과의 일치율"로 읽어야 한다.</figcaption>
+</figure>
+
+<p>그래도 이 발표가 의미 있는 이유는, 숫자의 배수가 절반으로 깎여도 결론이 안 바뀌기 때문입니다. 결정 워크로드에서 생성 모델 대비 자릿수 단위의 비용·지연 차이는 구조에서 나옵니다. 출력 토큰이 없으니 출력 과금이 없고, 순차 디코딩이 없으니 지연이 짧습니다. 에이전트 비용의 상당 부분이 이런 반복 결정에서 나온다는 건 <a href="/posts/agent-token-economics/">토큰 이코노믹스 편</a>에서 본 그대로입니다.</p>
+
+<h2 id="sec-5">5. 실전 — 에이전트 루프에 결정 전용 모델 붙여 보기</h2>
+
+<p>Jev는 현재 얼리 액세스지만, <a href="https://vercel.com/changelog/typesafe-ai-jev-now-available-on-ai-gateway" target="_blank" rel="noopener">Vercel AI Gateway에 <code>typesafe-ai/jev</code>로 올라와 있어</a> 게이트웨이 키만 있으면 호출해 볼 수 있습니다. 고객 지원 에이전트의 앞단(라우팅)과 뒷단(가드레일)에 붙이는 전형적인 패턴을 파이썬으로 써 보겠습니다.</p>
+
+{{< highlight python >}}
+import requests
+
+GATEWAY = "https://ai-gateway.vercel.sh/v4/ai"
+
+def jev_eval(state, questions):
+    r = requests.post(
+        f"{GATEWAY}/evaluations",
+        headers={"Authorization": f"Bearer {API_KEY}"},
+        json={"model": "typesafe-ai/jev", "state": state, "questions": questions},
+        timeout=5,  # LLM 호출이면 엄두도 못 낼 타임아웃
+    )
+    r.raise_for_status()
+    return r.json()["answers"]
+
+# ── 앞단: 라우팅 + 긴급도 판단 (LLM 호출 전에 실행) ──
+ticket = "3일째 정산이 실패하고 있어요. 환불도 안 되고 답장도 없네요."
+
+front = jev_eval(ticket, {
+    "route": {
+        "type": "choice",
+        "instructions": "이 티켓을 처리할 팀은?",
+        "criteria": {
+            "billing": "결제·정산·환불 문제",
+            "bug": "제품 오동작 신고",
+            "general": "일반 문의",
+        },
+    },
+    "is_urgent": {"type": "boolean",
+                  "instructions": "24시간 내 대응이 필요한가?"},
+})
+
+route = front["route"]["choice"]                # "billing"
+p_route = front["route"]["probabilities"][route]
+
+# 확신이 낮으면 싼 모델의 답을 믿지 말고 위로 넘긴다
+if p_route < 0.85:
+    route = escalate_to_llm(ticket)   # 비싼 LLM 또는 사람에게
+{{< /highlight >}}
+
+<p>핵심은 마지막 네 줄입니다. 보정된 확률이 있으니 <strong>"확신 임계값 아래면 에스컬레이션"</strong>이라는 계단식 구조를 만들 수 있습니다. 트래픽의 대부분은 밀리초·소수점 넷째 자리 달러로 처리하고, 애매한 소수만 프론티어 LLM이나 사람이 봅니다. <a href="/posts/llm-model-routing/">모델 라우팅 편</a>에서 본 카스케이드 패턴의 관문을, 라우터 학습 없이 제로샷 질문으로 세우는 셈입니다.</p>
+
+<p>뒷단 가드레일도 같은 모양입니다. LLM이 생성한 답변을 state로 넣고, 정책 질문을 던집니다.</p>
+
+{{< highlight python >}}
+# ── 뒷단: LLM 출력 검증 (답변을 내보내기 전에 실행) ──
+draft = llm_generate(ticket)   # 본작업은 여전히 생성형 LLM
+
+guard = jev_eval(
+    {"ticket": ticket, "draft": draft},
+    {
+        "promises_refund": {"type": "boolean",
+            "instructions": "답변 초안이 환불을 확정적으로 약속하는가?"},
+        "grounded": {"type": "boolean",
+            "instructions": "답변 내용이 티켓 상황과 부합하는가?"},
+        "quality": {"type": "score",
+            "instructions": "답변 품질을 평가하라.",
+            "criteria": ["poor", "acceptable", "excellent"]},
+    },
+)
+
+if guard["promises_refund"]["probability"] > 0.5 or \
+   guard["grounded"]["probability"] < 0.9:
+    draft = regenerate_with_feedback(draft)   # 재생성 또는 사람 검토
+{{< /highlight >}}
+
+<p>이 검증 호출은 밀리초 단위라 <strong>모든 응답에 100% 걸어도 부담이 없습니다</strong>. LLM-as-a-judge로 같은 걸 하면 응답마다 판사 모델 호출이 추가돼 지연과 비용이 두 배가 되죠(판사 설계의 함정은 <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-judge 편</a> 참고). 참고로 같은 구조를 CLI로 실험해 보고 싶다면 커뮤니티가 만든 <code>jev-cli</code>도 있습니다.</p>
+
+<h2 id="sec-6">6. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>계산·비교가 필요한 질문을 던지지 마세요.</strong> Jev는 텍스트를 읽고 판단할 뿐 계산하지 않습니다. 날짜 두 개 중 어느 쪽이 먼저인지, 며칠 차이인지, 금액 합계가 맞는지 같은 질문은 신뢰할 수 없습니다. 산술·날짜 비교는 코드로 미리 계산해서 그 <strong>결과를</strong> state에 넣으세요.</li>
+  <li><strong>state에 잡동사니를 넣지 마세요.</strong> 관련 없는 디테일이 가득한 큰 state는 정확도를 갉아먹습니다. 판단에 필요한 부분만 걸러 넣는 게 좋습니다. <a href="/posts/less-context-better-agents/">컨텍스트가 적을수록 낫다</a>는 원칙은 결정 전용 모델에도 그대로 적용됩니다. 예산 자체도 유한합니다(전체 약 64K 토큰).</li>
+  <li><strong>calibration을 개별 답의 보증으로 착각하지 마세요.</strong> "p=0.92"는 그 답이 92% 확률로 맞다는 개별 보증이 아니라, 그 확신 수준의 예측 집단이 평균적으로 그만큼 맞는다는 뜻입니다. 임계값은 감으로 정하지 말고, <strong>내 워크로드의 라벨 샘플 수백 개로 확률-정답률 곡선을 직접 그려서</strong> 정하세요. 임계값 바로 아래 구간은 반드시 에스컬레이션 경로를 두고요.</li>
+  <li><strong>자유 서술이 필요한 순간을 구분하세요.</strong> 설명을 쓰고, 코드를 만들고, 대화를 이어 가는 일은 여전히 생성형 LLM의 몫입니다. Jev의 자리는 TypeSafe 표현대로 "smart if-statement" — 손으로 짠 규칙이 들어가던 분기점입니다. 반대로, 선택지가 2~3개뿐이고 규칙으로도 충분히 갈리는 분기라면 그냥 정규식과 if문을 쓰세요. 모델은 공짜가 아닙니다.</li>
+  <li><strong>단일 벤더 락인을 계산에 넣으세요.</strong> Jev는 폐쇄형 모델이고, System One이라는 모델 계열 자체가 현재 이 회사 하나뿐입니다. 결정 지점을 Jev API 시그니처에 직접 묶지 말고, <code>decide(state, questions)</code> 같은 얇은 인터페이스 뒤로 숨겨 두면 나중에 파인튜닝 분류기나 다른 모델로 갈아탈 때 파이프라인이 통째로 흔들리지 않습니다.</li>
+</ul>
+
+<h2 id="sec-7">7. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>9월 15일 TypeSafe AI(창업자: 전 OpenAI RLHF·ChatGPT 연구자 Diogo Almeida)가 시드 $40M과 함께 스텔스를 벗고, 텍스트를 생성하지 않는 <strong>결정 전용 모델 Jev</strong>를 공개했습니다. HN 1,800점을 넘긴 이번 주 최대 화제였습니다.</li>
+  <li>API는 채팅이 아니라 평가입니다: 비정형 <strong>state</strong> + 타입 질문(<strong>choice · score · boolean</strong>) → 한 번의 병렬 패스로 확률분포가 붙은 타입 있는 답. 스키마 밖 출력과 파싱 실패가 원리적으로 없습니다.</li>
+  <li>입력 $0.042/M 토큰에 출력 무료, 70–500ms. 자체 벤치마크에선 GPT-5.6 Terra와 정확도 동률에 케이스당 비용 ~1/76, 지연 ~1/25 — 단, <strong>기준 답이 프론티어 모델 평균인 셀프 벤치마크</strong>이고 RLCD는 논문이 없습니다. 배수는 깎아 듣되, 구조적 이점(출력 토큰 없음, 순차 디코딩 없음)은 진짜입니다.</li>
+  <li>쓰는 자리: 에이전트 루프의 라우팅·툴 선택·가드레일·스코어링처럼 답이 선택지/점수/참거짓인 곳. 보정된 확률로 <strong>"확신 낮으면 에스컬레이션"</strong> 카스케이드를 세울 수 있습니다.</li>
+  <li>못 쓰는 자리: 자유 서술, 코드 생성, 산술·날짜 비교. state는 걸러 넣고, 임계값은 내 데이터로 곡선을 그려 정하고, 얇은 인터페이스로 감싸 락인에 대비하세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://typesafe.ai/blog/introducing-system-one-models-and-jev" target="_blank" rel="noopener">Introducing System One Models &amp; Jev — TypeSafe AI 공식 발표</a></li>
+  <li><a href="https://docs.typesafe.ai/api" target="_blank" rel="noopener">TypeSafe AI API Reference — 공식 문서</a></li>
+  <li><a href="https://docs.typesafe.ai/primitives/noul" target="_blank" rel="noopener">Noul 프리미티브 — TypeSafe AI 공식 문서</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49717558" target="_blank" rel="noopener">Introducing System One Models and Jev — Hacker News 스레드 (1,800+점)</a></li>
+  <li><a href="https://www.latent.space/p/ainews-jev-a-system-one-model-that" target="_blank" rel="noopener">AINews: Jev — a "System One Model" that only decides/classifies/routes/scores</a></li>
+  <li><a href="https://www.businesswire.com/news/home/20260915525333/en/TypeSafe-AI-Emerges-From-Stealth-With-$40M-in-Funding-With-New-Model-for-Composable-AI" target="_blank" rel="noopener">TypeSafe AI Emerges From Stealth With $40M in Funding — Business Wire</a></li>
+  <li><a href="https://siliconangle.com/2026/09/16/typesafe-ai-exits-stealth-with-40m-to-build-ai-for-use-by-software/" target="_blank" rel="noopener">TypeSafe AI exits stealth with $40M to build AI for use by software — SiliconANGLE</a></li>
+  <li><a href="https://flaviocopes.com/jev/" target="_blank" rel="noopener">A deep dive into Jev — Flavio Copes (컨텍스트 예산·한계 정리)</a></li>
+  <li><a href="https://www.datacamp.com/blog/system-one-models-jev" target="_blank" rel="noopener">Jev: TypeSafe's System One Model That Never Hallucinates — DataCamp (벤치마크 수치)</a></li>
+  <li><a href="https://www.orcarouter.ai/blog/jev-typesafe-system-one-what-we-know" target="_blank" rel="noopener">Jev: TypeSafe's Decision Model, Speed and Cost Explained — OrcaRouter</a></li>
+  <li><a href="https://thecherrycreeknews.com/typesafe-jev-system-one-model-claims-evals-independent-tests-cherry_creek/" target="_blank" rel="noopener">TypeSafe's Jev Claims 193x Faster and 444x Cheaper — 벤치마크 방법론 비판</a></li>
+  <li><a href="https://vercel.com/changelog/typesafe-ai-jev-now-available-on-ai-gateway" target="_blank" rel="noopener">TypeSafe AI's Jev now available on AI Gateway — Vercel Changelog</a></li>
+  <li><a href="https://github.com/jtsang4/jev-cli" target="_blank" rel="noopener">jev-cli — 커뮤니티 CLI (요청/응답 포맷 문서화)</a></li>
+  <li><a href="https://dev.to/gabrielanhaia/your-agent-burns-llm-money-on-switch-statements-jev-claims-444x-less-23l4" target="_blank" rel="noopener">Your Agent Burns LLM Money on Switch Statements — DEV Community</a></li>
+</ul>

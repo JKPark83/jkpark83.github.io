@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="결정 전용 모델 Jev의 개념을 그린 표지. 왼쪽에 비정형 상태 텍스트가 들어가고, 가운데 System One 모델 상자를 지나, 오른쪽에 타입이 붙은 결정 값 세 개(choice, score, 확률)가 나온다. 말풍선에는 금지 표시가 그려져 있다">
+  <defs>
+    <linearGradient id="s1-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c1222"/>
+      <stop offset="1" stop-color="#134e4a"/>
+    </linearGradient>
+    <linearGradient id="s1-core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#s1-bg)"/>
+
+  <!-- 왼쪽: 비정형 상태 입력 -->
+  <g font-family="monospace" font-size="17" fill="#94a3b8">
+    <rect x="60" y="195" width="270" height="240" rx="14" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+    <text x="82" y="232">"3일째 정산이</text>
+    <text x="82" y="260"> 실패하고 있어요.</text>
+    <text x="82" y="288"> 환불도 안 되고..."</text>
+    <text x="82" y="330" fill="#64748b">tool_calls: [...]</text>
+    <text x="82" y="358" fill="#64748b">trace: [...]</text>
+    <text x="82" y="400" fill="#475569">비정형 상태(state)</text>
+  </g>
+  <path d="M340 315 L420 315" stroke="#2dd4bf" stroke-width="4" marker-end="none"/>
+  <path d="M408 303 L430 315 L408 327 Z" fill="#2dd4bf"/>
+
+  <!-- 가운데: System One 모델 -->
+  <rect x="440" y="215" width="300" height="200" rx="20" fill="url(#s1-core)" opacity="0.95"/>
+  <text x="590" y="290" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#ffffff">System One</text>
+  <text x="590" y="330" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#ccfbf1">생성 없이 결정만</text>
+  <text x="590" y="368" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#99f6e4">한 번의 병렬 패스 · 70–500ms</text>
+
+  <!-- 금지된 말풍선 -->
+  <g>
+    <path d="M545 120 h96 a14 14 0 0 1 14 14 v40 a14 14 0 0 1 -14 14 h-52 l-16 20 v-20 h-28 a14 14 0 0 1 -14 -14 v-40 a14 14 0 0 1 14 -14 z" fill="#1e293b" stroke="#64748b" stroke-width="2.5"/>
+    <text x="593" y="158" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#94a3b8">텍스트 생성</text>
+    <circle cx="593" cy="155" r="54" fill="none" stroke="#fb7185" stroke-width="6"/>
+    <line x1="555" y1="193" x2="631" y2="117" stroke="#fb7185" stroke-width="6"/>
+  </g>
+
+  <path d="M750 315 L830 315" stroke="#2dd4bf" stroke-width="4"/>
+  <path d="M818 303 L840 315 L818 327 Z" fill="#2dd4bf"/>
+
+  <!-- 오른쪽: 타입 있는 결정들 -->
+  <g font-family="monospace" font-size="19">
+    <rect x="850" y="185" width="290" height="72" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="872" y="216" fill="#38bdf8">choice:</text>
+    <text x="872" y="243" fill="#e2e8f0">"환불팀" (p=0.96)</text>
+    <rect x="850" y="279" width="290" height="72" rx="12" fill="#0f172a" stroke="#fbbf24" stroke-width="2.5"/>
+    <text x="872" y="310" fill="#fbbf24">score:</text>
+    <text x="872" y="337" fill="#e2e8f0">1.78 / 2</text>
+    <rect x="850" y="373" width="290" height="72" rx="12" fill="#0f172a" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="872" y="404" fill="#4ade80">is_urgent:</text>
+    <text x="872" y="431" fill="#e2e8f0">0.92</text>
+  </g>
+
+  <!-- 하단 타이틀 -->
+  <text x="600" y="530" text-anchor="middle" font-family="sans-serif" font-size="40" font-weight="700" fill="#f1f5f9">말하지 않는 모델, Jev</text>
+  <text x="600" y="575" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#94a3b8">결정 전용 모델(System One Models)과 에이전트 파이프라인</text>
+</svg>

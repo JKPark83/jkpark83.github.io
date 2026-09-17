@@ -1,0 +1,33 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="나스닥이 매도 경계선 25,980에서 439포인트 반등해 26,418.30으로 마감했고, 비트코인은 전환선 7만5,500달러를 지켰으며, 주식 공포·탐욕 지수가 26으로 극단적 공포까지 1포인트 남았다는 것을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.18 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">판정의 날 — 경계선에서 439포인트 반등 · 반도체 +3% · 오늘 밤 쿼드러플 위칭</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">매도 전환은 없던 일로</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#4ade80">+1.69%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#86efac">나스닥 26,418.30</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">+438p</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">경계선 25,980 위</text>
+    <text x="225" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">브렌트 104.82달러 후퇴 · 10년물 8일 만에 반락</text>
+    <text x="225" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">황 "내년 칩 2배" — 반도체 지수 +3%</text>
+  </g>
+
+  <g transform="translate(630,280)">
+    <text x="240" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">심리는 문턱까지</text>
+    <rect x="60" y="40" width="360" height="110" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="240" y="90" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="700" fill="#fbbf24">주식 26 (공포)</text>
+    <text x="240" y="126" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fcd34d">4월 이후 최저 · 극단적 공포까지 1포인트</text>
+    <text x="240" y="240" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">BTC 7만6,400달러 — 전환선 7만5,500 사수 · ETF 이틀 -7.5억달러</text>
+    <text x="240" y="272" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#94a3b8">심리 주식 26(공포)·암호화폐 50(중립) · 나스닥 관망 / 암호화폐 관망</text>
+  </g>
+</svg>

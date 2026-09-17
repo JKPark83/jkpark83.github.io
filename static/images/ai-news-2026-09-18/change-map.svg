@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 560" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="560" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-18</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">키워드: 에이전트 한 마리에서 '떼(fleet)'로 — 공유 메모리, 오케스트레이터, 하네스</text>
+
+  <!-- center node -->
+  <rect x="300" y="255" width="240" height="56" rx="12" fill="#111827"/>
+  <text x="420" y="278" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">여러 에이전트를 어떻게</text>
+  <text x="420" y="296" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">겹치지 않게 굴릴 것인가</text>
+
+  <!-- connecting lines -->
+  <line x1="320" y1="270" x2="230" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="270" x2="610" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="320" y1="300" x2="230" y2="400" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="300" x2="610" y2="400" stroke="#d1d5db" stroke-width="2"/>
+
+  <!-- Q1: 릴리즈 -->
+  <rect x="40" y="80" width="330" height="130" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="56" y="104" font-size="14" font-weight="700" fill="#1d4ed8">🤖 릴리즈</text>
+  <text x="56" y="128" font-size="12.5" fill="#111827">Codex CLI 0.155.0 — /voice 실험 기능</text>
+  <text x="56" y="146" font-size="11.5" fill="#4b5563">에이전트 오버뷰 관리 · MCP Touch ID · 데몬 업데이트</text>
+  <text x="56" y="170" font-size="12.5" fill="#111827">Claude Code 2.1.274 — MCP 연결 안정화 묶음</text>
+  <text x="56" y="188" font-size="11.5" fill="#4b5563">타임아웃·레거시 SSE·403 스코프 표기 수정</text>
+
+  <!-- Q2: 논문 -->
+  <rect x="470" y="80" width="330" height="130" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="486" y="104" font-size="14" font-weight="700" fill="#6d28d9">📚 논문</text>
+  <text x="486" y="128" font-size="12.5" fill="#111827">Agora — Git을 에이전트 공유 메모리로 (2609.18094)</text>
+  <text x="486" y="146" font-size="11.5" fill="#4b5563">13 워커 · 12일 · 1,703 커밋 · 중복 탐색 대신 집단 발견</text>
+  <text x="486" y="170" font-size="12.5" fill="#111827">ProgramDistill — 앱에서 SWE 태스크 증류 (2609.18805)</text>
+  <text x="486" y="188" font-size="11.5" fill="#4b5563">26개 앱 → 4,063 태스크 자동 생성 · 재현 검증</text>
+
+  <!-- Q3: 오픈소스 -->
+  <rect x="40" y="350" width="330" height="130" rx="10" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="56" y="374" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="56" y="398" font-size="12.5" fill="#111827">deepseek-harness — 전부-플러그인 에이전트 하네스</text>
+  <text x="56" y="416" font-size="11.5" fill="#4b5563">DeepSeek 공식 · TypeScript · MIT · 개발자 프리뷰</text>
+  <text x="56" y="440" font-size="12.5" fill="#111827">Orca — 병렬 워크트리 에이전트 오케스트레이터</text>
+  <text x="56" y="458" font-size="11.5" fill="#4b5563">Codex·Claude Code 나란히 · 모바일 컴패니언</text>
+
+  <!-- Q4: 팁 -->
+  <rect x="470" y="350" width="330" height="130" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="486" y="374" font-size="14" font-weight="700" fill="#c2410c">🧑‍💻 팁</text>
+  <text x="486" y="398" font-size="12.5" fill="#111827">Codex /experimental → /voice 음성 세션</text>
+  <text x="486" y="416" font-size="11.5" fill="#4b5563">Claude Code MCP 대기시간 제어 환경변수</text>
+  <text x="486" y="440" font-size="12.5" fill="#111827">공통 — 멀티에이전트 결과는 append-only로</text>
+  <text x="486" y="458" font-size="11.5" fill="#4b5563">Agora 패턴: 커밋 = 불변 기여 + 부모 엣지 = 근거</text>
+
+  <text x="420" y="530" text-anchor="middle" font-size="11" fill="#9ca3af">논문 수치는 arXiv API로, 저장소·릴리즈는 클론과 태그 목록으로 확인 · star 수는 API 접근 제한으로 미표기</text>
+</svg>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 480" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="480" fill="#fafafa"/>
+  <text x="420" y="36" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">코딩 CLI 동시 릴리즈 — 무엇이 바뀌었나</text>
+  <text x="420" y="56" text-anchor="middle" font-size="12" fill="#6b7280">둘 다 이 세션에서 태그 목록·클론으로 확인 (9/17 기준 최신 태그)</text>
+
+  <!-- Codex card -->
+  <rect x="40" y="80" width="370" height="330" rx="12" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="60" y="112" font-size="16" font-weight="700" fill="#15803d">🟩 Codex CLI 0.155.0</text>
+  <text x="60" y="132" font-size="11.5" fill="#6b7280">0.154.0 이후 약 일주일 만의 마이너 업데이트</text>
+
+  <text x="60" y="164" font-size="12.5" font-weight="700" fill="#111827">/voice 음성 대화 (실험)</text>
+  <text x="60" y="181" font-size="11.5" fill="#4b5563">라이브 트랜스크립트 + 마이크 컨트롤, /experimental로 켬</text>
+
+  <text x="60" y="210" font-size="12.5" font-weight="700" fill="#111827">TUI 상태줄에 라이브 추론 요약</text>
+  <text x="60" y="227" font-size="11.5" fill="#4b5563">턴 완료 타임스탬프 표시 — 긴 턴 관찰이 쉬워짐</text>
+
+  <text x="60" y="256" font-size="12.5" font-weight="700" fill="#111827">에이전트 오버뷰: 숨김·보관·삭제</text>
+  <text x="60" y="273" font-size="11.5" fill="#4b5563">워크트리 소유 정보 + 깨끗한 관리형 워크트리 정리</text>
+
+  <text x="60" y="302" font-size="12.5" font-weight="700" fill="#111827">MCP 요청에 Touch ID 검증 (Mac)</text>
+  <text x="60" y="319" font-size="11.5" fill="#4b5563">로컬 TUI 세션에서 민감한 MCP 호출에 생체 인증</text>
+
+  <text x="60" y="348" font-size="12.5" font-weight="700" fill="#111827">데몬 업데이트 스케줄 + 복구</text>
+  <text x="60" y="365" font-size="11.5" fill="#4b5563">app-server daemon update · 재시작 후 스레드/goal 복구</text>
+
+  <text x="60" y="394" font-size="11" fill="#6b7280">그 외: Bedrock 자격증명 커맨드, WSL 샌드박스 탈출 차단</text>
+
+  <!-- Claude Code card -->
+  <rect x="430" y="80" width="370" height="330" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="450" y="112" font-size="16" font-weight="700" fill="#1d4ed8">🟦 Claude Code 2.1.274</text>
+  <text x="450" y="132" font-size="11.5" fill="#6b7280">MCP 연결 문제를 한꺼번에 손본 릴리즈</text>
+
+  <text x="450" y="164" font-size="12.5" font-weight="700" fill="#111827">MCP 타임아웃 버그 수정</text>
+  <text x="450" y="181" font-size="11.5" fill="#4b5563">긴 timeout 설정에도 5분에 끊기던 Streamable HTTP 호출</text>
+
+  <text x="450" y="210" font-size="12.5" font-weight="700" fill="#111827">레거시 HTTP+SSE 서버 연결 수정</text>
+  <text x="450" y="227" font-size="11.5" fill="#4b5563">첫 요청에 422/4xx로 답하는 서버도 이제 연결됨</text>
+
+  <text x="450" y="256" font-size="12.5" font-weight="700" fill="#111827">403 에러가 부족한 권한을 명시</text>
+  <text x="450" y="273" font-size="11.5" fill="#4b5563">"로그인 만료"로 뭉개지 않고 /mcp 재인증 안내</text>
+
+  <text x="450" y="302" font-size="12.5" font-weight="700" fill="#111827">MCP 시작 대기 환경변수 추가</text>
+  <text x="450" y="319" font-size="11.5" fill="#4b5563">CLAUDE_CODE_MCP_STARTUP_WAIT_MS — 0이면 안 기다림</text>
+
+  <text x="450" y="348" font-size="12.5" font-weight="700" fill="#111827">망가진 트랜스크립트 자가 복구</text>
+  <text x="450" y="365" font-size="11.5" fill="#4b5563">tool_use_id 400 무한 재시도 루프 종료 + /rewind 힌트</text>
+
+  <text x="450" y="394" font-size="11" fill="#6b7280">그 외: 메모리 위험 경고, 컴팩션 후 /goal 유지 수정</text>
+
+  <text x="420" y="450" text-anchor="middle" font-size="11" fill="#9ca3af">공통 방향: 단일 세션 CLI에서 '여러 에이전트·여러 서버를 관리하는 런타임'으로</text>
+</svg>

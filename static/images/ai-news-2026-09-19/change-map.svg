@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 560" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="560" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-19</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">키워드: 하네스(harness)가 연구 대상이 된 날 — 자동 개선, 실증 연구, KV 다이어트</text>
+
+  <!-- center node -->
+  <rect x="300" y="255" width="240" height="56" rx="12" fill="#111827"/>
+  <text x="420" y="278" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">에이전트 하네스를</text>
+  <text x="420" y="296" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">누가 더 싸게 굴리는가</text>
+
+  <!-- connecting lines -->
+  <line x1="320" y1="270" x2="230" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="270" x2="610" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="320" y1="300" x2="230" y2="400" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="300" x2="610" y2="400" stroke="#d1d5db" stroke-width="2"/>
+
+  <!-- Q1: 릴리즈 -->
+  <rect x="40" y="80" width="330" height="130" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="56" y="104" font-size="14" font-weight="700" fill="#1d4ed8">🤖 릴리즈</text>
+  <text x="56" y="128" font-size="12.5" fill="#111827">DeepSeek-V4.1-Flash 테크 리포트 (2609.19969)</text>
+  <text x="56" y="146" font-size="11.5" fill="#4b5563">KV 캐시 890B/토큰 — V4-Flash의 1/4 · 1M 컨텍스트</text>
+  <text x="56" y="170" font-size="12.5" fill="#111827">Claude Code 2.1.277 — AGENTS.md 공식 지원</text>
+  <text x="56" y="188" font-size="11.5" fill="#4b5563">CLAUDE.md 없으면 AGENTS.md 읽음 · Codex 0.155.1 패치</text>
+
+  <!-- Q2: 논문 -->
+  <rect x="470" y="80" width="330" height="130" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="486" y="104" font-size="14" font-weight="700" fill="#6d28d9">📚 논문</text>
+  <text x="486" y="128" font-size="12.5" fill="#111827">SoL-Pi — 하네스를 자동 연구로 개선 (2609.20519)</text>
+  <text x="486" y="146" font-size="11.5" fill="#4b5563">토큰 트래픽 44.7~49.0% 절감 · 성능은 동급</text>
+  <text x="486" y="170" font-size="12.5" fill="#111827">하네스 설계 실증 연구 (2609.20804)</text>
+  <text x="486" y="188" font-size="11.5" fill="#4b5563">176개 설정 비교 — 플래닝·툴·컨텍스트 관리 분해</text>
+
+  <!-- Q3: 오픈소스 -->
+  <rect x="40" y="350" width="330" height="130" rx="10" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="56" y="374" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="56" y="398" font-size="12.5" fill="#111827">NVlabs/SoL-Pi — 논문 그대로의 Pi 확장</text>
+  <text x="56" y="416" font-size="11.5" fill="#4b5563">TypeScript · MIT · 4개 메커니즘 전부 opt-in</text>
+  <text x="56" y="440" font-size="12.5" fill="#111827">i-have-adhd — 출력 자체를 스킬로 교정</text>
+  <text x="56" y="458" font-size="11.5" fill="#4b5563">Claude·Codex·Gemini·Qwen 등 멀티툴 스킬 + 자체 eval</text>
+
+  <!-- Q4: 팁 -->
+  <rect x="470" y="350" width="330" height="130" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="486" y="374" font-size="14" font-weight="700" fill="#c2410c">🧑‍💻 실전 팁</text>
+  <text x="486" y="398" font-size="12.5" fill="#111827">🟩 codex execpolicy — 명령 정책을 규칙 파일로</text>
+  <text x="486" y="416" font-size="12.5" fill="#111827">🟦 /feature-dev — 7단계 기능 개발 워크플로</text>
+  <text x="486" y="434" font-size="12.5" fill="#111827">🟪 컨텍스트: 규칙 생략 → LLM 요약 순서로</text>
+  <text x="486" y="458" font-size="11.5" fill="#4b5563">셋 다 '하네스를 내 손으로 조정한다'는 같은 방향</text>
+
+  <text x="420" y="540" text-anchor="middle" font-size="11" fill="#9ca3af">모든 수치는 arXiv 초록·저장소 클론으로 검증 · jkpark83.github.io</text>
+</svg>

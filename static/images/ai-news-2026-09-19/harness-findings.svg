@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 470" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="470" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">코딩 에이전트 하네스 설계 — 176개 설정 실증 연구의 4가지 결론</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">arXiv 2609.20804 · 모델 4종 · SWE-Bench Verified + Terminal-Bench 2.1 · 실행 루프 고정, 부품만 교체</text>
+
+  <rect x="40" y="80" width="380" height="150" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="56" y="106" font-size="13.5" font-weight="700" fill="#1d4ed8">① 컨텍스트 관리 = 오버플로 보험</text>
+  <text x="56" y="130" font-size="12" fill="#111827">컨텍스트 윈도 예산이 빡빡할수록 가치가 커짐.</text>
+  <text x="56" y="148" font-size="12" fill="#111827">이득의 대부분은 '컨텍스트 초과 실패 방지'에서 나옴.</text>
+  <text x="56" y="176" font-size="11.5" fill="#4b5563">→ 넉넉한 윈도라면 정교한 관리 전략의 이득은 제한적.</text>
+  <text x="56" y="194" font-size="11.5" fill="#4b5563">→ 압박이 있을 때부터 진짜 성능 차이가 벌어진다.</text>
+
+  <rect x="440" y="80" width="360" height="150" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="456" y="106" font-size="13.5" font-weight="700" fill="#6d28d9">② 순서: 규칙 생략 → LLM 요약</text>
+  <text x="456" y="130" font-size="12" fill="#111827">규칙 기반 생략(elision)을 먼저 걸고, 그 다음에</text>
+  <text x="456" y="148" font-size="12" fill="#111827">LLM 요약을 쓰는 스테이징이 효율 1위.</text>
+  <text x="456" y="176" font-size="11.5" fill="#4b5563">→ '생략분 복구 기능'은 모델이 거의 안 씀.</text>
+  <text x="456" y="194" font-size="11.5" fill="#4b5563">→ 정확도 이득 없이 기계 장치만 늘어남.</text>
+
+  <rect x="40" y="250" width="380" height="150" rx="10" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="56" y="276" font-size="13.5" font-weight="700" fill="#047857">③ 플래닝의 역할이 모델에 따라 바뀜</text>
+  <text x="56" y="300" font-size="12" fill="#111827">약한 모델: 정확도를 받쳐주는 스캐폴드.</text>
+  <text x="56" y="318" font-size="12" fill="#111827">강한 모델: 정확도 변화는 미미, 비용 절감 수단.</text>
+  <text x="56" y="346" font-size="11.5" fill="#4b5563">→ 플래닝 단계를 뺄지 말지는 '모델 등급' 기준으로</text>
+  <text x="56" y="364" font-size="11.5" fill="#4b5563">결정하는 게 맞다는 근거.</text>
+
+  <rect x="440" y="250" width="360" height="150" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="456" y="276" font-size="13.5" font-weight="700" fill="#c2410c">④ bash 잘하는 모델엔 bash만</text>
+  <text x="456" y="300" font-size="12" fill="#111827">사전 정의 툴은 bash 숙련도가 낮은 모델에 유효.</text>
+  <text x="456" y="318" font-size="12" fill="#111827">bash 능한 모델은 bash-only 인터페이스로도</text>
+  <text x="456" y="336" font-size="12" fill="#111827">충분히 동작하며 비용이 크게 낮음.</text>
+  <text x="456" y="364" font-size="11.5" fill="#4b5563">→ 툴 카탈로그를 늘리기 전에 모델의 CLI 실력부터.</text>
+
+  <text x="420" y="440" text-anchor="middle" font-size="11.5" fill="#6b7280">다섯 가지 컨텍스트 관리 전략 × 네 가지 윈도 예산 × 플래닝·액션 공간 절제 실험의 요약 (초록 기준)</text>
+</svg>

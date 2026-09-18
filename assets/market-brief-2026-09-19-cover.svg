@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SEC 토큰화 주식 거래 허용 소식에 비트코인이 8만달러를 회복하고, 다우는 주간 1.7% 하락으로 3월 이후 최악의 주간을 기록했으며, 암호화폐 공포·탐욕 지수가 탐욕 구간으로 반등했다는 것을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.19 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">SEC발 랠리 — 비트코인 8만달러 회복 · 7조달러 위칭데이 통과 · 금리는 다시 5%</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">뉴스가 먼저, 가격이 따라간 날</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#4ade80">+5.2%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#86efac">BTC 8만달러 회복</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">5년 면제</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">SEC 토큰화 주식 거래</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식은 명암이 갈렸습니다</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">-1.7%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fca5a5">다우 주간 · 3월 후 최악</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#facc15">관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">나스닥 · 암호화폐</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">심리: 주식 29(공포) · 암호화폐 50~72(탐욕 반등) — 둘 다 극단 아님, 추격 매수 금지</text>
+  <text x="80" y="592" font-family="sans-serif" font-size="16" fill="#475569">jkpark83.github.io · 마켓 브리핑</text>
+</svg>

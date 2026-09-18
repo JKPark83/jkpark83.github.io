@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="금이 간 샌드박스 상자에서 나온 에이전트 두 개가 게시판을 통해 점선 메시지를 주고받고, 위에서 모니터의 눈이 지켜보는 표지 그림">
+  <defs>
+    <linearGradient id="adc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c1222"/>
+      <stop offset="1" stop-color="#3b0d1f"/>
+    </linearGradient>
+    <linearGradient id="adc-agent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e11d48"/>
+      <stop offset="1" stop-color="#fb7185"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#adc-bg)"/>
+
+  <!-- 왼쪽: 금이 간 샌드박스 -->
+  <g stroke="#38bdf8" stroke-width="5" fill="none">
+    <path d="M 90 200 L 90 470 L 400 470 L 400 200"/>
+    <path d="M 90 200 L 195 200"/>
+    <path d="M 295 200 L 400 200"/>
+    <!-- 균열 -->
+    <path d="M 195 200 L 225 235 L 210 268 L 250 300" stroke="#fb7185" stroke-width="4"/>
+    <path d="M 295 200 L 268 240 L 285 275" stroke="#fb7185" stroke-width="4"/>
+  </g>
+  <text x="245" y="510" text-anchor="middle" font-family="sans-serif" font-size="26" fill="#38bdf8" opacity="0.85">"격리됐다"고 믿었던 샌드박스</text>
+
+  <!-- 샌드박스 안 라벨 -->
+  <text x="245" y="360" text-anchor="middle" font-family="monospace" font-size="22" fill="#64748b">simulation, no internet</text>
+  <text x="245" y="395" text-anchor="middle" font-family="monospace" font-size="22" fill="#fb7185">← 사실이 아니었음</text>
+
+  <!-- 탈출한 에이전트 1 -->
+  <circle cx="248" cy="185" r="34" fill="url(#adc-agent)"/>
+  <circle cx="236" cy="178" r="5" fill="#0c1222"/>
+  <circle cx="260" cy="178" r="5" fill="#0c1222"/>
+  <path d="M 234 197 Q 248 190 262 197" stroke="#0c1222" stroke-width="3.5" fill="none"/>
+
+  <!-- 에이전트 2 (외부) -->
+  <circle cx="900" cy="185" r="34" fill="url(#adc-agent)"/>
+  <circle cx="888" cy="178" r="5" fill="#0c1222"/>
+  <circle cx="912" cy="178" r="5" fill="#0c1222"/>
+  <path d="M 886 197 Q 900 190 914 197" stroke="#0c1222" stroke-width="3.5" fill="none"/>
+
+  <!-- 가운데: 게시판(위키) -->
+  <g>
+    <rect x="480" y="250" width="240" height="180" rx="14" fill="none" stroke="#fbbf24" stroke-width="4"/>
+    <line x1="505" y1="290" x2="695" y2="290" stroke="#fbbf24" stroke-width="3" opacity="0.7"/>
+    <line x1="505" y1="325" x2="695" y2="325" stroke="#fbbf24" stroke-width="3" opacity="0.5"/>
+    <line x1="505" y1="360" x2="660" y2="360" stroke="#fbbf24" stroke-width="3" opacity="0.4"/>
+    <line x1="505" y1="395" x2="675" y2="395" stroke="#fbbf24" stroke-width="3" opacity="0.3"/>
+    <text x="600" y="470" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#fbbf24" opacity="0.85">버려진 위키 = 담합 게시판 (18,000 posts)</text>
+  </g>
+
+  <!-- 점선 메시지 흐름 -->
+  <path d="M 285 200 Q 400 260 480 300" stroke="#fb7185" stroke-width="4" fill="none" stroke-dasharray="12 10"/>
+  <path d="M 720 300 Q 810 250 870 205" stroke="#fb7185" stroke-width="4" fill="none" stroke-dasharray="12 10"/>
+
+  <!-- 위: 모니터의 눈 -->
+  <g>
+    <path d="M 520 90 Q 600 35 680 90 Q 600 145 520 90 Z" fill="none" stroke="#2dd4bf" stroke-width="5"/>
+    <circle cx="600" cy="90" r="22" fill="none" stroke="#2dd4bf" stroke-width="5"/>
+    <circle cx="600" cy="90" r="8" fill="#2dd4bf"/>
+    <text x="600" y="180" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#2dd4bf" opacity="0.9">모니터는 읽기 전용으로 — monitorability tax</text>
+  </g>
+
+  <!-- 타이틀 -->
+  <text x="1110" y="330" text-anchor="end" font-family="sans-serif" font-size="44" font-weight="700" fill="#f1f5f9">에이전트는 왜</text>
+  <text x="1110" y="385" text-anchor="end" font-family="sans-serif" font-size="44" font-weight="700" fill="#f1f5f9">거짓말하고, 속이고,</text>
+  <text x="1110" y="440" text-anchor="end" font-family="sans-serif" font-size="44" font-weight="700" fill="#fb7185">담합하는가</text>
+  <text x="1110" y="490" text-anchor="end" font-family="sans-serif" font-size="26" fill="#94a3b8">2026년 여름의 사건들과 엔지니어의 방어</text>
+</svg>

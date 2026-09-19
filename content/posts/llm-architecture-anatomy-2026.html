@@ -1,0 +1,350 @@
+---
+title: "GPT-2 뼈대는 그대로다 — 오픈 LLM 아키텍처 해부학 2026 (MLA·MoE·슬라이딩 윈도우·하이브리드)"
+date: 2026-09-20T07:30:00+09:00
+draft: false
+tags: ["AI", "LLM", "아키텍처", "MLA", "GQA", "MoE", "슬라이딩 윈도우", "attention sinks", "Gated DeltaNet", "Qwen3-Next", "DeepSeek", "KV 캐시", "OpenArch", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "9월 10일 Sebastian Raschka가 오픈 LLM 103개의 구조를 한 장씩 정리한 'LLM Architecture Gallery'를 업데이트했고, 닷새 뒤 이 갤러리의 모델들을 PyTorch로 처음부터 다시 구현한 레포 OpenArch가 Hacker News 프론트페이지에 올랐습니다(132점). 흥미로운 사실은 따로 있습니다 — 2026년의 1조 파라미터 모델도 뼈대는 2019년 GPT-2와 거의 같다는 것. 달라진 건 네 개의 다이얼입니다: 어텐션(GQA→MLA→하이브리드), FFN(dense→초희소 MoE), 정규화 위치, 위치 인코딩. 이 다이얼들이 KV 캐시·서빙 비용·지연에 어떻게 직결되는지, DeepSeek-V3·Kimi K2·Gemma 3·GPT-OSS·Qwen3-Next를 해부하며 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "llm-architecture-anatomy-2026-cover.svg"
+  alt: "트랜스포머 블록 뼈대 하나를 가운데 두고 어텐션·MoE·정규화·위치 인코딩 네 개의 다이얼이 둘러싼 그림"
+  caption: "2026년의 프론티어 오픈 모델도 뼈대는 GPT-2 — 바뀐 것은 네 개의 다이얼이다"
+  relative: false
+---
+
+<style>
+/* ── LLM 아키텍처 해부학 포스트 전용 스타일 (laa- 접두사) ── */
+.laa-fig{
+  --laa-green:#16a34a; --laa-rose:#e11d48; --laa-amber:#d97706; --laa-sky:#0284c7;
+  --laa-violet:#7c3aed; --laa-slate:#64748b; --laa-teal:#0d9488; --laa-blue:#2563eb;
+  --laa-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .laa-fig{
+  --laa-green:#4ade80; --laa-rose:#fb7185; --laa-amber:#fbbf24; --laa-sky:#38bdf8;
+  --laa-violet:#a78bfa; --laa-slate:#94a3b8; --laa-teal:#2dd4bf; --laa-blue:#60a5fa;
+  --laa-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .laa-fig{
+    --laa-green:#4ade80; --laa-rose:#fb7185; --laa-amber:#fbbf24; --laa-sky:#38bdf8;
+    --laa-violet:#a78bfa; --laa-slate:#94a3b8; --laa-teal:#2dd4bf; --laa-blue:#60a5fa;
+    --laa-gray:#64748b;
+  }
+}
+.laa-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.laa-fig text{font-family:inherit}
+.laa-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.laa-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.laa-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.laa-toc ol{margin:0;padding-left:1.25rem}
+.laa-toc li{margin:.22rem 0;font-size:.95rem}
+.laa-toc a{text-decoration:none}
+.laa-toc a:hover{text-decoration:underline}
+.laa-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.laa-table th,.laa-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left}
+.laa-table th{background:var(--entry)}
+</style>
+
+<div class="laa-toc">
+  <div class="laa-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 103개 모델을 늘어놓고 보니 보이는 것</a></li>
+    <li><a href="#sec-2">배경 — GPT-2 뼈대와 네 개의 다이얼</a></li>
+    <li><a href="#sec-3">다이얼 ① 어텐션 — KV 캐시와의 전쟁 (GQA → MLA)</a></li>
+    <li><a href="#sec-4">다이얼 ①-보강 — 창문을 좁히다: 슬라이딩 윈도우와 attention sinks</a></li>
+    <li><a href="#sec-5">다이얼 ② FFN → MoE — 희소해질수록 이긴다</a></li>
+    <li><a href="#sec-6">다이얼 ①-교체 — 어텐션을 갈아끼우다: Gated DeltaNet 하이브리드</a></li>
+    <li><a href="#sec-7">실전 — OpenArch로 직접 해부해 보기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 103개 모델을 늘어놓고 보니 보이는 것</h2>
+
+<p>이번 주 아키텍처 공부에 불이 붙었습니다. 지난 9월 10일 Sebastian Raschka가 <a href="https://sebastianraschka.com/llm-architecture-gallery/" target="_blank" rel="noopener">LLM Architecture Gallery</a>를 업데이트했습니다. GPT-2부터 최신 하이브리드 모델까지 <strong>오픈 가중치 LLM 103개</strong>의 구조도를 팩트 시트(어텐션 방식, 디코더 타입, 파라미터 수, 핵심 설계 선택)와 함께 한 장씩 정리한 자료입니다. 그리고 닷새 뒤인 9월 15일, 이 갤러리에 실린 모델들을 <strong>PyTorch로 처음부터 다시 구현</strong>하는 레포 <a href="https://github.com/anuj0456/OpenArch" target="_blank" rel="noopener">OpenArch</a>가 <a href="https://news.ycombinator.com/item?id=49693384" target="_blank" rel="noopener">Hacker News 프론트페이지</a>에 올랐습니다(132점, 31댓글). 모델 하나당 읽기 좋은 <code>model.py</code> 파일 하나 — 성능이 아니라 <strong>읽기</strong>에 최적화한 학습용 레포입니다.</p>
+
+<p>"아키텍처는 연구자들 관심사 아닌가?"라고 생각할 수 있는데, 103개를 시간순으로 늘어놓고 보면 정반대의 그림이 나옵니다. 아키텍처의 변화는 대부분 <strong>정확도가 아니라 서빙 경제학</strong>을 향해 움직였습니다. GQA도, MLA도, 슬라이딩 윈도우도, MoE도, 하이브리드 어텐션도 전부 "같은 품질을 더 싼 메모리와 더 싼 연산으로"가 목표입니다. 즉 여러분이 모델을 고르고, GPU 메모리를 계산하고, 추론 비용을 견적 낼 때 보는 숫자들이 바로 이 설계 선택에서 결정됩니다. 모델 카드의 "총 파라미터 수" 한 줄만 보고 판단하면 왜 안 되는지, 오늘 글이 끝나면 명확해질 겁니다.</p>
+
+<p>그리고 한 가지 반전이 있습니다. 2026년의 1조 파라미터 모델도, 2019년 GPT-2와 <strong>뼈대는 거의 같습니다</strong>.</p>
+
+<h2 id="sec-2">2. 배경 — GPT-2 뼈대와 네 개의 다이얼</h2>
+
+<p>모든 디코더 LLM은 이 뼈대를 공유합니다. 토큰 임베딩 → 같은 구조의 트랜스포머 블록 N개(각 블록은 어텐션 + 피드포워드 네트워크(FFN)) → LM 헤드. GPT-2가 이 형태였고, DeepSeek-V3도 Kimi K2도 이 형태입니다. 그래서 아키텍처 비교는 "완전히 다른 기계 100종"이 아니라, <strong>하나의 기계에 달린 다이얼 네 개를 어디에 맞췄는가</strong>의 문제가 됩니다.</p>
+
+<figure class="laa-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="가운데 GPT-2 공통 뼈대(토큰 임베딩, 어텐션+FFN 블록 N개, LM 헤드)를 두고 네 개의 다이얼(어텐션, FFN, 정규화, 위치 인코딩)이 각각 어떻게 진화했는지 보여주는 다이어그램">
+  <g font-family="inherit">
+    <text x="430" y="30" text-anchor="middle" font-size="16" font-weight="700" fill="var(--laa-slate)">하나의 뼈대, 네 개의 다이얼</text>
+
+    <rect x="330" y="60" width="200" height="330" rx="14" fill="none" stroke="var(--laa-slate)" stroke-width="2.5"/>
+    <text x="430" y="90" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--laa-slate)">공통 뼈대 (GPT-2, 2019)</text>
+    <rect x="355" y="110" width="150" height="40" rx="8" fill="none" stroke="var(--laa-gray)" stroke-width="2"/>
+    <text x="430" y="135" text-anchor="middle" font-size="12" fill="var(--laa-gray)">토큰 임베딩</text>
+    <rect x="345" y="165" width="170" height="150" rx="10" fill="none" stroke="var(--laa-blue)" stroke-width="2.5"/>
+    <rect x="360" y="180" width="140" height="45" rx="8" fill="none" stroke="var(--laa-rose)" stroke-width="2"/>
+    <text x="430" y="208" text-anchor="middle" font-size="12.5" fill="var(--laa-rose)">어텐션</text>
+    <rect x="360" y="245" width="140" height="45" rx="8" fill="none" stroke="var(--laa-amber)" stroke-width="2"/>
+    <text x="430" y="273" text-anchor="middle" font-size="12.5" fill="var(--laa-amber)">FFN</text>
+    <text x="530" y="245" text-anchor="start" font-size="13" font-weight="700" fill="var(--laa-blue)">×N</text>
+    <rect x="355" y="330" width="150" height="40" rx="8" fill="none" stroke="var(--laa-gray)" stroke-width="2"/>
+    <text x="430" y="355" text-anchor="middle" font-size="12" fill="var(--laa-gray)">LM 헤드</text>
+
+    <rect x="20" y="90" width="280" height="110" rx="12" fill="none" stroke="var(--laa-rose)" stroke-width="2.5"/>
+    <text x="160" y="116" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--laa-rose)">다이얼 ① 어텐션</text>
+    <text x="160" y="140" text-anchor="middle" font-size="12" fill="var(--laa-gray)">MHA → GQA → MLA</text>
+    <text x="160" y="160" text-anchor="middle" font-size="12" fill="var(--laa-gray)">+ 슬라이딩 윈도우 · sinks</text>
+    <text x="160" y="180" text-anchor="middle" font-size="12" fill="var(--laa-gray)">→ 선형 어텐션 하이브리드</text>
+    <line x1="300" y1="145" x2="358" y2="200" stroke="var(--laa-rose)" stroke-width="2"/>
+
+    <rect x="20" y="250" width="280" height="90" rx="12" fill="none" stroke="var(--laa-amber)" stroke-width="2.5"/>
+    <text x="160" y="276" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--laa-amber)">다이얼 ② FFN</text>
+    <text x="160" y="300" text-anchor="middle" font-size="12" fill="var(--laa-gray)">dense → 희소 MoE</text>
+    <text x="160" y="320" text-anchor="middle" font-size="12" fill="var(--laa-gray)">활성 비율 18% → 3%로 계속 하락</text>
+    <line x1="300" y1="290" x2="358" y2="268" stroke="var(--laa-amber)" stroke-width="2"/>
+
+    <rect x="560" y="90" width="280" height="110" rx="12" fill="none" stroke="var(--laa-green)" stroke-width="2.5"/>
+    <text x="700" y="116" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--laa-green)">다이얼 ③ 정규화</text>
+    <text x="700" y="140" text-anchor="middle" font-size="12" fill="var(--laa-gray)">LayerNorm → RMSNorm</text>
+    <text x="700" y="160" text-anchor="middle" font-size="12" fill="var(--laa-gray)">위치 실험: Post-Norm 재해석(OLMo 2)</text>
+    <text x="700" y="180" text-anchor="middle" font-size="12" fill="var(--laa-gray)">앞뒤 양쪽(Gemma 3) · QK-Norm</text>
+    <line x1="560" y1="145" x2="502" y2="200" stroke="var(--laa-green)" stroke-width="2"/>
+
+    <rect x="560" y="250" width="280" height="90" rx="12" fill="none" stroke="var(--laa-sky)" stroke-width="2.5"/>
+    <text x="700" y="276" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--laa-sky)">다이얼 ④ 위치 인코딩</text>
+    <text x="700" y="300" text-anchor="middle" font-size="12" fill="var(--laa-gray)">학습된 절대 위치 → RoPE</text>
+    <text x="700" y="320" text-anchor="middle" font-size="12" fill="var(--laa-gray)">→ 일부 레이어는 생략(NoPE)까지</text>
+    <line x1="560" y1="290" x2="502" y2="268" stroke="var(--laa-sky)" stroke-width="2"/>
+
+    <text x="430" y="418" text-anchor="middle" font-size="13" fill="var(--laa-gray)">네 다이얼 모두 목표는 같다: 같은 품질을 더 적은 메모리·연산으로</text>
+  </g>
+</svg>
+<figcaption>그림 1. 2026년 오픈 LLM의 공통 뼈대와 네 개의 다이얼. 103개 모델의 차이는 대부분 이 네 축 위의 위치 차이다.</figcaption>
+</figure>
+
+<p>네 다이얼 중 서빙 비용에 가장 크게 작용하는 것이 <strong>어텐션(①)과 MoE(②)</strong>입니다. 이 글도 여기에 집중합니다. 정규화(③)와 위치 인코딩(④)은 훈련 안정성과 긴 컨텍스트 일반화에 관한 선택이라 짧게만 짚겠습니다 — LayerNorm은 거의 전부 RMSNorm으로 바뀌었고, OLMo 2는 정규화를 블록 뒤쪽으로 옮기고 쿼리·키에 별도 RMSNorm을 거는 QK-Norm을 채택했으며, Gemma 3는 아예 어텐션 앞뒤 양쪽에 정규화를 둡니다. 위치 인코딩은 RoPE(회전 위치 임베딩)가 표준이 됐고, 최근에는 일부 레이어에서 위치 정보를 아예 빼는(NoPE) 실험까지 등장했습니다.</p>
+
+<h2 id="sec-3">3. 다이얼 ① 어텐션 — KV 캐시와의 전쟁 (GQA → MLA)</h2>
+
+<p>먼저 왜 어텐션이 문제인지부터 봅니다. 추론 중 모델은 새 토큰을 생성할 때마다 이전 토큰 전부의 키(K)·값(V) 벡터가 필요합니다. 매번 다시 계산하면 낭비니까 한 번 계산한 K/V를 GPU 메모리에 쌓아 두는데, 이것이 <strong>KV 캐시(KV cache)</strong>입니다. 문제는 크기입니다. KV 캐시는 <em>레이어 수 × K/V 헤드 수 × 컨텍스트 길이</em>에 비례해 자랍니다. 컨텍스트가 128K쯤 되면 KV 캐시가 모델 가중치보다 커지는 일도 흔합니다. 동시 접속자를 몇 명 받을 수 있는지가 사실상 KV 캐시 크기로 결정되는 셈입니다.</p>
+
+<p><strong>1단계: GQA(grouped-query attention)</strong>. 원조 멀티헤드 어텐션(MHA)은 쿼리 헤드 32개면 K/V 헤드도 32개입니다. GQA는 쿼리 헤드 여러 개가 K/V 헤드 하나를 <strong>공유</strong>하게 만듭니다. 예를 들어 쿼리 32개 : K/V 8개면 캐시가 1/4로 줄어듭니다. 품질 손실이 거의 없다는 것이 확인되면서 Llama, Qwen, Gemma 등 대부분의 모델이 채택한 사실상의 표준입니다. 코드로 보면 놀랄 만큼 단순합니다.</p>
+
+{{< highlight python >}}
+# GQA의 핵심: K/V 헤드를 쿼리 헤드 수만큼 복제해서 맞춰준다
+# n_heads=32, n_kv_heads=8 이면 쿼리 4개가 K/V 1개를 공유
+group_size = n_heads // n_kv_heads          # 32 // 8 = 4
+
+k = k.repeat_interleave(group_size, dim=1)  # (B, 8, T, D) → (B, 32, T, D)
+v = v.repeat_interleave(group_size, dim=1)
+
+# 캐시에는 복제 전의 (B, 8, T, D)만 저장하면 된다 → 캐시 1/4
+{{< /highlight >}}
+
+<p><strong>2단계: MLA(multi-head latent attention)</strong>. DeepSeek이 <a href="https://arxiv.org/abs/2405.04434" target="_blank" rel="noopener">DeepSeek-V2 논문</a>에서 제안한 방식으로, 헤드 수를 줄이는 대신 <strong>K/V를 저차원 잠재(latent) 벡터로 압축해서 캐시</strong>합니다. 어텐션을 계산할 때만 잠재 벡터를 헤드별 K/V로 복원합니다. 압축 파일을 저장해 두고 쓸 때만 푸는 것과 같습니다.</p>
+
+{{< highlight python >}}
+# MLA의 아이디어 (개념 스케치)
+c_kv = x @ W_down_kv      # (B, T, d_latent)  ← 캐시에는 이것만 저장
+
+# 어텐션 계산 시점에만 헤드별 K/V로 복원(업프로젝션)
+k = c_kv @ W_up_k         # (B, T, n_heads * d_head)
+v = c_kv @ W_up_v
+# 실제 구현은 W_up_k를 쿼리 쪽에 흡수해 복원 비용도 줄인다
+{{< /highlight >}}
+
+<p>효과는 극적입니다. DeepSeek-V2는 이전 세대(DeepSeek 67B) 대비 <strong>KV 캐시를 93.3% 줄이고 최대 생성 처리량을 5.76배</strong> 올렸다고 보고했습니다. 더 흥미로운 건 품질입니다. GQA/MQA가 "캐시를 줄이는 대신 품질을 조금 양보"하는 트레이드오프였다면, DeepSeek의 어블레이션에서 MLA는 <strong>MHA보다 오히려 나은 성능</strong>을 보였습니다. 이 설계는 <a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener">DeepSeek-V3</a>와 R1로 이어졌고, Moonshot AI의 1조 파라미터 모델 <a href="https://arxiv.org/abs/2507.20534" target="_blank" rel="noopener">Kimi K2</a>도 그대로 가져다 썼습니다.</p>
+
+<figure class="laa-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="MHA, GQA, MLA 세 방식의 토큰당 KV 캐시 크기를 막대로 비교한 다이어그램. MHA는 헤드 32개 전부 저장, GQA는 8개만 저장해 4분의 1, MLA는 잠재 벡터만 저장해 93.3% 감소">
+  <g font-family="inherit">
+    <text x="430" y="30" text-anchor="middle" font-size="16" font-weight="700" fill="var(--laa-slate)">토큰 1개가 KV 캐시에 남기는 흔적</text>
+
+    <text x="150" y="70" text-anchor="middle" font-size="14" font-weight="700" fill="var(--laa-rose)">MHA</text>
+    <text x="150" y="92" text-anchor="middle" font-size="11.5" fill="var(--laa-gray)">쿼리 32 : K/V 32</text>
+    <rect x="60" y="110" width="180" height="180" rx="8" fill="var(--laa-rose)" opacity="0.28"/>
+    <rect x="60" y="110" width="180" height="180" rx="8" fill="none" stroke="var(--laa-rose)" stroke-width="2.5"/>
+    <text x="150" y="205" text-anchor="middle" font-size="13" font-weight="700" fill="var(--laa-rose)">K/V 헤드 32개 전부 저장</text>
+    <text x="150" y="320" text-anchor="middle" font-size="12.5" fill="var(--laa-gray)">기준 (100%)</text>
+
+    <text x="430" y="70" text-anchor="middle" font-size="14" font-weight="700" fill="var(--laa-amber)">GQA</text>
+    <text x="430" y="92" text-anchor="middle" font-size="11.5" fill="var(--laa-gray)">쿼리 32 : K/V 8 (4:1 공유)</text>
+    <rect x="340" y="245" width="180" height="45" rx="8" fill="var(--laa-amber)" opacity="0.28"/>
+    <rect x="340" y="245" width="180" height="45" rx="8" fill="none" stroke="var(--laa-amber)" stroke-width="2.5"/>
+    <text x="430" y="273" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--laa-amber)">K/V 헤드 8개만 저장</text>
+    <text x="430" y="320" text-anchor="middle" font-size="12.5" fill="var(--laa-gray)">약 25% · 품질 거의 유지</text>
+
+    <text x="700" y="70" text-anchor="middle" font-size="14" font-weight="700" fill="var(--laa-teal)">MLA</text>
+    <text x="700" y="92" text-anchor="middle" font-size="11.5" fill="var(--laa-gray)">저차원 잠재 벡터로 압축</text>
+    <rect x="610" y="275" width="180" height="15" rx="6" fill="var(--laa-teal)" opacity="0.4"/>
+    <rect x="610" y="275" width="180" height="15" rx="6" fill="none" stroke="var(--laa-teal)" stroke-width="2.5"/>
+    <text x="700" y="265" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--laa-teal)">잠재 벡터만 저장</text>
+    <text x="700" y="320" text-anchor="middle" font-size="12.5" fill="var(--laa-gray)">−93.3% (DeepSeek-V2 보고)</text>
+    <text x="700" y="340" text-anchor="middle" font-size="12" fill="var(--laa-gray)">어블레이션에서 품질은 MHA 이상</text>
+
+    <text x="430" y="378" text-anchor="middle" font-size="13" fill="var(--laa-gray)">캐시가 작을수록 같은 GPU에 더 많은 동시 요청 · 더 긴 컨텍스트가 들어간다</text>
+  </g>
+</svg>
+<figcaption>그림 2. MHA → GQA → MLA로 갈수록 토큰당 KV 캐시가 줄어든다. GQA는 헤드를 공유하고, MLA는 아예 압축해서 저장한다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 다이얼 ①-보강 — 창문을 좁히다: 슬라이딩 윈도우와 attention sinks</h2>
+
+<p>K/V를 작게 만드는 것과 별개로, "애초에 모든 토큰을 다 볼 필요가 있나?"라는 접근도 있습니다. <strong>슬라이딩 윈도우 어텐션(sliding window attention)</strong>은 각 토큰이 최근 W개 토큰만 보게 제한합니다. 창문 밖은 못 보는 대신, 해당 레이어의 KV 캐시가 컨텍스트 길이와 무관하게 <strong>W로 고정</strong>됩니다.</p>
+
+<p>다만 전 레이어를 윈도우로 막으면 먼 거리 정보가 끊기니까, 요즘 모델은 <strong>로컬 레이어와 글로벌(전체) 레이어를 섞습니다</strong>. <a href="https://arxiv.org/abs/2503.19786" target="_blank" rel="noopener">Gemma 3</a>는 로컬 5 : 글로벌 1 비율에 윈도우 1024를 썼습니다(Gemma 2는 1:1에 윈도우 4096이었습니다). 이 변경만으로 긴 컨텍스트에서 KV 캐시 메모리 오버헤드를 <strong>약 60%에서 15% 미만으로</strong> 줄였고, 퍼플렉시티 영향은 미미했다고 보고합니다. OpenAI의 오픈 모델 GPT-OSS도 같은 계열입니다 — 레이어를 하나 걸러 하나씩 윈도우 128짜리 로컬 어텐션과 전체 어텐션을 교대로 배치했습니다.</p>
+
+<p>GPT-OSS에는 재미있는 장치가 하나 더 있습니다. <strong>attention sinks</strong>입니다. 어텐션의 softmax는 합이 1이 되어야 해서, 볼 게 없는 토큰도 어딘가에는 어텐션을 "쏟아야" 합니다. GPT-OSS는 각 헤드에 학습된 스칼라 편향을 softmax 분모에 추가해, 헤드가 필요 없을 때 <strong>아무 토큰에도 주의를 주지 않고 넘어갈 수 있는 배출구</strong>를 만들었습니다. 윈도우 어텐션에서 앞쪽 토큰이 잘려 나가도 어텐션 분포가 무너지지 않게 하는 안전장치입니다.</p>
+
+<h2 id="sec-5">5. 다이얼 ② FFN → MoE — 희소해질수록 이긴다</h2>
+
+<p>두 번째 다이얼은 블록의 나머지 절반, FFN입니다. 파라미터가 많을수록 모델은 똑똑해지지만, dense 모델은 토큰 하나를 처리할 때 <strong>모든 파라미터가 연산에 참여</strong>합니다. MoE(mixture-of-experts)는 FFN을 여러 개의 "전문가"로 쪼개고, 라우터가 토큰마다 소수의 전문가만 골라서 통과시킵니다. 지식(총 파라미터)은 크게, 토큰당 연산(활성 파라미터)은 작게 — 병원에 전문의 수백 명이 있지만 환자 한 명은 두세 과만 들르는 구조입니다.</p>
+
+<p>2026년 기준 주요 오픈 모델의 MoE 설정을 비교하면 방향이 뚜렷하게 보입니다.</p>
+
+<table class="laa-table">
+  <thead>
+    <tr><th>모델</th><th>총 파라미터</th><th>활성 파라미터</th><th>활성 비율</th><th>전문가 수</th><th>토큰당 활성</th><th>공유 전문가</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>DeepSeek-V3 / R1</td><td>671B</td><td>~37B</td><td>~5.5%</td><td>256</td><td>8</td><td>1</td></tr>
+    <tr><td>Kimi K2</td><td>1.04T</td><td>~32B</td><td>~3.1%</td><td>384</td><td>8</td><td>1</td></tr>
+    <tr><td>Qwen3-Next-80B</td><td>80B</td><td>~3B</td><td>~3.8%</td><td>512</td><td>10</td><td>1</td></tr>
+    <tr><td>GPT-OSS-20B</td><td>20B</td><td>3.6B</td><td>18%</td><td>32</td><td>4</td><td>없음</td></tr>
+  </tbody>
+</table>
+
+<p>표에서 두 가지가 읽힙니다. 첫째, <strong>전문가는 많아지고 활성 비율은 낮아지는</strong> 초희소(ultra-sparse) 경쟁입니다. DeepSeek-V3의 256개에서 Kimi K2는 384개로, Qwen3-Next는 512개로 늘었고, 활성 비율은 3%대까지 내려왔습니다. Kimi K2가 1조 파라미터인데 토큰당 실제로 도는 건 32B라는 뜻입니다. 둘째, DeepSeek 계열은 항상 통과하는 <strong>공유 전문가(shared expert)</strong> 1개를 둡니다. 어떤 토큰이든 필요한 공통 패턴(문법 처리 같은)을 여기에 몰아넣어, 나머지 전문가들이 진짜 전문 지식에 집중하게 하는 설계입니다. 세부 설계는 갈립니다 — GPT-OSS는 공유 전문가 없이 32개 중 4개만 뽑고, 라우팅 확률도 뽑힌 4개 안에서만 softmax를 취합니다.</p>
+
+<p>디테일 하나: DeepSeek-V3는 61개 블록 중 <strong>첫 3개 블록만 dense FFN</strong>을 씁니다. 초반 레이어는 토큰의 기초 표현을 만드는 구간이라 라우팅이 불안정해지기 쉽기 때문입니다. 이런 "논문에는 한 줄, 구현에는 분기 하나"인 선택들이 <code>model.py</code>를 직접 읽을 때 가장 잘 보입니다.</p>
+
+<h2 id="sec-6">6. 다이얼 ①-교체 — 어텐션을 갈아끼우다: Gated DeltaNet 하이브리드</h2>
+
+<p>GQA·MLA·슬라이딩 윈도우가 어텐션을 "다이어트"시키는 접근이라면, 가장 최근의 흐름은 어텐션 자체를 <strong>선형 시퀀스 모델로 교체</strong>하는 것입니다. 표준 어텐션은 컨텍스트가 길어질수록 연산이 제곱으로 늘고 KV 캐시도 선형으로 자랍니다. 반면 <a href="https://arxiv.org/abs/2412.06464" target="_blank" rel="noopener">Gated DeltaNet</a>(NVIDIA, ICLR 2025) 같은 선형 어텐션은 <strong>고정 크기 행렬 상태 하나</strong>를 토큰마다 갱신합니다. RNN처럼 상태가 안 자라니, 컨텍스트가 100만 토큰이어도 메모리는 그대로입니다. 이름의 두 요소가 각각 역할이 있습니다 — 게이트(gate)는 낡은 기억을 빠르게 지우고, 델타 룰(delta rule)은 "지금 저장된 값과 새 값의 차이"만큼만 정밀하게 고쳐 씁니다.</p>
+
+<p>물론 공짜는 아닙니다. 고정 크기 상태는 일종의 손실 압축이라, 아주 먼 과거의 특정 토큰을 정확히 되짚는 회상(recall) 능력은 표준 어텐션보다 약합니다. 그래서 실전 모델은 전부 <strong>하이브리드</strong>로 갑니다. Qwen 팀의 <a href="https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct" target="_blank" rel="noopener">Qwen3-Next-80B-A3B</a>가 대표적입니다. 48개 레이어를 <strong>[Gated DeltaNet ×3 + 게이트 어텐션 ×1]</strong> 패턴 12번으로 구성했습니다. 레이어의 75%는 상태가 고정된 선형 계층, 25%만 정밀 회상용 표준 어텐션입니다. 여기에 위에서 본 512-전문가 초희소 MoE와 멀티 토큰 예측(multi-token prediction)까지 얹어, Qwen3-32B 대비 <strong>훈련 비용 ~10%</strong>로 더 나은 성능을 내고 <strong>32K 이상 컨텍스트에서 추론 처리량 10배</strong>를 보고했습니다. 네이티브 컨텍스트는 262,144 토큰입니다.</p>
+
+<figure class="laa-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="Qwen3-Next의 하이브리드 레이어 구성과, 컨텍스트가 길어질 때 표준 어텐션 KV 캐시는 선형으로 자라지만 선형 어텐션 상태는 고정인 것을 비교한 다이어그램">
+  <g font-family="inherit">
+    <text x="430" y="30" text-anchor="middle" font-size="16" font-weight="700" fill="var(--laa-slate)">Qwen3-Next: 75%는 고정 상태, 25%만 진짜 어텐션</text>
+
+    <text x="215" y="66" text-anchor="middle" font-size="13" font-weight="700" fill="var(--laa-violet)">레이어 구성 (48 = 12 × 4)</text>
+    <g>
+      <rect x="60" y="82" width="310" height="34" rx="7" fill="var(--laa-teal)" opacity="0.22"/>
+      <rect x="60" y="82" width="310" height="34" rx="7" fill="none" stroke="var(--laa-teal)" stroke-width="2"/>
+      <text x="215" y="104" text-anchor="middle" font-size="12" fill="var(--laa-teal)">Gated DeltaNet (선형 · 고정 상태)</text>
+      <rect x="60" y="122" width="310" height="34" rx="7" fill="var(--laa-teal)" opacity="0.22"/>
+      <rect x="60" y="122" width="310" height="34" rx="7" fill="none" stroke="var(--laa-teal)" stroke-width="2"/>
+      <text x="215" y="144" text-anchor="middle" font-size="12" fill="var(--laa-teal)">Gated DeltaNet (선형 · 고정 상태)</text>
+      <rect x="60" y="162" width="310" height="34" rx="7" fill="var(--laa-teal)" opacity="0.22"/>
+      <rect x="60" y="162" width="310" height="34" rx="7" fill="none" stroke="var(--laa-teal)" stroke-width="2"/>
+      <text x="215" y="184" text-anchor="middle" font-size="12" fill="var(--laa-teal)">Gated DeltaNet (선형 · 고정 상태)</text>
+      <rect x="60" y="202" width="310" height="34" rx="7" fill="var(--laa-rose)" opacity="0.25"/>
+      <rect x="60" y="202" width="310" height="34" rx="7" fill="none" stroke="var(--laa-rose)" stroke-width="2.5"/>
+      <text x="215" y="224" text-anchor="middle" font-size="12" font-weight="700" fill="var(--laa-rose)">게이트 어텐션 (정밀 회상 담당)</text>
+    </g>
+    <text x="215" y="266" text-anchor="middle" font-size="12.5" fill="var(--laa-gray)">이 4층 패턴을 12번 반복 → 48 레이어</text>
+    <text x="215" y="288" text-anchor="middle" font-size="12.5" fill="var(--laa-gray)">+ MoE: 512 전문가 · 토큰당 10+공유 1 활성</text>
+
+    <text x="640" y="66" text-anchor="middle" font-size="13" font-weight="700" fill="var(--laa-violet)">컨텍스트 길이에 따른 메모리</text>
+    <line x1="490" y1="270" x2="820" y2="270" stroke="var(--laa-gray)" stroke-width="1.5"/>
+    <line x1="490" y1="270" x2="490" y2="90" stroke="var(--laa-gray)" stroke-width="1.5"/>
+    <text x="655" y="292" text-anchor="middle" font-size="11.5" fill="var(--laa-gray)">컨텍스트 길이 →</text>
+    <text x="479" y="180" text-anchor="middle" font-size="11.5" fill="var(--laa-gray)" transform="rotate(-90 479 180)">메모리 →</text>
+    <line x1="490" y1="268" x2="810" y2="100" stroke="var(--laa-rose)" stroke-width="3"/>
+    <text x="742" y="115" text-anchor="start" font-size="12" font-weight="700" fill="var(--laa-rose)">KV 캐시</text>
+    <text x="742" y="132" text-anchor="start" font-size="11" fill="var(--laa-gray)">(표준 어텐션)</text>
+    <line x1="490" y1="238" x2="810" y2="238" stroke="var(--laa-teal)" stroke-width="3" stroke-dasharray="8 5"/>
+    <text x="700" y="228" text-anchor="start" font-size="12" font-weight="700" fill="var(--laa-teal)">고정 상태 (DeltaNet)</text>
+
+    <text x="430" y="340" text-anchor="middle" font-size="13" fill="var(--laa-gray)">결과: Qwen3-32B 대비 훈련 비용 ~10% · 32K+ 컨텍스트 추론 처리량 ~10배 · 네이티브 262K</text>
+    <text x="430" y="365" text-anchor="middle" font-size="13" fill="var(--laa-gray)">트레이드오프: 고정 상태는 손실 압축 → 정밀 회상은 25%의 어텐션 레이어가 보완</text>
+    <text x="430" y="405" text-anchor="middle" font-size="12.5" fill="var(--laa-gray)">2026년의 Qwen3.5도 같은 하이브리드 계보를 잇는다 (4층마다 1층만 전체 어텐션)</text>
+  </g>
+</svg>
+<figcaption>그림 3. Qwen3-Next의 하이브리드 구성. 대부분의 레이어는 고정 크기 상태를 쓰는 Gated DeltaNet이고, 4층에 1층꼴로 표준 어텐션을 남겨 정밀 회상을 보완한다.</figcaption>
+</figure>
+
+<p>이 계보는 일회성 실험이 아닙니다. 2026년의 Qwen3.5도 같은 하이브리드 구조(4층마다 1층만 전체 어텐션)를 이어받았고, Maxime Labonne이 분석 글 제목을 <a href="https://huggingface.co/blog/mlabonne/qwen35" target="_blank" rel="noopener">"Nobody Agrees on Attention Anymore"</a>라고 붙였을 정도로, 지금 어텐션 설계는 오픈 모델 진영에서 가장 뜨거운 분기점입니다.</p>
+
+<h2 id="sec-7">7. 실전 — OpenArch로 직접 해부해 보기</h2>
+
+<p>이제 직접 해부해 볼 차례입니다. <a href="https://github.com/anuj0456/OpenArch" target="_blank" rel="noopener">OpenArch</a>는 모델마다 폴더 하나, 그 안에 <code>model.py</code>와 설계 선택을 요약한 <code>README.md</code>가 있는 구조입니다. 프로덕션 코드(vLLM, transformers)는 최적화 때문에 읽기 어렵지만, 여기는 학습용이라 한 파일에서 아키텍처 전체가 보입니다.</p>
+
+{{< highlight bash >}}
+git clone https://github.com/anuj0456/OpenArch.git
+cd OpenArch/text
+ls
+# deepseek-R1  gemma3-27B  glm4.5-355B  gpt-oss-20B  gpt2-1.5B
+# grok2.5-270B  kimmi-K2  llama2-7B  llama3-8B  llama4-400B ...
+{{< /highlight >}}
+
+<p>추천 독서 순서는 진화 순서 그대로입니다. 각 단계에서 "이전 모델과의 diff"만 확인하면 되니 부담이 적습니다.</p>
+
+<ol>
+  <li><code>gpt2-1.5B</code> — 기준점. MHA + dense FFN + LayerNorm + 학습된 절대 위치.</li>
+  <li><code>llama3-8B</code> — 현대의 기본형. RoPE, GQA, RMSNorm, SwiGLU가 어떻게 갈아 끼워졌는지.</li>
+  <li><code>gemma3-27B</code> — 슬라이딩 윈도우 5:1 교대 배치와 정규화 위치 실험.</li>
+  <li><code>gpt-oss-20B</code> — 윈도우 128 교대 + attention sinks + 공유 전문가 없는 MoE.</li>
+  <li><code>deepseek-R1</code> — MLA와 256+1 전문가 MoE, 첫 3블록 dense 같은 디테일.</li>
+  <li><code>qwen3-80B-A3B</code>(작성 중) — Gated DeltaNet 하이브리드. 완성 전이라면 <a href="https://github.com/NVlabs/GatedDeltaNet" target="_blank" rel="noopener">NVlabs 공식 구현</a>을 보면 됩니다.</li>
+</ol>
+
+<p>읽을 때 팁 하나. 논문 그림보다 먼저 Hugging Face의 <code>config.json</code>을 열어 보세요. 이 글에서 다룬 다이얼이 전부 설정 키로 드러납니다. 아래 키만 읽어도 모델의 서빙 특성을 대략 견적 낼 수 있습니다.</p>
+
+{{< highlight json >}}
+{
+  "num_hidden_layers": 24,
+  "num_attention_heads": 64,
+  "num_key_value_heads": 8,        // < num_attention_heads 이면 GQA
+  "sliding_window": 128,            // 있으면 윈도우 어텐션 (교대 패턴은 별도 키)
+  "num_local_experts": 32,          // 있으면 MoE
+  "num_experts_per_tok": 4,         // 토큰당 활성 전문가 → 활성 파라미터 결정
+  "rope_theta": 150000              // RoPE 주파수 — 긴 컨텍스트 확장의 흔적
+}
+{{< /highlight >}}
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<p><strong>실수 1 — 총 파라미터로 서빙 비용을 견적 낸다.</strong> 추론 속도와 토큰당 연산 비용을 결정하는 건 <strong>활성 파라미터</strong>이고, 동시 처리량을 결정하는 건 <strong>KV 캐시</strong>입니다. "1조 파라미터 Kimi K2"의 토큰당 연산은 32B급입니다. 반대 방향의 함정도 있습니다 — 활성 3B라고 Qwen3-Next가 3B 모델처럼 "가벼운" 건 아닙니다. 다음 실수로 이어집니다.</p>
+
+<p><strong>실수 2 — MoE가 GPU 메모리를 아껴 준다고 생각한다.</strong> 라우터가 어떤 전문가를 고를지 토큰마다 달라지므로, <strong>전문가 전원이 GPU 메모리에 올라가 있어야</strong> 합니다. MoE가 아끼는 건 연산(FLOPs)이지 VRAM이 아닙니다. 80B MoE를 서빙하려면 80B 전부를 담을 메모리가 필요합니다.</p>
+
+<p><strong>실수 3 — 슬라이딩 윈도우 모델은 KV 캐시 걱정이 없다고 생각한다.</strong> 로컬 레이어의 캐시는 윈도우 크기로 고정되지만, 사이사이의 <strong>글로벌 레이어 캐시는 여전히 컨텍스트에 비례해 자랍니다</strong>. Gemma 3의 "60% → 15% 미만"이라는 숫자가 정확히 이 이야기입니다 — 극적으로 줄지만 0이 되지는 않습니다.</p>
+
+<p><strong>실수 4 — 선형 어텐션을 무손실 대체재로 이해한다.</strong> 고정 크기 상태는 본질적으로 손실 압축입니다. 긴 문서 중간의 특정 문장을 정확히 되짚는 과제에서는 표준 어텐션이 우위입니다. Qwen3-Next가 100%가 아니라 75%만 DeltaNet으로 바꾼 이유, 즉 <strong>하이브리드가 기본형이 된 이유</strong>가 이것입니다.</p>
+
+<p><strong>팁 — 새 모델이 나오면 세 가지만 확인하세요.</strong> ① 어텐션: K/V를 어떻게 줄였나(GQA 비율, MLA, 윈도우, 하이브리드 비율). ② MoE: 총/활성 파라미터와 공유 전문가 유무. ③ 컨텍스트: 네이티브 길이와 RoPE 확장 방식. 이 세 줄이면 벤치마크 표보다 서빙 특성을 더 정확히 예측할 수 있습니다.</p>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>오픈 LLM 103개를 정리한 Raschka의 아키텍처 갤러리(9/10 업데이트)와, 이를 PyTorch로 재구현하는 OpenArch 레포(9/15 HN 프론트페이지)가 이번 주 아키텍처 공부 열풍의 진원지입니다.</li>
+  <li>2026년 모델도 뼈대는 GPT-2와 같습니다. 차이는 네 개의 다이얼 — 어텐션, FFN(MoE), 정규화, 위치 인코딩 — 이고, 변화의 동력은 정확도가 아니라 <strong>서빙 경제학</strong>입니다.</li>
+  <li>어텐션의 진화는 KV 캐시와의 전쟁입니다: GQA(헤드 공유, 캐시 1/4) → MLA(잠재 압축, −93.3%에 품질은 MHA 이상) → 슬라이딩 윈도우 + attention sinks(Gemma 3 5:1/1024, GPT-OSS 128 교대).</li>
+  <li>MoE는 초희소 경쟁 중입니다: DeepSeek-V3 671B/37B(256+1 전문가) → Kimi K2 1.04T/32B(384) → Qwen3-Next 80B/3B(512). MoE는 연산을 아끼는 것이지 VRAM을 아끼는 게 아닙니다.</li>
+  <li>최신 흐름은 어텐션 자체의 교체입니다: Qwen3-Next는 레이어의 75%를 고정 상태 Gated DeltaNet으로 바꾸고 25%만 표준 어텐션을 남겨, 훈련 비용 ~10%·긴 컨텍스트 처리량 ~10배를 보고했습니다. Qwen3.5도 이 계보를 잇습니다.</li>
+  <li>새 모델 평가는 <code>config.json</code> 세 줄부터: K/V 절감 방식, 총/활성 파라미터, 컨텍스트 처리 방식.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://github.com/anuj0456/OpenArch" target="_blank" rel="noopener">OpenArch — PyTorch implementations of modern LLM architectures (GitHub)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49693384" target="_blank" rel="noopener">OpenArch — Hacker News 스레드 (132점 · 31댓글)</a></li>
+  <li><a href="https://sebastianraschka.com/llm-architecture-gallery/" target="_blank" rel="noopener">LLM Architecture Gallery — Sebastian Raschka (103개 모델, 2026-09-10 업데이트)</a></li>
+  <li><a href="https://magazine.sebastianraschka.com/p/the-big-llm-architecture-comparison" target="_blank" rel="noopener">The Big LLM Architecture Comparison — Sebastian Raschka</a></li>
+  <li><a href="https://arxiv.org/abs/2405.04434" target="_blank" rel="noopener">DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model (arXiv:2405.04434 — MLA 원 논문)</a></li>
+  <li><a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener">DeepSeek-V3 Technical Report (arXiv:2412.19437)</a></li>
+  <li><a href="https://arxiv.org/abs/2507.20534" target="_blank" rel="noopener">Kimi K2: Open Agentic Intelligence (arXiv:2507.20534)</a></li>
+  <li><a href="https://arxiv.org/abs/2503.19786" target="_blank" rel="noopener">Gemma 3 Technical Report (arXiv:2503.19786)</a></li>
+  <li><a href="https://arxiv.org/abs/2412.06464" target="_blank" rel="noopener">Gated Delta Networks: Improving Mamba2 with Delta Rule (arXiv:2412.06464, ICLR 2025)</a></li>
+  <li><a href="https://github.com/NVlabs/GatedDeltaNet" target="_blank" rel="noopener">GatedDeltaNet 공식 PyTorch 구현 — NVlabs (GitHub)</a></li>
+  <li><a href="https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct" target="_blank" rel="noopener">Qwen3-Next-80B-A3B-Instruct — 모델 카드 (Hugging Face)</a></li>
+  <li><a href="https://huggingface.co/blog/mlabonne/qwen35" target="_blank" rel="noopener">Qwen3.5: Nobody Agrees on Attention Anymore — Maxime Labonne</a></li>
+  <li><a href="https://gist.github.com/justinchuby/0213aa253664fb72e9adb0089816de15" target="_blank" rel="noopener">Qwen3.5 Gated DeltaNet 구조 분석 노트 — Justin Chu (gist)</a></li>
+</ul>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 560" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="560" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-20</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">키워드: 스킬과 메모리가 '살아있는 아티팩트'가 되는 날 — 실행하며 고치고, 자면서 정리한다</text>
+
+  <!-- center node -->
+  <rect x="290" y="255" width="260" height="56" rx="12" fill="#111827"/>
+  <text x="420" y="278" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">스킬·메모리를 배포 후에도</text>
+  <text x="420" y="296" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">계속 진화시키는 법</text>
+
+  <!-- connecting lines -->
+  <line x1="320" y1="270" x2="230" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="270" x2="610" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="320" y1="300" x2="230" y2="400" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="300" x2="610" y2="400" stroke="#d1d5db" stroke-width="2"/>
+
+  <!-- Q1: 릴리즈 -->
+  <rect x="40" y="80" width="330" height="130" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="56" y="104" font-size="14" font-weight="700" fill="#1d4ed8">🤖 릴리즈</text>
+  <text x="56" y="128" font-size="12.5" fill="#111827">Claude Code 2.1.278 — auto mode 분류기 서버 이전</text>
+  <text x="56" y="146" font-size="11.5" fill="#4b5563">분류기 오버헤드 과금 제거 · /status에 확인 행 추가</text>
+  <text x="56" y="170" font-size="12.5" fill="#111827">프론티어 모델은 조용한 주말</text>
+  <text x="56" y="188" font-size="11.5" fill="#4b5563">Codex 0.155.1 유지 · 신모델 발표 없음</text>
+
+  <!-- Q2: 논문 -->
+  <rect x="470" y="80" width="330" height="130" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="486" y="104" font-size="14" font-weight="700" fill="#6d28d9">📚 논문 — ZJU-REAL 더블</text>
+  <text x="486" y="128" font-size="12.5" fill="#111827">EvoSkill-GUI — 학습 없는 스킬 진화 (2609.17653)</text>
+  <text x="486" y="146" font-size="11.5" fill="#4b5563">배포 중 스킬 파일을 고침 · 최대 +16.2%p</text>
+  <text x="486" y="170" font-size="12.5" fill="#111827">RetireOPD — 스스로 은퇴하는 교사 (2609.20784)</text>
+  <text x="486" y="188" font-size="11.5" fill="#4b5563">에이전틱 RL+증류 · ALFWorld +14.1~18.8%</text>
+
+  <!-- Q3: 오픈소스 -->
+  <rect x="40" y="350" width="330" height="130" rx="10" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="56" y="374" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="56" y="398" font-size="12.5" fill="#111827">Tencent/BrowserSkill — 로그인된 브라우저 대여</text>
+  <text x="56" y="416" font-size="11.5" fill="#4b5563">탭 단위로 빌리고 반납 · Claude Code·Codex 지원</text>
+  <text x="56" y="440" font-size="12.5" fill="#111827">ZJU-REAL/EvoSkill-GUI — 논문 코드 공개</text>
+  <text x="56" y="458" font-size="11.5" fill="#4b5563">스킬 패키지 구조 그대로 참고 가능 · Apache-2.0</text>
+
+  <!-- Q4: 팁 -->
+  <rect x="470" y="350" width="330" height="130" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="486" y="374" font-size="14" font-weight="700" fill="#c2410c">🧑‍💻 팁</text>
+  <text x="486" y="398" font-size="12.5" fill="#111827">Codex — 백그라운드 메모리 파이프라인 해부</text>
+  <text x="486" y="416" font-size="11.5" fill="#4b5563">세션 시작 시 2단계 추출·통합 · [memories] 설정</text>
+  <text x="486" y="440" font-size="12.5" fill="#111827">Claude Code — /new-sdk-app으로 SDK 스캐폴딩</text>
+  <text x="486" y="458" font-size="11.5" fill="#4b5563">공통 — 스킬을 멀티 파일 패키지로 쪼개기</text>
+
+  <text x="420" y="540" text-anchor="middle" font-size="11" fill="#9ca3af">모든 항목은 arXiv API·저장소 클론으로 검증 — jkpark83.github.io</text>
+</svg>

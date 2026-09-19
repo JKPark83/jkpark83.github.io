@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 430" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="430" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">오늘의 오픈소스 두 갈래 — 스킬을 '고치는' 쪽과 '빌려주는' 쪽</text>
+
+  <!-- left card -->
+  <rect x="40" y="60" width="370" height="320" rx="12" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="60" y="92" font-size="15" font-weight="700" fill="#6d28d9">ZJU-REAL/EvoSkill-GUI</text>
+  <text x="60" y="112" font-size="11.5" fill="#6b7280">Python · Apache-2.0 · 마지막 커밋 9/17</text>
+  <line x1="60" y1="126" x2="390" y2="126" stroke="#ddd6fe"/>
+  <text x="60" y="150" font-size="12.5" font-weight="700" fill="#111827">무엇</text>
+  <text x="60" y="168" font-size="12" fill="#374151">GUI 에이전트 스킬을 배포 중에 진화시키는</text>
+  <text x="60" y="184" font-size="12" fill="#374151">학습-불필요(training-free) 프레임워크</text>
+  <text x="60" y="212" font-size="12.5" font-weight="700" fill="#111827">구조</text>
+  <text x="60" y="230" font-size="12" fill="#374151">스킬 1개 = 멀티 파일 패키지</text>
+  <text x="60" y="246" font-size="12" fill="#374151">(플랜 · 복구 규칙 · 실패 사례 분리)</text>
+  <text x="60" y="274" font-size="12.5" font-weight="700" fill="#111827">언제 쓰나</text>
+  <text x="60" y="292" font-size="12" fill="#374151">스킬 라이브러리가 실전에서 계속 깨질 때,</text>
+  <text x="60" y="308" font-size="12" fill="#374151">비평자(critic)-실행자 분리 설계 레퍼런스로</text>
+  <rect x="60" y="330" width="330" height="30" rx="6" fill="#ede9fe"/>
+  <text x="70" y="350" font-size="11.5" fill="#5b21b6">벤치: MobileWorld·AndroidWorld·OSWorld 3종 개선</text>
+
+  <!-- right card -->
+  <rect x="430" y="60" width="370" height="320" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+  <text x="450" y="92" font-size="15" font-weight="700" fill="#047857">Tencent/BrowserSkill</text>
+  <text x="450" y="112" font-size="11.5" fill="#6b7280">Rust + TypeScript · MIT · 마지막 커밋 9/18</text>
+  <line x1="450" y1="126" x2="780" y2="126" stroke="#a7f3d0"/>
+  <text x="450" y="150" font-size="12.5" font-weight="700" fill="#111827">무엇</text>
+  <text x="450" y="168" font-size="12" fill="#374151">이미 로그인된 내 브라우저를 에이전트에게</text>
+  <text x="450" y="184" font-size="12" fill="#374151">'탭 단위 대여' 방식으로 연결</text>
+  <text x="450" y="212" font-size="12.5" font-weight="700" fill="#111827">구조</text>
+  <text x="450" y="230" font-size="12" fill="#374151">별도 Agent Window에서 작업 · 탭은 명시적으로</text>
+  <text x="450" y="246" font-size="12" fill="#374151">빌리고(반납) · SKILL.md 형태로 설치</text>
+  <text x="450" y="274" font-size="12.5" font-weight="700" fill="#111827">언제 쓰나</text>
+  <text x="450" y="292" font-size="12" fill="#374151">테스트 계정 없이 로그인 상태 그대로</text>
+  <text x="450" y="308" font-size="12" fill="#374151">웹 작업을 시키고 싶을 때 (작업 방해 없음)</text>
+  <rect x="450" y="330" width="330" height="30" rx="6" fill="#d1fae5"/>
+  <text x="460" y="350" font-size="11.5" fill="#065f46">Claude Code · Codex · Cursor 등 멀티 에이전트 지원</text>
+
+  <text x="420" y="410" text-anchor="middle" font-size="10.5" fill="#9ca3af">두 저장소 모두 이 세션에서 클론으로 검증 · star 수는 GitHub API 접근 제한으로 미표기</text>
+</svg>

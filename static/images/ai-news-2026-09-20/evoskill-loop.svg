@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 500" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="500" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">EvoSkill-GUI — Reflect · Revise · Reuse 루프</text>
+  <text x="420" y="52" text-anchor="middle" font-size="12" fill="#6b7280">스킬 = 정적 프롬프트가 아니라, 실행 피드백으로 고쳐 쓰는 멀티 파일 패키지 (학습 불필요)</text>
+
+  <!-- skill package box -->
+  <rect x="40" y="90" width="230" height="200" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="155" y="114" text-anchor="middle" font-size="13.5" font-weight="700" fill="#6d28d9">스킬 패키지 (파일 단위)</text>
+  <rect x="56" y="126" width="198" height="24" rx="5" fill="#ffffff" stroke="#ddd6fe"/>
+  <text x="66" y="142" font-size="11.5" fill="#111827">retrieval 메타데이터</text>
+  <rect x="56" y="154" width="198" height="24" rx="5" fill="#ffffff" stroke="#ddd6fe"/>
+  <text x="66" y="170" font-size="11.5" fill="#111827">실행 플랜 + 백업 로컬라이제이션</text>
+  <rect x="56" y="182" width="198" height="24" rx="5" fill="#ffffff" stroke="#ddd6fe"/>
+  <text x="66" y="198" font-size="11.5" fill="#111827">실패 복구 규칙</text>
+  <rect x="56" y="210" width="198" height="24" rx="5" fill="#ffffff" stroke="#ddd6fe"/>
+  <text x="66" y="226" font-size="11.5" fill="#111827">접근성(a11y) 유틸리티</text>
+  <rect x="56" y="238" width="198" height="24" rx="5" fill="#fff1f2" stroke="#fda4af"/>
+  <text x="66" y="254" font-size="11.5" fill="#9f1239">실패 사례 로그</text>
+
+  <!-- loop nodes -->
+  <rect x="330" y="100" width="150" height="52" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="405" y="122" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">실행 (Executor)</text>
+  <text x="405" y="140" text-anchor="middle" font-size="10.5" fill="#4b5563">롤아웃 중 즉석 수정</text>
+
+  <rect x="560" y="100" width="150" height="52" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="635" y="122" text-anchor="middle" font-size="13" font-weight="700" fill="#c2410c">Reflect (Critic)</text>
+  <text x="635" y="140" text-anchor="middle" font-size="10.5" fill="#4b5563">정보 격리된 실패 진단</text>
+
+  <rect x="560" y="210" width="150" height="52" rx="10" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="635" y="232" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">Revise</text>
+  <text x="635" y="250" text-anchor="middle" font-size="10.5" fill="#4b5563">제한된 툴로 파일만 수정</text>
+
+  <rect x="330" y="210" width="150" height="52" rx="10" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="405" y="232" text-anchor="middle" font-size="13" font-weight="700" fill="#6d28d9">Reuse</text>
+  <text x="405" y="250" text-anchor="middle" font-size="10.5" fill="#4b5563">검증된 지식을 유사 태스크에</text>
+
+  <!-- arrows -->
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#6b7280"/></marker>
+  </defs>
+  <line x1="480" y1="126" x2="552" y2="126" stroke="#6b7280" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="635" y1="152" x2="635" y2="202" stroke="#6b7280" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="552" y1="236" x2="488" y2="236" stroke="#6b7280" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="405" y1="202" x2="405" y2="160" stroke="#6b7280" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="278" y1="190" x2="322" y2="140" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <line x1="552" y1="252" x2="278" y2="252" stroke="#10b981" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text x="415" y="270" font-size="10" fill="#047857">스킬 파일 편집이 여기로 반영</text>
+
+  <!-- results bars -->
+  <text x="60" y="340" font-size="13.5" font-weight="700" fill="#111827">벤치마크 최대 개선 폭 (파인튜닝 없이, %p)</text>
+  <rect x="60" y="356" width="486" height="24" rx="4" fill="#8b5cf6"/>
+  <text x="66" y="373" font-size="12" fill="#ffffff" font-weight="700">MobileWorld +16.2</text>
+  <rect x="60" y="388" width="180" height="24" rx="4" fill="#a78bfa"/>
+  <text x="66" y="405" font-size="12" fill="#ffffff" font-weight="700">AndroidWorld +6.0</text>
+  <rect x="60" y="420" width="315" height="24" rx="4" fill="#7c3aed"/>
+  <text x="66" y="437" font-size="12" fill="#ffffff" font-weight="700">OSWorld +10.5</text>
+  <text x="60" y="470" font-size="10.5" fill="#9ca3af">막대 길이는 개선 폭에 비례 · 출처: arXiv 2609.17653 초록 (ZJU-REAL, 접근성=accessibility)</text>
+</svg>

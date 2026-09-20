@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="비트코인이 밤사이 8만155달러까지 밀리며 8만1,000달러 안착에 실패해 매수 전환 판정이 보류됐고, 암호화폐 공포·탐욕 지수가 탐욕 70에서 하루 만에 중립 48로 식었으며, 이번 주는 연준 발언 10차례와 트럼프-시진핑 회담이 예정돼 있다는 것을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.21 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">매수 전환 판정 보류 — 밤사이 8만1,000달러 안착 실패, 탐욕은 하루 만에 중립으로</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">밤사이 판정</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#facc15">80,155</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">일요일 밤 저점 — 안착 실패</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#facc15">70 → 48</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">하루 만에 식은 탐욕</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">이번 주 재료</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.2"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">9/24</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">트럼프-시진핑 회담</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#facc15">관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">나스닥 · 암호화폐</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">심리: 주식 29(공포) · 암호화폐 48~50(중립) — 조건 미충족, 서두를 이유가 없습니다</text>
+  <text x="80" y="592" font-family="sans-serif" font-size="16" fill="#475569">jkpark83.github.io · 마켓 브리핑</text>
+</svg>

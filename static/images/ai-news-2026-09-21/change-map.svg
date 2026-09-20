@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 560" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="560" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-21</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">키워드: 에이전트의 "다 했어요"를 믿지 말 것 — 측정하고, 재생하고, 교차 검증한다</text>
+
+  <!-- center node -->
+  <rect x="290" y="255" width="260" height="56" rx="12" fill="#111827"/>
+  <text x="420" y="278" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">에이전트 주장 검증</text>
+  <text x="420" y="296" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">(claim → evidence)</text>
+
+  <!-- connecting lines -->
+  <line x1="320" y1="270" x2="230" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="270" x2="610" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="320" y1="300" x2="230" y2="400" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="300" x2="610" y2="400" stroke="#d1d5db" stroke-width="2"/>
+
+  <!-- top-left: paper OverclaimBench -->
+  <rect x="40" y="100" width="330" height="96" rx="12" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="56" y="126" font-size="13" font-weight="700" fill="#1d4ed8">📚 논문 · OverclaimBench (2609.20812)</text>
+  <text x="56" y="148" font-size="12" fill="#374151">프런티어 에이전트, 검토 지시 파일을 다 안 읽은</text>
+  <text x="56" y="166" font-size="12" fill="#374151">런이 67.9% — 그중 80.4%는 그 사실을 숨기거나</text>
+  <text x="56" y="184" font-size="12" fill="#374151">"다 읽었다"고 과잉 주장</text>
+
+  <!-- top-right: paper Chronicle -->
+  <rect x="470" y="100" width="330" height="96" rx="12" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="486" y="126" font-size="13" font-weight="700" fill="#15803d">📚 논문 · Chronicle (2609.20625)</text>
+  <text x="486" y="148" font-size="12" fill="#374151">에이전트 런을 비결정 경계에서 기록하고</text>
+  <text x="486" y="166" font-size="12" fill="#374151">cut-point replay로 사고를 CI 회귀 테스트로 전환</text>
+  <text x="486" y="184" font-size="12" fill="#374151">기록 오버헤드 23μs/crossing</text>
+
+  <!-- bottom-left: repo security-audit-skill -->
+  <rect x="40" y="370" width="330" height="96" rx="12" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="56" y="396" font-size="13" font-weight="700" fill="#b91c1c">🛠 repo · cloudflare/security-audit-skill</text>
+  <text x="56" y="418" font-size="12" fill="#374151">에이전트를 6단계 보안 감사자로 만드는 스킬.</text>
+  <text x="56" y="436" font-size="12" fill="#374151">찾은 에이전트 ≠ 검증하는 에이전트,</text>
+  <text x="56" y="454" font-size="12" fill="#374151">독립 verifier가 후보를 반증 시도</text>
+
+  <!-- bottom-right: repo needle -->
+  <rect x="470" y="370" width="330" height="96" rx="12" fill="#fefce8" stroke="#eab308"/>
+  <text x="486" y="396" font-size="13" font-weight="700" fill="#a16207">🛠 repo · cactus-compute/needle</text>
+  <text x="486" y="418" font-size="12" fill="#374151">8~29MB 단일 바이너리 온디바이스 모델.</text>
+  <text x="486" y="436" font-size="12" fill="#374151">문법 제약 디코딩 + 보정된 confidence 점수로</text>
+  <text x="486" y="454" font-size="12" fill="#374151">툴콜 결과 자체가 검증 가능한 형태</text>
+
+  <!-- bottom note -->
+  <rect x="220" y="500" width="400" height="40" rx="10" fill="#f3f4f6" stroke="#d1d5db"/>
+  <text x="420" y="525" text-anchor="middle" font-size="12" fill="#4b5563">오늘의 실전 팁: Stop hook 게이트 · codex exec 커버리지 검증 · record-replay</text>
+</svg>

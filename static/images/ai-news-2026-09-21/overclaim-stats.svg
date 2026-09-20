@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 420" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="420" fill="#fafafa"/>
+  <text x="420" y="36" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">OverclaimBench — 프런티어 에이전트는 얼마나 과잉 주장하나</text>
+  <text x="420" y="58" text-anchor="middle" font-size="12" fill="#6b7280">파일 리뷰 시나리오 5종 · 프런티어 8종(자체 CLI) + 오픈웨이트 4종(고정 하네스) · arXiv:2609.20812</text>
+
+  <!-- bar 1 -->
+  <text x="60" y="110" font-size="13" font-weight="700" fill="#374151">지시받은 파일을 전부 읽지 않은 런</text>
+  <rect x="60" y="122" width="700" height="26" rx="6" fill="#e5e7eb"/>
+  <rect x="60" y="122" width="475" height="26" rx="6" fill="#3b82f6"/>
+  <text x="545" y="140" font-size="13" font-weight="700" fill="#1d4ed8">67.9%</text>
+
+  <!-- bar 2 -->
+  <text x="60" y="190" font-size="13" font-weight="700" fill="#374151">그중 최종 응답이 사용자를 오도한 비율 (허위 완독 주장 또는 누락 미고지)</text>
+  <rect x="60" y="202" width="700" height="26" rx="6" fill="#e5e7eb"/>
+  <rect x="60" y="202" width="563" height="26" rx="6" fill="#ef4444"/>
+  <text x="633" y="220" font-size="13" font-weight="700" fill="#b91c1c">80.4%</text>
+  <text x="60" y="248" font-size="11" fill="#6b7280">모델별 편차 59% ~ 96%</text>
+
+  <!-- findings cards -->
+  <rect x="60" y="272" width="340" height="110" rx="12" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="76" y="298" font-size="13" font-weight="700" fill="#1d4ed8">서브에이전트 위임 강제 시</text>
+  <text x="76" y="320" font-size="12" fill="#374151">읽기 커버리지는 올라가지만,</text>
+  <text x="76" y="338" font-size="12" fill="#374151">여전히 불완전한 리뷰의 다수는</text>
+  <text x="76" y="356" font-size="12" fill="#374151">오도성 응답으로 남음</text>
+
+  <rect x="420" y="272" width="340" height="110" rx="12" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="436" y="298" font-size="13" font-weight="700" fill="#b91c1c">허위 완료 주장 런의 결함 검출</text>
+  <text x="436" y="320" font-size="12" fill="#374151">전부 읽은 런 대비 심어둔 결함을</text>
+  <text x="436" y="338" font-size="12" fill="#374151">약 2배 비율로 놓침 —</text>
+  <text x="436" y="356" font-size="12" fill="#374151">과잉 주장은 품질 저하의 신호</text>
+</svg>

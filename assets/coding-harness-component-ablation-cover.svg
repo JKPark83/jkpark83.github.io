@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="고정된 에이전트 루프를 가운데 두고 컨텍스트 관리, 플래닝, 액션 공간 세 개의 다이얼을 실측으로 돌려 보는 표지 그림">
+  <defs>
+    <linearGradient id="hca-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#1a1230"/>
+    </linearGradient>
+    <linearGradient id="hca-loop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#hca-bg)"/>
+
+  <!-- 왼쪽: 제목 -->
+  <text x="80" y="180" font-family="sans-serif" font-size="56" font-weight="800" fill="#f1f5f9">같은 모델,</text>
+  <text x="80" y="250" font-family="sans-serif" font-size="56" font-weight="800" fill="#f1f5f9">비용은 5배</text>
+  <text x="80" y="320" font-family="sans-serif" font-size="33" font-weight="700" fill="#38bdf8">코딩 하네스, 감이 아니라 실측으로</text>
+  <text x="80" y="375" font-family="sans-serif" font-size="22" fill="#94a3b8">176개 조합 절제 실험 + HarnessTax</text>
+  <text x="80" y="410" font-family="sans-serif" font-size="22" fill="#94a3b8">컨텍스트 관리 · 플래닝 · 액션 공간</text>
+
+  <!-- 오른쪽: 고정 루프 + 다이얼 3개 -->
+  <g transform="translate(730,80)">
+    <rect x="70" y="140" width="260" height="190" rx="16" fill="none" stroke="url(#hca-loop)" stroke-width="4"/>
+    <text x="200" y="180" text-anchor="middle" font-family="sans-serif" font-size="21" font-weight="700" fill="#e2e8f0">에이전트 루프 (고정)</text>
+    <text x="200" y="215" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#94a3b8">생각 → 도구 호출 → 관찰</text>
+    <path d="M 150 250 A 50 40 0 1 1 150 251" fill="none" stroke="#38bdf8" stroke-width="3.5"/>
+    <path d="M 148 246 l 10 -6 l 1 12 z" fill="#38bdf8"/>
+    <text x="265" y="262" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#64748b">× 176 세팅</text>
+
+    <!-- 다이얼 1: 컨텍스트 관리 -->
+    <circle cx="30" cy="60" r="38" fill="none" stroke="#4ade80" stroke-width="4"/>
+    <line x1="30" y1="60" x2="52" y2="38" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+    <text x="30" y="125" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#4ade80">컨텍스트 관리</text>
+    <line x1="52" y1="88" x2="95" y2="145" stroke="#4ade80" stroke-width="2.5" stroke-dasharray="5 4"/>
+
+    <!-- 다이얼 2: 플래닝 -->
+    <circle cx="210" cy="40" r="38" fill="none" stroke="#fbbf24" stroke-width="4"/>
+    <line x1="210" y1="40" x2="210" y2="10" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/>
+    <text x="210" y="105" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fbbf24">플래닝</text>
+    <line x1="210" y1="112" x2="210" y2="138" stroke="#fbbf24" stroke-width="2.5" stroke-dasharray="5 4"/>
+
+    <!-- 다이얼 3: 액션 공간 -->
+    <circle cx="390" cy="70" r="38" fill="none" stroke="#fb7185" stroke-width="4"/>
+    <line x1="390" y1="70" x2="365" y2="50" stroke="#fb7185" stroke-width="4" stroke-linecap="round"/>
+    <text x="390" y="135" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fb7185">액션 공간</text>
+    <line x1="370" y1="98" x2="325" y2="145" stroke="#fb7185" stroke-width="2.5" stroke-dasharray="5 4"/>
+
+    <!-- 아래: 비용 바 -->
+    <g transform="translate(40,380)">
+      <rect x="0" y="0" width="270" height="26" rx="6" fill="#fb7185" opacity="0.75"/>
+      <text x="280" y="19" font-family="sans-serif" font-size="17" fill="#fb7185">27k 토큰</text>
+      <rect x="0" y="38" width="150" height="26" rx="6" fill="#fbbf24" opacity="0.75"/>
+      <text x="160" y="57" font-family="sans-serif" font-size="17" fill="#fbbf24">15k</text>
+      <rect x="0" y="76" width="30" height="26" rx="6" fill="#4ade80" opacity="0.9"/>
+      <text x="40" y="95" font-family="sans-serif" font-size="17" fill="#4ade80">2.6k — 요청당 기본 컨텍스트</text>
+    </g>
+  </g>
+</svg>

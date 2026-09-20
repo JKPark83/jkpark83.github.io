@@ -1,0 +1,360 @@
+---
+title: "같은 모델인데 비용은 5배 — 코딩 에이전트 하네스를 감이 아니라 실측으로 설계하기 (176개 조합 절제 실험)"
+date: 2026-09-21T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "하네스", "harness", "ablation", "컨텍스트 관리", "플래닝", "액션 공간", "도구 설계", "HarnessTax", "SWE-Bench", "Terminal-Bench", "비용 최적화", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 코딩 에이전트 하네스가 '감의 영역'에서 '실측의 영역'으로 넘어왔습니다. 9월 16일 HarnessTax는 같은 모델을 Claude Code·Codex CLI·Pi 세 하네스에 태워 '성공률은 몇 포인트 차이인데 비용은 최대 5배'라는 결과를 내놨고, 이튿날 올라온 arXiv 논문은 하네스를 통째로가 아니라 부품 단위로 잘라 — 플래닝·액션 공간·컨텍스트 관리 — 176개 조합을 실측했습니다. 요약보다 elision을 먼저 걸어라, recall 도구는 빼라, 강한 모델에겐 bash만 줘라 같은 구체적인 설계 규칙이 처음으로 숫자와 함께 나왔습니다. junior 개발자 눈높이에서 두 연구를 쉽고 자세하게 풀어봅니다."
+ShowToc: false
+cover:
+  image: "coding-harness-component-ablation-cover.svg"
+  alt: "고정된 에이전트 루프를 가운데 두고 컨텍스트 관리, 플래닝, 액션 공간 세 개의 다이얼을 돌려 보는 그림"
+  caption: "루프는 고정하고 다이얼 세 개만 돌린다 — 하네스 설계가 처음으로 부품 단위 실측을 얻었다"
+  relative: false
+---
+
+<style>
+/* ── 하네스 절제 실험 포스트 전용 스타일 (hca- 접두사) ── */
+.hca-fig{
+  --hca-green:#16a34a; --hca-rose:#e11d48; --hca-amber:#d97706; --hca-sky:#0284c7;
+  --hca-violet:#7c3aed; --hca-slate:#64748b; --hca-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .hca-fig{
+  --hca-green:#4ade80; --hca-rose:#fb7185; --hca-amber:#fbbf24; --hca-sky:#38bdf8;
+  --hca-violet:#a78bfa; --hca-slate:#94a3b8; --hca-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .hca-fig{
+    --hca-green:#4ade80; --hca-rose:#fb7185; --hca-amber:#fbbf24; --hca-sky:#38bdf8;
+    --hca-violet:#a78bfa; --hca-slate:#94a3b8; --hca-gray:#64748b;
+  }
+}
+.hca-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.hca-fig text{font-family:inherit}
+.hca-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.hca-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.hca-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.hca-toc ol{margin:0;padding-left:1.25rem}
+.hca-toc li{margin:.22rem 0;font-size:.95rem}
+.hca-toc a{text-decoration:none}
+.hca-toc a:hover{text-decoration:underline}
+.hca-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.hca-table th,.hca-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left}
+.hca-table th{background:var(--entry)}
+</style>
+
+<div class="hca-toc">
+  <div class="hca-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 이번 주, 하네스가 '실측의 영역'이 되다</a></li>
+    <li><a href="#sec-2">배경 — 하네스, 그리고 절제 실험이라는 도구</a></li>
+    <li><a href="#sec-3">실험 설계 — 루프는 고정하고 다이얼 세 개만 돌린다</a></li>
+    <li><a href="#sec-4">다이얼 ① 컨텍스트 관리 — 창이 좁을수록 생명줄</a></li>
+    <li><a href="#sec-5">다이얼 ② 플래닝 — 약한 모델의 버팀목, 강한 모델의 절약 장치</a></li>
+    <li><a href="#sec-6">다이얼 ③ 액션 공간 — 도구를 줘야 할 모델, 뺏어야 할 모델</a></li>
+    <li><a href="#sec-7">하네스 세금 — HarnessTax가 잰 '기본 요금'</a></li>
+    <li><a href="#sec-8">실전 — 내 하네스에 바로 적용하는 체크리스트</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 이번 주, 하네스가 '실측의 영역'이 되다</h2>
+
+<p>코딩 에이전트를 써 본 사람이라면 한 번쯤 이런 논쟁을 봤을 겁니다. "Claude Code가 낫다", "아니다, 미니멀한 하네스가 낫다", "플래닝 도구는 필수다", "아니다, 컨텍스트만 낭비한다". 문제는 지금까지 이 논쟁에 <strong>숫자가 없었다</strong>는 것입니다. 하네스(harness) — 모델을 감싸고 도구·컨텍스트·루프를 관리하는 실행 계층 — 는 늘 통째로 비교됐고, 그 안의 어떤 부품이 성능을 만드는지는 아무도 몰랐습니다.</p>
+
+<p>이번 주에 그 공백이 한꺼번에 메워졌습니다. 9월 16일 UC Berkeley와 Arena 연구진이 <a href="https://harnesstax.github.io/" target="_blank" rel="noopener">HarnessTax</a>를 공개했습니다. 같은 모델 7종을 Claude Code·Codex CLI·Pi 세 하네스에 태워 동일 과제를 풀게 했더니, <strong>성공률 차이는 벤치마크별로 ±2~5포인트 수준인데 비용은 최대 5배</strong>까지 벌어졌습니다. 바로 다음 날인 9월 17일에는 arXiv에 <a href="https://arxiv.org/abs/2609.20804" target="_blank" rel="noopener">An Empirical Study of Harness Design for Coding Agents</a>(arXiv:2609.20804)가 올라왔고, 이틀 뒤 <a href="https://news.ycombinator.com/item?id=49753878" target="_blank" rel="noopener">Hacker News 프론트페이지</a>(약 200점)에 오르며 하네스 논쟁에 다시 불을 붙였습니다. 이 논문은 하네스를 통째로 비교하는 대신 <strong>부품 단위로 잘라</strong> 176개 조합을 실측한, 최초의 컴포넌트 수준 절제 연구입니다.</p>
+
+<p>결론부터 말하면 이렇습니다. 하네스의 부품들은 <strong>"항상 좋은 것"이 하나도 없습니다.</strong> 컨텍스트 관리도, 플래닝도, 잘 짜인 도구 세트도 — 전부 조건부로만 도움이 됩니다. 어떤 조건에서 무엇이 통하는지, 이제 숫자로 말할 수 있게 됐습니다.</p>
+
+<h2 id="sec-2">2. 배경 — 하네스, 그리고 절제 실험이라는 도구</h2>
+
+<p>하네스가 낯설다면 이렇게 생각하면 됩니다. 모델이 엔진이라면 하네스는 <strong>차체</strong>입니다. 시스템 프롬프트, 도구 정의, 도구 실행, 대화 이력 관리, 루프 종료 조건 — 모델 바깥의 모든 것이 하네스입니다. Claude Code, Codex CLI, OpenHands 같은 제품이 전부 "모델 + 하네스" 패키지입니다. 하네스라는 개념 자체가 처음이라면 이전 글 <a href="/posts/harness-engineering/">하네스 엔지니어링</a>을 먼저 읽고 오면 좋습니다.</p>
+
+<p>절제 실험(ablation study)은 원래 신경과학 용어입니다. 뇌의 특정 부위를 제거하고 행동이 어떻게 달라지는지 보는 방법인데, ML에서는 <strong>시스템에서 부품 하나만 빼거나 바꿔서 그 부품의 기여도를 재는 실험</strong>을 뜻합니다. 핵심은 "하나만" 바꾸는 것입니다. 하네스 A와 하네스 B를 통째로 비교하면 수십 개 차이가 뒤섞여 무엇이 효과를 냈는지 알 수 없습니다. 실제로 지난 5월 나온 포지션 페이퍼 <a href="https://arxiv.org/abs/2605.23950" target="_blank" rel="noopener">Stop Comparing LLM Agents Without Disclosing the Harness</a>는 "하네스를 공개하지 않은 에이전트 비교는 무의미하다"고 지적했습니다. 이번 논문은 그 지적에 대한 실행 답안인 셈입니다.</p>
+
+<h2 id="sec-3">3. 실험 설계 — 루프는 고정하고 다이얼 세 개만 돌린다</h2>
+
+<p>연구진(UMass Amherst·Emory·UNC Charlotte, Zoom 인턴십 기간 수행)은 가벼운 자체 하네스를 만들고 <strong>실행 루프는 고정</strong>했습니다. 생각하고, 도구를 부르고, 결과를 관찰하는 기본 루프는 모든 실험에서 같습니다. 그리고 세 개의 다이얼만 돌렸습니다.</p>
+
+<figure class="hca-fig">
+<svg viewBox="0 0 860 420" role="img" aria-label="고정된 실행 루프를 가운데 두고 플래닝, 액션 공간, 컨텍스트 관리 세 컴포넌트를 조합해 176개 세팅을 만드는 실험 설계 다이어그램">
+  <text x="430" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--hca-slate)">실험 설계 — 고정 루프 + 다이얼 3개 = 176개 매칭 세팅</text>
+
+  <rect x="320" y="150" width="220" height="130" rx="14" fill="none" stroke="var(--hca-sky)" stroke-width="2.5"/>
+  <text x="430" y="180" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--hca-sky)">실행 루프 (고정)</text>
+  <text x="430" y="207" text-anchor="middle" font-size="12" fill="var(--hca-gray)">생각 → 도구 호출 → 관찰</text>
+  <text x="430" y="227" text-anchor="middle" font-size="12" fill="var(--hca-gray)">반복, 종료 조건 동일</text>
+  <text x="430" y="260" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">McNemar 검정 + FDR 보정</text>
+
+  <rect x="30" y="60" width="240" height="90" rx="12" fill="none" stroke="var(--hca-amber)" stroke-width="2.5"/>
+  <text x="150" y="87" text-anchor="middle" font-size="13" font-weight="700" fill="var(--hca-amber)">다이얼 ② 플래닝</text>
+  <text x="150" y="110" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">update_plan 지속 계획 스캐폴드</text>
+  <text x="150" y="130" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">켬 / 끔</text>
+  <line x1="270" y1="120" x2="330" y2="170" stroke="var(--hca-amber)" stroke-width="2"/>
+
+  <rect x="30" y="250" width="240" height="90" rx="12" fill="none" stroke="var(--hca-rose)" stroke-width="2.5"/>
+  <text x="150" y="277" text-anchor="middle" font-size="13" font-weight="700" fill="var(--hca-rose)">다이얼 ③ 액션 공간</text>
+  <text x="150" y="300" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">사전 정의 도구 8종</text>
+  <text x="150" y="320" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">vs bash 하나만</text>
+  <line x1="270" y1="295" x2="330" y2="255" stroke="var(--hca-rose)" stroke-width="2"/>
+
+  <rect x="590" y="60" width="240" height="110" rx="12" fill="none" stroke="var(--hca-green)" stroke-width="2.5"/>
+  <text x="710" y="87" text-anchor="middle" font-size="13" font-weight="700" fill="var(--hca-green)">다이얼 ① 컨텍스트 관리</text>
+  <text x="710" y="110" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">전략 5단계 (T0~T4)</text>
+  <text x="710" y="130" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">× 윈도우 예산 4종</text>
+  <text x="710" y="150" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">(32k · 64k · 96k · 128k)</text>
+  <line x1="590" y1="130" x2="530" y2="175" stroke="var(--hca-green)" stroke-width="2"/>
+
+  <rect x="590" y="250" width="240" height="110" rx="12" fill="none" stroke="var(--hca-violet)" stroke-width="2.5"/>
+  <text x="710" y="277" text-anchor="middle" font-size="13" font-weight="700" fill="var(--hca-violet)">모델 4종 × 벤치마크 2종</text>
+  <text x="710" y="300" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">Nemotron-3 30B/120B/550B</text>
+  <text x="710" y="320" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">Mistral-Medium-3.5-128B</text>
+  <text x="710" y="340" text-anchor="middle" font-size="11.5" fill="var(--hca-gray)">SWE-Bench Verified · Terminal-Bench 2.1</text>
+  <line x1="590" y1="295" x2="530" y2="255" stroke="var(--hca-violet)" stroke-width="2"/>
+
+  <text x="430" y="395" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hca-slate)">부품 하나만 바꿔 가며 비교 → 어떤 부품이 언제 효과를 내는지 분리 측정</text>
+</svg>
+<figcaption>그림 1. 실행 루프를 고정한 채 플래닝·액션 공간·컨텍스트 관리만 바꿔 176개 매칭 세팅을 실측했다. 통계 검정(McNemar + FDR 보정)까지 갖춘 최초의 하네스 부품 절제 연구다.</figcaption>
+</figure>
+
+<p>평가는 실무에서 가장 널리 쓰이는 두 벤치마크로 했습니다. 실제 GitHub 이슈를 고치는 <strong>SWE-Bench Verified</strong>(500개 과제)와 터미널 작업 중심의 <strong>Terminal-Bench 2.1</strong>입니다. 모델은 능력 스펙트럼을 커버하도록 Nemotron-3 30B/120B/550B와 Mistral-Medium-3.5-128B 네 가지를 썼습니다. 작은 모델부터 프론티어급까지 걸쳐 있다는 점이 중요한데, 뒤에서 보겠지만 <strong>거의 모든 결론이 모델 능력에 따라 뒤집히기 때문</strong>입니다.</p>
+
+<h2 id="sec-4">4. 다이얼 ① 컨텍스트 관리 — 창이 좁을수록 생명줄</h2>
+
+<p>긴 작업을 하다 보면 대화 이력이 컨텍스트 윈도우를 넘칩니다. 이때 하네스가 취할 수 있는 전략을 논문은 세 가지 기본 메커니즘으로 정리합니다.</p>
+
+<ul>
+  <li><strong>M1 — elision(생략)</strong>: 오래된 도구 관찰 결과의 본문을 짧은 스텁(stub)으로 교체합니다. 규칙 기반이라 공짜에 가깝습니다.</li>
+  <li><strong>M2 — recall(회수)</strong>: 생략한 원본을 외부 저장소에 보관하고, <code>recall_event</code> 도구로 다시 불러올 수 있게 합니다. elision을 "되돌릴 수 있게" 만드는 장치입니다.</li>
+  <li><strong>M3 — summarization(요약)</strong>: 오래된 메시지를 같은 모델의 별도 호출로 접어 러닝 서머리로 만듭니다. 품질은 좋지만 호출 비용이 듭니다.</li>
+</ul>
+
+<p>이 셋을 조합해 다섯 단계 전략(T0~T4)을 만들었습니다. T0은 아무것도 안 함(넘치면 그냥 실패), T1은 elision만, T2는 elision + recall, T3은 요약만, T4는 셋 다 — 단 <strong>단계적으로</strong>: 소프트 임계값에서 먼저 싼 elision을 걸고, 하드 임계값에 닿아야 비싼 요약을 돌립니다.</p>
+
+<figure class="hca-fig">
+<svg viewBox="0 0 860 440" role="img" aria-label="윈도우 예산 32k에서 128k로 넓어질수록 컨텍스트 관리 유무에 따른 성공률 격차가 35.7포인트에서 2.7포인트로 줄어드는 막대그래프와 T0~T4 전략 구성표">
+  <text x="430" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--hca-slate)">컨텍스트 관리의 가치 = 윈도우 예산에 반비례</text>
+
+  <!-- 막대: 관리 vs 무관리 성공률 격차 -->
+  <g transform="translate(90,60)">
+    <text x="300" y="12" text-anchor="middle" font-size="12.5" fill="var(--hca-gray)">관리 vs 무관리(T0) 성공률 격차 (포인트)</text>
+    <line x1="0" y1="180" x2="680" y2="180" stroke="var(--hca-gray)" stroke-width="1.5"/>
+
+    <rect x="30" y="37" width="90" height="143" rx="6" fill="var(--hca-rose)" opacity="0.8"/>
+    <text x="75" y="28" text-anchor="middle" font-size="14" font-weight="700" fill="var(--hca-rose)">35.7</text>
+    <text x="75" y="202" text-anchor="middle" font-size="12" fill="var(--hca-gray)">32k</text>
+    <text x="75" y="222" text-anchor="middle" font-size="10.5" fill="var(--hca-rose)">무관리 실패의 78.7%가</text>
+    <text x="75" y="236" text-anchor="middle" font-size="10.5" fill="var(--hca-rose)">컨텍스트 오버플로</text>
+
+    <rect x="200" y="116" width="90" height="64" rx="6" fill="var(--hca-amber)" opacity="0.8"/>
+    <text x="245" y="107" text-anchor="middle" font-size="14" font-weight="700" fill="var(--hca-amber)">15.9</text>
+    <text x="245" y="202" text-anchor="middle" font-size="12" fill="var(--hca-gray)">64k</text>
+
+    <rect x="370" y="158" width="90" height="22" rx="6" fill="var(--hca-sky)" opacity="0.8"/>
+    <text x="415" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="var(--hca-sky)">5.5</text>
+    <text x="415" y="202" text-anchor="middle" font-size="12" fill="var(--hca-gray)">96k</text>
+
+    <rect x="540" y="169" width="90" height="11" rx="4" fill="var(--hca-green)" opacity="0.8"/>
+    <text x="585" y="160" text-anchor="middle" font-size="14" font-weight="700" fill="var(--hca-green)">2.7</text>
+    <text x="585" y="202" text-anchor="middle" font-size="12" fill="var(--hca-gray)">128k</text>
+    <text x="585" y="222" text-anchor="middle" font-size="10.5" fill="var(--hca-green)">오버플로 실패 8.7%</text>
+  </g>
+
+  <!-- 티어 표 -->
+  <g transform="translate(90,330)" font-size="11.5">
+    <text x="0" y="0" font-weight="700" fill="var(--hca-slate)">전략 5단계:</text>
+    <text x="0" y="24" fill="var(--hca-rose)">T0 없음(넘치면 실패)</text>
+    <text x="150" y="24" fill="var(--hca-gray)">T1 elision만</text>
+    <text x="260" y="24" fill="var(--hca-gray)">T2 elision+recall</text>
+    <text x="410" y="24" fill="var(--hca-gray)">T3 요약만</text>
+    <text x="510" y="24" font-weight="700" fill="var(--hca-green)">T4 단계형: elision 먼저 → 요약 나중 ★최저 비용</text>
+    <text x="0" y="52" fill="var(--hca-gray)">★ T4는 8개 모델×벤치마크 패널 중 7개에서 같은 정확도로 최저 비용 — 4개 윈도우 예산 전부에서 평균 비용 최저</text>
+  </g>
+</svg>
+<figcaption>그림 2. 윈도우 예산이 32k일 때 관리 유무의 성공률 격차는 35.7포인트에 달하지만, 128k에서는 2.7포인트로 줄어든다. 컨텍스트 관리의 최대 효용은 "잘 요약해서 더 똑똑해지는 것"이 아니라 오버플로 사망을 막는 것이다.</figcaption>
+</figure>
+
+<p>숫자를 보면 그림이 명확합니다. 32k 예산에서는 관리 없는 하네스(T0)가 관리 있는 하네스보다 <strong>35.7포인트</strong> 뒤지고, 실패한 과제의 78.7%가 그냥 컨텍스트 오버플로로 죽었습니다. 그런데 예산을 128k로 넓히면 격차는 <strong>2.7포인트</strong>까지 줄어듭니다. 즉 컨텍스트 관리의 가치는 대부분 <strong>"오버플로 사고 방지"</strong>에서 나오지, 요약이 모델을 더 똑똑하게 만들어서가 아닙니다.</p>
+
+<p>두 가지 실무 결론이 여기서 나옵니다. 첫째, <strong>순서가 돈을 결정합니다.</strong> 싼 elision을 먼저 걸고 정말 필요할 때만 요약을 돌리는 T4가 8개 패널(모델 4 × 벤치마크 2) 중 7개에서 같은 정확도로 최저 비용을 기록했습니다. 처음부터 요약부터 돌리면 품질은 같은데 LLM 호출 요금만 더 냅니다. 둘째, <strong>recall은 빼도 됩니다.</strong> "지운 걸 다시 불러올 수 있다"는 안전장치는 그럴듯해 보이지만, 실측하니 세팅의 56.3%에서 모델이 <code>recall_event</code>를 단 한 번도 부르지 않았고(중앙값 호출 횟수 0), 정확도는 elision 단독 대비 오히려 −0.36포인트였습니다. 모델은 지나간 관찰 결과를 다시 찾지 않습니다. 기계만 늘었습니다.</p>
+
+<p>컨텍스트를 접는 기법 자체가 궁금하다면 이전 글 <a href="/posts/context-compaction-long-horizon-agents/">컨텍스트 컴팩션</a>과 짝지어 읽으면 좋습니다. 이번 논문은 그 기법들에 "언제, 어떤 순서로"라는 실측 답을 붙여 준 셈입니다.</p>
+
+<h2 id="sec-5">5. 다이얼 ② 플래닝 — 약한 모델의 버팀목, 강한 모델의 절약 장치</h2>
+
+<p>플래닝 컴포넌트는 <code>update_plan</code> 도구로 구현했습니다. 모델이 계획을 세우고 갱신하면 그 계획이 컨텍스트에 <strong>지속적으로 고정</strong>되는 스캐폴드입니다. Claude Code의 TODO 리스트나 Codex의 플랜 모드와 같은 계열입니다.</p>
+
+<p>결과는 "플래닝은 필수인가"라는 질문 자체가 잘못됐음을 보여 줍니다. <strong>약한 모델에게 플래닝은 정확도 버팀목입니다.</strong> 계획을 붙잡아 주면 성공률이 오르는 대신 토큰을 더 씁니다. 반면 <strong>강한 모델에게는 정확도가 거의 안 변하고, 대신 비용이 내려갑니다.</strong> 계획이 고정돼 있으면 강한 모델은 "내가 어디까지 했더라"를 확인하는 중복 검증 스텝을 덜 밟기 때문입니다. 같은 부품이 모델에 따라 완전히 다른 일을 하는 겁니다 — 하나는 정확도 장치, 하나는 비용 장치.</p>
+
+<h2 id="sec-6">6. 다이얼 ③ 액션 공간 — 도구를 줘야 할 모델, 뺏어야 할 모델</h2>
+
+<p>액션 공간 실험은 두 팔로 나뉩니다. 한쪽은 <strong>사전 정의 도구 8종</strong>(<code>read_file</code>, <code>write_file</code>, <code>edit_file</code>, <code>list_files</code>, <code>glob_files</code>, <code>grep_text</code>, <code>web_fetch</code>, <code>bash</code>), 다른 쪽은 <strong>bash 하나만</strong>. 주의할 점: <strong>양쪽 다 bash는 있습니다.</strong> "bash-only"는 셸을 주는 대신 파일·검색 보조 도구를 뺀 구성이지, 도구를 아예 안 주는 게 아닙니다.</p>
+
+<figure class="hca-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="모델 능력이 커질수록 사전 정의 도구의 우위가 사라지고 bash-only가 역전하는 크로스오버 도표">
+  <text x="430" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--hca-slate)">액션 공간의 크로스오버 — 능력이 커지면 도구가 짐이 된다</text>
+
+  <line x1="90" y1="290" x2="790" y2="290" stroke="var(--hca-gray)" stroke-width="1.5"/>
+  <text x="440" y="320" text-anchor="middle" font-size="12.5" fill="var(--hca-gray)">모델 능력 (bash 숙련도) →</text>
+  <line x1="90" y1="170" x2="790" y2="170" stroke="var(--hca-gray)" stroke-width="1" stroke-dasharray="6 5"/>
+  <text x="82" y="174" text-anchor="end" font-size="11" fill="var(--hca-gray)">동률</text>
+
+  <!-- 30B -->
+  <rect x="120" y="60" width="130" height="110" rx="8" fill="var(--hca-sky)" opacity="0.22"/>
+  <text x="185" y="84" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hca-sky)">Nemotron-3 30B</text>
+  <text x="185" y="106" text-anchor="middle" font-size="12" fill="var(--hca-sky)">도구 8종 우위</text>
+  <text x="185" y="128" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hca-sky)">+15.0 / +10.1</text>
+  <text x="185" y="148" text-anchor="middle" font-size="10.5" fill="var(--hca-gray)">(SWE / Terminal)</text>
+
+  <!-- 120B -->
+  <rect x="300" y="120" width="130" height="50" rx="8" fill="var(--hca-sky)" opacity="0.22"/>
+  <text x="365" y="141" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hca-sky)">120B</text>
+  <text x="365" y="161" text-anchor="middle" font-size="12" fill="var(--hca-sky)">+1.6 / +4.5</text>
+
+  <!-- Mistral -->
+  <rect x="480" y="95" width="140" height="150" rx="8" fill="var(--hca-violet)" opacity="0.18"/>
+  <text x="550" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="var(--hca-violet)">Mistral-Medium-3.5</text>
+  <text x="550" y="140" text-anchor="middle" font-size="11.5" fill="var(--hca-violet)">SWE: 도구 +23.2</text>
+  <text x="550" y="200" text-anchor="middle" font-size="11.5" fill="var(--hca-violet)">Terminal: bash만 +6.7</text>
+  <text x="550" y="222" text-anchor="middle" font-size="10.5" fill="var(--hca-gray)">과제 성격 따라 갈림</text>
+
+  <!-- 550B -->
+  <rect x="650" y="175" width="130" height="110" rx="8" fill="var(--hca-green)" opacity="0.22"/>
+  <text x="715" y="199" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hca-green)">550B</text>
+  <text x="715" y="221" text-anchor="middle" font-size="12" fill="var(--hca-green)">bash만으로 역전</text>
+  <text x="715" y="243" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hca-green)">+3.6 / +5.6</text>
+  <text x="715" y="265" text-anchor="middle" font-size="11.5" fill="var(--hca-green)">비용 −53% / −30%</text>
+
+  <path d="M 185 175 C 330 195, 550 230, 700 250" fill="none" stroke="var(--hca-slate)" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="430" y="368" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hca-slate)">셸이 서툰 모델엔 도구를, 셸이 능숙한 모델엔 맨 bash를</text>
+</svg>
+<figcaption>그림 3. 사전 정의 도구 8종 vs bash-only의 성공률 격차(포인트). 30B에서는 도구가 크게 이기지만, 550B에서는 bash-only가 오히려 정확하고 비용은 절반 가까이 싸다. 양쪽 구성 모두 bash 자체는 포함한다.</figcaption>
+</figure>
+
+<p>가장 작은 30B에게 도구 8종은 큰 도움입니다(SWE +15.0, Terminal +10.1포인트). 셸 명령을 서툴게 조합하다 실수하는 대신, 잘 정의된 <code>edit_file</code>을 부르면 되니까요. 그런데 120B에서 격차가 +1.6/+4.5로 줄더니, <strong>550B에서는 역전</strong>됩니다. bash만 준 쪽이 +3.6/+5.6포인트 더 정확하고, 비용은 SWE에서 −53%, Terminal에서 −30%였습니다. 셸에 능숙한 모델에게 8개 도구 정의는 매 요청 실려 가는 컨텍스트 짐일 뿐이고, <code>grep_text</code> 한 번 부를 일을 파이프라인 한 줄로 끝내는 쪽이 오히려 빠릅니다. Mistral-Medium-3.5는 과제 성격에 따라 갈렸습니다 — GitHub 이슈 수정(SWE)에서는 도구가 +23.2로 크게 이겼지만, 터미널 중심 과제에서는 bash-only가 +6.7로 이겼습니다. 즉 <strong>모델의 셸 숙련도와 과제의 셸 친화도</strong>가 함께 답을 결정합니다.</p>
+
+<p>도구 정의가 컨텍스트를 얼마나 잡아먹는지는 이전 글 <a href="/posts/tool-search-deferred-loading/">도구 과부하와 지연 로딩</a>에서 다뤘습니다. 이번 결과는 그 문제의식에 "능력이 충분하면 도구를 빼는 것도 답"이라는 데이터를 보탭니다.</p>
+
+<h2 id="sec-7">7. 하네스 세금 — HarnessTax가 잰 '기본 요금'</h2>
+
+<p>절제 연구가 "부품별 효과"를 쟀다면, 같은 주에 나온 <a href="https://harnesstax.github.io/" target="_blank" rel="noopener">HarnessTax</a>는 "완제품 하네스의 요금표"를 쟀습니다. 모델 7종 × 하네스 3종(Claude Code, Codex CLI, Pi) = 21개 조합에, SWE-bench Lite와 Terminal-Bench 2.0에서 각 30개 과제를 3회씩 시도하게 하고, 9월 1일자 고정 가격표로 비용을 계산했습니다.</p>
+
+<figure class="hca-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="Claude Code 약 27,000, Codex CLI 약 15,000, Pi 약 2,600 토큰의 요청당 기본 컨텍스트를 비교하는 막대그래프">
+  <text x="430" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--hca-slate)">하네스 세금 — 요청마다 실려 가는 기본 컨텍스트 (입력 토큰)</text>
+
+  <g transform="translate(150,60)">
+    <text x="-10" y="40" text-anchor="end" font-size="13" font-weight="700" fill="var(--hca-rose)">Claude Code</text>
+    <rect x="0" y="22" width="600" height="30" rx="7" fill="var(--hca-rose)" opacity="0.75"/>
+    <text x="590" y="43" text-anchor="end" font-size="13.5" font-weight="700" fill="#fff">≈ 27,000 토큰</text>
+
+    <text x="-10" y="105" text-anchor="end" font-size="13" font-weight="700" fill="var(--hca-amber)">Codex CLI</text>
+    <rect x="0" y="87" width="333" height="30" rx="7" fill="var(--hca-amber)" opacity="0.75"/>
+    <text x="323" y="108" text-anchor="end" font-size="13.5" font-weight="700" fill="#fff">≈ 15,000</text>
+
+    <text x="-10" y="170" text-anchor="end" font-size="13" font-weight="700" fill="var(--hca-green)">Pi</text>
+    <rect x="0" y="152" width="58" height="30" rx="7" fill="var(--hca-green)" opacity="0.9"/>
+    <text x="70" y="173" text-anchor="start" font-size="13.5" font-weight="700" fill="var(--hca-green)">≈ 2,600 — 시스템 프롬프트+도구 정의 ≈ 1,000 토큰</text>
+  </g>
+
+  <g transform="translate(150,270)" font-size="12.5">
+    <text x="0" y="0" fill="var(--hca-gray)">성공률 차이: SWE-bench Lite ±2pt · Terminal-Bench 2.0 ±5pt 수준</text>
+    <text x="0" y="24" font-weight="700" fill="var(--hca-slate)">비용 차이: 같은 모델·같은 결과에 최대 5배 — 하네스만 바꿔 71% 절감 사례</text>
+  </g>
+</svg>
+<figcaption>그림 4. HarnessTax가 잰 하네스별 요청당 기본 컨텍스트. 성공률은 몇 포인트 차이인데, 매 요청 실려 가는 기본 요금이 10배 이상 벌어진다 (수치는 HarnessTax 공개 자료 기준 근사값).</figcaption>
+</figure>
+
+<p>결과의 핵심은 한 문장입니다. <strong>하네스는 성공률을 크게 못 바꾸지만, 청구서는 크게 바꿉니다.</strong> 성공률에 대한 하네스 효과는 SWE-bench Lite에서 ±2포인트, Terminal-Bench 2.0에서 ±5포인트 수준이었는데, 같은 모델의 비용은 하네스에 따라 최대 5배까지 벌어졌고, 하네스를 잘 고르는 것만으로 정확도 손실 없이 비용을 71% 줄인 사례가 보고됐습니다.</p>
+
+<p>왜 이렇게 벌어질까요? 요청당 기본 컨텍스트를 보면 답이 나옵니다. Claude Code는 시스템 프롬프트와 도구 스키마를 합쳐 요청당 약 27,000 입력 토큰을 깔고 시작하고, Codex CLI는 약 15,000, 미니멀 하네스 Pi는 약 2,600 토큰입니다. 분석 글들이 지적한 디테일이 아픕니다 — 벤치마크 실행에서 <strong>정의만 되고 한 번도 호출되지 않은 도구 24개</strong>의 스키마가 매 요청 함께 실려 갔습니다. 게다가 에이전트 루프는 이력을 계속 다시 보내니, 장황한 도구 호출 포맷은 대화가 길어질수록 복리로 불어납니다. 캐싱이 실비를 상당히 줄여 주긴 하지만, 기본 컨텍스트가 10배면 절대량의 차이는 남습니다.</p>
+
+<p>두 연구를 겹쳐 읽으면 메시지가 선명해집니다. 절제 연구가 "부품은 조건부로만 가치가 있다"를 보였고, HarnessTax는 "조건에 안 맞는 부품의 값은 성능이 아니라 요금으로 돌아온다"를 보인 겁니다.</p>
+
+<h2 id="sec-8">8. 실전 — 내 하네스에 바로 적용하는 체크리스트</h2>
+
+<p>두 연구의 결론을 실무 규칙으로 옮기면 이렇게 됩니다.</p>
+
+<table class="hca-table">
+  <tr><th>상황</th><th>권장 설계</th><th>근거</th></tr>
+  <tr><td>컨텍스트 예산이 빠듯함 (≤64k)</td><td>컨텍스트 관리 필수, elision 먼저 → 요약은 하드 임계값에서만</td><td>32k에서 격차 35.7pt, T4가 7/8 패널 최저 비용</td></tr>
+  <tr><td>예산이 넉넉함 (≥128k)</td><td>관리 로직 단순하게 — 격차 2.7pt뿐</td><td>효용 대부분이 오버플로 방지</td></tr>
+  <tr><td>recall(지운 내용 복구) 도구</td><td>넣지 마라</td><td>56.3% 세팅에서 호출 0회, 정확도 −0.36pt</td></tr>
+  <tr><td>작은/약한 모델</td><td>플래닝 켜기(정확도↑), 파일·검색 도구 제공</td><td>30B에서 도구 +15.0pt</td></tr>
+  <tr><td>크고 셸에 능한 모델</td><td>플래닝은 비용 절감용, 도구는 bash 위주로 최소화</td><td>550B에서 bash-only +3.6~5.6pt, 비용 −30~53%</td></tr>
+  <tr><td>어떤 하네스를 쓰든</td><td>요청당 기본 컨텍스트(시스템 프롬프트+도구 스키마)를 측정하라</td><td>27k vs 2.6k — 성공률은 비슷, 비용은 최대 5배</td></tr>
+</table>
+
+<p>T4의 단계형 컨텍스트 관리는 직접 구현해도 몇십 줄입니다. 뼈대만 옮기면 이렇습니다.</p>
+
+{{< highlight python >}}
+SOFT_LIMIT = 0.70   # 윈도우의 70% — 싼 elision 시작
+HARD_LIMIT = 0.90   # 90% — 이때만 비싼 LLM 요약
+
+def manage_context(messages, window_budget):
+    used = count_tokens(messages)
+
+    # 1단계: 규칙 기반 elision — 오래된 도구 관찰부터 스텁으로 교체
+    if used > window_budget * SOFT_LIMIT:
+        for m in oldest_tool_observations(messages):
+            m.content = f"[생략됨: {m.tool_name} 결과 {m.orig_tokens} 토큰]"
+            used = count_tokens(messages)
+            if used <= window_budget * SOFT_LIMIT:
+                break
+
+    # 2단계: 그래도 하드 임계값을 넘으면 그때만 요약 호출
+    if used > window_budget * HARD_LIMIT:
+        old, recent = split_keep_recent(messages, keep_ratio=0.3)
+        summary = llm_summarize(old)          # 별도 호출 — 여기가 유일한 추가 비용
+        messages = [summary] + recent
+
+    return messages
+    # recall 저장소는 없다 — 실측상 모델이 쓰지 않는다
+{{< /highlight >}}
+
+<p>포인트는 두 임계값의 <strong>순서</strong>입니다. 요약을 먼저 돌리는 하네스는 같은 정확도에 요금만 더 냅니다. 그리고 마지막 주석이 이번 논문의 기여입니다 — "혹시 몰라서" 넣고 싶은 복구 장치를 데이터가 잘라 줍니다.</p>
+
+<p>하네스 세금 쪽은 측정부터 시작하세요. 쓰고 있는 하네스의 요청 로그에서 첫 요청의 입력 토큰 수를 확인하면 됩니다. 그 숫자가 곧 대화가 길어질수록 복리로 불어나는 원금입니다.</p>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<p><strong>실수 1 — "좋은 하네스 부품"을 무조건 다 넣는다.</strong> 이번 주 두 연구의 공통 결론은 "부품의 가치는 조건부"라는 것입니다. 플래닝·recall·풍부한 도구 세트를 다 넣은 하네스는 최강 구성이 아니라, 강한 모델 기준으로는 <strong>가장 비싼 구성</strong>일 가능성이 큽니다.</p>
+
+<p><strong>실수 2 — 벤치마크 표에서 하네스를 무시한다.</strong> "모델 A가 모델 B보다 좋다"는 표를 볼 때, 두 모델이 같은 하네스로 측정됐는지 먼저 확인하세요. 하네스가 다르면 모델 비교가 아니라 시스템 비교입니다. <a href="https://arxiv.org/abs/2605.23950" target="_blank" rel="noopener">하네스 공개 없는 에이전트 비교를 중단하라</a>는 포지션 페이퍼가 나온 이유입니다.</p>
+
+<p><strong>실수 3 — "bash-only가 이겼다더라"를 도구 무용론으로 읽는다.</strong> 실험의 양쪽 팔 모두 bash는 있었습니다. 뺀 것은 파일·검색 보조 도구입니다. 그리고 그 결과조차 550B급에서의 이야기입니다. 30B급 모델을 bash에 던져 놓으면 15포인트를 잃습니다.</p>
+
+<p><strong>실수 4 — 컨텍스트 관리를 "지능 향상 장치"로 기대한다.</strong> 실측상 효용의 대부분은 오버플로 사고 방지입니다. 128k 예산에서 격차가 2.7포인트뿐이라는 건, 넉넉한 창에서는 요약 파이프라인을 정교하게 다듬는 것보다 다른 곳에 시간을 쓰는 게 낫다는 뜻입니다.</p>
+
+<p><strong>팁 — 절제 정신을 내 하네스에도.</strong> 이 논문의 진짜 교훈은 특정 숫자보다 방법입니다. 하네스에 기능을 넣거나 뺄 때, 켠 버전과 끈 버전을 같은 과제 세트에 돌려 보세요. 과제 20~30개면 방향은 보입니다. "그럴듯해서 넣은" 부품이 recall처럼 호출 0회로 판명나는 일이 생각보다 흔합니다.</p>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>이번 주 하네스 실측 연구 두 편이 연달아 나왔습니다 — 9/16 <strong>HarnessTax</strong>(UC Berkeley·Arena, 하네스 3종 × 모델 7종)와 9/17 <strong>하네스 부품 절제 논문</strong>(arXiv:2609.20804, 176개 조합, HN 프론트페이지 약 200점).</li>
+  <li>하네스 부품에 "항상 좋은 것"은 없습니다. 컨텍스트 관리·플래닝·도구 세트 전부 <strong>윈도우 예산, 모델 능력, 과제 성격</strong>에 따라 효과가 뒤집힙니다.</li>
+  <li>컨텍스트 관리의 가치는 대부분 오버플로 방지입니다: 32k에서 격차 35.7pt(무관리 실패의 78.7%가 오버플로) → 128k에서 2.7pt. <strong>싼 elision 먼저, 요약은 하드 임계값에서만</strong> 거는 단계형(T4)이 7/8 패널에서 같은 정확도로 최저 비용.</li>
+  <li><strong>recall 도구는 빼세요.</strong> 세팅의 56.3%에서 호출 0회, 정확도 기여 −0.36pt.</li>
+  <li>플래닝은 약한 모델에겐 정확도 버팀목, 강한 모델에겐 비용 절감 장치입니다. 액션 공간은 크로스오버합니다 — 30B엔 도구 8종이 +15pt, 550B엔 bash-only가 오히려 +3.6~5.6pt에 비용 −30~53%.</li>
+  <li>하네스는 성공률(±2~5pt)보다 <strong>청구서(최대 5배)</strong>를 바꿉니다. 요청당 기본 컨텍스트가 Claude Code ≈27k, Codex CLI ≈15k, Pi ≈2.6k 토큰 — 내 하네스의 첫 요청 입력 토큰부터 재 보세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2609.20804" target="_blank" rel="noopener">An Empirical Study of Harness Design for Coding Agents (arXiv:2609.20804, 2026-09-17)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49753878" target="_blank" rel="noopener">위 논문의 Hacker News 스레드 (약 200점)</a></li>
+  <li><a href="https://huggingface.co/papers/2609.20804" target="_blank" rel="noopener">Hugging Face Papers — 논문 페이지</a></li>
+  <li><a href="https://harnesstax.github.io/" target="_blank" rel="noopener">HarnessTax: How Much Does the Harness Matter for Coding Agents? (UC Berkeley·Arena, 2026-09-16)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49733726" target="_blank" rel="noopener">HarnessTax — Hacker News 스레드</a></li>
+  <li><a href="https://arena.ai/blog/coding-agents-harness-tax" target="_blank" rel="noopener">Arena — Coding Agents Harness Tax 블로그</a></li>
+  <li><a href="https://www.digitalapplied.com/blog/coding-agent-harness-cost-harnesstax-same-model-5x" target="_blank" rel="noopener">Same Coding Model, Up to 5x the Cost: The Harness Matters — Digital Applied</a></li>
+  <li><a href="https://portkey.ai/blog/the-harness-tax/" target="_blank" rel="noopener">The Harness Tax: The Dead Weight Inside Your Coding Agent — Portkey</a></li>
+  <li><a href="https://rednafi.com/misc/pi-harness/" target="_blank" rel="noopener">The irrational effectiveness of the Pi harness — Redowan Delowar</a></li>
+  <li><a href="https://arxiv.org/abs/2605.23950" target="_blank" rel="noopener">Stop Comparing LLM Agents Without Disclosing the Harness (arXiv:2605.23950)</a></li>
+  <li><a href="https://martinfowler.com/articles/harness-engineering.html" target="_blank" rel="noopener">Harness engineering for coding agent users — martinfowler.com</a></li>
+  <li>한국어 자료: <a href="/posts/harness-engineering/">하네스 엔지니어링 — 코딩 에이전트의 숨은 절반</a>, <a href="/posts/context-compaction-long-horizon-agents/">컨텍스트 컴팩션</a>, <a href="/posts/tool-search-deferred-loading/">도구 과부하와 지연 로딩</a> (본 블로그)</li>
+</ul>

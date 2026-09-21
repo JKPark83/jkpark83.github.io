@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 520" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="520" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">ZGCM-1-7B 에이전틱 서치 벤치마크 (정확도 %, 공통 0–100 스케일)</text>
+  <text x="420" y="52" text-anchor="middle" font-size="12" fill="#6b7280">파란색 = ZGCM-1-7B · 회색 = 비교 모델 | 출처: arXiv:2609.13356 (검증됨)</text>
+
+  <!-- Facet 1: WebWalkerQA -->
+  <text x="40" y="86" font-size="14" font-weight="700" fill="#111827">WebWalkerQA</text>
+  <text x="196" y="106" text-anchor="end" font-size="12" fill="#374151">ZGCM-1-7B</text>
+  <rect x="204" y="94" width="353" height="16" rx="4" fill="#2563eb"/>
+  <text x="563" y="107" font-size="12" font-weight="700" fill="#111827">63.09</text>
+  <text x="196" y="130" text-anchor="end" font-size="12" fill="#374151">Kimi-K2</text>
+  <rect x="204" y="118" width="353" height="16" rx="4" fill="#6b7280"/>
+  <text x="563" y="131" font-size="12" fill="#374151">63.00</text>
+  <text x="196" y="154" text-anchor="end" font-size="12" fill="#374151">Claude 4 Sonnet</text>
+  <rect x="204" y="142" width="346" height="16" rx="4" fill="#6b7280"/>
+  <text x="556" y="155" font-size="12" fill="#374151">61.70</text>
+  <text x="196" y="178" text-anchor="end" font-size="12" fill="#374151">Qwen3-235B-A22B</text>
+  <rect x="204" y="166" width="334" height="16" rx="4" fill="#6b7280"/>
+  <text x="544" y="179" font-size="12" fill="#374151">59.60</text>
+
+  <!-- Facet 2: BrowseComp -->
+  <text x="40" y="222" font-size="14" font-weight="700" fill="#111827">BrowseComp</text>
+  <text x="196" y="242" text-anchor="end" font-size="12" fill="#374151">ZGCM-1-7B</text>
+  <rect x="204" y="230" width="109" height="16" rx="4" fill="#2563eb"/>
+  <text x="319" y="243" font-size="12" font-weight="700" fill="#111827">19.43</text>
+  <text x="196" y="266" text-anchor="end" font-size="12" fill="#374151">Kimi-K2</text>
+  <rect x="204" y="254" width="79" height="16" rx="4" fill="#6b7280"/>
+  <text x="289" y="267" font-size="12" fill="#374151">14.10</text>
+  <text x="196" y="290" text-anchor="end" font-size="12" fill="#374151">Claude 4 Sonnet</text>
+  <rect x="204" y="278" width="68" height="16" rx="4" fill="#6b7280"/>
+  <text x="278" y="291" font-size="12" fill="#374151">12.20</text>
+  <text x="196" y="314" text-anchor="end" font-size="12" fill="#374151">Qwen3-235B-A22B</text>
+  <rect x="204" y="302" width="13" height="16" rx="4" fill="#6b7280"/>
+  <text x="223" y="315" font-size="12" fill="#374151">2.30</text>
+
+  <!-- Facet 3: GAIA (text-only) -->
+  <text x="40" y="358" font-size="14" font-weight="700" fill="#111827">GAIA (text-only)</text>
+  <text x="196" y="378" text-anchor="end" font-size="12" fill="#374151">ZGCM-1-7B</text>
+  <rect x="204" y="366" width="238" height="16" rx="4" fill="#2563eb"/>
+  <text x="448" y="379" font-size="12" font-weight="700" fill="#111827">42.52</text>
+  <text x="196" y="402" text-anchor="end" font-size="12" fill="#374151">Kimi-K2</text>
+  <rect x="204" y="390" width="321" height="16" rx="4" fill="#6b7280"/>
+  <text x="531" y="403" font-size="12" fill="#374151">57.30</text>
+  <text x="196" y="426" text-anchor="end" font-size="12" fill="#374151">Claude 4 Sonnet</text>
+  <rect x="204" y="414" width="382" height="16" rx="4" fill="#6b7280"/>
+  <text x="592" y="427" font-size="12" fill="#374151">68.30</text>
+  <text x="196" y="450" text-anchor="end" font-size="12" fill="#374151">Qwen3-235B-A22B</text>
+  <rect x="204" y="438" width="255" height="16" rx="4" fill="#6b7280"/>
+  <text x="465" y="451" font-size="12" fill="#374151">45.60</text>
+
+  <text x="40" y="496" font-size="12" fill="#6b7280">7B 모델이 웹 탐색형 벤치마크(WebWalkerQA·BrowseComp)에서 초대형 모델을 앞섰지만, 종합 과제(GAIA)는 아직 대형 모델 우위.</text>
+</svg>

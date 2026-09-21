@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 460" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="460" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">Codex vs Claude Code — 훅(Hook) 실전 카드</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">두 CLI 모두 "규칙을 프롬프트가 아니라 훅으로" 옮기는 중 — 강제력은 훅이 세다</text>
+
+  <!-- Codex card -->
+  <rect x="40" y="76" width="370" height="330" rx="12" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="60" y="104" font-size="14" font-weight="700" fill="#15803d">🟩 Codex — 라이프사이클 훅 체계</text>
+  <text x="60" y="130" font-size="12" fill="#374151">이벤트 12종 (스키마 기준):</text>
+  <text x="60" y="150" font-size="11" fill="#4b5563">preToolUse · postToolUse · permissionRequest</text>
+  <text x="60" y="168" font-size="11" fill="#4b5563">preCompact · postCompact · sessionStart · sessionEnd</text>
+  <text x="60" y="186" font-size="11" fill="#4b5563">userPromptSubmit · subagentStart · subagentStop</text>
+  <text x="60" y="204" font-size="11" fill="#4b5563">stop · interrupt</text>
+  <text x="60" y="232" font-size="12" fill="#374151">핸들러 4종:</text>
+  <text x="60" y="252" font-size="11" fill="#4b5563">command / mcp_tool / prompt / agent</text>
+  <text x="60" y="278" font-size="12" fill="#374151">특징:</text>
+  <text x="60" y="298" font-size="11" fill="#4b5563">· sync/async 실행 모드, thread/turn 스코프</text>
+  <text x="60" y="316" font-size="11" fill="#4b5563">· 훅이 주는 컨텍스트가 약 2,500 토큰을 넘으면</text>
+  <text x="60" y="334" font-size="11" fill="#4b5563">  디스크로 스필 + 복구 메타데이터 자동 첨부</text>
+  <text x="60" y="352" font-size="11" fill="#4b5563">· 조직은 requirements.toml의</text>
+  <text x="60" y="370" font-size="11" fill="#4b5563">  allow_managed_hooks_only로 관리 훅만 허용 가능</text>
+
+  <!-- Claude Code card -->
+  <rect x="430" y="76" width="370" height="330" rx="12" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="450" y="104" font-size="14" font-weight="700" fill="#1d4ed8">🟦 Claude Code — hookify 플러그인</text>
+  <text x="450" y="130" font-size="12" fill="#374151">훅을 코드 없이 만드는 공식 플러그인:</text>
+  <text x="450" y="152" font-size="11" fill="#4b5563">/hookify "rm -rf 쓰면 경고해줘"</text>
+  <text x="450" y="176" font-size="12" fill="#374151">동작 방식:</text>
+  <text x="450" y="196" font-size="11" fill="#4b5563">· 자연어 요청을 분석해 마크다운 규칙 파일 생성</text>
+  <text x="450" y="214" font-size="11" fill="#4b5563">  (.claude/hookify.*.local.md, YAML frontmatter)</text>
+  <text x="450" y="232" font-size="11" fill="#4b5563">· 정규식 패턴 매칭으로 도구 호출 감시</text>
+  <text x="450" y="250" font-size="11" fill="#4b5563">· 대화 로그를 분석해 "원치 않는 행동"을</text>
+  <text x="450" y="268" font-size="11" fill="#4b5563">  자동으로 찾아 규칙화하는 모드 지원</text>
+  <text x="450" y="294" font-size="12" fill="#374151">장점:</text>
+  <text x="450" y="314" font-size="11" fill="#4b5563">· hooks.json 직접 편집 불필요</text>
+  <text x="450" y="332" font-size="11" fill="#4b5563">· 재시작 없이 다음 도구 호출부터 즉시 적용</text>
+  <text x="450" y="350" font-size="11" fill="#4b5563">· 규칙별 enable/disable 토글</text>
+
+  <text x="420" y="438" text-anchor="middle" font-size="12" fill="#6b7280">공통 교훈: "하지 마세요"는 시스템 프롬프트가 아니라 훅에 넣을 때 비로소 강제된다</text>
+</svg>

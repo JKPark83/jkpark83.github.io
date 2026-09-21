@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 640" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="640" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-22</text>
+  <text x="420" y="54" text-anchor="middle" font-size="12" fill="#6b7280">키워드: 스스로 좋아지는 에이전트 — 경험 파이프라인, 리플레이, 그리고 훅</text>
+
+  <!-- center node -->
+  <rect x="290" y="255" width="260" height="56" rx="12" fill="#111827"/>
+  <text x="420" y="278" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">에이전트 자기 개선 루프</text>
+  <text x="420" y="296" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">(경험 → 검증 → 재사용)</text>
+
+  <!-- connecting lines -->
+  <line x1="320" y1="270" x2="230" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="270" x2="610" y2="180" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="320" y1="300" x2="230" y2="400" stroke="#d1d5db" stroke-width="2"/>
+  <line x1="520" y1="300" x2="610" y2="400" stroke="#d1d5db" stroke-width="2"/>
+
+  <!-- top-left: paper Atria Dawn -->
+  <rect x="40" y="100" width="330" height="96" rx="12" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="56" y="126" font-size="13" font-weight="700" fill="#1d4ed8">📚 논문 · Atria Dawn Preview (2609.15818)</text>
+  <text x="56" y="148" font-size="12" fill="#374151">연구·엔지니어링용 에이전틱 파운데이션 모델.</text>
+  <text x="56" y="166" font-size="12" fill="#374151">검증 가능한 경험 파이프라인으로 학습,</text>
+  <text x="56" y="184" font-size="12" fill="#374151">16개 벤치마크 중 5개 최고 기록 보고</text>
+
+  <!-- top-right: paper Dream-RSI -->
+  <rect x="470" y="100" width="330" height="96" rx="12" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="486" y="126" font-size="13" font-weight="700" fill="#15803d">📚 논문 · Dream-RSI (2609.14858)</text>
+  <text x="486" y="148" font-size="12" fill="#374151">누적 탐색 히스토리를 리플레이 시뮬레이터로</text>
+  <text x="486" y="166" font-size="12" fill="#374151">전환해 탐색 전략을 오프라인에서 개선.</text>
+  <text x="486" y="184" font-size="12" fill="#374151">코딩 에이전트 본체는 그대로 둔다</text>
+
+  <!-- bottom-left: model ZGCM-1 -->
+  <rect x="40" y="370" width="330" height="96" rx="12" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="56" y="396" font-size="13" font-weight="700" fill="#6d28d9">🤖 모델 · ZGCM-1 (7B, 완전 공개)</text>
+  <text x="56" y="418" font-size="12" fill="#374151">중관춘연구원(Zhongguancun)의 256K 컨텍스트 7B.</text>
+  <text x="56" y="436" font-size="12" fill="#374151">가중치·중간 체크포인트·학습 코드·데이터 레시피,</text>
+  <text x="56" y="454" font-size="12" fill="#374151">W&amp;B 로그까지 전부 공개</text>
+
+  <!-- bottom-right: repos -->
+  <rect x="470" y="370" width="330" height="96" rx="12" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="486" y="396" font-size="13" font-weight="700" fill="#b91c1c">🛠 repo · trace-mcp / agent-skills</text>
+  <text x="486" y="418" font-size="12" fill="#374151">trace-mcp: 반복해서 읽는 코드를 인덱싱해</text>
+  <text x="486" y="436" font-size="12" fill="#374151">PR 리뷰 입력 토큰 72.7% 절감(중앙값).</text>
+  <text x="486" y="454" font-size="12" fill="#374151">agent-skills: "AI 슬롭 방지" 스킬 24종</text>
+
+  <!-- bottom strip: tips -->
+  <rect x="40" y="496" width="760" height="112" rx="12" fill="#f9fafb" stroke="#d1d5db"/>
+  <text x="60" y="522" font-size="13" font-weight="700" fill="#111827">🧑‍💻 오늘의 실전 팁</text>
+  <text x="60" y="546" font-size="12" fill="#374151">🟩 Codex — 훅이 12개 라이프사이클 이벤트로 정리됨: preToolUse · permissionRequest · preCompact · subagentStart …</text>
+  <text x="60" y="568" font-size="12" fill="#374151">🟦 Claude Code — hookify 플러그인: 자연어 한 줄로 마크다운 훅 규칙 생성, 재시작 없이 즉시 적용</text>
+  <text x="60" y="590" font-size="12" fill="#374151">🟪 공통 — 에이전트 런 히스토리를 append-only 로그로 남기고, 새 전략은 리플레이로 먼저 평가</text>
+</svg>

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 520" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="520" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-23</text>
+
+  <!-- center -->
+  <rect x="290" y="235" width="260" height="56" rx="28" fill="#2563eb"/>
+  <text x="420" y="258" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">토큰이 싸진다 →</text>
+  <text x="420" y="277" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">에이전트는 더 많이, 더 규율 있게</text>
+
+  <!-- connectors -->
+  <line x1="230" y1="150" x2="330" y2="240" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="610" y1="150" x2="510" y2="240" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="230" y1="400" x2="330" y2="290" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="610" y1="400" x2="510" y2="290" stroke="#9ca3af" stroke-width="2"/>
+
+  <!-- Q1 models -->
+  <rect x="40" y="60" width="360" height="120" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="56" y="86" font-size="14" font-weight="700" fill="#2563eb">🤖 모델 — 같은 날 동시 인하</text>
+  <text x="56" y="110" font-size="12" fill="#374151">· GPT-6 Sol $2/$10 · Luna $0.10/$0.50 — 티어 반값</text>
+  <text x="56" y="132" font-size="12" fill="#374151">· Claude Opus 5.5: 1M 컨텍스트, $4/$20, 캐시 리드 −60%</text>
+  <text x="56" y="154" font-size="12" fill="#374151">· 둘 다 "플래그십급 능력을 운영 가능한 단가로" 포지션</text>
+
+  <!-- Q2 papers -->
+  <rect x="440" y="60" width="360" height="120" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="456" y="86" font-size="14" font-weight="700" fill="#2563eb">📚 논문 — 하네스에 규율 달기</text>
+  <text x="456" y="110" font-size="12" fill="#374151">· RRSI(Google): 하네스 자기 개선의 과적합을 정규화</text>
+  <text x="456" y="132" font-size="12" fill="#374151">· Jev-Mem: 메모리 제어를 값싼 System-One으로 분리</text>
+  <text x="456" y="154" font-size="12" fill="#374151">· 공통 화두: 비싼 LLM 호출을 크리티컬 패스에서 빼라</text>
+
+  <!-- Q3 open source -->
+  <rect x="40" y="350" width="360" height="120" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="56" y="376" font-size="14" font-weight="700" fill="#2563eb">🛠 오픈소스</text>
+  <text x="56" y="400" font-size="12" fill="#374151">· nanobot(HKUDS): 4천 줄로 읽을 수 있는 개인 에이전트 코어</text>
+  <text x="56" y="422" font-size="12" fill="#374151">· Foremerge: 병렬 코딩 에이전트의 "의도 충돌"을 머지 전 감지</text>
+  <text x="56" y="444" font-size="12" fill="#374151">· 싼 토큰 → 병렬 에이전트 → 조정(coordination) 문제 부상</text>
+
+  <!-- Q4 tips -->
+  <rect x="440" y="350" width="360" height="120" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="456" y="376" font-size="14" font-weight="700" fill="#2563eb">🧑‍💻 실전 팁</text>
+  <text x="456" y="400" font-size="12" fill="#374151">· Codex: Sol/Luna 자동 전환 전에 config.toml에 모델 고정</text>
+  <text x="456" y="422" font-size="12" fill="#374151">· Claude Code 2.1.280: MCP 설명 2,048자 캡 조정 가능</text>
+  <text x="456" y="444" font-size="12" fill="#374151">· 공통: 하네스 튜닝엔 OOD 홀드아웃 벤치를 남겨둘 것</text>
+
+  <text x="420" y="505" text-anchor="middle" font-size="11" fill="#6b7280">모든 항목은 공식 발표·arXiv API·저장소 클론으로 검증 (직접 제작)</text>
+</svg>

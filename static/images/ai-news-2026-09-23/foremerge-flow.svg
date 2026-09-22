@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 400" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="400" fill="#fafafa"/>
+  <text x="420" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">Foremerge — 병렬 코딩 에이전트의 의도 충돌 감지 흐름</text>
+
+  <!-- agents -->
+  <rect x="40" y="80" width="220" height="90" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="150" y="108" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">Claude Code — worktree A</text>
+  <text x="150" y="130" text-anchor="middle" font-size="12" fill="#374151">"auth 모듈을 async로 전환"</text>
+  <text x="150" y="150" text-anchor="middle" font-size="12" fill="#6b7280">intent + semantic claim 등록</text>
+
+  <rect x="40" y="230" width="220" height="90" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="150" y="258" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">Codex — worktree B</text>
+  <text x="150" y="280" text-anchor="middle" font-size="12" fill="#374151">"auth 모듈에 세션 캐시 추가"</text>
+  <text x="150" y="300" text-anchor="middle" font-size="12" fill="#6b7280">intent + semantic claim 등록</text>
+
+  <!-- arrows to center -->
+  <line x1="260" y1="125" x2="330" y2="180" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="260" y1="275" x2="330" y2="220" stroke="#9ca3af" stroke-width="2"/>
+
+  <!-- center -->
+  <rect x="330" y="140" width="220" height="120" rx="10" fill="#2563eb"/>
+  <text x="440" y="170" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Foremerge</text>
+  <text x="440" y="194" text-anchor="middle" font-size="12" fill="#ffffff">MCP 서버 + CLI (Git 위에서 동작)</text>
+  <text x="440" y="214" text-anchor="middle" font-size="12" fill="#ffffff">SQLite 스토어 · 결정적 충돌 감지기</text>
+  <text x="440" y="234" text-anchor="middle" font-size="12" fill="#ffffff">ChangeSet + 검증 게이트 수명주기</text>
+
+  <!-- arrow to result -->
+  <line x1="550" y1="200" x2="610" y2="200" stroke="#9ca3af" stroke-width="2"/>
+  <polygon points="610,194 622,200 610,206" fill="#9ca3af"/>
+
+  <!-- result -->
+  <rect x="622" y="140" width="180" height="120" rx="10" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="712" y="172" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">머지 전 경고</text>
+  <text x="712" y="196" text-anchor="middle" font-size="12" fill="#374151">같은 시맨틱 영역을</text>
+  <text x="712" y="214" text-anchor="middle" font-size="12" fill="#374151">다른 의도로 수정 중 →</text>
+  <text x="712" y="232" text-anchor="middle" font-size="12" fill="#374151">Git 충돌 이전에 조정</text>
+
+  <text x="420" y="368" text-anchor="middle" font-size="11" fill="#6b7280">v0.5.0 pre-1.0 로컬 우선 MVP · Rust · Apache-2.0 · 공개 벤치마크는 아직 없음 (저장소 클론으로 확인, 직접 제작)</text>
+</svg>

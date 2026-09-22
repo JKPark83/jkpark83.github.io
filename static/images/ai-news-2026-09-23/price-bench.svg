@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 430" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="430" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">9/22 가격 인하 동시전 — 출력 단가와 DeepSWE v1.1</text>
+  <text x="420" y="52" text-anchor="middle" font-size="12" fill="#6b7280">파란색 = 9/22 신규 모델 · 회색 = 기존 모델 | 출처: OpenAI·Anthropic 발표 (자체 보고치)</text>
+
+  <!-- Facet 1: output price $/M -->
+  <text x="40" y="86" font-size="14" font-weight="700" fill="#111827">API 출력 단가 (USD / 100만 토큰)</text>
+  <text x="196" y="107" text-anchor="end" font-size="12" fill="#374151">GPT-6 Astra</text>
+  <rect x="204" y="95" width="400" height="16" rx="4" fill="#6b7280"/>
+  <text x="610" y="108" font-size="12" fill="#374151">$50</text>
+  <text x="196" y="131" text-anchor="end" font-size="12" fill="#374151">Claude Opus 5</text>
+  <rect x="204" y="119" width="200" height="16" rx="4" fill="#6b7280"/>
+  <text x="410" y="132" font-size="12" fill="#374151">$25</text>
+  <text x="196" y="155" text-anchor="end" font-size="12" fill="#374151">GPT-5.6 Sol</text>
+  <rect x="204" y="143" width="160" height="16" rx="4" fill="#6b7280"/>
+  <text x="370" y="156" font-size="12" fill="#374151">$20</text>
+  <text x="196" y="179" text-anchor="end" font-size="12" fill="#374151">Claude Opus 5.5</text>
+  <rect x="204" y="167" width="160" height="16" rx="4" fill="#2563eb"/>
+  <text x="370" y="180" font-size="12" font-weight="700" fill="#111827">$20 (−20%)</text>
+  <text x="196" y="203" text-anchor="end" font-size="12" fill="#374151">GPT-6 Sol</text>
+  <rect x="204" y="191" width="80" height="16" rx="4" fill="#2563eb"/>
+  <text x="290" y="204" font-size="12" font-weight="700" fill="#111827">$10 (−50%)</text>
+  <text x="196" y="227" text-anchor="end" font-size="12" fill="#374151">GPT-6 Luna</text>
+  <rect x="204" y="215" width="4" height="16" rx="2" fill="#2563eb"/>
+  <text x="214" y="228" font-size="12" font-weight="700" fill="#111827">$0.50</text>
+
+  <!-- Facet 2: DeepSWE v1.1 -->
+  <text x="40" y="272" font-size="14" font-weight="700" fill="#111827">DeepSWE v1.1 해결률 (%)</text>
+  <text x="196" y="293" text-anchor="end" font-size="12" fill="#374151">Claude Fable 5 (xhigh)</text>
+  <rect x="204" y="281" width="350" height="16" rx="4" fill="#6b7280"/>
+  <text x="560" y="294" font-size="12" fill="#374151">69.9</text>
+  <text x="196" y="317" text-anchor="end" font-size="12" fill="#374151">GPT-6 Sol (max)</text>
+  <rect x="204" y="305" width="344" height="16" rx="4" fill="#2563eb"/>
+  <text x="554" y="318" font-size="12" font-weight="700" fill="#111827">68.8</text>
+  <text x="196" y="341" text-anchor="end" font-size="12" fill="#374151">GPT-6 Luna (max)</text>
+  <rect x="204" y="329" width="333" height="16" rx="4" fill="#2563eb"/>
+  <text x="543" y="342" font-size="12" font-weight="700" fill="#111827">66.6</text>
+
+  <text x="40" y="384" font-size="11" fill="#6b7280">입력 단가: GPT-6 Sol $2(캐시 $0.20) · Luna $0.10 · Opus 5.5 $4(캐시 리드 $0.20, −60%) / 컨텍스트: Sol·Luna 1.05M, Opus 5.5 1M</text>
+  <text x="40" y="402" font-size="11" fill="#6b7280">DeepSWE 수치는 각사 발표 기준 자체 보고치. 독립 재현 전이므로 상대 비교 참고용.</text>
+</svg>

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="두 LLM이 텍스트 대신 KV 캐시를 직접 주고받아 통신하는 Cache-to-Cache(C2C) 개념을 나타낸 표지 그림">
+  <defs>
+    <linearGradient id="c2c-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#1a1233"/>
+    </linearGradient>
+    <linearGradient id="c2c-link" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#c2c-bg)"/>
+
+  <!-- 왼쪽: 제목 -->
+  <text x="80" y="150" font-family="sans-serif" font-size="56" font-weight="800" fill="#f1f5f9">말로 하면 늦는다</text>
+  <text x="80" y="225" font-family="sans-serif" font-size="34" font-weight="700" fill="#38bdf8">에이전트끼리 KV 캐시로</text>
+  <text x="80" y="272" font-family="sans-serif" font-size="34" font-weight="700" fill="#38bdf8">직접 통신하기 — C2C</text>
+  <text x="80" y="330" font-family="sans-serif" font-size="21" fill="#94a3b8">Cache-to-Cache: 텍스트 핸드오프를 건너뛰는</text>
+  <text x="80" y="362" font-family="sans-serif" font-size="21" fill="#94a3b8">멀티 LLM 시맨틱 통신 (ICLR 2026)</text>
+  <text x="80" y="420" font-family="sans-serif" font-size="19" fill="#4ade80">KV-cache 융합 · Fuser · 정확도 +8.5~10.5%p · 지연 ½</text>
+
+  <!-- 오른쪽: 텍스트 통신(위, 취소선 느낌) vs 캐시 직결(아래) -->
+  <g transform="translate(680,110)">
+    <!-- Sharer 모델 -->
+    <rect x="0" y="90" width="150" height="170" rx="16" fill="none" stroke="#38bdf8" stroke-width="3"/>
+    <text x="75" y="130" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">Sharer</text>
+    <g fill="#38bdf8" opacity="0.85">
+      <rect x="25" y="150" width="100" height="16" rx="4"/>
+      <rect x="25" y="176" width="100" height="16" rx="4"/>
+      <rect x="25" y="202" width="100" height="16" rx="4"/>
+      <rect x="25" y="228" width="100" height="16" rx="4"/>
+    </g>
+
+    <!-- Receiver 모델 -->
+    <rect x="330" y="90" width="150" height="170" rx="16" fill="none" stroke="#a78bfa" stroke-width="3"/>
+    <text x="405" y="130" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">Receiver</text>
+    <g fill="#a78bfa" opacity="0.85">
+      <rect x="355" y="150" width="100" height="16" rx="4"/>
+      <rect x="355" y="176" width="100" height="16" rx="4"/>
+      <rect x="355" y="202" width="100" height="16" rx="4"/>
+      <rect x="355" y="228" width="100" height="16" rx="4"/>
+    </g>
+
+    <!-- 위: 느린 텍스트 경로 -->
+    <path d="M 150 60 q 90 -55 180 0" fill="none" stroke="#fb7185" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <text x="240" y="10" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fb7185">"텍스트로 설명" — 느리고 뜻이 샌다</text>
+    <text x="240" y="52" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#fb7185">토큰 하나씩 생성 ✕</text>
+
+    <!-- 아래: 캐시 직결 -->
+    <rect x="150" y="180" width="180" height="26" rx="13" fill="url(#c2c-link)"/>
+    <text x="240" y="163" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#4ade80">KV 캐시 직접 융합</text>
+    <text x="240" y="232" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#94a3b8">Fuser: 투영 + 게이트</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">arXiv:2510.03215 · thu-nics/C2C · Qwen · Llama · Gemma 조합 검증</text>
+</svg>

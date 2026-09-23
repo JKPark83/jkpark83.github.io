@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 480" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="480" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-24</text>
+  <text x="420" y="52" text-anchor="middle" font-size="12" fill="#6b7280">테마: 오픈 웨이트의 프론티어 추격 · 긴 세션 비용 · MCP 공급망 보안</text>
+
+  <!-- Center theme -->
+  <rect x="320" y="210" width="200" height="60" rx="12" fill="#2563eb"/>
+  <text x="420" y="235" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">에이전트 운영의 3대 축</text>
+  <text x="420" y="254" text-anchor="middle" font-size="11" fill="#dbeafe">모델 · 비용 · 보안</text>
+
+  <!-- Quadrant: Models (top-left) -->
+  <rect x="40" y="80" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="56" y="104" font-size="13" font-weight="700" fill="#1e40af">🤖 모델</text>
+  <text x="56" y="126" font-size="11" fill="#374151">· Xiaomi MiMo-V2.6 Pro/Flash — MIT 오픈 웨이트,</text>
+  <text x="68" y="142" font-size="11" fill="#374151">1.02T/42B MoE · DeepSWE 71.9로 프론티어 추격</text>
+  <text x="56" y="162" font-size="11" fill="#374151">· Qwen3.8-Omni 테크리포트 공개 (호스티드 전용)</text>
+
+  <!-- Quadrant: Papers (top-right) -->
+  <rect x="440" y="80" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="456" y="104" font-size="13" font-weight="700" fill="#1e40af">📚 논문</text>
+  <text x="456" y="126" font-size="11" fill="#374151">· CliffCompaction — 자르기만 하는 압축으로</text>
+  <text x="468" y="142" font-size="11" fill="#374151">코딩 에이전트 비용 최대 50% 절감 (CMU·Bosch)</text>
+  <text x="456" y="162" font-size="11" fill="#374151">· A2M — MCP 악성 툴 하이재킹 93.6% 성공 (cs.CR)</text>
+
+  <!-- Quadrant: OSS (bottom-left) -->
+  <rect x="40" y="300" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="56" y="324" font-size="13" font-weight="700" fill="#1e40af">🛠 오픈소스</text>
+  <text x="56" y="346" font-size="11" fill="#374151">· cliffcompaction — pip 설치형 압축 프록시,</text>
+  <text x="68" y="362" font-size="11" fill="#374151">Claude Code·Codex에 바로 연결</text>
+  <text x="56" y="382" font-size="11" fill="#374151">· agent-sandbox — K8s 멀티테넌트 실행 격리 (Go)</text>
+
+  <!-- Quadrant: Tips (bottom-right) -->
+  <rect x="440" y="300" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="456" y="324" font-size="13" font-weight="700" fill="#1e40af">🧑‍💻 실전 팁</text>
+  <text x="456" y="346" font-size="11" fill="#374151">· Codex: skill-installer로 큐레이션 스킬 설치</text>
+  <text x="456" y="366" font-size="11" fill="#374151">· Claude Code 2.1.281: plugin validate가 MCP 설정 검사</text>
+  <text x="456" y="386" font-size="11" fill="#374151">· 공통: MCP 서버 도입 전 체크리스트 (A2M 대응)</text>
+
+  <!-- Connectors -->
+  <line x1="220" y1="184" x2="360" y2="216" stroke="#d1d5db" stroke-width="1.5"/>
+  <line x1="620" y1="184" x2="480" y2="216" stroke="#d1d5db" stroke-width="1.5"/>
+  <line x1="220" y1="300" x2="360" y2="264" stroke="#d1d5db" stroke-width="1.5"/>
+  <line x1="620" y1="300" x2="480" y2="264" stroke="#d1d5db" stroke-width="1.5"/>
+
+  <text x="420" y="446" text-anchor="middle" font-size="11" fill="#6b7280">한 줄 요약: 모델은 오픈 웨이트로 싸지고, 컨텍스트는 프록시로 줄이고, MCP는 검증하고 격리하라</text>
+</svg>

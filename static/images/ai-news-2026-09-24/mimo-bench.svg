@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 470" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="470" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">MiMo-V2.6 오픈 웨이트 vs 프론티어 — 에이전트 벤치마크</text>
+  <text x="420" y="52" text-anchor="middle" font-size="12" fill="#6b7280">파란색 = MiMo-V2.6 (MIT 오픈 웨이트) · 회색 = 클로즈드 프론티어 | 출처: Xiaomi 모델 카드 (자체 보고치)</text>
+
+  <!-- Facet 1: DeepSWE v1.1 -->
+  <text x="40" y="88" font-size="14" font-weight="700" fill="#111827">DeepSWE v1.1 해결률 (%)</text>
+  <text x="216" y="110" text-anchor="end" font-size="12" fill="#374151">Claude Opus 5</text>
+  <rect x="224" y="98" width="370" height="16" rx="4" fill="#6b7280"/>
+  <text x="600" y="111" font-size="12" fill="#374151">74.0</text>
+  <text x="216" y="134" text-anchor="end" font-size="12" fill="#374151">GPT-6 Sol</text>
+  <rect x="224" y="122" width="365" height="16" rx="4" fill="#6b7280"/>
+  <text x="595" y="135" font-size="12" fill="#374151">73.0</text>
+  <text x="216" y="158" text-anchor="end" font-size="12" fill="#374151">MiMo-V2.6 Pro</text>
+  <rect x="224" y="146" width="360" height="16" rx="4" fill="#2563eb"/>
+  <text x="590" y="159" font-size="12" font-weight="700" fill="#111827">71.9</text>
+  <text x="216" y="182" text-anchor="end" font-size="12" fill="#374151">Claude Fable 5</text>
+  <rect x="224" y="170" width="350" height="16" rx="4" fill="#6b7280"/>
+  <text x="580" y="183" font-size="12" fill="#374151">70.0</text>
+  <text x="216" y="206" text-anchor="end" font-size="12" fill="#374151">MiMo-V2.6 Flash</text>
+  <rect x="224" y="194" width="340" height="16" rx="4" fill="#2563eb"/>
+  <text x="570" y="207" font-size="12" font-weight="700" fill="#111827">67.9</text>
+
+  <!-- Facet 2: Terminal Bench 2.1 -->
+  <text x="40" y="262" font-size="14" font-weight="700" fill="#111827">Terminal Bench 2.1 (%)</text>
+  <text x="216" y="284" text-anchor="end" font-size="12" fill="#374151">MiMo-V2.6 Pro</text>
+  <rect x="224" y="272" width="450" height="16" rx="4" fill="#2563eb"/>
+  <text x="680" y="285" font-size="12" font-weight="700" fill="#111827">89.9</text>
+  <text x="216" y="308" text-anchor="end" font-size="12" fill="#374151">Claude Opus 5</text>
+  <rect x="224" y="296" width="446" height="16" rx="4" fill="#6b7280"/>
+  <text x="676" y="309" font-size="12" fill="#374151">89.1</text>
+  <text x="216" y="332" text-anchor="end" font-size="12" fill="#374151">GPT-6 Sol</text>
+  <rect x="224" y="320" width="444" height="16" rx="4" fill="#6b7280"/>
+  <text x="674" y="333" font-size="12" fill="#374151">88.8</text>
+  <text x="216" y="356" text-anchor="end" font-size="12" fill="#374151">MiMo-V2.6 Flash</text>
+  <rect x="224" y="344" width="438" height="16" rx="4" fill="#2563eb"/>
+  <text x="668" y="357" font-size="12" font-weight="700" fill="#111827">87.6</text>
+  <text x="216" y="380" text-anchor="end" font-size="12" fill="#374151">Claude Fable 5</text>
+  <rect x="224" y="368" width="422" height="16" rx="4" fill="#6b7280"/>
+  <text x="652" y="381" font-size="12" fill="#374151">84.3</text>
+
+  <rect x="40" y="408" width="760" height="42" rx="8" fill="#eff6ff"/>
+  <text x="420" y="426" text-anchor="middle" font-size="12" fill="#1e40af" font-weight="700">1.02T 총 / 42B 활성 MoE · 1M 컨텍스트 · 텍스트+이미지+비디오+오디오 · MIT 라이선스</text>
+  <text x="420" y="443" text-anchor="middle" font-size="11" fill="#374151">오픈 웨이트 모델이 코드·터미널 에이전트 벤치마크에서 프론티어와 1~2점 차이까지 접근 (Xiaomi 자체 보고치 기준)</text>
+</svg>

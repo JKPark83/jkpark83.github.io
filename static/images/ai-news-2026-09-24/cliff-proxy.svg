@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 400" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="400" fill="#fafafa"/>
+  <text x="420" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#111827">CliffCompaction — 에이전트를 건드리지 않는 API 프록시 압축</text>
+  <text x="420" y="50" text-anchor="middle" font-size="12" fill="#6b7280">에이전트는 자신이 압축되는 줄 모른다. base URL만 프록시로 바꾸면 끝.</text>
+
+  <!-- Agent box -->
+  <rect x="40" y="80" width="180" height="76" rx="10" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="130" y="110" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">Claude Code / Codex</text>
+  <text x="130" y="130" text-anchor="middle" font-size="11" fill="#6b7280">코드 수정 없음</text>
+  <text x="130" y="146" text-anchor="middle" font-size="11" fill="#6b7280">ANTHROPIC_BASE_URL만 변경</text>
+
+  <!-- Arrow 1 -->
+  <line x1="220" y1="118" x2="300" y2="118" stroke="#9ca3af" stroke-width="2"/>
+  <polygon points="300,118 290,113 290,123" fill="#9ca3af"/>
+
+  <!-- Proxy box -->
+  <rect x="302" y="72" width="250" height="188" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="427" y="98" text-anchor="middle" font-size="13" font-weight="700" fill="#1e40af">cliff 프록시 데몬</text>
+  <text x="318" y="122" font-size="11" fill="#374151">① 토큰 예산 감시 (예: 16K~128K)</text>
+  <text x="318" y="142" font-size="11" fill="#374151">② 초과 시 1회 &#39;클리프&#39; 압축:</text>
+  <text x="330" y="160" font-size="11" fill="#374151">· 500자 넘는 툴 결과 드롭</text>
+  <text x="330" y="178" font-size="11" fill="#374151">· 툴 호출 → 시그니처만 남김</text>
+  <text x="330" y="196" font-size="11" fill="#374151">· 사고 과정 300자 절단</text>
+  <text x="318" y="218" font-size="11" font-weight="700" fill="#1e40af">③ 재작성 금지 — 자르기만 한다</text>
+  <text x="318" y="236" font-size="11" font-weight="700" fill="#1e40af">④ 압축분 재압축 금지 (드리프트 방지)</text>
+  <text x="318" y="254" font-size="11" fill="#374151">시스템 프롬프트·태스크·최근 K턴은 원문 유지</text>
+
+  <!-- Arrow 2 -->
+  <line x1="552" y1="118" x2="632" y2="118" stroke="#9ca3af" stroke-width="2"/>
+  <polygon points="632,118 622,113 622,123" fill="#9ca3af"/>
+
+  <!-- Upstream box -->
+  <rect x="634" y="80" width="166" height="76" rx="10" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="717" y="110" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">상류 LLM API</text>
+  <text x="717" y="130" text-anchor="middle" font-size="11" fill="#6b7280">Anthropic / OpenAI /</text>
+  <text x="717" y="146" text-anchor="middle" font-size="11" fill="#6b7280">Kimi·GLM 등 호환 API</text>
+
+  <!-- Results strip -->
+  <rect x="40" y="292" width="760" height="82" rx="8" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="60" y="316" font-size="12" font-weight="700" fill="#111827">보고된 결과 (논문, Terminal-Bench 2.0 / KernelBench L3)</text>
+  <text x="60" y="338" font-size="11" fill="#374151">· 인스턴스당 비용 25~52% 절감 (Kimi K2.6), 36~65% (GLM 5.1) — 성능은 유지 또는 향상</text>
+  <text x="60" y="356" font-size="11" fill="#374151">· 32K/16K 예산의 Kimi K2.6이 풀 컨텍스트(59.16%)보다 높은 61.42% 달성 · CUDA 커널 400스텝 3.58× 속도 향상</text>
+</svg>

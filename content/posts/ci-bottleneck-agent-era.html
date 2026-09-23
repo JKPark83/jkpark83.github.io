@@ -1,0 +1,339 @@
+---
+title: "AI 코딩의 청구서는 CI로 온다 — Linear 사례로 배우는 에이전트 시대 CI 엔지니어링"
+date: 2026-09-24T07:30:00+09:00
+draft: false
+tags: ["AI", "CI/CD", "코딩 에이전트", "CI 병목", "merge queue", "테스트 선택", "tsgo", "TypeScript", "Linear", "DevOps", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "코딩 에이전트를 붙이면 코드는 분명히 빨리 나옵니다. 그런데 이상하게 배포 속도는 그만큼 안 빨라집니다. 병목이 사라진 게 아니라 '코드 작성'에서 'CI 검증'으로 이동했기 때문입니다. 이번 주 Hacker News를 달군 Linear의 엔지니어링 글이 정확히 이 문제를 다룹니다. 테스트 스위트가 올해 들어 4배로 불었는데도 러너 타임을 절반으로 줄인 Linear의 네 가지 수리법을 해부하고, 고속 러너·테스트 선택·merge queue·계층화라는 에이전트 시대 CI 도구 상자를 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "ci-bottleneck-agent-era-cover.svg"
+  alt: "에이전트들이 쏟아내는 PR이 좁은 CI 깔때기 앞에 줄지어 서 있는 그림"
+  caption: "생성은 빨라졌는데 검증은 그대로다 — 병목은 사라지지 않고 이동한다"
+  relative: false
+---
+
+<style>
+/* ── CI 병목 포스트 전용 스타일 (cib- 접두사) ── */
+.cib-fig{
+  --cib-green:#16a34a; --cib-rose:#e11d48; --cib-amber:#d97706; --cib-sky:#0284c7;
+  --cib-violet:#7c3aed; --cib-slate:#64748b; --cib-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .cib-fig{
+  --cib-green:#4ade80; --cib-rose:#fb7185; --cib-amber:#fbbf24; --cib-sky:#38bdf8;
+  --cib-violet:#a78bfa; --cib-slate:#94a3b8; --cib-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .cib-fig{
+    --cib-green:#4ade80; --cib-rose:#fb7185; --cib-amber:#fbbf24; --cib-sky:#38bdf8;
+    --cib-violet:#a78bfa; --cib-slate:#94a3b8; --cib-gray:#64748b;
+  }
+}
+.cib-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.cib-fig text{font-family:inherit}
+.cib-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.cib-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.cib-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.cib-toc ol{margin:0;padding-left:1.25rem}
+.cib-toc li{margin:.22rem 0;font-size:.95rem}
+.cib-toc a{text-decoration:none}
+.cib-toc a:hover{text-decoration:underline}
+.cib-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.cib-table th,.cib-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.cib-table th{background:var(--entry)}
+.cib-note{border-left:4px solid var(--cib-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="cib-toc">
+  <div class="cib-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 코드는 빨라졌는데 배포는 왜 그대로일까</a></li>
+    <li><a href="#sec-2">배경 — CI 3분 요약, 그리고 에이전트가 깨뜨린 전제</a></li>
+    <li><a href="#sec-3">Linear 사례 해부 — 테스트 4배, 러너 타임 절반</a></li>
+    <li><a href="#sec-4">에이전트 시대 CI 도구 상자 네 칸</a></li>
+    <li><a href="#sec-5">실전 — GitHub Actions로 계층화 파이프라인 만들기</a></li>
+    <li><a href="#sec-6">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-7">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 코드는 빨라졌는데 배포는 왜 그대로일까</h2>
+
+<p>코딩 에이전트를 팀에 붙이면 처음엔 마법 같습니다. PR(pull request)이 하루에 몇 배씩 쏟아지고, 기능 하나 만드는 데 걸리던 시간이 눈에 띄게 줄어듭니다. 그런데 몇 주 지나면 이상한 점을 발견하게 됩니다. 코드는 분명 빨리 나오는데, <strong>머지되고 배포되는 속도는 생각만큼 안 빨라집니다</strong>. 에이전트가 4분 만에 만든 PR이 CI 큐에서 그보다 오래 기다리는 풍경이 펼쳐지죠.</p>
+
+<p>이번 주 Hacker News가 정확히 이 문제로 달아올랐습니다. 이슈 트래커로 유명한 Linear가 9월 21일 엔지니어링 블로그에 올린 <a href="https://linear.app/now/ci-bottleneck-reworked" target="_blank" rel="noopener">"AI coding has made CI a bottleneck, so we reworked ours to keep up"</a>이 <a href="https://news.ycombinator.com/item?id=49792067" target="_blank" rel="noopener">HN 프런트페이지</a>에 올라 댓글이 380개를 넘겼습니다. 제목이 모든 것을 말합니다. AI 코딩 때문에 CI가 병목이 됐고, 그래서 CI를 뜯어고쳤다는 겁니다. Linear의 테스트 스위트는 올해 1월 이후 <strong>4배 가까이</strong> 불었는데, 재설계 후 테스트당 러너 타임은 오히려 <strong>절반</strong>으로 줄었습니다.</p>
+
+<p>이 글은 Linear의 사례를 뼈대 삼아 두 가지를 다룹니다. 첫째, 에이전트 시대에 CI가 왜 갑자기 병목이 되는지 구조적으로 이해합니다. 둘째, 이 병목을 푸는 엔지니어링 도구 상자 — 고속 러너, 테스트 선택, merge queue, 파이프라인 계층화 — 를 하나씩 살펴봅니다. CI를 "한 번 설정하고 잊는 것"으로 여겨 왔다면, 이 글이 관점을 바꾸는 계기가 되면 좋겠습니다.</p>
+
+<h2 id="sec-2">2. 배경 — CI 3분 요약, 그리고 에이전트가 깨뜨린 전제</h2>
+
+<p>CI(continuous integration, 지속적 통합)는 PR을 올릴 때마다 lint, 타입 체크, 테스트, 빌드 같은 검사를 자동으로 돌리는 시스템입니다. GitHub Actions 워크플로가 대표적이죠. 개발자가 체감하는 "CI 시간"은 사실 세 구간의 합입니다.</p>
+
+<ul>
+  <li><strong>큐 대기</strong>: 러너(runner, CI 작업을 실행하는 머신)가 빌 때까지 기다리는 시간</li>
+  <li><strong>셋업</strong>: 코드 체크아웃, 의존성 설치, 캐시 복원</li>
+  <li><strong>실행</strong>: 실제로 검사가 도는 시간</li>
+</ul>
+
+<p>여기서 중요한 사실 하나. 지금 우리가 쓰는 CI 파이프라인 대부분은 <strong>"사람이 하루에 PR 몇 개를 올린다"는 전제</strong>로 설계됐습니다. PR 하나에 10분이 걸려도 개발자는 그동안 다른 일을 하면 되니까요. 검사를 촘촘히 넣을수록 안전해지고, 조금 느려도 괜찮다는 암묵적 합의가 있었습니다.</p>
+
+<p>코딩 에이전트는 이 전제를 두 방향에서 동시에 깨뜨립니다.</p>
+
+<p><strong>① PR이 많아집니다.</strong> 에이전트는 지치지 않고, 병렬로 여러 개를 띄울 수도 있습니다. 사람 다섯 명이 하루 10개 올리던 저장소에 에이전트까지 합세하면 PR 수가 몇 배로 뜁니다. PR마다 CI가 도니, CI 총량도 그만큼 늘어납니다.</p>
+
+<p><strong>② 검사할 것도 많아집니다.</strong> 에이전트는 코드만 쓰는 게 아니라 테스트도 씁니다. Linear의 경우 저장소에 <strong>매주 약 2,000개의 테스트</strong>가 새로 추가되고 있었습니다. 테스트가 늘면 한 번의 CI 실행 자체가 무거워집니다. PR 수 증가와 곱해지면 CI 부하는 곱셈으로 커지죠.</p>
+
+<p>생산 라인에 비유하면 이렇습니다. 제약 이론(theory of constraints)이 말하듯, 공정 한 구간을 아무리 빠르게 해도 전체 속도는 가장 느린 구간이 정합니다. 그리고 한 구간의 병목을 풀면 병목은 사라지는 게 아니라 <strong>다음 구간으로 이동</strong>합니다. 지난 몇 년간 우리는 "코드 작성" 구간을 극적으로 빠르게 만들었습니다. 그 결과 병목이 그다음 구간, 즉 검증으로 옮겨 온 것뿐입니다.</p>
+
+<figure class="cib-fig">
+<svg viewBox="0 0 760 360" role="img" aria-label="병목의 이동을 보여주는 다이어그램: 사람 시대에는 코드 작성이 느려 CI가 여유로웠지만, 에이전트 시대에는 코드 작성이 빨라져 같은 CI가 병목이 된다">
+  <text x="380" y="28" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">병목은 사라지지 않는다, 이동할 뿐이다</text>
+
+  <!-- 위: 사람 시대 -->
+  <rect x="25" y="52" width="710" height="120" rx="12" fill="none" stroke="var(--cib-slate)" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="45" y="77" font-size="13" font-weight="700" fill="var(--cib-slate)">어제: 사람이 코드를 쓰던 시대</text>
+  <rect x="55" y="92" width="250" height="58" rx="9" fill="none" stroke="var(--cib-rose)" stroke-width="2.5"/>
+  <text x="180" y="116" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cib-rose)">코드 작성 (느림)</text>
+  <text x="180" y="136" text-anchor="middle" font-size="11" fill="var(--cib-gray)">기능 하나에 며칠 — 여기가 병목</text>
+  <path d="M 305 121 L 373 121" fill="none" stroke="var(--cib-slate)" stroke-width="2"/>
+  <path d="M 367 116 l 10 5 l -10 5 z" fill="var(--cib-slate)"/>
+  <rect x="375" y="92" width="180" height="58" rx="9" fill="none" stroke="var(--cib-green)" stroke-width="2.2"/>
+  <text x="465" y="116" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cib-green)">CI 검증 (10분)</text>
+  <text x="465" y="136" text-anchor="middle" font-size="11" fill="var(--cib-gray)">여유롭다</text>
+  <path d="M 555 121 L 623 121" fill="none" stroke="var(--cib-slate)" stroke-width="2"/>
+  <path d="M 617 116 l 10 5 l -10 5 z" fill="var(--cib-slate)"/>
+  <rect x="625" y="92" width="90" height="58" rx="9" fill="none" stroke="var(--cib-sky)" stroke-width="2.2"/>
+  <text x="670" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">배포</text>
+
+  <!-- 아래: 에이전트 시대 -->
+  <rect x="25" y="195" width="710" height="120" rx="12" fill="none" stroke="var(--cib-amber)" stroke-width="2.2"/>
+  <text x="45" y="220" font-size="13" font-weight="700" fill="var(--cib-amber)">오늘: 에이전트가 코드를 쓰는 시대</text>
+  <rect x="55" y="235" width="250" height="58" rx="9" fill="none" stroke="var(--cib-green)" stroke-width="2.2"/>
+  <text x="180" y="259" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cib-green)">코드 작성 (빠름)</text>
+  <text x="180" y="279" text-anchor="middle" font-size="11" fill="var(--cib-gray)">PR이 분 단위로 쏟아진다</text>
+  <path d="M 305 264 L 373 264" fill="none" stroke="var(--cib-slate)" stroke-width="2"/>
+  <path d="M 367 259 l 10 5 l -10 5 z" fill="var(--cib-slate)"/>
+  <rect x="375" y="235" width="180" height="58" rx="9" fill="none" stroke="var(--cib-rose)" stroke-width="2.8"/>
+  <text x="465" y="259" text-anchor="middle" font-size="13" font-weight="700" fill="var(--cib-rose)">CI 검증 (그대로)</text>
+  <text x="465" y="279" text-anchor="middle" font-size="11" fill="var(--cib-gray)">큐가 쌓인다 — 새 병목</text>
+  <path d="M 555 264 L 623 264" fill="none" stroke="var(--cib-slate)" stroke-width="2"/>
+  <path d="M 617 259 l 10 5 l -10 5 z" fill="var(--cib-slate)"/>
+  <rect x="625" y="235" width="90" height="58" rx="9" fill="none" stroke="var(--cib-sky)" stroke-width="2.2"/>
+  <text x="670" y="269" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">배포</text>
+
+  <text x="380" y="345" text-anchor="middle" font-size="11.5" fill="var(--cib-gray)">전체 속도는 가장 느린 구간이 정한다 — 생성이 빨라지면 검증이 새 병목이 된다</text>
+</svg>
+<figcaption>사람 시대의 CI는 "느린 코드 작성" 뒤에 숨어 있어 병목이 아니었다. 에이전트가 작성 구간을 없애자 같은 CI가 그대로 병목이 됐다.</figcaption>
+</figure>
+
+<div class="cib-note">비슷한 문제의식을 다룬 지난 글도 함께 보면 좋습니다. <a href="/posts/parallel-agents-verification-bottleneck/">병렬 에이전트와 검증 병목</a>이 "사람의 리뷰 용량"이라는 병목을 다뤘다면, 이번 글은 그 앞단인 <strong>기계 검증(CI) 인프라</strong>의 병목을 다룹니다.</div>
+
+<h2 id="sec-3">3. Linear 사례 해부 — 테스트 4배, 러너 타임 절반</h2>
+
+<p>Linear의 이야기는 CTO Tuomas Artman이 <em>"CI costs are high"</em>라는 제목의 이슈를 등록하면서 시작합니다. 담당 엔지니어 Mufeez Amjad가 파이프라인을 프로파일링해 보니 상황은 이랬습니다. 에이전트 도입 이후 테스트 스위트가 1월 대비 4배 가까이 커졌고, 매주 약 2,000개 테스트가 새로 추가되고 있었습니다. 이대로 두면 PR 한 번의 CI 실행이 11분대로 늘어날 전망이었죠.</p>
+
+<p>여기서 눈여겨볼 점은 Linear가 선택한 해법이 화려한 신기술이 아니라는 겁니다. <strong>측정하고, 가장 큰 항목부터 기본기로 줄이는</strong> 정공법이었습니다. 크게 네 가지입니다.</p>
+
+<p><strong>① 러너 이전.</strong> GitHub Actions 기본 러너를 떠나 더 빠른 CPU·스토리지·캐시를 제공하는 서드파티 러너로 옮겼습니다. 이것만으로 작업이 평균 <strong>34% 빨라졌습니다</strong>. 같은 코드를 같은 방식으로 돌려도 기계가 좋으면 그만큼 빨라진다는, 당연하지만 자주 잊는 사실입니다.</p>
+
+<p><strong>② 타입 체크를 tsgo로.</strong> TypeScript 컴파일러 <code>tsc</code>를 Go 네이티브로 다시 쓴 <code>tsgo</code>(TypeScript 7의 기반)로 교체해 주간 중앙값 기준 타입 체크 시간을 <strong>73% 줄였습니다</strong>. Microsoft는 올해 7월 TypeScript 7.0을 출시하면서 컴파일러를 Go로 재작성했고(코드네임 Corsa), 공식적으로 8~12배 빠르다고 말합니다. 독립 벤치마크에서는 타입이 무거운 코드베이스 기준 4~7배 수준이라는 보고도 있는데, 어느 쪽이든 CI에서 가장 무거운 축에 드는 타입 체크가 자릿수 단위로 빨라진 셈입니다.</p>
+
+<p><strong>③ lint 룰 재작성.</strong> Linear의 커스텀 ESLint 룰 일부는 검사에 <strong>타입 정보</strong>를 요구했습니다. 타입 정보를 쓰는 룰은 파일 하나를 검사해도 프로젝트 전체의 타입 그래프를 만들어야 해서 몹시 느립니다. 이 룰들을 타입 그래프 없이 구문 트리(AST)만 보고 판단하도록 다시 쓰자 API 패키지의 lint 시간이 <strong>68% 줄었습니다</strong>.</p>
+
+<p><strong>④ 셋업 오버헤드 절감.</strong> 체크아웃·의존성 설치·캐시 복원처럼 테스트 본체가 아닌 준비 구간의 낭비를 걷어냈습니다. PR마다 반복되는 고정 비용이라, 여기서 아낀 시간은 모든 실행에 곱해집니다.</p>
+
+<figure class="cib-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="Linear의 네 가지 CI 수리와 효과를 나타낸 막대 다이어그램: 러너 이전 34% 단축, tsgo 전환 73% 단축, lint AST 재작성 68% 단축, 셋업 오버헤드 절감. 결과적으로 테스트 스위트가 4배로 늘었는데 테스트당 러너 타임은 절반이 됐다">
+  <text x="380" y="28" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">Linear의 네 가지 수리</text>
+
+  <!-- 막대 1 -->
+  <text x="40" y="76" font-size="12.5" font-weight="700" fill="currentColor">① 러너 이전</text>
+  <text x="40" y="93" font-size="11" fill="var(--cib-gray)">서드파티 고속 러너</text>
+  <rect x="240" y="62" width="440" height="20" rx="5" fill="none" stroke="var(--cib-gray)" stroke-width="1.4"/>
+  <rect x="240" y="62" width="150" height="20" rx="5" fill="var(--cib-sky)" opacity="0.75"/>
+  <text x="400" y="77" font-size="11.5" font-weight="700" fill="var(--cib-sky)">작업 평균 34% 단축</text>
+
+  <!-- 막대 2 -->
+  <text x="40" y="131" font-size="12.5" font-weight="700" fill="currentColor">② tsc → tsgo</text>
+  <text x="40" y="148" font-size="11" fill="var(--cib-gray)">TS7 Go 네이티브 컴파일러</text>
+  <rect x="240" y="117" width="440" height="20" rx="5" fill="none" stroke="var(--cib-gray)" stroke-width="1.4"/>
+  <rect x="240" y="117" width="321" height="20" rx="5" fill="var(--cib-green)" opacity="0.75"/>
+  <text x="571" y="132" font-size="11.5" font-weight="700" fill="var(--cib-green)">타입 체크 73% 단축</text>
+
+  <!-- 막대 3 -->
+  <text x="40" y="186" font-size="12.5" font-weight="700" fill="currentColor">③ lint 룰 재작성</text>
+  <text x="40" y="203" font-size="11" fill="var(--cib-gray)">타입 그래프 → AST 정적 분석</text>
+  <rect x="240" y="172" width="440" height="20" rx="5" fill="none" stroke="var(--cib-gray)" stroke-width="1.4"/>
+  <rect x="240" y="172" width="299" height="20" rx="5" fill="var(--cib-violet)" opacity="0.75"/>
+  <text x="549" y="187" font-size="11.5" font-weight="700" fill="var(--cib-violet)">API lint 68% 단축</text>
+
+  <!-- 막대 4 -->
+  <text x="40" y="241" font-size="12.5" font-weight="700" fill="currentColor">④ 셋업 절감</text>
+  <text x="40" y="258" font-size="11" fill="var(--cib-gray)">체크아웃·설치·캐시 복원</text>
+  <rect x="240" y="227" width="440" height="20" rx="5" fill="none" stroke="var(--cib-gray)" stroke-width="1.4"/>
+  <rect x="240" y="227" width="110" height="20" rx="5" fill="var(--cib-amber)" opacity="0.75"/>
+  <text x="360" y="242" font-size="11.5" font-weight="700" fill="var(--cib-amber)">모든 실행에 곱해지는 고정 비용</text>
+
+  <rect x="40" y="278" width="680" height="34" rx="8" fill="none" stroke="var(--cib-green)" stroke-width="2"/>
+  <text x="380" y="300" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--cib-green)">결과: 테스트 스위트 4배 성장에도 테스트당 러너 타임 ½, PR 대기 6분+ → 5분대</text>
+</svg>
+<figcaption>화려한 신기술이 아니라 측정과 기본기다. 가장 큰 비용 항목(기계, 타입 체크, lint, 셋업)을 순서대로 줄였다.</figcaption>
+</figure>
+
+<p>결과를 정리하면 이렇습니다. 테스트 수가 4배로 늘어나는 동안 <strong>테스트당 러너 타임은 절반</strong>이 됐고, PR의 CI 대기 시간은 6분대에서 <strong>5분대 초반</strong>으로 내려와 유지되고 있습니다. "겨우 1분?"이라고 생각할 수 있지만, 방치했을 때의 11분 전망과 비교하면 절반 이하로 막아낸 것이고, 무엇보다 <strong>테스트가 매주 2,000개씩 늘어나는 와중에</strong> 지켜낸 수치입니다.</p>
+
+<p>HN 댓글창의 반응은 두 갈래였습니다. 한쪽에서는 "우리도 정확히 같은 벽에 부딪혔다"며 자기 팀의 설정과 수치를 공유하는 실전 토론이 벌어졌습니다. 다른 한쪽에서는 가장 많은 추천을 받은 댓글이 뼈아픈 질문을 던졌죠. <em>"다들 이렇게 빨라지고 있다는데, 왜 제품이 좋아지는 건 안 보이나?"</em> 속도 자체가 목적이 되고 있지 않냐는 비판입니다. 파이프라인을 조이는 일과 그 속도로 무엇을 만들 것인가는 별개의 문제라는 점, 함께 기억할 만합니다.</p>
+
+<h2 id="sec-4">4. 에이전트 시대 CI 도구 상자 네 칸</h2>
+
+<p>Linear의 수리법은 "실행을 빠르게"에 집중돼 있습니다. 이를 일반화하면 에이전트 시대의 CI 최적화는 네 칸짜리 도구 상자로 정리할 수 있습니다.</p>
+
+<figure class="cib-fig">
+<svg viewBox="0 0 760 400" role="img" aria-label="에이전트 시대 CI 도구 상자 네 칸: 더 빠른 기계(고속 러너와 캐시), 더 적은 일(테스트 선택과 샤딩), 더 나은 줄 세우기(merge queue), 계층화(빠른 검사와 무거운 검사 분리)">
+  <text x="380" y="28" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">CI 도구 상자 네 칸</text>
+
+  <rect x="30" y="50" width="345" height="150" rx="12" fill="none" stroke="var(--cib-sky)" stroke-width="2.4"/>
+  <text x="52" y="80" font-size="14" font-weight="800" fill="var(--cib-sky)">① 더 빠른 기계</text>
+  <text x="52" y="105" font-size="12" fill="currentColor">· 고속 서드파티 러너 (CPU·디스크·네트워크)</text>
+  <text x="52" y="126" font-size="12" fill="currentColor">· 의존성·빌드 캐시, 원격 캐시(Nx·Turborepo)</text>
+  <text x="52" y="147" font-size="12" fill="currentColor">· 네이티브 도구 교체 (tsc → tsgo)</text>
+  <text x="52" y="176" font-size="11" fill="var(--cib-gray)">같은 일을 더 빨리 한다 — Linear가 쓴 칸</text>
+
+  <rect x="385" y="50" width="345" height="150" rx="12" fill="none" stroke="var(--cib-green)" stroke-width="2.4"/>
+  <text x="407" y="80" font-size="14" font-weight="800" fill="var(--cib-green)">② 더 적은 일</text>
+  <text x="407" y="105" font-size="12" fill="currentColor">· affected 기반 테스트 선택 (Nx·Bazel 그래프)</text>
+  <text x="407" y="126" font-size="12" fill="currentColor">· 예측 테스트 선택 (Meta, ML로 실패 확률 예측)</text>
+  <text x="407" y="147" font-size="12" fill="currentColor">· 샤딩·병렬화로 벽시계 시간 단축</text>
+  <text x="407" y="176" font-size="11" fill="var(--cib-gray)">바뀐 것과 관련된 검사만 돌린다</text>
+
+  <rect x="30" y="215" width="345" height="150" rx="12" fill="none" stroke="var(--cib-amber)" stroke-width="2.4"/>
+  <text x="52" y="245" font-size="14" font-weight="800" fill="var(--cib-amber)">③ 더 나은 줄 세우기</text>
+  <text x="52" y="270" font-size="12" fill="currentColor">· merge queue: 머지 직전 상태로 검증 후 합류</text>
+  <text x="52" y="291" font-size="12" fill="currentColor">· 배칭: 여러 PR을 묶어 한 번에 검증</text>
+  <text x="52" y="312" font-size="12" fill="currentColor">· 병렬 에이전트의 논리적 충돌을 main 앞에서 차단</text>
+  <text x="52" y="341" font-size="11" fill="var(--cib-gray)">각자 green이어도 합치면 깨질 수 있다</text>
+
+  <rect x="385" y="215" width="345" height="150" rx="12" fill="none" stroke="var(--cib-violet)" stroke-width="2.4"/>
+  <text x="407" y="245" font-size="14" font-weight="800" fill="var(--cib-violet)">④ 계층화</text>
+  <text x="407" y="270" font-size="12" fill="currentColor">· PR: 빠르고 싼 검사 (lint·타입·영향 테스트)</text>
+  <text x="407" y="291" font-size="12" fill="currentColor">· merge queue: 통합 테스트 등 무거운 검사</text>
+  <text x="407" y="312" font-size="12" fill="currentColor">· nightly: 전체 스위트·E2E·성능 회귀</text>
+  <text x="407" y="341" font-size="11" fill="var(--cib-gray)">모든 검사를 모든 단계에서 돌릴 필요는 없다</text>
+
+  <text x="380" y="388" text-anchor="middle" font-size="11.5" fill="var(--cib-gray)">①·②는 실행을 줄이고, ③·④는 파이프라인 구조를 바꾼다 — 넷은 서로 배타적이지 않다</text>
+</svg>
+<figcaption>에이전트 시대 CI 최적화의 네 방향. Linear는 주로 ①을 썼고, 규모가 더 커지면 ②·③·④가 차례로 필요해진다.</figcaption>
+</figure>
+
+<p><strong>① 더 빠른 기계.</strong> 가장 단순하고 즉효성 있는 칸입니다. 기본 러너보다 빠른 서드파티 러너로 옮기고, 의존성·빌드 캐시를 제대로 잡는 것만으로 수십 퍼센트를 법니다. Nx나 Turborepo 같은 모노레포 도구의 <strong>원격 캐시</strong>를 쓰면 한 번 빌드·테스트한 결과를 팀과 CI 전체가 재사용합니다. 에이전트가 만든 PR이라도 대부분의 패키지는 그대로이므로 캐시 적중률이 꽤 나옵니다.</p>
+
+<p><strong>② 더 적은 일.</strong> 규모가 커지면 "전부 다 돌리기"를 포기해야 하는 순간이 옵니다. 첫걸음은 의존성 그래프 기반 선택입니다. <a href="https://nx.dev/ci/features/affected" target="_blank" rel="noopener">Nx의 affected</a>나 Bazel처럼 "이번 변경이 영향을 주는 프로젝트"만 골라 검사하는 방식이죠. 더 나아가면 Meta의 <a href="https://arxiv.org/abs/1810.05286" target="_blank" rel="noopener">predictive test selection</a>처럼 과거 실행 이력으로 "이 변경에서 이 테스트가 실패할 확률"을 학습해 상위 후보만 돌리는 방법도 있습니다. Meta는 이 방식으로 테스트 인프라 비용을 절반으로 줄이면서도 결함 있는 변경의 99.9% 이상을 잡아냈다고 보고했습니다.</p>
+
+<p><strong>③ 더 나은 줄 세우기.</strong> 에이전트 시대에 특히 중요해지는 칸입니다. 병렬로 도는 에이전트 A와 B가 각각 PR을 올렸고 둘 다 CI가 green이라고 합시다. 그런데 A가 함수 시그니처를 바꾸고 B가 옛 시그니처로 호출하는 코드를 추가했다면? 각자는 통과해도 <strong>둘 다 머지되는 순간 main이 깨집니다</strong>. 파일 충돌이 없으니 git도 못 잡습니다. <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue" target="_blank" rel="noopener">merge queue</a>는 머지 후보들을 큐에 세우고, "이 PR이 실제로 머지될 시점의 코드 상태"를 만들어 다시 검증한 뒤에야 합류시킵니다. 사람 몇 명일 때는 사치였던 이 장치가, 동시에 여러 에이전트가 밀어 넣는 저장소에서는 main을 지키는 기본 장비가 됩니다.</p>
+
+<p><strong>④ 계층화.</strong> 모든 검사를 모든 단계에서 돌릴 필요는 없습니다. PR 단계에서는 빠르고 싼 검사(lint, 타입 체크, 영향받는 유닛 테스트)로 피드백 루프를 짧게 유지하고, merge queue 단계에서 통합 테스트 같은 무거운 검사를, nightly에서 전체 스위트와 E2E·성능 회귀를 돌리는 식입니다. 에이전트 입장에서도 피드백이 빨라야 다음 반복(iteration)이 빨라지므로, PR 단계의 짧은 루프는 곧 에이전트의 작업 속도이기도 합니다.</p>
+
+<h2 id="sec-5">5. 실전 — GitHub Actions로 계층화 파이프라인 만들기</h2>
+
+<p>도구 상자 ②·③·④를 한 워크플로에 담으면 이런 모양이 됩니다. PR에서는 affected 검사만 빠르게 돌리고, merge queue(<code>merge_group</code> 이벤트)에서 전체 테스트를 샤딩해 돌리는 구성입니다.</p>
+
+{{< highlight yaml >}}
+name: ci
+on:
+  pull_request:      # PR 단계: 빠른 피드백 루프
+  merge_group:       # merge queue 단계: 머지 직전 전체 검증
+
+jobs:
+  quick:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest   # 고속 서드파티 러너로 바꾸면 그대로 ①번 칸
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # affected 계산에 git 히스토리가 필요
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm         # 의존성 캐시 — 셋업 오버헤드 절감
+      - run: npm ci
+      # 바뀐 프로젝트에 대해서만 lint·타입 체크·테스트 실행
+      - run: npx nx affected -t lint,typecheck,test --base=origin/main
+
+  full:
+    if: github.event_name == 'merge_group'
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]  # 전체 스위트를 4개 러너에 분산
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx jest --shard=${{ matrix.shard }}/4
+{{< /highlight >}}
+
+<p>포인트는 세 가지입니다. 첫째, <code>merge_group</code> 트리거는 저장소 설정에서 merge queue를 켜야 발생합니다. 둘째, PR 단계의 <code>affected</code>는 "빠르지만 놓칠 수 있는" 검사이고, merge queue 단계의 전체 실행이 안전망 역할을 합니다. 셋째, 샤딩은 총 러너 시간(비용)을 줄이지는 않지만 벽시계 시간을 줄여 큐 회전율을 높입니다.</p>
+
+<p>Linear가 겪은 lint 문제도 코드로 감을 잡아 두면 좋습니다. ESLint 커스텀 룰에서 아래 한 줄이 들어가는 순간, 그 룰은 "타입 정보를 요구하는 룰"이 되어 프로젝트 전체 타입 그래프를 필요로 합니다.</p>
+
+{{< highlight typescript >}}
+// 느린 룰: 파일 하나를 검사해도 프로젝트 전체 타입 정보가 필요합니다
+const services = ESLintUtils.getParserServices(context);
+const checker = services.program.getTypeChecker();   // 여기가 비용의 근원
+const type = checker.getTypeAtLocation(node);
+
+// 빠른 룰: 구문 트리(AST)만 보고 판단합니다 — 파일 단위로 독립 실행
+// 예: "Promise를 반환하는 함수 이름은 fetch-로 시작" 같은 규칙은
+// 타입 체커 없이 노드 모양(호출식·식별자 이름)만으로 검사 가능한 경우가 많습니다
+{{< /highlight >}}
+
+<p>물론 타입 정보가 꼭 필요한 룰도 있습니다. 요령은 그런 룰을 식별해서 <strong>따로 모아 두는</strong> 것입니다. 빠른 룰은 PR 단계에서, 타입이 필요한 룰은 타입 체크와 같은 잡(job)에서 함께 돌리면 타입 그래프 생성 비용을 한 번만 냅니다.</p>
+
+<h2 id="sec-6">6. 흔한 실수 · 팁</h2>
+
+<p><strong>실행 시간만 재고 큐 대기를 안 잰다.</strong> 대시보드의 "CI 10분"은 보통 실행 시간입니다. 에이전트가 PR을 쏟아내면 실행은 10분 그대로인데 큐 대기가 20분이 되는 식으로 병목이 숨습니다. 큐 대기·셋업·실행을 분리해서 재고, "PR 생성부터 머지 가능 판정까지"의 전체 루프를 지표로 삼으세요. Linear 글의 교훈도 결국 생성 속도가 아니라 <strong>루프 전체를 측정하라</strong>는 것입니다.</p>
+
+<p><strong>테스트 선택을 안전망 없이 쓴다.</strong> 의존성 그래프는 전역 상태, 코드 생성(codegen), 환경 변수, DB 스키마처럼 <strong>그래프 밖의 결합</strong>을 모릅니다. affected나 예측 선택으로 PR 단계를 가볍게 했다면, merge queue나 nightly의 전체 실행을 반드시 안전망으로 두세요. Meta도 예측 선택 위에 주기적 전체 실행을 함께 운용합니다.</p>
+
+<p><strong>도구를 바꾸면서 숨은 결합을 안 본다.</strong> tsgo 전환이 좋은 예입니다. TypeScript 7.0은 아직 공개 compiler API를 제공하지 않아서, 타입 체커에 기대던 ESLint 룰·빌드 플러그인·에디터 도구가 함께 영향을 받습니다. Vue·Svelte·Angular 템플릿처럼 아직 지원되지 않는 스택도 있고요. "컴파일러만 바꾸면 73% 단축"이 아니라, Linear처럼 <strong>lint 재작성 같은 후속 작업까지가 한 세트</strong>라고 생각해야 합니다.</p>
+
+<p><strong>에이전트가 만든 테스트를 무조건 쌓는다.</strong> 매주 2,000개씩 늘어나는 테스트가 전부 새로운 신호일 리 없습니다. 기존 테스트와 사실상 같은 경로를 검증하는 중복 테스트는 CI 시간만 태웁니다. 커버리지 겹침을 주기적으로 점검하고, 에이전트에게 "테스트를 추가하라"가 아니라 "이 변경으로 새로 생긴 동작을 검증하는 최소한의 테스트를 추가하라"고 지시하는 편이 좋습니다.</p>
+
+<p><strong>플레이키 테스트를 방치한다.</strong> 가끔 이유 없이 실패하는 플레이키(flaky) 테스트의 재실행 비용은 PR 수에 비례해 커집니다. 실패율 1%짜리 테스트도 하루 수백 번 도는 파이프라인에서는 매일 여러 번 큐를 막습니다. merge queue에서는 특히 치명적인데, 큐에 선 PR 하나가 플레이키로 실패하면 뒤에 선 PR들까지 다시 검증해야 하기 때문입니다. 격리·수리·삭제 중 하나를 빠르게 결정하는 프로세스를 두세요.</p>
+
+<h2 id="sec-7">7. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>코딩 에이전트로 "코드 작성" 구간이 빨라지면 병목은 사라지는 게 아니라 <strong>CI 검증으로 이동</strong>합니다. Linear는 테스트 스위트가 1월 이후 4배(주당 +2,000개)로 불면서 이 벽에 부딪혔습니다.</li>
+  <li>Linear의 해법은 기본기였습니다. 고속 러너 이전(평균 34% 단축), <code>tsc</code> → <code>tsgo</code>(타입 체크 73% 단축), 타입 의존 lint 룰의 AST 재작성(68% 단축), 셋업 오버헤드 절감. 결과는 <strong>테스트 4배 성장에도 테스트당 러너 타임 절반, PR 대기 5분대 유지</strong>.</li>
+  <li>일반화하면 도구 상자는 네 칸입니다. ① 더 빠른 기계(러너·캐시·네이티브 도구) ② 더 적은 일(affected·예측 테스트 선택·샤딩) ③ 더 나은 줄 세우기(merge queue) ④ 계층화(PR은 빠른 검사, merge queue·nightly에 무거운 검사).</li>
+  <li>병렬 에이전트 환경에서는 각자 green인 PR들이 합쳐지며 main을 깨뜨릴 수 있어 <strong>merge queue가 기본 장비</strong>가 됩니다.</li>
+  <li>함정: 큐 대기를 안 재는 지표, 안전망 없는 테스트 선택, 도구 교체의 숨은 결합(TS7은 공개 compiler API가 아직 없음), 중복 테스트 적재, 플레이키 방치.</li>
+  <li>마지막으로 HN 최상위 댓글의 질문도 기억할 것. 파이프라인이 빨라지는 것과 제품이 좋아지는 것은 다른 문제입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://linear.app/now/ci-bottleneck-reworked" target="_blank" rel="noopener">Linear — AI coding has made CI a bottleneck, so we reworked ours to keep up (Mufeez Amjad, 2026-09-21)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49792067" target="_blank" rel="noopener">Hacker News 토론 스레드 (댓글 380+)</a></li>
+  <li><a href="https://runtimewire.com/article/linear-reworks-ci-ai-coding-verification-bottleneck" target="_blank" rel="noopener">Runtimewire — Linear reworks CI as coding agents make validation the expensive part</a></li>
+  <li><a href="https://byteiota.com/ai-coding-broke-linears-ci-4-fixes-that-halved-wait-time/" target="_blank" rel="noopener">byteiota — AI Coding Broke Linear's CI: 4 Fixes That Halved Wait Time</a></li>
+  <li><a href="https://o16g.com/updates/2026-09-22-0600/" target="_blank" rel="noopener">o16g — The Agent Stack Tightens: Factories, CI, Memory, and Guardrails</a></li>
+  <li><a href="https://dev.to/jamilxt/ai-coding-agents-made-ci-the-bottleneck-here-is-the-fix-step-by-step-1koj" target="_blank" rel="noopener">DEV Community — AI Coding Agents Made CI the Bottleneck. Here Is the Fix, Step by Step.</a></li>
+  <li><a href="https://devblogs.microsoft.com/typescript/typescript-native-port/" target="_blank" rel="noopener">Microsoft — A 10x Faster TypeScript (Go 네이티브 포트 발표)</a></li>
+  <li><a href="https://github.com/microsoft/typescript-go" target="_blank" rel="noopener">GitHub — microsoft/typescript-go</a></li>
+  <li><a href="https://www.infoworld.com/article/4100582/microsoft-steers-native-port-of-typescript-to-early-2026-release.html" target="_blank" rel="noopener">InfoWorld — Microsoft steers native port of TypeScript to early 2026 release</a></li>
+  <li><a href="https://typescriptpro.com/blog/typescript-version-7-2026-07-08" target="_blank" rel="noopener">TypeScript Pro — TypeScript 7 is out: the native Go port, what changed</a></li>
+  <li><a href="https://www.digitalapplied.com/blog/typescript-7-0-rc-go-native-compiler-2026-upgrade-guide" target="_blank" rel="noopener">Digital Applied — TypeScript 7.0 RC: The Go-Native Compiler Has Landed</a></li>
+  <li><a href="https://arxiv.org/abs/1810.05286" target="_blank" rel="noopener">Machalica et al. — Predictive Test Selection (Facebook, ICSE-SEIP 2019)</a></li>
+  <li><a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue" target="_blank" rel="noopener">GitHub Docs — Managing a merge queue</a></li>
+  <li><a href="https://nx.dev/ci/features/affected" target="_blank" rel="noopener">Nx Docs — Run Only Tasks Affected by a PR</a></li>
+  <li><a href="https://turborepo.com/docs" target="_blank" rel="noopener">Turborepo Docs — 원격 캐시와 태스크 파이프라인</a></li>
+  <li><a href="https://github.com/jinming1345/agents-radar/issues/20" target="_blank" rel="noopener">Hacker News AI Digest 2026-09-23 (HN 반응 집계)</a></li>
+</ul>

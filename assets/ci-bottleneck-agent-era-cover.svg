@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트들이 쏟아내는 PR이 좁은 CI 파이프라인 앞에 줄지어 서 있는 모습을 나타낸 표지 그림 — AI 코딩 시대의 CI 병목">
+  <defs>
+    <linearGradient id="cib-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#12212f"/>
+    </linearGradient>
+    <linearGradient id="cib-pipe" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#cib-bg)"/>
+
+  <!-- 왼쪽: 에이전트들이 쏟아내는 PR -->
+  <g>
+    <rect x="70" y="150" width="150" height="60" rx="12" fill="none" stroke="#38bdf8" stroke-width="3"/>
+    <text x="145" y="187" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#38bdf8">Agent A</text>
+    <rect x="70" y="240" width="150" height="60" rx="12" fill="none" stroke="#38bdf8" stroke-width="3"/>
+    <text x="145" y="277" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#38bdf8">Agent B</text>
+    <rect x="70" y="330" width="150" height="60" rx="12" fill="none" stroke="#38bdf8" stroke-width="3"/>
+    <text x="145" y="367" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#38bdf8">Agent C</text>
+  </g>
+
+  <!-- PR 카드들이 병목 앞에 줄지어 대기 -->
+  <g font-family="ui-monospace, monospace" font-size="19" fill="#e2e8f0">
+    <rect x="270" y="160" width="88" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="314" y="186" text-anchor="middle">PR #1</text>
+    <rect x="370" y="160" width="88" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="414" y="186" text-anchor="middle">PR #2</text>
+    <rect x="270" y="250" width="88" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="314" y="276" text-anchor="middle">PR #3</text>
+    <rect x="370" y="250" width="88" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="414" y="276" text-anchor="middle">PR #4</text>
+    <rect x="270" y="340" width="88" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="314" y="366" text-anchor="middle">PR #5</text>
+    <rect x="370" y="340" width="88" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="414" y="366" text-anchor="middle">PR #6</text>
+  </g>
+
+  <!-- 가운데: 좁아지는 CI 깔때기 -->
+  <path d="M 500 130 L 700 235 L 700 295 L 500 400 Z" fill="none" stroke="#f59e0b" stroke-width="4"/>
+  <text x="585" y="255" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="800" fill="#f59e0b">CI</text>
+  <text x="585" y="290" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#fbbf24">병목</text>
+
+  <!-- 좁은 관 → 배포 -->
+  <rect x="700" y="235" width="180" height="60" fill="url(#cib-pipe)" opacity="0.35"/>
+  <path d="M 700 235 L 880 235 M 700 295 L 880 295" stroke="#f59e0b" stroke-width="4" fill="none"/>
+  <path d="M 900 265 l -26 -15 v 30 z" fill="#22c55e" transform="rotate(180 887 265)"/>
+  <rect x="920" y="220" width="200" height="90" rx="14" fill="none" stroke="#22c55e" stroke-width="4"/>
+  <text x="1020" y="258" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="800" fill="#22c55e">main</text>
+  <text x="1020" y="290" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#86efac">merge · deploy</text>
+
+  <!-- 제목 -->
+  <text x="600" y="500" text-anchor="middle" font-family="sans-serif" font-size="49" font-weight="800" fill="#f1f5f9">AI 코딩의 청구서는 CI로 온다</text>
+  <text x="600" y="556" text-anchor="middle" font-family="sans-serif" font-size="27" fill="#94a3b8">에이전트 시대의 CI 병목 엔지니어링 — Linear 사례 깊이 읽기</text>
+</svg>

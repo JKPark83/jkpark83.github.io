@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트가 측정-변경-검증 루프를 돌며 코드를 점점 빠르게 만드는 개념을 나타낸 표지 그림">
+  <defs>
+    <linearGradient id="bao-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#132a1e"/>
+    </linearGradient>
+    <linearGradient id="bao-arc" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#4ade80"/>
+    </linearGradient>
+    <marker id="bao-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4ade80"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bao-bg)"/>
+
+  <!-- 왼쪽: 제목 -->
+  <text x="80" y="140" font-family="sans-serif" font-size="54" font-weight="800" fill="#f1f5f9">측정할 수 있으면</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="54" font-weight="800" fill="#f1f5f9">빠르게 만들 수 있다</text>
+  <text x="80" y="278" font-family="sans-serif" font-size="32" font-weight="700" fill="#4ade80">벤치마크 하네스로 굴리는</text>
+  <text x="80" y="322" font-family="sans-serif" font-size="32" font-weight="700" fill="#4ade80">에이전트 성능 최적화 루프</text>
+  <text x="80" y="384" font-family="sans-serif" font-size="21" fill="#94a3b8">"에이전트에게 더 빠르게 만들라고 시켰더니 정말 빨라졌다"</text>
+  <text x="80" y="416" font-family="sans-serif" font-size="21" fill="#94a3b8">— 이번 주 HN을 달군 두 실험의 공통 설계도</text>
+  <text x="80" y="470" font-family="sans-serif" font-size="19" fill="#38bdf8">baseline · criterion · 가드레일 · 게이밍 방지 · ratchet CI</text>
+
+  <!-- 오른쪽: 순환 루프 + 속도계 -->
+  <g transform="translate(870,300)">
+    <!-- 루프 원 -->
+    <circle cx="0" cy="0" r="170" fill="none" stroke="#1e293b" stroke-width="26"/>
+    <path d="M 0 -170 A 170 170 0 1 1 -120 120" fill="none" stroke="url(#bao-arc)" stroke-width="26" stroke-linecap="round" marker-end="url(#bao-arrow)"/>
+    <!-- 루프 노드 라벨 -->
+    <g font-family="sans-serif" font-size="21" font-weight="700" text-anchor="middle">
+      <text x="0" y="-208" fill="#38bdf8">측정</text>
+      <text x="196" y="8" fill="#7dd3fc">변경</text>
+      <text x="0" y="232" fill="#86efac">검증</text>
+      <text x="-198" y="8" fill="#4ade80">유지/되돌리기</text>
+    </g>
+    <!-- 중앙 속도계 -->
+    <circle cx="0" cy="0" r="96" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+    <path d="M -68 40 A 79 79 0 1 1 68 40" fill="none" stroke="#334155" stroke-width="10" stroke-linecap="round"/>
+    <path d="M -68 40 A 79 79 0 0 1 40 -68" fill="none" stroke="#4ade80" stroke-width="10" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="42" y2="-58" stroke="#f1f5f9" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="9" fill="#f1f5f9"/>
+    <text x="0" y="62" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="800" fill="#4ade80">3.1×</text>
+  </g>
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 430" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="430" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="17" font-weight="700" fill="#111827">PR 자동화의 양면 — 올리는 쪽과 리뷰하는 쪽</text>
+  <text x="420" y="52" text-anchor="middle" font-size="12" fill="#6b7280">두 공식 저장소가 자기들 워크플로에 실제로 쓰는 구성</text>
+
+  <!-- Codex card -->
+  <rect x="30" y="70" width="380" height="280" rx="12" fill="#ffffff" stroke="#86efac"/>
+  <rect x="30" y="70" width="380" height="44" rx="12" fill="#dcfce7"/>
+  <text x="50" y="98" font-size="13" font-weight="700" fill="#166534">🟩 Codex — babysit-pr 스킬 (PR 올린 뒤 감시·수리)</text>
+
+  <text x="50" y="140" font-size="11.5" fill="#374151">· openai/codex 저장소의 .codex/skills/에 동봉</text>
+  <text x="50" y="164" font-size="11.5" fill="#374151">· gh_pr_watch.py --watch 로 리뷰·CI·머지 상태 지속 폴링</text>
+  <text x="50" y="188" font-size="11.5" fill="#374151">· heuristics.md — CI 실패를 "브랜치 원인 vs 플레이크"로</text>
+  <text x="62" y="204" font-size="11.5" fill="#374151">분류하는 체크리스트 내장</text>
+  <text x="50" y="228" font-size="11.5" fill="#374151">· 플레이크 재시도 예산 3회, 무관한 인프라 실패는 수리 금지</text>
+  <text x="50" y="252" font-size="11.5" fill="#374151">· 사람 리뷰 코멘트에는 사용자 확인 전 답글 금지</text>
+  <rect x="50" y="272" width="340" height="56" rx="8" fill="#f0fdf4" stroke="#bbf7d0"/>
+  <text x="62" y="292" font-size="11" font-weight="700" fill="#166534">가져갈 것</text>
+  <text x="62" y="310" font-size="11" fill="#14532d">"녹색+머지 가능"을 종료 조건이 아닌 진행 상태로 두고,</text>
+  <text x="62" y="324" font-size="11" fill="#14532d">늦게 달리는 리뷰 코멘트까지 감시를 유지하는 설계</text>
+
+  <!-- Claude Code card -->
+  <rect x="430" y="70" width="380" height="280" rx="12" fill="#ffffff" stroke="#93c5fd"/>
+  <rect x="430" y="70" width="380" height="44" rx="12" fill="#dbeafe"/>
+  <text x="450" y="98" font-size="13" font-weight="700" fill="#1e40af">🟦 Claude Code — pr-review-toolkit (받은 PR 리뷰)</text>
+
+  <text x="450" y="140" font-size="11.5" fill="#374151">· anthropics/claude-code 저장소의 plugins/에 동봉</text>
+  <text x="450" y="164" font-size="11.5" fill="#374151">· 관점별 전문 리뷰 서브에이전트 6종:</text>
+  <text x="462" y="188" font-size="11.5" fill="#374151">comment-analyzer · pr-test-analyzer</text>
+  <text x="462" y="208" font-size="11.5" fill="#374151">silent-failure-hunter · type-design-analyzer</text>
+  <text x="462" y="228" font-size="11.5" fill="#374151">code-reviewer · code-simplifier</text>
+  <text x="450" y="252" font-size="11.5" fill="#374151">· /review-pr 커맨드로 일괄 실행, 개별 호출도 가능</text>
+  <rect x="450" y="272" width="340" height="56" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="462" y="292" font-size="11" font-weight="700" fill="#1e40af">가져갈 것</text>
+  <text x="462" y="310" font-size="11" fill="#1e3a8a">"만능 리뷰어 1개"보다 좁은 관점 6개가 놓치는 게 적다.</text>
+  <text x="462" y="324" font-size="11" fill="#1e3a8a">에이전트 정의 파일을 그대로 내 저장소에 이식 가능</text>
+
+  <text x="420" y="382" text-anchor="middle" font-size="11.5" font-weight="700" fill="#111827">시사점: PR 파이프라인의 양 끝(올린 뒤 babysit / 받은 뒤 review)을 모두 에이전트에게 맡기는 게 공식 저장소의 현재 표준</text>
+  <text x="420" y="408" text-anchor="middle" font-size="10" fill="#9ca3af">출처: openai/codex, anthropics/claude-code 저장소 (2026-09-24 클론 검증, 자체 제작)</text>
+</svg>

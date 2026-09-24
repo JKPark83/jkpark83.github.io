@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 480" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="480" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-25</text>
+  <text x="420" y="52" text-anchor="middle" font-size="12" fill="#6b7280">테마: Gemini 모멘텀 · 읽기 시점 메모리 · PR 자동화의 양면</text>
+
+  <!-- Center theme -->
+  <rect x="320" y="210" width="200" height="60" rx="12" fill="#2563eb"/>
+  <text x="420" y="235" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">에이전트를 일에 붙이는 법</text>
+  <text x="420" y="254" text-anchor="middle" font-size="11" fill="#dbeafe">런타임 · 기억 · 리뷰</text>
+
+  <!-- Quadrant: Models (top-left) -->
+  <rect x="40" y="80" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="56" y="104" font-size="13" font-weight="700" fill="#1e40af">🤖 모델</text>
+  <text x="56" y="126" font-size="11" fill="#374151">· Gemini 4 — 포스트트레이닝 진입, "가능한 빨리" 출시</text>
+  <text x="56" y="146" font-size="11" fill="#374151">· Gemini API 매니지드 에이전트 — antigravity-preview</text>
+  <text x="68" y="162" font-size="11" fill="#374151">-09-2026 하니스 + Files·Credentials API</text>
+
+  <!-- Quadrant: Papers (top-right) -->
+  <rect x="440" y="80" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="456" y="104" font-size="13" font-weight="700" fill="#1e40af">📚 논문</text>
+  <text x="456" y="126" font-size="11" fill="#374151">· JitMem — 메모리 큐레이션을 읽기 시점으로,</text>
+  <text x="468" y="142" font-size="11" fill="#374151">성공률 최대 +16.3p (논문 보고치)</text>
+  <text x="456" y="162" font-size="11" fill="#374151">· SchrodingerRepo — SWE-bench 암기 여부 검증 틀</text>
+
+  <!-- Quadrant: OSS (bottom-left) -->
+  <rect x="40" y="300" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="56" y="324" font-size="13" font-weight="700" fill="#1e40af">🛠 오픈소스</text>
+  <text x="56" y="346" font-size="11" fill="#374151">· google/ax — K8s 스타일 선언형 에이전트</text>
+  <text x="68" y="362" font-size="11" fill="#374151">오케스트레이터 (Task·Workspace·Gateway·Model)</text>
+  <text x="56" y="382" font-size="11" fill="#374151">· univer — "AI 에이전트용 오피스 하니스"로 리브랜딩</text>
+
+  <!-- Quadrant: Tips (bottom-right) -->
+  <rect x="440" y="300" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="456" y="324" font-size="13" font-weight="700" fill="#1e40af">🧑‍💻 실전 팁</text>
+  <text x="456" y="346" font-size="11" fill="#374151">· Codex: 공식 저장소의 babysit-pr 스킬 훔쳐오기</text>
+  <text x="456" y="366" font-size="11" fill="#374151">· Claude Code: pr-review-toolkit 6종 리뷰 에이전트</text>
+  <text x="456" y="386" font-size="11" fill="#374151">· 공통: 메모리는 쓰기 시점 말고 읽기 시점에 큐레이션</text>
+
+  <!-- Connectors -->
+  <line x1="220" y1="184" x2="360" y2="216" stroke="#d1d5db" stroke-width="1.5"/>
+  <line x1="620" y1="184" x2="480" y2="216" stroke="#d1d5db" stroke-width="1.5"/>
+  <line x1="220" y1="300" x2="360" y2="264" stroke="#d1d5db" stroke-width="1.5"/>
+  <line x1="620" y1="300" x2="480" y2="264" stroke="#d1d5db" stroke-width="1.5"/>
+
+  <text x="420" y="452" text-anchor="middle" font-size="10" fill="#9ca3af">런타임(ax·antigravity 하니스) → 기억(JitMem) → 리뷰(babysit-pr·pr-review-toolkit)로 이어지는 에이전트 운영 스택</text>
+</svg>

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 460" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="460" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="17" font-weight="700" fill="#111827">JitMem — 메모리 큐레이션을 쓰기 시점에서 읽기 시점으로</text>
+
+  <!-- Write-time (기존) -->
+  <rect x="30" y="56" width="780" height="130" rx="12" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="50" y="82" font-size="13" font-weight="700" fill="#b91c1c">기존: 쓰기 시점(write-time) 큐레이션</text>
+
+  <rect x="50" y="100" width="150" height="52" rx="8" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="125" y="122" text-anchor="middle" font-size="11" fill="#374151">태스크 완료</text>
+  <text x="125" y="138" text-anchor="middle" font-size="11" fill="#374151">(트래젝토리 생성)</text>
+
+  <rect x="240" y="100" width="190" height="52" rx="8" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="335" y="122" text-anchor="middle" font-size="11" fill="#374151">즉시 요약·스킬로 증류</text>
+  <text x="335" y="138" text-anchor="middle" font-size="11" fill="#374151">→ 고정 아티팩트 저장</text>
+
+  <rect x="470" y="100" width="150" height="52" rx="8" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="545" y="122" text-anchor="middle" font-size="11" fill="#374151">유사도 검색으로</text>
+  <text x="545" y="138" text-anchor="middle" font-size="11" fill="#374151">회수</text>
+
+  <rect x="650" y="100" width="150" height="52" rx="8" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="725" y="118" text-anchor="middle" font-size="10.5" font-weight="700" fill="#991b1b">문제</text>
+  <text x="725" y="133" text-anchor="middle" font-size="10.5" fill="#7f1d1d">미래 질문을 모른 채 요약</text>
+  <text x="725" y="147" text-anchor="middle" font-size="10.5" fill="#7f1d1d">→ 정보가 영구 소실</text>
+
+  <line x1="200" y1="126" x2="240" y2="126" stroke="#9ca3af" stroke-width="1.5"/>
+  <line x1="430" y1="126" x2="470" y2="126" stroke="#9ca3af" stroke-width="1.5"/>
+  <line x1="620" y1="126" x2="650" y2="126" stroke="#9ca3af" stroke-width="1.5"/>
+
+  <!-- Read-time (JitMem) -->
+  <rect x="30" y="206" width="780" height="130" rx="12" fill="#ffffff" stroke="#bfdbfe"/>
+  <text x="50" y="232" font-size="13" font-weight="700" fill="#1d4ed8">JitMem: 읽기 시점(read-time) 큐레이션</text>
+
+  <rect x="50" y="250" width="150" height="52" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="125" y="272" text-anchor="middle" font-size="11" fill="#374151">원본 트래젝토리를</text>
+  <text x="125" y="288" text-anchor="middle" font-size="11" fill="#374151">그대로 보관</text>
+
+  <rect x="240" y="250" width="190" height="52" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="335" y="272" text-anchor="middle" font-size="11" fill="#374151">새 태스크 도착 시 관련</text>
+  <text x="335" y="288" text-anchor="middle" font-size="11" fill="#374151">트레이스 회수</text>
+
+  <rect x="470" y="250" width="150" height="52" rx="8" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="545" y="268" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">큐레이터 LLM</text>
+  <text x="545" y="283" text-anchor="middle" font-size="10.5" fill="#1e3a8a">지금 태스크에 맞춘</text>
+  <text x="545" y="297" text-anchor="middle" font-size="10.5" fill="#1e3a8a">압축 페이로드 합성</text>
+
+  <rect x="650" y="250" width="150" height="52" rx="8" fill="#dcfce7" stroke="#86efac"/>
+  <text x="725" y="268" text-anchor="middle" font-size="10.5" font-weight="700" fill="#166534">학습 신호</text>
+  <text x="725" y="283" text-anchor="middle" font-size="10.5" fill="#14532d">같은 태스크의 즉시 성공</text>
+  <text x="725" y="297" text-anchor="middle" font-size="10.5" fill="#14532d">여부로 큐레이터 훈련</text>
+
+  <line x1="200" y1="276" x2="240" y2="276" stroke="#60a5fa" stroke-width="1.5"/>
+  <line x1="430" y1="276" x2="470" y2="276" stroke="#60a5fa" stroke-width="1.5"/>
+  <line x1="620" y1="276" x2="650" y2="276" stroke="#60a5fa" stroke-width="1.5"/>
+
+  <!-- Results strip -->
+  <rect x="30" y="356" width="780" height="66" rx="10" fill="#111827"/>
+  <text x="50" y="382" font-size="12" font-weight="700" fill="#f9fafb">최강 베이스라인 대비 성공률 (절대치, 논문 보고)</text>
+  <text x="50" y="404" font-size="12" fill="#d1d5db">ALFWorld +16.2p · WebShop +16.3p · τ²-bench +3.9p — 큐레이터를 훈련하지 않아도 이미 베이스라인급 이상</text>
+
+  <text x="420" y="444" text-anchor="middle" font-size="10" fill="#9ca3af">데이터: arXiv 2609.27334 (Zhou et al., 2026-09-23)</text>
+</svg>

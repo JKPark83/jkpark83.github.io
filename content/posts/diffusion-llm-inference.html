@@ -1,0 +1,390 @@
+---
+title: "한 글자씩 쓰지 않는 LLM — 확산 언어 모델은 어떻게 770 토큰/초를 찍었나"
+date: 2026-09-26T07:30:00+09:00
+draft: false
+tags: ["AI", "확산 언어 모델", "dLLM", "Mercury", "LLaDA", "추론 최적화", "LLM 서빙", "KV 캐시", "병렬 디코딩", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 Hacker News에 Inception의 확산 언어 모델 Mercury 2.5가 올라왔습니다. Artificial Analysis 실측 약 770 토큰/초 — 173개 모델 중 2위의 속도인데, 지능 지수는 12점으로 중앙값 아래. 댓글창은 \"빠른데 멍청한 모델이 무슨 소용이냐\"는 논쟁으로 달아올랐습니다. 이 글에서는 논쟁의 주인공인 확산 언어 모델(diffusion LLM)이 어떻게 토큰을 한 글자씩 쓰지 않고 문장 전체를 병렬로 다듬는지, 왜 KV 캐시가 안 통하는지, Fast-dLLM과 dInfer는 그 문제를 어떻게 풀었는지, 그리고 실무에서 언제 써야 하는지를 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "diffusion-llm-inference-cover.svg"
+  alt: "자기회귀 모델의 한 글자씩 생성과 확산 언어 모델의 병렬 다듬기를 대비한 개념도"
+  caption: "속도의 정체는 하드웨어가 아니라 아키텍처다"
+  relative: false
+---
+
+<style>
+/* ── 확산 언어 모델 포스트 전용 스타일 (dli- 접두사) ── */
+.dli-fig{
+  --dli-green:#16a34a; --dli-rose:#e11d48; --dli-amber:#d97706; --dli-sky:#0284c7;
+  --dli-violet:#7c3aed; --dli-slate:#64748b; --dli-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .dli-fig{
+  --dli-green:#4ade80; --dli-rose:#fb7185; --dli-amber:#fbbf24; --dli-sky:#38bdf8;
+  --dli-violet:#a78bfa; --dli-slate:#94a3b8; --dli-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .dli-fig{
+    --dli-green:#4ade80; --dli-rose:#fb7185; --dli-amber:#fbbf24; --dli-sky:#38bdf8;
+    --dli-violet:#a78bfa; --dli-slate:#94a3b8; --dli-gray:#64748b;
+  }
+}
+.dli-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.dli-fig text{font-family:inherit}
+.dli-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.dli-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.dli-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.dli-toc ol{margin:0;padding-left:1.25rem}
+.dli-toc li{margin:.22rem 0;font-size:.95rem}
+.dli-toc a{text-decoration:none}
+.dli-toc a:hover{text-decoration:underline}
+.dli-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.dli-table th,.dli-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.dli-table th{background:var(--entry)}
+.dli-note{border-left:4px solid var(--dli-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="dli-toc">
+  <div class="dli-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — "빠른데 멍청한 모델이 무슨 소용?" 논쟁</a></li>
+    <li><a href="#sec-2">배경 — 자기회귀 생성은 왜 느린가</a></li>
+    <li><a href="#sec-3">확산 언어 모델의 작동 원리 — 마스크를 벗기며 다듬기</a></li>
+    <li><a href="#sec-4">엔지니어링의 벽 — KV 캐시가 안 통한다</a></li>
+    <li><a href="#sec-5">숫자로 보는 현재 위치 — Mercury, Gemini Diffusion, dInfer</a></li>
+    <li><a href="#sec-6">실전 — 직접 호출해 보고, 캐스케이드로 조합하기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — "빠른데 멍청한 모델이 무슨 소용?" 논쟁</h2>
+
+<p>이번 주 Hacker News에 <a href="https://news.ycombinator.com/item?id=49823348" target="_blank" rel="noopener">"Mercury 2.5 LLM hits 770 tokens per second"</a>라는 글이 올라왔습니다. 벤치마크 기관 Artificial Analysis가 Inception의 새 모델 Mercury 2.5를 실측했더니 출력 속도가 초당 약 770~780 토큰 — 등록된 173개 모델 중 2위였다는 내용입니다. GPT-6와 Claude Opus 5.5 발표로 "누가 더 똑똑한가" 경쟁이 뜨거웠던 주에, 정반대 축인 "누가 더 빠른가"로 프런트페이지에 올라온 셈입니다.</p>
+
+<p>댓글창은 곧바로 논쟁이 됐습니다. 같은 실측에서 Mercury 2.5의 지능 지수(Artificial Analysis Intelligence Index)는 12점으로, 비교 대상 중앙값(13점)에도 못 미쳤기 때문입니다. "거의 꼴찌 수준 지능이면 속도는 아무 의미 없다", "체감상 14B급 모델이다"라는 회의론과, "자동완성·음성처럼 지연에 민감한 작업엔 지능보다 속도가 먼저다", "빠른 모델로 초안을 쓰고 강한 모델로 다듬으면 된다"는 반론이 맞붙었습니다.</p>
+
+<p>이 논쟁을 제대로 따라가려면 한 가지를 알아야 합니다. Mercury 2.5의 속도는 더 좋은 GPU나 더 작은 모델에서 나온 게 아니라, <strong>텍스트를 생성하는 방식 자체가 다른 데서</strong> 나옵니다. Mercury는 토큰을 한 글자씩 쓰지 않고 문장 전체를 병렬로 다듬는 <strong>확산 언어 모델(diffusion LLM, dLLM)</strong>입니다. 이 글에서는 dLLM이 어떻게 동작하는지, 왜 기존 서빙 기법(특히 KV 캐시)이 안 통하는지, 그 문제를 푼 Fast-dLLM과 dInfer의 설계, 그리고 실무에서 언제 선택할지를 정리합니다.</p>
+
+<h2 id="sec-2">2. 배경 — 자기회귀 생성은 왜 느린가</h2>
+
+<p>지금 쓰는 거의 모든 LLM(GPT, Claude, Gemini, Llama, ...)은 <strong>자기회귀(autoregressive, AR)</strong> 모델입니다. 다음 토큰 하나의 확률을 예측하고, 그 토큰을 입력에 붙인 뒤 또 다음 토큰을 예측합니다. 1,000토큰짜리 답변을 만들려면 forward pass를 1,000번 순차로 돌려야 합니다.</p>
+
+<p>문제는 이 순차 디코딩이 GPU와 잘 안 맞는다는 점입니다. GPU는 큰 행렬 곱을 한꺼번에 처리할 때 강한데, AR 디코딩은 스텝마다 <em>토큰 딱 하나</em>를 만들기 위해 모델 가중치 전체를 메모리에서 읽어 옵니다. 계산량보다 메모리 읽기가 병목이 되는, 이른바 <strong>메모리 대역폭 바운드(memory-bandwidth-bound)</strong> 상태입니다. 연산 유닛은 대부분의 시간을 놀면서 가중치가 도착하기만 기다립니다.</p>
+
+<p>그래서 AR 진영의 가속 기법은 대부분 "한 번의 forward로 여러 토큰을 건지는" 우회로입니다. 초안 모델이 몇 토큰을 미리 쓰고 본 모델이 한 번에 검증하는 speculative decoding이 대표적입니다. 확산 언어 모델은 여기서 더 나아가 질문을 바꿉니다. <strong>"애초에 왼쪽에서 오른쪽으로 하나씩 써야 한다는 가정을 버리면 어떨까?"</strong></p>
+
+<h2 id="sec-3">3. 확산 언어 모델의 작동 원리 — 마스크를 벗기며 다듬기</h2>
+
+<p>이미지 생성 모델(Stable Diffusion 등)을 써 봤다면 감이 올 겁니다. 노이즈로 가득한 이미지에서 시작해, 여러 번의 디노이징(denoising) 스텝을 거치며 그림 전체를 점점 선명하게 만듭니다. 확산 언어 모델은 같은 아이디어를 텍스트에 적용합니다. 다만 텍스트는 픽셀처럼 연속값이 아니라 이산적인 토큰이라, "노이즈"의 역할을 <code>[MASK]</code> 토큰이 맡습니다. 그래서 <strong>마스크 확산(masked diffusion)</strong>이라고 부릅니다.</p>
+
+<p>이 방식을 대규모로 처음 증명한 공개 연구가 2025년 2월의 <a href="https://arxiv.org/abs/2502.09992" target="_blank" rel="noopener">LLaDA(Large Language Diffusion Models)</a>입니다. 학습과 생성은 이렇게 굴러갑니다.</p>
+
+<ul>
+  <li><strong>학습(forward 과정):</strong> 문장의 토큰을 무작위 비율로 <code>[MASK]</code>로 가립니다. 어떤 샘플은 10%만, 어떤 샘플은 90%가 가려집니다. 모델은 남은 토큰을 <em>양방향으로</em> 보고 가려진 자리를 맞추도록 학습합니다. BERT의 마스크 예측과 닮았지만, 마스킹 비율을 0~100%로 바꿔 가며 학습해서 "전부 가려진 상태에서도" 생성할 수 있다는 점이 다릅니다.</li>
+  <li><strong>생성(reverse 과정):</strong> 답변 자리를 전부 <code>[MASK]</code>로 채우고 시작합니다. 한 번의 forward로 모든 마스크 자리의 후보 토큰과 확신도(confidence)를 얻고, 확신도가 높은 자리부터 확정합니다. 나머지는 다시 마스크로 남겨 두고 반복합니다. 스텝을 거듭할수록 문장이 통째로 선명해집니다.</li>
+</ul>
+
+<figure class="dli-fig">
+<svg viewBox="0 0 760 430" role="img" aria-label="자기회귀 디코딩과 확산 디코딩 비교 다이어그램. 위쪽 자기회귀는 토큰 6개를 만들 때 forward를 6번 순차로 돌리고, 아래쪽 확산은 전부 마스크에서 시작해 3번의 스텝으로 매번 여러 토큰을 병렬 확정한다.">
+  <text x="380" y="26" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">토큰 6개를 만드는 두 가지 방법</text>
+
+  <!-- AR -->
+  <text x="30" y="62" font-size="13.5" font-weight="700" fill="var(--dli-rose)">자기회귀(AR): 스텝 6번 — 스텝마다 토큰 1개</text>
+  <g font-size="12" font-weight="700">
+    <rect x="30" y="76" width="58" height="38" rx="7" fill="none" stroke="var(--dli-rose)" stroke-width="2"/><text x="59" y="100" text-anchor="middle" fill="currentColor">t1</text>
+    <rect x="98" y="76" width="58" height="38" rx="7" fill="none" stroke="var(--dli-rose)" stroke-width="2"/><text x="127" y="100" text-anchor="middle" fill="currentColor">t2</text>
+    <rect x="166" y="76" width="58" height="38" rx="7" fill="none" stroke="var(--dli-rose)" stroke-width="2"/><text x="195" y="100" text-anchor="middle" fill="currentColor">t3</text>
+    <rect x="234" y="76" width="58" height="38" rx="7" fill="none" stroke="var(--dli-rose)" stroke-width="2"/><text x="263" y="100" text-anchor="middle" fill="currentColor">t4</text>
+    <rect x="302" y="76" width="58" height="38" rx="7" fill="none" stroke="var(--dli-rose)" stroke-width="2"/><text x="331" y="100" text-anchor="middle" fill="currentColor">t5</text>
+    <rect x="370" y="76" width="58" height="38" rx="7" fill="none" stroke="var(--dli-rose)" stroke-width="2"/><text x="399" y="100" text-anchor="middle" fill="currentColor">t6</text>
+  </g>
+  <g font-size="10.5" fill="var(--dli-gray)">
+    <text x="59" y="130" text-anchor="middle">fwd 1</text>
+    <text x="127" y="130" text-anchor="middle">fwd 2</text>
+    <text x="195" y="130" text-anchor="middle">fwd 3</text>
+    <text x="263" y="130" text-anchor="middle">fwd 4</text>
+    <text x="331" y="130" text-anchor="middle">fwd 5</text>
+    <text x="399" y="130" text-anchor="middle">fwd 6</text>
+  </g>
+  <text x="470" y="100" font-size="11.5" fill="var(--dli-gray)">각 스텝은 이전 토큰에 의존 → 병렬화 불가</text>
+  <text x="470" y="118" font-size="11.5" fill="var(--dli-gray)">스텝마다 가중치 전체 로드 → 대역폭 병목</text>
+
+  <line x1="30" y1="152" x2="730" y2="152" stroke="var(--dli-slate)" stroke-width="1" stroke-dasharray="4 6"/>
+
+  <!-- Diffusion -->
+  <text x="30" y="182" font-size="13.5" font-weight="700" fill="var(--dli-green)">확산(dLLM): 스텝 3번 — 스텝마다 확신도 높은 토큰들을 병렬 확정</text>
+
+  <g font-size="12" font-weight="700">
+    <text x="30" y="222" font-size="11" fill="var(--dli-gray)">step 1</text>
+    <rect x="90" y="200" width="58" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="119" y="223" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <rect x="158" y="200" width="58" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="187" y="223" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <rect x="226" y="200" width="58" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="255" y="223" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <rect x="294" y="200" width="58" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="323" y="223" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <rect x="362" y="200" width="58" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="391" y="223" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <rect x="430" y="200" width="58" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="459" y="223" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <text x="510" y="223" font-size="11" fill="var(--dli-gray)">전부 [MASK]에서 시작</text>
+
+    <text x="30" y="288" font-size="11" fill="var(--dli-gray)">step 2</text>
+    <rect x="90" y="266" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="119" y="289" text-anchor="middle" fill="currentColor">t1</text>
+    <rect x="158" y="266" width="58" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="187" y="289" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <rect x="226" y="266" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="255" y="289" text-anchor="middle" fill="currentColor">t3</text>
+    <rect x="294" y="266" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="323" y="289" text-anchor="middle" fill="currentColor">t4</text>
+    <rect x="362" y="266" width="58" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="391" y="289" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <rect x="430" y="266" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="459" y="289" text-anchor="middle" fill="currentColor">t6</text>
+    <text x="510" y="289" font-size="11" fill="var(--dli-gray)">확신도 높은 4자리 확정</text>
+
+    <text x="30" y="354" font-size="11" fill="var(--dli-gray)">step 3</text>
+    <rect x="90" y="332" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="119" y="355" text-anchor="middle" fill="currentColor">t1</text>
+    <rect x="158" y="332" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="187" y="355" text-anchor="middle" fill="currentColor">t2</text>
+    <rect x="226" y="332" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="255" y="355" text-anchor="middle" fill="currentColor">t3</text>
+    <rect x="294" y="332" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="323" y="355" text-anchor="middle" fill="currentColor">t4</text>
+    <rect x="362" y="332" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="391" y="355" text-anchor="middle" fill="currentColor">t5</text>
+    <rect x="430" y="332" width="58" height="36" rx="7" fill="none" stroke="var(--dli-green)" stroke-width="2.2"/><text x="459" y="355" text-anchor="middle" fill="currentColor">t6</text>
+    <text x="510" y="355" font-size="11" fill="var(--dli-gray)">남은 자리 확정 → 완성</text>
+  </g>
+
+  <text x="380" y="408" text-anchor="middle" font-size="12" fill="var(--dli-gray)">스텝 수 &lt; 토큰 수인 만큼 빨라진다 — 스텝 수는 품질과 속도를 맞바꾸는 다이얼</text>
+</svg>
+<figcaption>그림 1. 자기회귀는 토큰 수만큼 순차 스텝이 필요하지만, 확산은 문장 전체를 몇 번의 병렬 스텝으로 완성합니다.</figcaption>
+</figure>
+
+<p>핵심 트레이드는 이렇습니다. 확산 스텝 한 번은 문장 전체를 처리하니 AR 스텝 한 번보다 계산량이 훨씬 많습니다. 하지만 AR 디코딩에서 GPU 연산 유닛은 어차피 놀고 있었으니, 그 노는 계산력을 쏟아부어 <strong>순차 스텝 수를 토큰 수보다 훨씬 작게</strong> 줄이는 겁니다. 계산은 더 쓰고 왕복은 덜 하는 구조라, 대역폭 병목인 GPU에서 벽시계 시간이 크게 줄어듭니다.</p>
+
+<p>생성 루프를 의사 코드로 쓰면 다음과 같습니다.</p>
+
+{{< highlight python >}}
+def diffusion_decode(model, prompt, gen_len=256, steps=16):
+    # 답변 자리를 전부 [MASK]로 채우고 시작
+    x = prompt + [MASK] * gen_len
+
+    for step in range(steps):
+        logits = model(x)                # forward 1번으로 모든 자리를 동시에 예측
+        probs, cand = logits.softmax(-1).max(-1)
+
+        masked = [i for i, t in enumerate(x) if t == MASK]
+        # 이번 스텝에 확정할 개수(스케줄에 따라 조절 가능)
+        k = ceil(len(masked) / (steps - step))
+        # 확신도가 높은 자리부터 k개 확정, 나머지는 마스크 유지(remasking)
+        for i in sorted(masked, key=lambda i: -probs[i])[:k]:
+            x[i] = cand[i]
+
+    return x
+{{< /highlight >}}
+
+<p><code>steps</code>가 품질-속도 다이얼입니다. 극단적으로 <code>steps=1</code>이면 forward 한 번으로 전부 확정하니 가장 빠르지만, 토큰끼리 서로를 보지 못한 채 각자 확정되므로 문장이 어긋나기 쉽습니다. <code>steps=gen_len</code>이면 사실상 한 번에 하나씩 확정하는 셈이라 AR과 비슷해집니다. 상용 dLLM은 이 사이 어딘가에서 스케줄을 잡습니다.</p>
+
+<div class="dli-note">
+<strong>덤으로 생기는 능력:</strong> 마스크 예측 모델은 양방향 문맥을 보므로, 문장 <em>중간</em>을 채우는 인필링(infilling)이 자연스럽습니다. 코드 에디터에서 커서 앞뒤 문맥을 모두 보고 채워야 하는 자동완성과 잘 맞아서, Inception이 첫 제품(<a href="https://arxiv.org/abs/2506.17298" target="_blank" rel="noopener">Mercury Coder</a>)을 코딩용으로 낸 것도 이 때문입니다.
+</div>
+
+<h2 id="sec-4">4. 엔지니어링의 벽 — KV 캐시가 안 통한다</h2>
+
+<p>여기까지 들으면 "그럼 다들 확산으로 갈아타면 되겠네"싶지만, 서빙 엔지니어링 관점에서는 큰 벽이 하나 있습니다. AR 서빙의 최대 효율화 장치인 <strong>KV 캐시(KV cache)</strong>가 그대로는 안 통합니다.</p>
+
+<p>AR 모델은 인과적(causal) attention을 씁니다. 각 토큰은 자기 앞의 토큰만 보므로, 한 번 계산한 key/value는 뒤에 토큰이 추가돼도 변하지 않고, 캐시에 넣어 두면 재계산이 필요 없습니다. 반면 dLLM은 <strong>양방향(bidirectional) attention</strong>을 씁니다. 마스크 하나가 확정되는 순간 문장 <em>모든</em> 위치의 표현이 영향을 받으므로, 원칙적으로는 스텝마다 전체를 다시 계산해야 합니다. 실제로 초기 오픈소스 dLLM(LLaDA 등)은 이 때문에 이론상 병렬성에도 불구하고 잘 최적화된 AR 서빙보다 느렸습니다.</p>
+
+<p>이 문제를 공략한 대표 연구 두 개가 실무 감각을 잡는 데 좋습니다.</p>
+
+<h3>Fast-dLLM — "완전히 정확한 캐시"를 포기하면 길이 열린다</h3>
+
+<p>NVIDIA 연구진의 <a href="https://arxiv.org/abs/2505.22618" target="_blank" rel="noopener">Fast-dLLM</a>(2025)은 재학습 없이 붙이는 두 가지 장치를 제안했습니다.</p>
+
+<ul>
+  <li><strong>블록 단위 근사 KV 캐시:</strong> 답변을 블록으로 나눠 블록 안에서만 확산을 돌립니다. 현재 블록 바깥(이미 확정된 프롬프트·이전 블록)의 key/value는 스텝 사이에 거의 안 변한다는 관찰을 이용해, 정확히 다시 계산하는 대신 캐시해 두고 재사용합니다. "근사"지만 품질 저하가 무시할 수준이라는 게 논문의 측정입니다.</li>
+  <li><strong>확신도 기반 병렬 디코딩:</strong> 한 스텝에 여러 토큰을 확정할 때 품질이 깨지는 근본 원인은, 서로 의존하는 토큰들을 <em>독립이라고 가정하고</em> 동시에 뽑는 데 있습니다. Fast-dLLM은 확신도가 임계값을 넘는 토큰만 골라 병렬 확정해서 이 의존성 위반을 줄입니다.</li>
+</ul>
+
+<p>두 장치를 합쳐 LLaDA 기준 GSM8K(생성 길이 1,024)에서 <strong>27.6배</strong> 처리량 향상을 보고했습니다(정확도 76.0 vs 원본 77.3으로 거의 유지). 오픈소스 dLLM이 "이론상 빠름"에서 "실제로 빠름"으로 넘어온 분기점입니다.</p>
+
+<figure class="dli-fig">
+<svg viewBox="0 0 760 400" role="img" aria-label="양방향 attention 때문에 KV 캐시가 깨지는 문제와 블록 단위 근사 캐시 해법을 나란히 보여주는 다이어그램. 왼쪽은 모든 토큰이 서로를 참조해 스텝마다 전체 재계산이 필요한 상태, 오른쪽은 확정된 프롬프트와 이전 블록은 캐시로 재사용하고 현재 블록 안에서만 확산을 돌리는 구조.">
+  <text x="380" y="26" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">dLLM 서빙의 벽과 우회로</text>
+
+  <!-- 왼쪽: 문제 -->
+  <rect x="24" y="48" width="344" height="320" rx="12" fill="none" stroke="var(--dli-rose)" stroke-width="2"/>
+  <text x="196" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="var(--dli-rose)">문제: 양방향 attention</text>
+
+  <g font-size="12" font-weight="700">
+    <rect x="52" y="110" width="56" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.8"/><text x="80" y="133" text-anchor="middle" fill="currentColor">A</text>
+    <rect x="124" y="110" width="56" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.8"/><text x="152" y="133" text-anchor="middle" fill="currentColor">B</text>
+    <rect x="196" y="110" width="56" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.8" stroke-dasharray="4 3"/><text x="224" y="133" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+    <rect x="268" y="110" width="56" height="36" rx="7" fill="none" stroke="var(--dli-slate)" stroke-width="1.8" stroke-dasharray="4 3"/><text x="296" y="133" text-anchor="middle" fill="var(--dli-gray)">▒</text>
+  </g>
+  <!-- 양방향 화살표들 -->
+  <g stroke="var(--dli-rose)" stroke-width="1.6" fill="none">
+    <path d="M 80 152 C 110 190 190 190 222 152"/>
+    <path d="M 152 152 C 190 200 260 200 294 152"/>
+    <path d="M 80 158 C 140 230 250 230 296 158"/>
+  </g>
+  <text x="196" y="252" text-anchor="middle" font-size="11.5" fill="var(--dli-gray)">모든 위치가 서로를 참조</text>
+  <text x="196" y="274" text-anchor="middle" font-size="11.5" fill="var(--dli-gray)">토큰 하나 확정 → 전체 표현이 바뀜</text>
+  <text x="196" y="296" text-anchor="middle" font-size="11.5" fill="var(--dli-gray)">→ 스텝마다 전체 재계산</text>
+  <text x="196" y="330" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--dli-rose)">기존 KV 캐시 재사용 불가</text>
+
+  <!-- 오른쪽: 해법 -->
+  <rect x="392" y="48" width="344" height="320" rx="12" fill="none" stroke="var(--dli-green)" stroke-width="2"/>
+  <text x="564" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="var(--dli-green)">우회로: 블록 단위 근사 캐시 (Fast-dLLM)</text>
+
+  <g font-size="11.5" font-weight="700">
+    <rect x="416" y="110" width="130" height="40" rx="8" fill="none" stroke="var(--dli-sky)" stroke-width="2.2"/>
+    <text x="481" y="128" text-anchor="middle" fill="var(--dli-sky)">프롬프트</text>
+    <text x="481" y="143" text-anchor="middle" font-size="10.5" fill="var(--dli-gray)">KV 캐시 재사용</text>
+
+    <rect x="556" y="110" width="80" height="40" rx="8" fill="none" stroke="var(--dli-sky)" stroke-width="2.2"/>
+    <text x="596" y="128" text-anchor="middle" fill="var(--dli-sky)">블록 1</text>
+    <text x="596" y="143" text-anchor="middle" font-size="10.5" fill="var(--dli-gray)">확정·캐시</text>
+
+    <rect x="646" y="110" width="80" height="40" rx="8" fill="none" stroke="var(--dli-green)" stroke-width="2.4"/>
+    <text x="686" y="128" text-anchor="middle" fill="var(--dli-green)">블록 2</text>
+    <text x="686" y="143" text-anchor="middle" font-size="10.5" fill="var(--dli-gray)">확산 진행 중</text>
+  </g>
+
+  <path d="M 686 158 C 686 190 686 190 686 210" stroke="var(--dli-green)" stroke-width="2" fill="none"/>
+  <path d="M 681 204 l 5 10 l 5 -10 z" fill="var(--dli-green)"/>
+  <rect x="596" y="214" width="130" height="58" rx="9" fill="none" stroke="var(--dli-green)" stroke-width="1.8" stroke-dasharray="5 4"/>
+  <text x="661" y="238" text-anchor="middle" font-size="11" fill="currentColor">블록 안에서만</text>
+  <text x="661" y="256" text-anchor="middle" font-size="11" fill="currentColor">병렬 디노이징</text>
+
+  <text x="564" y="300" text-anchor="middle" font-size="11.5" fill="var(--dli-gray)">확정된 구간의 KV는 "거의 안 변한다" → 근사 재사용</text>
+  <text x="564" y="322" text-anchor="middle" font-size="11.5" fill="var(--dli-gray)">+ 확신도 임계값 넘는 토큰만 병렬 확정</text>
+  <text x="564" y="350" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--dli-green)">LLaDA 기준 처리량 최대 27.6배 (GSM8K)</text>
+</svg>
+<figcaption>그림 2. 양방향 attention은 KV 캐시를 깨뜨리지만, 블록 단위 근사 캐시와 확신도 기반 병렬 디코딩으로 우회할 수 있습니다.</figcaption>
+</figure>
+
+<h3>dInfer — 서빙 프레임워크로 판을 키우다</h3>
+
+<p>Ant Group이 공개한 <a href="https://arxiv.org/abs/2510.08666" target="_blank" rel="noopener">dInfer</a>는 dLLM 추론을 모델, 반복(iteration) 관리자, 디코딩 전략, KV 캐시 관리자의 네 모듈로 분해한 오픈소스 프레임워크입니다. vLLM이 AR 서빙에서 한 역할을 dLLM에서 하겠다는 포지션입니다. 자체 확산 모델 LLaDA-MoE 기준으로 HumanEval에서 배치 1에 평균 1,011 토큰/초를 기록했는데, 같은 비교에서 Fast-dLLM은 91, vLLM으로 최적화한 AR 모델 Qwen2.5-3B는 294 토큰/초였습니다. 조건이 제한적인 자체 벤치마크라는 점은 감안해야 하지만, "잘 만든 서빙 스택이 붙으면 dLLM이 AR 최적화 스택을 넘어설 수 있다"는 첫 신호로 읽을 수 있습니다.</p>
+
+<h2 id="sec-5">5. 숫자로 보는 현재 위치 — Mercury, Gemini Diffusion, dInfer</h2>
+
+<p>상용·연구 진영의 대표 숫자를 모아 보면 이렇습니다. <strong>측정 주체와 조건이 제각각이라 가로로 직접 비교하면 안 되는 표</strong>라는 점을 먼저 기억해 두세요.</p>
+
+<table class="dli-table">
+  <thead>
+    <tr><th>모델 / 스택</th><th>속도 (tok/s)</th><th>측정 조건</th><th>비고</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Mercury 2.5 (Inception)</td>
+      <td>약 770~781 (실측) / 1,107 (자체)</td>
+      <td>Artificial Analysis 실측 / 자체 발표, 범용 NVIDIA GPU</td>
+      <td>실측 속도 173개 모델 중 2위, 지능 지수 12(중앙값 13 미만)</td>
+    </tr>
+    <tr>
+      <td>Gemini Diffusion (DeepMind)</td>
+      <td>1,479 (자체)</td>
+      <td>오버헤드 제외 샘플링 속도, 최초 지연 0.84초</td>
+      <td>2025년 5월 공개 실험 모델, Gemini 2.0 Flash-Lite 대비 약 5배</td>
+    </tr>
+    <tr>
+      <td>dInfer + LLaDA-MoE (Ant Group)</td>
+      <td>1,011 (자체)</td>
+      <td>HumanEval, 배치 1, 8×H800</td>
+      <td>동일 비교에서 Fast-dLLM 91, Qwen2.5-3B+vLLM 294</td>
+    </tr>
+    <tr>
+      <td>Mercury Coder Mini / Small</td>
+      <td>1,109 / 737 (자체)</td>
+      <td>NVIDIA H100, 테크 리포트(arXiv:2506.17298)</td>
+      <td>속도 최적화 프런티어 모델 대비 최대 10배 주장</td>
+    </tr>
+    <tr>
+      <td>참고: Cerebras + gpt-oss-120b</td>
+      <td>약 1,400</td>
+      <td>전용 하드웨어(웨이퍼스케일)</td>
+      <td>HN 댓글의 반례 — 아키텍처가 아니라 하드웨어로 낸 속도</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Mercury 2.5 자체의 스펙도 짚어 두면, 컨텍스트 260K 토큰(전작 128K의 약 2배), 최대 출력 65,536 토큰, tool call 병렬 실행과 스키마 정렬 JSON 출력을 지원합니다. 출시 프로모션 가격은 입력 $0.04 / 출력 $0.15(백만 토큰당, 정가는 $0.20/$0.75)로 속도 대비 저렴한 축입니다.</p>
+
+<p>표에서 두 가지를 읽어야 합니다. 첫째, <strong>dLLM의 속도 우위는 실측으로 확인된 사실</strong>입니다. Artificial Analysis처럼 이해관계가 없는 제3자의 측정에서도 상위권입니다. 둘째, 그럼에도 <strong>지능은 아직 프런티어급이 아닙니다.</strong> 지능 지수 12는 같은 가격대 중앙값에도 못 미치고, HN에서 나온 "14B급 체감" 평가와도 결이 같습니다. 즉 현재의 dLLM은 "빠르고 똑똑한 모델"이 아니라 <strong>"속도가 스펙인 모델"</strong>이고, 채택 여부는 내 워크로드에서 속도가 지능보다 비싼가로 판단해야 합니다.</p>
+
+<h2 id="sec-6">6. 실전 — 직접 호출해 보고, 캐스케이드로 조합하기</h2>
+
+<p>Mercury 2.5는 OpenAI 호환 API로 제공되고 OpenRouter에도 올라와 있어서, 기존 코드에서 모델 이름만 바꾸면 바로 체감할 수 있습니다.</p>
+
+{{< highlight python >}}
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key="<OPENROUTER_API_KEY>",
+)
+
+resp = client.chat.completions.create(
+    model="inception/mercury-2.5",   # 확산 언어 모델
+    messages=[{"role": "user", "content": "이 SQL을 PostgreSQL 문법으로 바꿔줘: ..."}],
+    stream=True,                     # dLLM도 스트리밍 지원 — 다만 덩어리 단위로 도착
+)
+for chunk in resp:
+    print(chunk.choices[0].delta.content or "", end="")
+{{< /highlight >}}
+
+<p>한 가지 재미있는 관찰 포인트: 스트리밍이 AR처럼 토큰이 또박또박 흐르지 않고, 디노이징 스텝이 끝날 때마다 <strong>덩어리로 도착</strong>합니다. 생성 방식의 차이가 API 표면까지 배어 나오는 부분입니다.</p>
+
+<p>HN 논쟁에서 나온 가장 실용적인 반론 — "빠른 모델로 초안, 강한 모델로 검수" — 을 코드로 옮기면 <strong>캐스케이드(cascade) 패턴</strong>이 됩니다. 지능이 필요한 판단은 프런티어 AR 모델에, 물량이 필요한 변환은 dLLM에 맡기는 식입니다.</p>
+
+{{< highlight python >}}
+def translate_batch(items: list[str]) -> list[str]:
+    # 1단계: 빠르고 싼 dLLM이 전량 초안 작성 (~770 tok/s)
+    drafts = [fast_dllm(f"영어로 번역: {t}") for t in items]
+
+    # 2단계: 강한 AR 모델은 '검수'만 — 생성보다 판정이 싸다
+    verdicts = frontier_llm(
+        "각 번역이 원문 의미를 보존하는지 pass/fail로만 답하라",
+        pairs=list(zip(items, drafts)),
+    )
+
+    # 3단계: 실패분만 강한 모델이 재작성 → 전체 비용·지연 절감
+    return [
+        d if v == "pass" else frontier_llm(f"영어로 번역: {t}")
+        for t, d, v in zip(items, drafts, verdicts)
+    ]
+{{< /highlight >}}
+
+<p>이 구조가 성립하는 조건은 두 가지입니다. 실패를 기계적으로 판정할 수 있어야 하고(검증 가능성), 1단계 통과율이 충분히 높아야 합니다(아니면 이중 비용). 문서 변환, 코드 포매팅·마이그레이션, 로그 요약, 정형 데이터 추출처럼 <strong>출력 형식이 좁고 검증이 쉬운 작업</strong>이 dLLM의 스위트 스폿인 이유입니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>토큰/초만 보고 고르지 않기.</strong> 속도 순위표 옆의 지능 점수까지 같이 보세요. Mercury 2.5는 속도 2위/지능 중앙값 미만입니다. 지능이 부족해 재시도·수정 루프가 늘면 체감 지연은 오히려 나빠집니다.</li>
+  <li><strong>토큰/초 ≠ 체감 지연.</strong> 사용자 체감은 첫 토큰까지의 시간(TTFT)과 총 소요 시간의 합입니다. 출력이 몇십 토큰뿐인 짧은 응답이라면 770 tok/s와 100 tok/s의 차이는 거의 안 느껴집니다. dLLM의 이득은 긴 출력, 대량 배치에서 큽니다.</li>
+  <li><strong>에이전트 병목이 정말 생성 속도인지 먼저 재기.</strong> HN 논쟁에서도 지적됐듯, 에이전트 워크플로의 병목은 tool call의 신뢰성, 코드·컨텍스트와의 병치(co-location)인 경우가 많습니다. 프로파일링 없이 "모델만 빠르면 루프도 빨라진다"고 가정하지 마세요.</li>
+  <li><strong>스텝 수 다이얼의 존재를 기억하기.</strong> 같은 dLLM이라도 디노이징 스텝 수·병렬 확정 임계값 설정에 따라 속도와 품질이 크게 출렁입니다. 셀프 호스팅(LLaDA + Fast-dLLM/dInfer)한다면 이 다이얼이 벤치마크 재현 실패의 단골 원인입니다.</li>
+  <li><strong>병렬 확정의 품질 저하 모드 알아두기.</strong> 여러 토큰을 독립 가정으로 동시에 확정하면 국소적으로는 그럴듯한데 전체가 어긋나는 문장이 나옵니다. 출력을 파서·테스트로 검증할 수 있는 작업부터 적용하는 편이 안전합니다.</li>
+  <li><strong>"속도가 필요하다 = dLLM"은 아닙니다.</strong> Cerebras 같은 전용 하드웨어 위의 AR 모델(gpt-oss-120b 약 1,400 tok/s)이라는 대안도 있습니다. dLLM은 범용 GPU에서 아키텍처로 속도를 내는 노선이라는 점이 차별점입니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>확산 언어 모델(dLLM)은 토큰을 한 글자씩 쓰는 대신, 전부 <code>[MASK]</code>인 문장을 병렬 디노이징 스텝으로 다듬어 완성합니다. 순차 스텝 수가 토큰 수보다 훨씬 적어 범용 GPU에서 빠릅니다.</li>
+  <li>이번 주 HN에서 화제가 된 Mercury 2.5는 제3자 실측 약 770~780 tok/s(173개 중 2위)를 찍었지만, 지능 지수는 12로 중앙값 미만 — "속도가 스펙인 모델"입니다.</li>
+  <li>dLLM 서빙의 최대 난제는 양방향 attention 때문에 KV 캐시가 깨지는 것. Fast-dLLM은 블록 단위 근사 캐시 + 확신도 기반 병렬 디코딩으로 27.6배 처리량을 얻었고, dInfer는 이를 프레임워크로 확장해 vLLM 위의 AR 모델보다 빠른 사례를 보여줬습니다.</li>
+  <li>실무 적용은 캐스케이드가 정석: 검증 가능한 대량 변환 작업에 dLLM으로 초안을 만들고, 강한 AR 모델은 판정·재작성만 맡깁니다.</li>
+  <li>채택 전에 확인할 것: 병목이 정말 생성 속도인가(TTFT·tool call 신뢰성 먼저), 출력을 기계적으로 검증할 수 있는가, 지능 부족으로 인한 재시도 비용이 속도 이득을 잠식하지 않는가.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://news.ycombinator.com/item?id=49823348" target="_blank" rel="noopener">Hacker News 토론 — Mercury 2.5 LLM hits 770 tokens per second (2026-09)</a></li>
+  <li><a href="https://artificialanalysis.ai/models/mercury-2-5" target="_blank" rel="noopener">Artificial Analysis — Mercury 2.5: Intelligence, Performance &amp; Price Analysis</a></li>
+  <li><a href="https://www.inceptionlabs.ai/blog/introducing-mercury-2-5" target="_blank" rel="noopener">Inception — Introducing Mercury 2.5 (2026-09-08)</a></li>
+  <li><a href="https://www.morningstar.com/news/business-wire/20260908593295/inception-launches-mercury-25-the-next-tier-of-intelligence-for-diffusion-llms" target="_blank" rel="noopener">Business Wire — Inception Launches Mercury 2.5 (2026-09-08)</a></li>
+  <li><a href="https://arxiv.org/abs/2506.17298" target="_blank" rel="noopener">Inception Labs — Mercury: Ultra-Fast Language Models Based on Diffusion (arXiv:2506.17298, 2025-06)</a></li>
+  <li><a href="https://arxiv.org/abs/2502.09992" target="_blank" rel="noopener">Nie et al. — Large Language Diffusion Models (LLaDA, arXiv:2502.09992, 2025-02)</a></li>
+  <li><a href="https://github.com/ML-GSAI/LLaDA" target="_blank" rel="noopener">GitHub — ML-GSAI/LLaDA (LLaDA 공식 구현)</a></li>
+  <li><a href="https://arxiv.org/abs/2505.22618" target="_blank" rel="noopener">Wu et al. (NVIDIA 외) — Fast-dLLM: Training-free Acceleration of Diffusion LLM by Enabling KV Cache and Parallel Decoding (arXiv:2505.22618, 2025-05)</a></li>
+  <li><a href="https://nvlabs.github.io/Fast-dLLM/" target="_blank" rel="noopener">NVlabs — Fast-dLLM 프로젝트 페이지</a></li>
+  <li><a href="https://arxiv.org/abs/2510.08666" target="_blank" rel="noopener">Ant Group — dInfer: An Efficient Inference Framework for Diffusion Language Models (arXiv:2510.08666)</a></li>
+  <li><a href="https://deepmind.google/models/gemini-diffusion/" target="_blank" rel="noopener">Google DeepMind — Gemini Diffusion (2025-05)</a></li>
+  <li><a href="https://openrouter.ai/inception/mercury-2.5" target="_blank" rel="noopener">OpenRouter — inception/mercury-2.5 (API·가격)</a></li>
+  <li><a href="https://www.scmp.com/tech/big-tech/article/3329138/ant-group-explores-ai-inference-framework-10-times-faster-nvidias-solution" target="_blank" rel="noopener">SCMP — Ant Group explores AI inference framework 10x faster than Nvidia's solution</a></li>
+</ul>

@@ -1,0 +1,40 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="156억달러 비트코인 옵션 만기가 충격 없이 지나가고, 유가 하락 속에 다우가 479포인트 반등하며 주간 상승으로 마감한 가운데, 비트코인이 8만4,000달러대에서 주말을 맞으며 나스닥과 암호화폐 모두 관망을 유지한다는 것을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.26 · 나스닥 &amp; 비트코인 5분 요약</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">만기는 지나갔고, 유가가 물러서자 증시가 숨을 쉬었습니다</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주간 마감</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#4ade80">+479p</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#bbf7d0">다우 반등 · 나스닥 주간 +2%</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">5.16%</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">10년물 · 주간 +16bp</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">만기 이후</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.18"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">무사 통과</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">156억$ 만기 · BTC 8.4만$대</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#fbbf24">104$</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">브렌트유 -2.1% 후퇴</text>
+  </g>
+
+  <g transform="translate(80,540)">
+    <rect x="0" y="0" width="250" height="52" rx="26" fill="#eab308" opacity="0.2"/>
+    <text x="125" y="34" text-anchor="middle" font-family="sans-serif" font-size="21" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <rect x="270" y="0" width="250" height="52" rx="26" fill="#eab308" opacity="0.2"/>
+    <text x="395" y="34" text-anchor="middle" font-family="sans-serif" font-size="21" font-weight="700" fill="#facc15">암호화폐 관망</text>
+    <text x="560" y="34" font-family="sans-serif" font-size="18" fill="#94a3b8">주말 8만2,000$ 지지 · 다음 주 고용보고서 주시</text>
+  </g>
+</svg>

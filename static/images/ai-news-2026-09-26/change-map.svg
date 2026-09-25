@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 480" font-family="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif">
+  <rect width="840" height="480" fill="#fafafa"/>
+  <text x="420" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-09-26</text>
+  <text x="420" y="52" text-anchor="middle" font-size="12" fill="#6b7280">테마: 에이전트 '수'도 스케일링 축이다 — 오케스트레이터 대신 게시판</text>
+
+  <!-- Center theme -->
+  <rect x="320" y="210" width="200" height="60" rx="12" fill="#2563eb"/>
+  <text x="420" y="235" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">게시판 패턴의 부상</text>
+  <text x="420" y="254" text-anchor="middle" font-size="11" fill="#dbeafe">논문과 툴이 같은 방향</text>
+
+  <!-- Quadrant: Papers (top-left) -->
+  <rect x="40" y="80" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="56" y="104" font-size="13" font-weight="700" fill="#1e40af">📚 논문</text>
+  <text x="56" y="126" font-size="11" fill="#374151">· Agensh — 중앙 오케스트레이터 없이 1,024 에이전트</text>
+  <text x="68" y="142" font-size="11" fill="#374151">자기조직화, pandoc 태스크 33.89 → 55.06%</text>
+  <text x="56" y="162" font-size="11" fill="#374151">· AEWM — 히스토리의 '태스크 상태 오염'을 편집으로 제거</text>
+
+  <!-- Quadrant: Models/Tools (top-right) -->
+  <rect x="440" y="80" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="456" y="104" font-size="13" font-weight="700" fill="#1e40af">🤖 모델 · 툴</text>
+  <text x="456" y="126" font-size="11" fill="#374151">· 큰 모델 소식 없음 (연휴 전 소강)</text>
+  <text x="456" y="146" font-size="11" fill="#374151">· Claude Code 2.1.283 — /doctor prompt-audit 신설</text>
+  <text x="456" y="166" font-size="11" fill="#374151">· Codex 저장소 — 멀티에이전트 v2 message board 착륙 중</text>
+
+  <!-- Quadrant: OSS (bottom-left) -->
+  <rect x="40" y="296" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="56" y="320" font-size="13" font-weight="700" fill="#1e40af">🛠 오픈소스</text>
+  <text x="56" y="342" font-size="11" fill="#374151">· jev-ultrafast — 결정 모델로 클릭을 고르는 브라우저</text>
+  <text x="68" y="358" font-size="11" fill="#374151">에이전트, Google Flights 검색 7.1초</text>
+  <text x="56" y="378" font-size="11" fill="#374151">· browser-harness — 실제 브라우저 CDP 연결 하니스</text>
+
+  <!-- Quadrant: Tips (bottom-right) -->
+  <rect x="440" y="296" width="360" height="104" rx="10" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="456" y="320" font-size="13" font-weight="700" fill="#1e40af">🧑‍💻 실전 팁</text>
+  <text x="456" y="342" font-size="11" fill="#374151">· 🟦 /doctor prompt-audit — 낡은 프롬프트 패턴 감사</text>
+  <text x="456" y="362" font-size="11" fill="#374151">· 🟩 codex 기능 플래그 목록에서 로드맵 읽기</text>
+  <text x="456" y="382" font-size="11" fill="#374151">· 🟪 내 오케스트레이터에 게시판 패턴 적용 체크리스트</text>
+
+  <!-- Connectors -->
+  <line x1="400" y1="184" x2="410" y2="210" stroke="#93c5fd" stroke-width="2"/>
+  <line x1="440" y1="184" x2="430" y2="210" stroke="#93c5fd" stroke-width="2"/>
+  <line x1="400" y1="296" x2="410" y2="270" stroke="#93c5fd" stroke-width="2"/>
+  <line x1="440" y1="296" x2="430" y2="270" stroke="#93c5fd" stroke-width="2"/>
+
+  <text x="420" y="440" text-anchor="middle" font-size="11" fill="#9ca3af">수치는 각 논문·저장소 보고치 기준 · 자체 제작</text>
+</svg>

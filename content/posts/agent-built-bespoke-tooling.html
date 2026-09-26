@@ -1,0 +1,382 @@
+---
+title: "버그를 찾지 말고, 버그 찾는 도구를 만들게 하라 — 에이전트로 짓는 맞춤 도구(bespoke tooling) 엔지니어링"
+date: 2026-09-27T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "bespoke tooling", "보안 감사", "Trail of Bits", "정적 분석", "LSP", "디컴파일러", "Lean", "형식 검증", "Claude Code", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 Hacker News에 보안 감사 회사 Trail of Bits의 글이 올라왔습니다. zk 가상머신 Miden VM을 감사하기 전에, 에이전트에게 6개월간 LSP 서버·디컴파일러·정적 분석 엔진·Lean 형식 모델을 처음부터 만들게 했다는 내용입니다. 그리고 그 도구들이 서명 위조로 자금을 탈취할 수 있는 실제 버그를 찾아냈습니다. 'AI에게 버그를 찾아 달라'는 흔한 접근 대신 'AI에게 도구를 만들게 한다'는 이 전략이 왜 지금 가능해졌는지, 어떤 설계 원칙이 숨어 있는지, junior 개발자가 자기 프로젝트에 어떻게 응용할 수 있는지 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-built-bespoke-tooling-cover.svg"
+  alt: "에이전트에게 버그를 직접 찾게 하는 확률적 접근과, 에이전트에게 도구를 만들게 해 결정적으로 버그를 찾는 접근을 대비한 개념도"
+  caption: "판단은 사라지지만, 도구는 남는다"
+  relative: false
+---
+
+<style>
+/* ── 맞춤 도구 엔지니어링 포스트 전용 스타일 (abt- 접두사) ── */
+.abt-fig{
+  --abt-green:#16a34a; --abt-rose:#e11d48; --abt-amber:#d97706; --abt-sky:#0284c7;
+  --abt-violet:#7c3aed; --abt-slate:#64748b; --abt-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .abt-fig{
+  --abt-green:#4ade80; --abt-rose:#fb7185; --abt-amber:#fbbf24; --abt-sky:#38bdf8;
+  --abt-violet:#a78bfa; --abt-slate:#94a3b8; --abt-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .abt-fig{
+    --abt-green:#4ade80; --abt-rose:#fb7185; --abt-amber:#fbbf24; --abt-sky:#38bdf8;
+    --abt-violet:#a78bfa; --abt-slate:#94a3b8; --abt-gray:#64748b;
+  }
+}
+.abt-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.abt-fig text{font-family:inherit}
+.abt-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.abt-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.abt-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.abt-toc ol{margin:0;padding-left:1.25rem}
+.abt-toc li{margin:.22rem 0;font-size:.95rem}
+.abt-toc a{text-decoration:none}
+.abt-toc a:hover{text-decoration:underline}
+.abt-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.abt-table th,.abt-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.abt-table th{background:var(--entry)}
+.abt-note{border-left:4px solid var(--abt-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="abt-toc">
+  <div class="abt-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — "버그 찾아줘" 대신 "도구를 만들어줘"</a></li>
+    <li><a href="#sec-2">배경 — '충분히 좋은 AI'가 바꾼 도구의 경제학</a></li>
+    <li><a href="#sec-3">사례 해부 — Miden VM 감사를 위해 지은 4개의 도구</a></li>
+    <li><a href="#sec-4">설계 원칙 — 조용히 틀리는 전체보다, 정확한 부분집합</a></li>
+    <li><a href="#sec-5">실전 — 내 레포 전용 일회용 린터 만들기</a></li>
+    <li><a href="#sec-6">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-7">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — "버그 찾아줘" 대신 "도구를 만들어줘"</h2>
+
+<p>이번 주 Hacker News 프런트페이지에 보안 감사 회사 Trail of Bits의 글 <a href="https://blog.trailofbits.com/2026/09/18/auditing-in-the-age-of-good-enough-ai/" target="_blank" rel="noopener">"Auditing in the age of (good enough) AI"</a>가 올라와 <a href="https://news.ycombinator.com/item?id=49793957" target="_blank" rel="noopener">토론</a>이 벌어졌습니다. 공교롭게도 같은 주에 "OpenAI 에이전트가 Hugging Face를 해킹한 정황"을 파헤친 글이 162포인트로 화제였으니, 공격이 자동화되는 시대에 방어는 어떻게 자동화해야 하는가라는 질문에 정확히 꽂히는 타이밍이었습니다.</p>
+
+<p>글의 내용은 예상을 빗나갑니다. "AI에게 코드를 주고 버그를 찾게 했더니 몇 개를 찾았다"는 이야기가 아닙니다. Trail of Bits는 zk(zero-knowledge) 가상머신인 Miden VM의 감사를 앞두고, <strong>에이전트에게 6개월 동안 감사용 도구 4개를 처음부터 만들게 했습니다.</strong> LSP 서버, 디컴파일러, 정적 분석 엔진, 그리고 VM 실행기의 Lean 형식 모델까지. 그리고 이 도구들이 악의적인 prover가 서명을 위조해 사용자 자금을 탈취할 수 있는 실제 버그를 찾아내는 데 기여했습니다.</p>
+
+<p>이 글에서는 "AI에게 일을 시킨다"의 세 번째 형태, 즉 <strong>에이전트에게 맞춤 도구(bespoke tooling)를 만들게 하는 전략</strong>을 뜯어봅니다. 보안 감사가 소재지만, 핵심 아이디어는 일반적입니다. 에이전트의 판단은 확률적이고 휘발되지만, 에이전트가 만든 도구는 결정적이고 남습니다. 이 차이를 이해하면 여러분의 프로젝트에서도 바로 써먹을 수 있습니다.</p>
+
+<h2 id="sec-2">2. 배경 — '충분히 좋은 AI'가 바꾼 도구의 경제학</h2>
+
+<p>먼저 상황을 그려 봅시다. 보안 감사는 보통 몇 주 단위 프로젝트입니다. 감사 대상이 성숙한 생태계(예: 일반 웹 서비스)라면 린터, IDE 지원, 정적 분석기 같은 도구가 이미 깔려 있어 리뷰어는 코드 읽기에 집중할 수 있습니다. 그런데 Miden VM처럼 <strong>자체 어셈블리 언어(MASM)를 쓰는 신생 생태계</strong>는 사정이 다릅니다. 문법 하이라이팅조차 없는 코드를 눈으로 읽으며, 명령어 하나하나가 스택을 어떻게 바꾸는지 문서를 뒤져 가며 확인해야 합니다.</p>
+
+<p>이럴 때 "MASM용 IDE 지원과 디컴파일러를 만들면 리뷰 품질이 오를 텐데"라는 생각은 누구나 합니다. 문제는 비용이었습니다. 몇 주짜리 감사를 위해 엔지니어 여러 명이 6개월간 도구를 만드는 건 배보다 배꼽이 커지는 일이라, 이런 프로젝트는 늘 "하면 좋지만 안 하는 일" 목록에 머물렀습니다.</p>
+
+<p>Trail of Bits가 짚는 변화가 바로 여기입니다. 지난 1년 사이 에이전트는 이런 <strong>비핵심 프로젝트를 가벼운 감독만으로 완주할 만큼</strong> 좋아졌고, 그 결과 "어떤 프로젝트가 할 만한 일인가"의 경제학 자체가 바뀌었다는 겁니다. 제목의 '충분히 좋은(good enough) AI'가 이 뜻입니다. 완벽한 AI가 아니라, 사람이 방향만 잡아 주면 도구 하나를 끝까지 만들어 내는 정도의 AI면 충분하다는 것이죠.</p>
+
+<p>사실 "AI로 버그 찾기" 자체는 이미 증명된 분야입니다. Google DeepMind와 Project Zero의 에이전트 <a href="https://thehackernews.com/2025/07/google-ai-big-sleep-stops-exploitation.html" target="_blank" rel="noopener">Big Sleep</a>은 2025년 7월 SQLite의 취약점(CVE-2025-6965)을 공격자가 악용하기 전에 찾아내, "AI 에이전트가 실제 공격 시도를 사전에 차단한 첫 사례"로 기록됐습니다. 자율 침투 테스트 도구 <a href="https://xbow.com/blog/top-1-how-xbow-did-it" target="_blank" rel="noopener">XBOW</a>는 2025년 2분기 HackerOne 미국 리더보드 1위에 올랐습니다. 그런데 Trail of Bits는 제3의 길을 택했습니다. 아래 그림처럼요.</p>
+
+<figure class="abt-fig">
+<svg viewBox="0 0 760 400" role="img" aria-label="세 가지 접근 비교 다이어그램. 첫째 줄은 사람이 직접 버그를 찾는 전통 방식, 둘째 줄은 에이전트가 직접 버그를 찾는 방식으로 결과가 확률적이다. 셋째 줄은 에이전트가 도구를 만들고 그 도구와 사람이 함께 버그를 찾는 방식으로, 도구가 결정적인 산출물로 남는다.">
+  <text x="380" y="26" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">코드에서 버그를 찾는 세 가지 접근</text>
+
+  <!-- 방식 1 -->
+  <text x="30" y="66" font-size="13" font-weight="700" fill="var(--abt-slate)">① 전통 방식</text>
+  <rect x="150" y="46" width="130" height="40" rx="8" fill="none" stroke="var(--abt-slate)" stroke-width="2"/>
+  <text x="215" y="71" text-anchor="middle" font-size="12.5" fill="currentColor">사람 리뷰어</text>
+  <line x1="280" y1="66" x2="360" y2="66" stroke="var(--abt-gray)" stroke-width="1.8"/>
+  <polygon points="360,66 351,61 351,71" fill="var(--abt-gray)"/>
+  <rect x="362" y="46" width="130" height="40" rx="8" fill="none" stroke="var(--abt-slate)" stroke-width="2"/>
+  <text x="427" y="71" text-anchor="middle" font-size="12.5" fill="currentColor">코드 전체</text>
+  <text x="510" y="60" font-size="11.5" fill="var(--abt-gray)">느리고 비싸다.</text>
+  <text x="510" y="76" font-size="11.5" fill="var(--abt-gray)">커버리지가 사람 체력에 묶인다</text>
+
+  <!-- 방식 2 -->
+  <text x="30" y="146" font-size="13" font-weight="700" fill="var(--abt-rose)">② AI가 직접</text>
+  <rect x="150" y="126" width="130" height="40" rx="8" fill="none" stroke="var(--abt-rose)" stroke-width="2"/>
+  <text x="215" y="151" text-anchor="middle" font-size="12.5" fill="currentColor">에이전트</text>
+  <line x1="280" y1="146" x2="360" y2="146" stroke="var(--abt-gray)" stroke-width="1.8"/>
+  <polygon points="360,146 351,141 351,151" fill="var(--abt-gray)"/>
+  <rect x="362" y="126" width="130" height="40" rx="8" fill="none" stroke="var(--abt-rose)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="427" y="145" text-anchor="middle" font-size="12" fill="currentColor">"버그일 수도?"</text>
+  <text x="427" y="160" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">확률적 판단</text>
+  <text x="510" y="140" font-size="11.5" fill="var(--abt-gray)">Big Sleep, XBOW 계열.</text>
+  <text x="510" y="156" font-size="11.5" fill="var(--abt-gray)">강력하지만 판단이 휘발된다</text>
+
+  <!-- 방식 3 -->
+  <text x="30" y="236" font-size="13" font-weight="700" fill="var(--abt-green)">③ AI가 도구를</text>
+  <rect x="150" y="216" width="130" height="40" rx="8" fill="none" stroke="var(--abt-green)" stroke-width="2.2"/>
+  <text x="215" y="241" text-anchor="middle" font-size="12.5" fill="currentColor">에이전트</text>
+  <line x1="280" y1="236" x2="360" y2="236" stroke="var(--abt-green)" stroke-width="1.8"/>
+  <polygon points="360,236 351,231 351,241" fill="var(--abt-green)"/>
+  <rect x="362" y="216" width="130" height="40" rx="8" fill="none" stroke="var(--abt-sky)" stroke-width="2.2"/>
+  <text x="427" y="235" text-anchor="middle" font-size="12" fill="currentColor">도구 4종</text>
+  <text x="427" y="250" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">LSP·디컴파일러·분석·증명</text>
+  <line x1="492" y1="236" x2="572" y2="236" stroke="var(--abt-green)" stroke-width="1.8"/>
+  <polygon points="572,236 563,231 563,241" fill="var(--abt-green)"/>
+  <rect x="574" y="216" width="156" height="40" rx="8" fill="none" stroke="var(--abt-green)" stroke-width="2.2"/>
+  <text x="652" y="235" text-anchor="middle" font-size="12" fill="currentColor">사람 + 에이전트 리뷰</text>
+  <text x="652" y="250" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">둘 다 도구의 덕을 본다</text>
+
+  <rect x="150" y="290" width="580" height="80" rx="10" fill="none" stroke="var(--abt-slate)" stroke-width="1.2" stroke-dasharray="4 5"/>
+  <text x="440" y="318" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">③의 핵심: 산출물이 코드(도구)라서 테스트·리뷰·재사용이 가능하다</text>
+  <text x="440" y="342" text-anchor="middle" font-size="11.5" fill="var(--abt-gray)">에이전트의 확률적 노동이 결정적인 자산으로 굳는다</text>
+</svg>
+<figcaption>그림 1. 사람이 직접 찾기, AI가 직접 찾기, 그리고 AI가 도구를 만들어 사람과 AI 모두를 돕기. Trail of Bits가 택한 건 세 번째다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 사례 해부 — Miden VM 감사를 위해 지은 4개의 도구</h2>
+
+<p>대상부터 짧게 소개합니다. <a href="https://github.com/0xPolygonMiden" target="_blank" rel="noopener">Miden</a>은 STARK 증명 기반의 zk 가상머신으로, 2025년 Polygon에서 분사해 a16z 주도로 2,500만 달러를 투자받은 프로젝트입니다. 실행과 증명을 사용자 쪽(client-side)에서 수행하는 독특한 구조라, 스마트 컨트랙트가 MASM(Miden Assembly)이라는 자체 스택 기반 어셈블리로 작성됩니다. 새 언어이니 개발 도구는 거의 백지 상태였습니다.</p>
+
+<p>Trail of Bits가 에이전트로 만든 도구 4개를 표로 정리하면 이렇습니다. 두 개는 GitHub에 공개되어 있어 직접 코드를 확인할 수 있습니다.</p>
+
+<table class="abt-table">
+  <thead>
+    <tr><th>도구</th><th>역할</th><th>규모·특징</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://github.com/trailofbits/masm-lsp" target="_blank" rel="noopener">masm-lsp</a></td>
+      <td>MASM용 LSP 서버 + VS Code 확장. 정의로 이동, hover 문서, 진단, 명령어별 스택 효과를 code lens로 표시</td>
+      <td>Rust, MIT 라이선스, 커밋 148개. 리뷰어가 문서를 뒤지러 에디터를 떠나지 않게 한다</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/trailofbits/masm-decompiler" target="_blank" rel="noopener">masm-decompiler</a></td>
+      <td>MASM을 고수준 의사코드로 되돌리는 디컴파일러</td>
+      <td>Rust, MIT, 커밋 113개. 가장 큰 작업 — 수개월에 걸친 100개 이상의 AI 생성 커밋</td>
+    </tr>
+    <tr>
+      <td>정적 분석 엔진</td>
+      <td>타입 검증, 프로시저 시그니처 오류 탐지</td>
+      <td>LSP에 통합되어 에디터와 배치 양쪽에서 동작</td>
+    </tr>
+    <tr>
+      <td>Lean 형식 모델</td>
+      <td>VM 실행기(executor)를 정리 증명 보조기 Lean으로 모델링</td>
+      <td>기계 검증된(machine-checked) 정확성 증명 95개, Miden 코어 라이브러리의 상당 부분 커버</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>왜 하필 이 4개일까요? 감사 파이프라인의 서로 다른 지점을 하나씩 보강하기 때문입니다. LSP는 <em>읽는 속도</em>를, 디컴파일러는 <em>이해의 추상화 수준</em>을, 정적 분석은 <em>기계적인 오류 탐지</em>를, Lean 모델은 <em>"정말 맞는가"의 수학적 확신</em>을 담당합니다.</p>
+
+<figure class="abt-fig">
+<svg viewBox="0 0 760 430" role="img" aria-label="Miden VM 감사 파이프라인 다이어그램. MASM 코드베이스에서 출발해 LSP 서버는 에디터에서 읽기를 돕고, 디컴파일러는 의사코드로 추상화 수준을 올리고, 정적 분석은 타입과 시그니처 오류를 기계적으로 잡고, Lean 모델은 핵심 라이브러리의 정확성을 증명한다. 네 도구의 출력이 사람과 에이전트 리뷰어에게 모여 Falcon 서명 위조 버그 발견으로 이어졌다.">
+  <text x="380" y="26" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">4개의 도구가 감사 파이프라인에 붙는 위치</text>
+
+  <rect x="290" y="46" width="180" height="46" rx="9" fill="none" stroke="var(--abt-slate)" stroke-width="2"/>
+  <text x="380" y="66" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">MASM 코드베이스</text>
+  <text x="380" y="83" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">자체 어셈블리, 도구 백지 상태</text>
+
+  <line x1="380" y1="92" x2="380" y2="120" stroke="var(--abt-gray)" stroke-width="1.6"/>
+  <line x1="110" y1="120" x2="650" y2="120" stroke="var(--abt-gray)" stroke-width="1.6"/>
+  <line x1="110" y1="120" x2="110" y2="148" stroke="var(--abt-gray)" stroke-width="1.6"/><polygon points="110,148 105,139 115,139" fill="var(--abt-gray)"/>
+  <line x1="290" y1="120" x2="290" y2="148" stroke="var(--abt-gray)" stroke-width="1.6"/><polygon points="290,148 285,139 295,139" fill="var(--abt-gray)"/>
+  <line x1="470" y1="120" x2="470" y2="148" stroke="var(--abt-gray)" stroke-width="1.6"/><polygon points="470,148 465,139 475,139" fill="var(--abt-gray)"/>
+  <line x1="650" y1="120" x2="650" y2="148" stroke="var(--abt-gray)" stroke-width="1.6"/><polygon points="650,148 645,139 655,139" fill="var(--abt-gray)"/>
+
+  <g font-size="12" font-weight="700">
+    <rect x="35" y="150" width="150" height="78" rx="9" fill="none" stroke="var(--abt-sky)" stroke-width="2.2"/>
+    <text x="110" y="172" text-anchor="middle" fill="currentColor">masm-lsp</text>
+    <text x="110" y="192" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--abt-gray)">에디터 안에서 스택 효과</text>
+    <text x="110" y="207" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--abt-gray)">·문서·정의 이동 제공</text>
+    <text x="110" y="222" text-anchor="middle" font-size="10" font-weight="400" fill="var(--abt-sky)">→ 읽는 속도</text>
+
+    <rect x="215" y="150" width="150" height="78" rx="9" fill="none" stroke="var(--abt-violet)" stroke-width="2.2"/>
+    <text x="290" y="172" text-anchor="middle" fill="currentColor">masm-decompiler</text>
+    <text x="290" y="192" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--abt-gray)">어셈블리를 의사코드로</text>
+    <text x="290" y="207" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--abt-gray)">'정확한 부분집합'만 지원</text>
+    <text x="290" y="222" text-anchor="middle" font-size="10" font-weight="400" fill="var(--abt-violet)">→ 이해의 추상화</text>
+
+    <rect x="395" y="150" width="150" height="78" rx="9" fill="none" stroke="var(--abt-amber)" stroke-width="2.2"/>
+    <text x="470" y="172" text-anchor="middle" fill="currentColor">정적 분석 엔진</text>
+    <text x="470" y="192" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--abt-gray)">타입·프로시저 시그니처</text>
+    <text x="470" y="207" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--abt-gray)">오류를 기계적으로 탐지</text>
+    <text x="470" y="222" text-anchor="middle" font-size="10" font-weight="400" fill="var(--abt-amber)">→ 자동 오류 탐지</text>
+
+    <rect x="575" y="150" width="150" height="78" rx="9" fill="none" stroke="var(--abt-green)" stroke-width="2.2"/>
+    <text x="650" y="172" text-anchor="middle" fill="currentColor">Lean 형식 모델</text>
+    <text x="650" y="192" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--abt-gray)">VM 실행기 모델링,</text>
+    <text x="650" y="207" text-anchor="middle" font-size="10.5" font-weight="400" fill="var(--abt-gray)">기계 검증 증명 95개</text>
+    <text x="650" y="222" text-anchor="middle" font-size="10" font-weight="400" fill="var(--abt-green)">→ 수학적 확신</text>
+  </g>
+
+  <line x1="110" y1="228" x2="110" y2="262" stroke="var(--abt-gray)" stroke-width="1.6"/>
+  <line x1="290" y1="228" x2="290" y2="262" stroke="var(--abt-gray)" stroke-width="1.6"/>
+  <line x1="470" y1="228" x2="470" y2="262" stroke="var(--abt-gray)" stroke-width="1.6"/>
+  <line x1="650" y1="228" x2="650" y2="262" stroke="var(--abt-gray)" stroke-width="1.6"/>
+  <line x1="110" y1="262" x2="650" y2="262" stroke="var(--abt-gray)" stroke-width="1.6"/>
+  <line x1="380" y1="262" x2="380" y2="288" stroke="var(--abt-gray)" stroke-width="1.6"/><polygon points="380,288 375,279 385,279" fill="var(--abt-gray)"/>
+
+  <rect x="240" y="290" width="280" height="50" rx="9" fill="none" stroke="var(--abt-slate)" stroke-width="2"/>
+  <text x="380" y="311" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">사람 리뷰어 + 에이전트 리뷰</text>
+  <text x="380" y="329" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">수동 리뷰 커버리지와 에이전트 리뷰 모두 강화</text>
+
+  <line x1="380" y1="340" x2="380" y2="366" stroke="var(--abt-rose)" stroke-width="2"/><polygon points="380,366 375,357 385,357" fill="var(--abt-rose)"/>
+
+  <rect x="200" y="368" width="360" height="52" rx="9" fill="none" stroke="var(--abt-rose)" stroke-width="2.4"/>
+  <text x="380" y="390" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--abt-rose)">발견: 검증되지 않은 prover 입력 → Falcon 서명 위조 가능</text>
+  <text x="380" y="408" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">방치했다면 Falcon 키를 쓰는 Miden 계정의 자금 탈취로 이어질 수 있던 버그</text>
+</svg>
+<figcaption>그림 2. 네 도구는 각각 감사 파이프라인의 다른 지점을 보강한다. 결과물은 사람과 에이전트 리뷰 양쪽의 품질을 끌어올렸다.</figcaption>
+</figure>
+
+<p>성과를 보여 주는 대표 사례가 <strong>Falcon 서명 위조 버그</strong>입니다. Falcon은 포스트퀀텀 전자서명 방식으로, 모듈러스 12289를 쓰는 격자 기반 연산이 핵심입니다. Miden 코드의 <code>mod_12289</code> 연산에서 prover(증명 생성자)가 공급하는 입력이 검증되지 않아, 몫과 나머지를 교묘하게 조작하면 <em>올바르지 않은 나머지</em>를 반환하게 만들 수 있었습니다. 악의적인 prover라면 이를 이용해 Falcon 서명을 위조하고, 해당 키로 보호되는 계정의 자금을 빼낼 수 있었죠. "연산 하나의 검증 누락"이 "자금 탈취"까지 이어지는, zk 시스템 특유의 무서운 버그입니다.</p>
+
+<div class="abt-note">
+<strong>왜 이런 버그는 도구 없이 잡기 어려울까요?</strong> 스택 기반 어셈블리에서는 값에 이름이 없습니다. "지금 스택 3번째 자리에 있는 값이 아까 그 나머지인가?"를 사람이 수백 줄 내내 추적해야 합니다. 스택 효과를 에디터에 표시해 주는 LSP, 어셈블리를 변수 있는 의사코드로 되돌리는 디컴파일러, "이 연산은 모든 입력에서 수학적 정의와 일치하는가"를 따지는 Lean 증명이 각각 이 추적 부담을 덜어 줍니다.</div>
+
+<h2 id="sec-4">4. 설계 원칙 — 조용히 틀리는 전체보다, 정확한 부분집합</h2>
+
+<p>이 사례에서 배울 건 "우리도 6개월짜리 도구를 만들자"가 아닙니다. 눈여겨볼 것은 세 가지 설계 원칙입니다.</p>
+
+<p><strong>원칙 1: 조용히 틀리는 전체보다, 정확한 부분집합.</strong> 가장 공들인 디컴파일러에서 Trail of Bits는 MASM 전체를 다루는 대신, <em>정확하게 디컴파일할 수 있다고 확신하는 부분집합</em>으로 범위를 일부러 좁혔습니다. 전체를 다루지만 가끔 조용히 틀리는(silently wrong) 파이프라인은 감사 도구로서 실격이기 때문입니다. 틀린 의사코드를 믿고 리뷰하면 버그를 놓치는 게 아니라 <em>없는 확신</em>을 만들어 냅니다. 도구는 틀린 답을 내느니 "이 코드는 다룰 수 없다"고 말해야 합니다.</p>
+
+<p><strong>원칙 2: 확률을 결정론으로 굳혀라.</strong> 에이전트에게 "이 코드에 버그 있어?"라고 물으면 답은 매번 조금씩 다르고, 세션이 끝나면 판단 근거도 사라집니다. 반면 에이전트가 만든 정적 분석기는 같은 입력에 항상 같은 출력을 냅니다. 산출물이 코드라서 사람이 리뷰할 수 있고, 테스트로 묶어 둘 수 있고, 다음 감사에서 재사용됩니다. <strong>에이전트의 확률적 노동을 결정적인 자산으로 바꾸는 것</strong> — 이게 이 전략의 본질입니다.</p>
+
+<p><strong>원칙 3: 도구 프로젝트 자체를 에이전트 친화적으로.</strong> 공개된 두 레포에는 모두 <code>CLAUDE.md</code>와 <code>AGENTS.md</code>가 들어 있습니다. 에이전트가 만들다 만 코드에 다음 에이전트가 이어서 투입될 수 있도록, 아키텍처 문서(<code>ARCHITECTURE.md</code>)와 작업 규칙을 처음부터 정리해 둔 겁니다. 실제로 Trail of Bits는 회사 차원에서 Claude Code를 표준 도구로 삼고 <a href="https://blog.trailofbits.com/2026/03/31/how-we-made-trail-of-bits-ai-native-so-far/" target="_blank" rel="noopener">플러그인 94개, 스킬 201개, 전문 에이전트 84개</a>를 운영하며, 고객에게 보고되는 버그의 20%는 AI가 처음 발견한다고 밝혔습니다. 6개월짜리 도구 구축은 이런 기반 위에서 "가벼운 감독"이 가능했던 셈입니다.</p>
+
+<h2 id="sec-5">5. 실전 — 내 레포 전용 일회용 린터 만들기</h2>
+
+<p>규모를 확 줄여서, junior 개발자가 오늘 해볼 수 있는 형태로 옮겨 봅시다. 시나리오: 팀 코드베이스에서 SQL을 문자열로 조립하다 injection 사고가 난 적이 있어서, <strong>"f-string으로 SQL을 조립하면 안 된다"는 우리 팀만의 규칙</strong>을 기계로 강제하고 싶습니다. 범용 린터에는 없는 규칙이니, 맞춤 도구가 필요합니다.</p>
+
+<p>핵심은 에이전트에게 "린터 만들어줘"라고 뭉뚱그려 시키지 않는 것입니다. 원칙 1을 적용해 <strong>검증 가능한 사양과 채점 기준(테스트 오라클)</strong>을 함께 줍니다. Claude Code 같은 코딩 에이전트에 주는 지시 예시입니다.</p>
+
+{{< highlight markdown >}}
+## 작업: 우리 레포 전용 SQL 조립 린터
+
+`tools/sql_lint.py`를 만들어 주세요.
+
+요구사항:
+- `execute(...)` / `executemany(...)` 호출의 첫 인자가
+  f-string이거나 문자열 `+` 연결이면 위반으로 보고
+- 위반마다 `파일:줄번호: 코드` 형식으로 출력, 위반 있으면 exit 1
+- 표준 라이브러리 `ast`만 사용 (의존성 추가 금지)
+
+범위 제한 (중요):
+- 확신할 수 없는 패턴(변수에 담긴 SQL 추적 등)은 잡지 말 것.
+  거짓 양성보다 "안 잡는 것"이 낫다. 못 다루는 패턴은
+  README에 '한계'로 기록할 것.
+
+완료 조건:
+- tests/sql_lint_cases/ 아래 내가 만든 양성 6개·음성 6개
+  케이스를 전부 통과해야 함. 케이스를 수정하지 말 것.
+{{< /highlight >}}
+
+<p>마지막 두 줄이 승부처입니다. 통과 기준인 테스트 케이스는 <em>사람이</em> 만들고, 에이전트는 케이스를 못 고치게 못 박습니다. 이러면 에이전트가 스스로 "다 됐다"고 주장해도 믿을 필요가 없습니다. 오라클이 판정하니까요. 에이전트가 만들어 오는 결과물은 대략 이런 모양이 됩니다.</p>
+
+{{< highlight python >}}
+# tools/sql_lint.py — 에이전트가 생성한 일회용 린터 (발췌)
+import ast, sys, pathlib
+
+DB_CALLS = {"execute", "executemany"}
+
+def is_string_building(node: ast.expr) -> bool:
+    # f-string 또는 문자열 + 연결만 위반으로 판단
+    # (변수 추적은 하지 않는다 — README '한계' 참고)
+    if isinstance(node, ast.JoinedStr):          # f"..."
+        return True
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return True                               # "SELECT " + x
+    return False
+
+def check(path: pathlib.Path) -> list[str]:
+    tree = ast.parse(path.read_text(), filename=str(path))
+    hits = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in DB_CALLS
+                and node.args
+                and is_string_building(node.args[0])):
+            hits.append(f"{path}:{node.lineno}: SQL 문자열 조립 금지")
+    return hits
+
+if __name__ == "__main__":
+    problems = [h for p in sys.argv[1:] for h in check(pathlib.Path(p))]
+    print("\n".join(problems))
+    sys.exit(1 if problems else 0)
+{{< /highlight >}}
+
+<p>40줄짜리 도구지만 성격이 다릅니다. 에이전트에게 매번 "이 PR에 SQL injection 있어?"라고 묻는 것과 달리, 이 스크립트는 CI에 넣으면 <strong>모든 PR에서, 항상, 같은 기준으로</strong> 동작합니다. 리뷰어(사람이든 에이전트든)는 이 규칙을 더는 신경 쓰지 않아도 됩니다. Trail of Bits가 감사에서 한 일의 축소판입니다.</p>
+
+<figure class="abt-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="에이전트로 도구를 만드는 작업 루프 다이어그램. 사람이 사양과 테스트 오라클을 만들고, 에이전트가 도구를 생성·수정하고, 오라클 테스트를 통과하면 사람이 코드를 리뷰한 뒤 CI에 배치한다. 테스트에 실패하면 에이전트가 다시 수정하는 루프를 돈다.">
+  <text x="380" y="26" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">에이전트-도구 구축 루프</text>
+
+  <rect x="30" y="60" width="170" height="64" rx="10" fill="none" stroke="var(--abt-sky)" stroke-width="2.2"/>
+  <text x="115" y="84" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">① 사람: 사양 작성</text>
+  <text x="115" y="102" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">규칙 + 범위 제한 +</text>
+  <text x="115" y="116" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">테스트 오라클 12개</text>
+
+  <line x1="200" y1="92" x2="270" y2="92" stroke="var(--abt-gray)" stroke-width="1.8"/><polygon points="270,92 261,87 261,97" fill="var(--abt-gray)"/>
+
+  <rect x="272" y="60" width="170" height="64" rx="10" fill="none" stroke="var(--abt-violet)" stroke-width="2.2"/>
+  <text x="357" y="84" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">② 에이전트: 구현</text>
+  <text x="357" y="102" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">도구 생성·수정</text>
+  <text x="357" y="116" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">오라클은 수정 금지</text>
+
+  <line x1="442" y1="92" x2="512" y2="92" stroke="var(--abt-gray)" stroke-width="1.8"/><polygon points="512,92 503,87 503,97" fill="var(--abt-gray)"/>
+
+  <rect x="514" y="60" width="170" height="64" rx="10" fill="none" stroke="var(--abt-amber)" stroke-width="2.2"/>
+  <text x="599" y="84" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">③ 오라클 테스트</text>
+  <text x="599" y="102" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">양성 6 · 음성 6</text>
+  <text x="599" y="116" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">전부 통과해야 함</text>
+
+  <path d="M 599 124 L 599 160 L 357 160 L 357 128" fill="none" stroke="var(--abt-rose)" stroke-width="1.8"/>
+  <polygon points="357,128 352,137 362,137" fill="var(--abt-rose)"/>
+  <text x="478" y="152" text-anchor="middle" font-size="11" fill="var(--abt-rose)">실패 → 다시 ②</text>
+
+  <line x1="640" y1="124" x2="640" y2="200" stroke="var(--abt-green)" stroke-width="1.8"/><polygon points="640,200 635,191 645,191" fill="var(--abt-green)"/>
+  <text x="683" y="165" text-anchor="middle" font-size="11" fill="var(--abt-green)">전부 통과</text>
+
+  <rect x="420" y="202" width="264" height="58" rx="10" fill="none" stroke="var(--abt-green)" stroke-width="2.2"/>
+  <text x="552" y="225" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">④ 사람: 코드 리뷰 → CI 배치</text>
+  <text x="552" y="245" text-anchor="middle" font-size="10.5" fill="var(--abt-gray)">이후 모든 PR에서 결정적으로 동작</text>
+
+  <text x="180" y="225" font-size="12" font-weight="700" fill="currentColor">사람이 만드는 건 판정 기준,</text>
+  <text x="180" y="245" font-size="12" font-weight="700" fill="currentColor">에이전트가 만드는 건 구현.</text>
+</svg>
+<figcaption>그림 3. 사양과 오라클은 사람이, 구현은 에이전트가. 오라클을 에이전트 손이 닿지 않는 곳에 두는 것이 신뢰의 원천이다.</figcaption>
+</figure>
+
+<h2 id="sec-6">6. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>도구 검증을 건너뛰기.</strong> 가장 위험한 실수입니다. 도구가 틀리면 그 위에서 내린 모든 결론이 함께 틀립니다. 도구를 만들기 <em>전에</em> 테스트 오라클부터 만들고, 오라클은 에이전트가 수정하지 못하게 하세요.</li>
+  <li><strong>범위 과욕.</strong> "모든 경우를 다루는" 도구를 시키면 에이전트는 조용히 틀리는 코드를 만들어 옵니다. Trail of Bits가 디컴파일러를 부분집합으로 좁힌 것처럼, "확실한 범위 + 나머지는 못 다룬다고 명시"가 감사·검증용 도구의 정답입니다.</li>
+  <li><strong>판단과 구현을 한 번에 맡기기.</strong> "뭘 검사할지"(판단)와 "어떻게 검사할지"(구현)를 분리하세요. 판단까지 에이전트에 맡기면 그럴듯하지만 팀 상황과 어긋난 규칙이 조용히 코드베이스를 지배하게 됩니다.</li>
+  <li><strong>일회용이라고 문서 생략.</strong> <code>AGENTS.md</code>(또는 <code>CLAUDE.md</code>) 한 장이면 다음에 투입되는 에이전트의 온보딩 비용이 크게 줄어듭니다. 일회용 도구가 의외로 오래 살아남는 건 어느 팀이나 같습니다.</li>
+  <li><strong>"AI가 1위" 지표를 액면 그대로 믿기.</strong> XBOW의 HackerOne 1위는 2025년 2분기, 평판 점수 기준이라는 <a href="https://blog.raw.pm/en/about-the-hype-around-xbow/" target="_blank" rel="noopener">맥락이 붙어 있습니다</a>. 도구든 에이전트든, 성과 지표는 측정 조건까지 확인하는 습관을 들이세요.</li>
+  <li><strong>비용 계산 생략.</strong> 6개월간 에이전트를 굴리는 것도 공짜가 아닙니다. 다만 재사용 가능한 도구는 비용이 감사 한 건이 아니라 이후 모든 감사에 분산됩니다. "이 도구를 두 번 이상 쓸까?"가 좋은 판단 기준입니다.</li>
+</ul>
+
+<h2 id="sec-7">7. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Trail of Bits는 Miden VM 감사를 앞두고 에이전트에게 6개월간 <strong>LSP 서버, 디컴파일러, 정적 분석 엔진, Lean 형식 모델(기계 검증 증명 95개)</strong>을 만들게 했고, 이 도구들이 Falcon 서명 위조로 이어질 수 있는 실제 버그를 잡는 데 기여했습니다.</li>
+  <li>변한 것은 AI의 완벽함이 아니라 <strong>경제학</strong>입니다. '충분히 좋은' 에이전트가 가벼운 감독으로 도구 프로젝트를 완주하게 되면서, 예전엔 수지가 안 맞던 맞춤 도구(bespoke tooling)가 "할 만한 일"이 됐습니다.</li>
+  <li>핵심 원칙 세 가지: <strong>조용히 틀리는 전체보다 정확한 부분집합</strong>, 에이전트의 확률적 판단을 <strong>결정적인 도구로 굳히기</strong>, 도구 프로젝트 자체를 <strong>에이전트 친화적으로</strong>(AGENTS.md·아키텍처 문서) 만들기.</li>
+  <li>실전 적용은 작게: 팀 규칙 하나를 고른 뒤, <strong>사양 + 수정 불가능한 테스트 오라클</strong>을 사람이 만들고 구현만 에이전트에게 맡겨 CI에 배치하세요.</li>
+  <li>에이전트에게 물은 답은 세션과 함께 사라지지만, 에이전트가 만든 도구는 팀의 자산으로 남습니다. <strong>"버그 찾아줘"보다 "버그 찾는 도구를 만들어줘"가 남는 장사</strong>인 이유입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://blog.trailofbits.com/2026/09/18/auditing-in-the-age-of-good-enough-ai/" target="_blank" rel="noopener">Trail of Bits — Auditing in the age of (good enough) AI (2026-09-18)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49793957" target="_blank" rel="noopener">Hacker News 토론 — Security auditing in the age of (good enough) AI (2026-09)</a></li>
+  <li><a href="https://github.com/trailofbits/masm-lsp" target="_blank" rel="noopener">GitHub — trailofbits/masm-lsp (MASM용 LSP 서버)</a></li>
+  <li><a href="https://github.com/trailofbits/masm-decompiler" target="_blank" rel="noopener">GitHub — trailofbits/masm-decompiler (MASM 디컴파일러)</a></li>
+  <li><a href="https://blog.trailofbits.com/2026/03/31/how-we-made-trail-of-bits-ai-native-so-far/" target="_blank" rel="noopener">Trail of Bits — How we made Trail of Bits AI-native (so far) (2026-03-31)</a></li>
+  <li><a href="https://github.com/trailofbits/skills" target="_blank" rel="noopener">GitHub — trailofbits/skills (Trail of Bits의 Claude Code 보안 스킬 모음)</a></li>
+  <li><a href="https://github.com/0xPolygonMiden" target="_blank" rel="noopener">GitHub — Polygon Miden (Miden VM 공식 저장소)</a></li>
+  <li><a href="https://thehackernews.com/2025/07/google-ai-big-sleep-stops-exploitation.html" target="_blank" rel="noopener">The Hacker News — Google AI "Big Sleep" Stops Exploitation of Critical SQLite Vulnerability (CVE-2025-6965, 2025-07)</a></li>
+  <li><a href="https://xbow.com/blog/top-1-how-xbow-did-it" target="_blank" rel="noopener">XBOW — How XBOW Ranked #1 in Autonomous Penetration Testing (2025)</a></li>
+  <li><a href="https://blog.raw.pm/en/about-the-hype-around-xbow/" target="_blank" rel="noopener">Rawsec — About the hype around XBOW (지표 해석 주의점)</a></li>
+  <li><a href="https://github.com/MBK-fr/awesome-security-agent-harnesses" target="_blank" rel="noopener">GitHub — awesome-security-agent-harnesses (보안 에이전트 도구 모음)</a></li>
+</ul>
+
+<p><em>※ 참고 자료는 모두 영어 자료입니다.</em></p>

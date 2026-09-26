@@ -1,0 +1,70 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽은 에이전트에게 버그를 직접 찾게 해 확률적인 답을 받는 모습, 오른쪽은 에이전트에게 LSP·디컴파일러·정적 분석·Lean 증명 같은 도구를 만들게 하고 그 도구가 결정적으로 버그를 찾아내는 모습을 대비한 그림.">
+  <defs>
+    <linearGradient id="abtbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <marker id="abtarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#94a3b8"/>
+    </marker>
+    <marker id="abtarrowg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#4ade80"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#abtbg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="40" font-weight="800">버그를 찾지 말고, 버그 찾는 도구를 만들게 하라</text>
+  <text x="600" y="122" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="22">에이전트가 6개월간 지은 맞춤 도구(bespoke tooling)의 감사 엔지니어링</text>
+
+  <line x1="600" y1="160" x2="600" y2="560" stroke="#334155" stroke-width="2" stroke-dasharray="6 8"/>
+
+  <!-- 왼쪽: 버그 직접 찾기 -->
+  <text x="310" y="200" text-anchor="middle" fill="#fb7185" font-family="system-ui,sans-serif" font-size="23" font-weight="700">"버그 찾아줘"</text>
+  <text x="310" y="230" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="16">에이전트가 직접 판단 — 확률적, 매번 다름</text>
+
+  <rect x="200" y="265" width="220" height="66" rx="12" fill="#1e293b" stroke="#fb7185" stroke-width="2"/>
+  <text x="310" y="298" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="19" font-weight="700">에이전트</text>
+  <text x="310" y="320" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="13">코드 전체를 읽고 추측</text>
+
+  <line x1="310" y1="331" x2="310" y2="392" stroke="#94a3b8" stroke-width="2" marker-end="url(#abtarrow)"/>
+
+  <g font-family="system-ui,sans-serif">
+    <rect x="150" y="400" width="150" height="52" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <text x="225" y="426" text-anchor="middle" fill="#cbd5e1" font-size="15">"버그일 수도?"</text>
+    <text x="225" y="444" text-anchor="middle" fill="#64748b" font-size="12">근거 재현 어려움</text>
+    <rect x="320" y="400" width="150" height="52" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <text x="395" y="426" text-anchor="middle" fill="#cbd5e1" font-size="15">"없는 것 같음"</text>
+    <text x="395" y="444" text-anchor="middle" fill="#64748b" font-size="12">다시 물으면 딴 답</text>
+  </g>
+  <text x="310" y="510" text-anchor="middle" fill="#fb7185" font-family="system-ui,sans-serif" font-size="17" font-weight="700">판단이 사라지고 나면 남는 게 없다</text>
+
+  <!-- 오른쪽: 도구 만들기 -->
+  <text x="890" y="200" text-anchor="middle" fill="#4ade80" font-family="system-ui,sans-serif" font-size="23" font-weight="700">"도구를 만들어줘"</text>
+  <text x="890" y="230" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="16">에이전트가 도구를 짓고 — 도구는 결정적</text>
+
+  <rect x="780" y="255" width="220" height="52" rx="12" fill="#1e293b" stroke="#4ade80" stroke-width="2"/>
+  <text x="890" y="287" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="19" font-weight="700">에이전트</text>
+
+  <line x1="890" y1="307" x2="890" y2="345" stroke="#4ade80" stroke-width="2" marker-end="url(#abtarrowg)"/>
+
+  <g font-family="ui-monospace,monospace" font-size="14" font-weight="700">
+    <rect x="662" y="352" width="108" height="44" rx="9" fill="#1e293b" stroke="#38bdf8" stroke-width="1.8"/>
+    <text x="716" y="379" text-anchor="middle" fill="#e2e8f0">LSP</text>
+    <rect x="778" y="352" width="108" height="44" rx="9" fill="#1e293b" stroke="#38bdf8" stroke-width="1.8"/>
+    <text x="832" y="379" text-anchor="middle" fill="#e2e8f0">디컴파일러</text>
+    <rect x="894" y="352" width="108" height="44" rx="9" fill="#1e293b" stroke="#38bdf8" stroke-width="1.8"/>
+    <text x="948" y="379" text-anchor="middle" fill="#e2e8f0">정적 분석</text>
+    <rect x="1010" y="352" width="108" height="44" rx="9" fill="#1e293b" stroke="#38bdf8" stroke-width="1.8"/>
+    <text x="1064" y="379" text-anchor="middle" fill="#e2e8f0">Lean 증명</text>
+  </g>
+
+  <line x1="890" y1="396" x2="890" y2="434" stroke="#4ade80" stroke-width="2" marker-end="url(#abtarrowg)"/>
+
+  <rect x="745" y="440" width="290" height="60" rx="12" fill="#14532d" stroke="#4ade80" stroke-width="2"/>
+  <text x="890" y="466" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="17" font-weight="700">실제 서명 위조 버그 발견</text>
+  <text x="890" y="488" text-anchor="middle" fill="#86efac" font-family="system-ui,sans-serif" font-size="13">같은 입력 → 같은 출력, 재현·리뷰 가능</text>
+
+  <text x="890" y="540" text-anchor="middle" fill="#4ade80" font-family="system-ui,sans-serif" font-size="17" font-weight="700">판단이 도구로 굳어져 팀의 자산이 된다</text>
+
+  <text x="600" y="600" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="15">Trail of Bits — Auditing in the age of (good enough) AI (2026-09)</text>
+</svg>

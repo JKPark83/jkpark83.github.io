@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="sans-serif">
+  <rect width="800" height="460" fill="#ffffff"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a2e">두 벤더가 자기 코드를 리뷰하는 법 — 분해 전략 비교</text>
+
+  <!-- Codex card -->
+  <rect x="24" y="52" width="368" height="368" rx="10" fill="#f0faf4" stroke="#10a37f" stroke-width="1.5"/>
+  <text x="40" y="80" font-size="15" font-weight="bold" fill="#0d8a6a">🟩 Codex — .codex/skills (dogfood)</text>
+  <text x="40" y="104" font-size="12" fill="#333">차원별 스킬 파일로 리뷰 기준을 분해,</text>
+  <text x="40" y="122" font-size="12" fill="#333">오케스트레이터가 스킬당 서브에이전트 1개 실행</text>
+
+  <rect x="40" y="138" width="336" height="34" rx="6" fill="#ffffff" stroke="#10a37f"/>
+  <text x="52" y="160" font-size="12" fill="#333">code-review (오케스트레이터, xhigh reasoning)</text>
+
+  <rect x="56" y="182" width="320" height="30" rx="6" fill="#ffffff" stroke="#b2dfd0"/>
+  <text x="68" y="202" font-size="12" fill="#333">change-size: 복잡 로직 500줄 / 총 800줄 상한</text>
+  <rect x="56" y="218" width="320" height="30" rx="6" fill="#ffffff" stroke="#b2dfd0"/>
+  <text x="68" y="238" font-size="12" fill="#333">breaking-changes: API·CLI·설정·세션 재개 표면</text>
+  <rect x="56" y="254" width="320" height="30" rx="6" fill="#ffffff" stroke="#b2dfd0"/>
+  <text x="68" y="274" font-size="12" fill="#333">testing: 에이전트 로직 변경 = 통합 테스트 필수</text>
+  <rect x="56" y="290" width="320" height="46" rx="6" fill="#fff8e6" stroke="#f39c12"/>
+  <text x="68" y="308" font-size="12" font-weight="bold" fill="#b9770e">context: 히스토리 재작성 금지 · 항목별 크기 상한</text>
+  <text x="68" y="326" font-size="12" fill="#b9770e">10K 토큰 초과 금지 · 1K+ 신규 주입은 P0 리뷰</text>
+
+  <text x="40" y="366" font-size="12" font-weight="bold" fill="#0d8a6a">포인트: 리뷰 기준이 곧 컨텍스트 엔지니어링 규칙</text>
+  <text x="40" y="388" font-size="11" fill="#777">github.com/openai/codex → .codex/skills/</text>
+
+  <!-- Claude Code card -->
+  <rect x="408" y="52" width="368" height="368" rx="10" fill="#f4f2fd" stroke="#7c6bd6" stroke-width="1.5"/>
+  <text x="424" y="80" font-size="15" font-weight="bold" fill="#5b4bc4">🟦 Claude Code — code-review 플러그인</text>
+  <text x="424" y="104" font-size="12" fill="#333">4개 병렬 에이전트가 서로 다른 관점에서 독립 감사,</text>
+  <text x="424" y="122" font-size="12" fill="#333">신뢰도 점수로 false positive 필터링</text>
+
+  <rect x="424" y="138" width="336" height="34" rx="6" fill="#ffffff" stroke="#7c6bd6"/>
+  <text x="436" y="160" font-size="12" fill="#333">/code-review (PR 요약 후 팬아웃)</text>
+
+  <rect x="440" y="182" width="320" height="30" rx="6" fill="#ffffff" stroke="#cfc8f0"/>
+  <text x="452" y="202" font-size="12" fill="#333">Agent 1·2: CLAUDE.md 가이드라인 준수 감사 ×2</text>
+  <rect x="440" y="218" width="320" height="30" rx="6" fill="#ffffff" stroke="#cfc8f0"/>
+  <text x="452" y="238" font-size="12" fill="#333">Agent 3: 변경분의 명백한 버그 스캔</text>
+  <rect x="440" y="254" width="320" height="30" rx="6" fill="#ffffff" stroke="#cfc8f0"/>
+  <text x="452" y="274" font-size="12" fill="#333">Agent 4: git blame·히스토리 기반 맥락 이슈</text>
+  <rect x="440" y="290" width="320" height="46" rx="6" fill="#fff8e6" stroke="#f39c12"/>
+  <text x="452" y="308" font-size="12" font-weight="bold" fill="#b9770e">이슈마다 0–100 신뢰도 점수 부여,</text>
+  <text x="452" y="326" font-size="12" fill="#b9770e">80 미만은 버림 → 남는 것만 보고 (--comment)</text>
+
+  <text x="424" y="366" font-size="12" font-weight="bold" fill="#5b4bc4">포인트: 중복 감사 + 임계값으로 정밀도 확보</text>
+  <text x="424" y="388" font-size="11" fill="#777">github.com/anthropics/claude-code → plugins/code-review</text>
+</svg>

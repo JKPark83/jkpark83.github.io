@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="sans-serif">
+  <rect width="800" height="480" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-09-27</text>
+
+  <!-- quadrant: security -->
+  <rect x="24" y="56" width="368" height="190" rx="10" fill="#fdecea" stroke="#e74c3c" stroke-width="1.5"/>
+  <text x="40" y="82" font-size="15" font-weight="bold" fill="#c0392b">🔒 에이전트 보안</text>
+  <text x="40" y="108" font-size="13" fill="#333">GuardSkill: 폴더 열기 전 pre-flight 스캔</text>
+  <text x="40" y="130" font-size="12" fill="#555">· GitSpawn 클래스 (git 실행 키 ~24개)</text>
+  <text x="40" y="150" font-size="12" fill="#555">· 저장소가 실어오는 .mcp.json / settings 검사</text>
+  <text x="40" y="170" font-size="12" fill="#555">· CVE-2026-45033 (Copilot CLI, bare repo)</text>
+  <text x="40" y="196" font-size="12" font-weight="bold" fill="#c0392b">액션: npx guardskill . + safe.bareRepository</text>
+
+  <!-- quadrant: open source -->
+  <rect x="408" y="56" width="368" height="190" rx="10" fill="#eaf7ee" stroke="#27ae60" stroke-width="1.5"/>
+  <text x="424" y="82" font-size="15" font-weight="bold" fill="#1e8449">🛠 오픈소스</text>
+  <text x="424" y="108" font-size="13" fill="#333">Hindsight: "기억"이 아니라 "학습"하는 메모리</text>
+  <text x="424" y="130" font-size="12" fill="#555">· retain / recall / reflect 3연산 + 메모리 뱅크</text>
+  <text x="424" y="150" font-size="12" fill="#555">· MCP 서버·LLM 래퍼 2줄 통합, MIT</text>
+  <text x="424" y="170" font-size="12" fill="#555">· LongMemEval SOTA 주장(벤더 벤치마크)</text>
+  <text x="424" y="196" font-size="12" font-weight="bold" fill="#1e8449">액션: 세션 넘어 학습이 필요한 에이전트에 시험</text>
+
+  <!-- quadrant: papers -->
+  <rect x="24" y="262" width="368" height="190" rx="10" fill="#eef2fb" stroke="#3f51b5" stroke-width="1.5"/>
+  <text x="40" y="288" font-size="15" font-weight="bold" fill="#303f9f">📚 논문</text>
+  <text x="40" y="314" font-size="13" fill="#333">IterSynth: Planner / Synthesizer 역할 분리</text>
+  <text x="40" y="334" font-size="12" fill="#555">· 8B로 5개 벤치 평균 50.7 (2609.29444)</text>
+  <text x="40" y="358" font-size="13" fill="#333">ExplorationBench: 탐색 vs 지식 회상 분리 평가</text>
+  <text x="40" y="378" font-size="12" fill="#555">· 실행 가능한 Alien World 규칙 (2609.30199)</text>
+  <text x="40" y="402" font-size="12" font-weight="bold" fill="#303f9f">액션: 딥서치 에이전트의 요약 상태를 역할로 분리</text>
+
+  <!-- quadrant: releases -->
+  <rect x="408" y="262" width="368" height="190" rx="10" fill="#fff8e6" stroke="#f39c12" stroke-width="1.5"/>
+  <text x="424" y="288" font-size="15" font-weight="bold" fill="#b9770e">🤖 릴리즈 / 종료</text>
+  <text x="424" y="314" font-size="13" fill="#333">Sora API 9/24 종료 (sora-2, sora-2-pro)</text>
+  <text x="424" y="334" font-size="12" fill="#555">· 관련 데이터 추후 영구 삭제 예정</text>
+  <text x="424" y="358" font-size="13" fill="#333">그 외 큰 모델 소식 없음</text>
+  <text x="424" y="378" font-size="12" fill="#555">· Gemini 4 임박설은 지속 관찰 (9/25 브리핑)</text>
+  <text x="424" y="402" font-size="12" font-weight="bold" fill="#b9770e">액션: 파이프라인의 Sora 의존 제거·생성물 백업</text>
+</svg>

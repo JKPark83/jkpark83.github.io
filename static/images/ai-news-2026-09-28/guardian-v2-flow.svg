@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">Codex Guardian v2 — 비동기 보안 리뷰 루프</text>
+
+  <!-- step 1 -->
+  <rect x="40" y="60" width="200" height="70" rx="10" fill="#eef4ff" stroke="#4a7dff" stroke-width="1.5"/>
+  <text x="140" y="90" text-anchor="middle" font-size="14" font-weight="700" fill="#2453c9">에이전트가 액션 계획</text>
+  <text x="140" y="110" text-anchor="middle" font-size="12" fill="#555f77">셸 명령 · 도구 호출 · 네트워크</text>
+
+  <!-- arrow -->
+  <line x1="240" y1="95" x2="296" y2="95" stroke="#8a8fa3" stroke-width="2"/>
+  <path d="M296 95 l-8 -5 v10 z" fill="#8a8fa3"/>
+
+  <!-- step 2 -->
+  <rect x="300" y="60" width="230" height="70" rx="10" fill="#fff4e8" stroke="#e8963f" stroke-width="1.5"/>
+  <text x="415" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#c26a10">비동기 분류기 (논블로킹)</text>
+  <text x="415" y="103" text-anchor="middle" font-size="12" fill="#555f77">위험도: low/medium/high/critical</text>
+  <text x="415" y="120" text-anchor="middle" font-size="12" fill="#555f77">사용자 승인 근거: high→unknown</text>
+
+  <!-- arrow -->
+  <line x1="530" y1="95" x2="586" y2="95" stroke="#8a8fa3" stroke-width="2"/>
+  <path d="M586 95 l-8 -5 v10 z" fill="#8a8fa3"/>
+
+  <!-- step 3 -->
+  <rect x="590" y="60" width="170" height="70" rx="10" fill="#fdecec" stroke="#d64545" stroke-width="1.5"/>
+  <text x="675" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="#b32d2d">high 판정 시</text>
+  <text x="675" y="108" text-anchor="middle" font-size="12" fill="#555f77">이후 액션에 블로킹 리뷰</text>
+
+  <!-- taxonomy -->
+  <text x="40" y="180" font-size="15" font-weight="700" fill="#1a1a2e">정책이 다루는 4대 위험 분류 (policy.md)</text>
+  <rect x="40" y="196" width="352" height="56" rx="8" fill="#f6f7fb" stroke="#c5c9d6"/>
+  <text x="56" y="220" font-size="13" font-weight="700" fill="#1a1a2e">① 데이터 유출 (Egress)</text>
+  <text x="56" y="240" font-size="12" fill="#555f77">민감 데이터가 신뢰 안 된 목적지로 이동하면 high</text>
+  <rect x="408" y="196" width="352" height="56" rx="8" fill="#f6f7fb" stroke="#c5c9d6"/>
+  <text x="424" y="220" font-size="13" font-weight="700" fill="#1a1a2e">② 자격증명 탐색 (Credential Probing)</text>
+  <text x="424" y="240" font-size="12" fill="#555f77">인증 실패 후 비정상 경로에서 크리덴셜 수집 시 high</text>
+  <rect x="40" y="264" width="352" height="56" rx="8" fill="#f6f7fb" stroke="#c5c9d6"/>
+  <text x="56" y="288" font-size="13" font-weight="700" fill="#1a1a2e">③ 지속적 보안 약화</text>
+  <text x="56" y="308" font-size="12" fill="#555f77">세션 밖까지 남는 광범위한 설정 완화는 deny</text>
+  <rect x="408" y="264" width="352" height="56" rx="8" fill="#f6f7fb" stroke="#c5c9d6"/>
+  <text x="424" y="288" font-size="13" font-weight="700" fill="#1a1a2e">④ 파괴적 액션</text>
+  <text x="424" y="308" font-size="12" fill="#555f77">복구 불가 삭제 · HOME 등 변수 섀도잉은 즉시 deny</text>
+
+  <!-- evidence rule -->
+  <rect x="40" y="340" width="720" height="72" rx="10" fill="#eafaf1" stroke="#2fb673" stroke-width="1.5"/>
+  <text x="56" y="366" font-size="14" font-weight="700" fill="#1d8a55">핵심 원칙: 신뢰 콘텐츠와 비신뢰 콘텐츠의 분리</text>
+  <text x="56" y="388" font-size="12.5" fill="#333d55">사용자·개발자 메시지와 AGENTS.md만 '승인 근거'가 될 수 있고, 도구 출력·스킬 지시문·어시스턴트 출력은</text>
+  <text x="56" y="405" font-size="12.5" fill="#333d55">전부 비신뢰 증거로 취급 — 비신뢰 콘텐츠는 구현 디테일은 줄 수 있어도 승인 범위를 넓힐 수 없다</text>
+</svg>

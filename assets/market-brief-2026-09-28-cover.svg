@@ -1,0 +1,34 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="트럼프 대통령이 이란의 7일 호르무즈 재개방 로드맵을 거부해 유가 반등 위험이 커진 가운데, 비트코인은 8만4,000달러대를 지켰고 수요일 PCE·마이크론 실적·분기 말과 금요일 고용보고서가 몰린 슈퍼위크가 시작된다는 것을 나타낸 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.09.28 · 나스닥 &amp; 비트코인 5분 요약 · 월요일판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">트럼프, 이란의 '7일 로드맵' 거부 — 유가의 대답은 오늘 아침 선물시장에서</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주말에 달라진 것</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">거부</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">호르무즈 봉쇄 211일째</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#facc15">8.4만$</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">BTC 뉴스에도 담담</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">이번 주 슈퍼위크</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#fbbf24">수 9/30</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">PCE·마이크론·분기말</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">금 10/2</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">9월 고용보고서</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="19" fill="#94a3b8">나스닥 관망 · 암호화폐 관망 — 포지션을 늘릴 이유는 지표 뒤에 찾습니다</text>
+</svg>

@@ -1,0 +1,48 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽은 대화 로그를 상자에 쌓아 두고 검색만 반복하는 저장형 메모리, 오른쪽은 사실을 통합해 관찰과 믿음으로 승격시키는 학습형 메모리를 대비한 그림.">
+  <defs>
+    <linearGradient id="hambg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#14532d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#hambg)"/>
+
+  <text x="600" y="80" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">저장만 하는 메모리는 배우지 못한다</text>
+  <text x="600" y="124" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="23">GitHub 1위 Hindsight — retain · recall · reflect로 보는 학습하는 에이전트 메모리</text>
+
+  <line x1="600" y1="168" x2="600" y2="556" stroke="#334155" stroke-width="2" stroke-dasharray="6 8"/>
+
+  <!-- 왼쪽: 저장형 -->
+  <text x="310" y="210" text-anchor="middle" fill="#fb7185" font-family="system-ui,sans-serif" font-size="24" font-weight="700">저장하는 메모리</text>
+  <text x="310" y="241" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="17">로그를 쌓고, 질문마다 검색만 반복</text>
+
+  <g font-family="system-ui,sans-serif" font-size="16" fill="#cbd5e1">
+    <rect x="130" y="272" width="360" height="42" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="310" y="299" text-anchor="middle">"사용자는 Python을 선호한다"</text>
+    <rect x="130" y="326" width="360" height="42" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="310" y="353" text-anchor="middle">"파이썬을 좋아한다고 말함" (중복)</text>
+    <rect x="130" y="380" width="360" height="42" rx="8" fill="#1e293b" stroke="#fb7185" stroke-width="2"/>
+    <text x="310" y="407" text-anchor="middle" fill="#fb7185">"회사 A 재직" vs "회사 B 이직" (모순)</text>
+    <rect x="130" y="434" width="360" height="42" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="310" y="461" text-anchor="middle" fill="#64748b">... 그대로 무한히 쌓임 ...</text>
+  </g>
+  <text x="310" y="530" text-anchor="middle" fill="#fb7185" font-family="system-ui,sans-serif" font-size="19" font-weight="700">기억은 있는데, 아는 것이 없다</text>
+
+  <!-- 오른쪽: 학습형 -->
+  <text x="890" y="210" text-anchor="middle" fill="#4ade80" font-family="system-ui,sans-serif" font-size="24" font-weight="700">학습하는 메모리</text>
+  <text x="890" y="241" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="17">배경 통합으로 사실을 지식·믿음으로 승격</text>
+
+  <g font-family="system-ui,sans-serif" font-size="16">
+    <rect x="710" y="272" width="360" height="44" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="890" y="300" text-anchor="middle" fill="#7dd3fc">World — 검증된 사실 (모순은 해소)</text>
+    <rect x="710" y="330" width="360" height="44" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="890" y="358" text-anchor="middle" fill="#7dd3fc">Experience — 1인칭 경험 기록</text>
+    <rect x="710" y="388" width="360" height="44" rx="8" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+    <text x="890" y="416" text-anchor="middle" fill="#c4b5fd">Observation — 통합된 종합 요약</text>
+    <rect x="710" y="446" width="360" height="44" rx="8" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+    <text x="890" y="474" text-anchor="middle" fill="#c4b5fd">Opinion — 확신도 붙은 믿음</text>
+  </g>
+  <text x="890" y="530" text-anchor="middle" fill="#4ade80" font-family="system-ui,sans-serif" font-size="19" font-weight="700">쌓일수록 답이 정리되어 간다</text>
+
+  <text x="600" y="596" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="17">vectorize-io/hindsight · MIT · 이번 주 GitHub 트렌딩 1위</text>
+</svg>

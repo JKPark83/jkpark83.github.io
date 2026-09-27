@@ -1,0 +1,417 @@
+---
+title: "저장만 하는 메모리는 배우지 못한다 — GitHub 1위 Hindsight로 보는 '학습하는 에이전트 메모리'"
+date: 2026-09-28T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트 메모리", "Hindsight", "메모리 통합", "LongMemEval", "LoCoMo", "Mem0", "Zep", "RAG", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 GitHub 트렌딩 1위는 에이전트 메모리 시스템 Hindsight였습니다. 9월 25일 28,000개 수준이던 스타가 사흘 만에 37,000개를 넘었습니다. 구호는 '기억하는 메모리가 아니라 학습하는 메모리'. 대화 로그를 임베딩해 두고 검색만 하는 기존 방식과 무엇이 다른 걸까요? 이 글에서는 Hindsight의 네 가지 메모리 네트워크(World/Experience/Observation/Opinion), retain·recall·reflect 세 연산, 그리고 0.9.0의 knowledge pages까지 아키텍처를 뜯어보고, LongMemEval 83.6%·LoCoMo 85.67% 같은 벤치마크 숫자를 '어떻게 걸러 읽어야 하는지'까지 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "hindsight-agent-memory-learns-cover.svg"
+  alt: "왼쪽은 대화 로그를 쌓아두고 검색만 반복하는 저장형 메모리, 오른쪽은 사실을 통합해 믿음과 지식으로 승격시키는 학습형 메모리를 대비한 그림"
+  caption: "기억과 학습은 다르다 — 이번 주 GitHub이 주목한 차이"
+  relative: false
+---
+
+<style>
+/* ── Hindsight 에이전트 메모리 포스트 전용 스타일 (ham- 접두사) ── */
+.ham-fig{
+  --ham-green:#16a34a; --ham-rose:#e11d48; --ham-amber:#d97706; --ham-sky:#0284c7;
+  --ham-violet:#7c3aed; --ham-slate:#64748b; --ham-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .ham-fig{
+  --ham-green:#4ade80; --ham-rose:#fb7185; --ham-amber:#fbbf24; --ham-sky:#38bdf8;
+  --ham-violet:#a78bfa; --ham-slate:#94a3b8; --ham-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .ham-fig{
+    --ham-green:#4ade80; --ham-rose:#fb7185; --ham-amber:#fbbf24; --ham-sky:#38bdf8;
+    --ham-violet:#a78bfa; --ham-slate:#94a3b8; --ham-gray:#64748b;
+  }
+}
+.ham-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.ham-fig text{font-family:inherit}
+.ham-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.ham-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.ham-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.ham-toc ol{margin:0;padding-left:1.25rem}
+.ham-toc li{margin:.22rem 0;font-size:.95rem}
+.ham-toc a{text-decoration:none}
+.ham-toc a:hover{text-decoration:underline}
+.ham-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.ham-table th,.ham-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.ham-table th{background:var(--entry)}
+.ham-note{border-left:4px solid var(--ham-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="ham-toc">
+  <div class="ham-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 이번 주 GitHub 1위, 왜 하필 메모리인가</a></li>
+    <li><a href="#sec-2">배경 — '저장하는 메모리'는 어디서 막히나</a></li>
+    <li><a href="#sec-3">네 개의 메모리 네트워크 — 사실·경험·요약·믿음을 분리하다</a></li>
+    <li><a href="#sec-4">세 가지 연산 — retain, recall, reflect</a></li>
+    <li><a href="#sec-5">knowledge pages — 메모리 뱅크가 스스로 쓰는 위키</a></li>
+    <li><a href="#sec-6">숫자 읽기 — 벤치마크 결과와 걸러 읽는 법</a></li>
+    <li><a href="#sec-7">실전 — 10분 만에 돌려 보기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 이번 주 GitHub 1위, 왜 하필 메모리인가</h2>
+
+<p>이번 주 GitHub 트렌딩 1위는 신형 모델도, 새 코딩 에이전트도 아니었습니다. <a href="https://github.com/vectorize-io/hindsight" target="_blank" rel="noopener">vectorize-io/hindsight</a> — 에이전트 메모리 시스템입니다. 9월 25일 하루에만 스타 1,668개가 붙으며 전체 트렌딩 1위에 올랐고, 26일에도 하루 2,400개 안팎을 더하며 1위를 지켰습니다. 25일 28,000개 수준이던 스타가 이 글을 쓰는 시점엔 37,000개를 넘어섰습니다.</p>
+
+<p>타이밍이 흥미롭습니다. 최근 몇 주 실무자 커뮤니티의 화두는 "코딩 에이전트의 경쟁력은 이제 어떤 모델을 부르느냐가 아니라, <strong>세션 사이에 무엇을 기억하느냐</strong>"라는 쪽으로 기울고 있습니다. 컨텍스트 윈도우는 계속 커지는데, 매 세션 처음부터 다시 시작하는 에이전트의 건망증은 그대로이기 때문입니다.</p>
+
+<p>Hindsight의 구호는 이 지점을 정확히 찌릅니다. <strong>"기억하는(remember) 메모리가 아니라 학습하는(learn) 메모리"</strong>. 대화를 임베딩해 두고 필요할 때 꺼내 주는 것만으로는 부족하고, 쌓인 사실을 스스로 정리해 믿음과 지식으로 승격시켜야 한다는 주장입니다. 이 글에서는 그 주장이 아키텍처로 어떻게 구현됐는지 — 네 개의 메모리 네트워크, retain·recall·reflect 세 연산, 그리고 메모리가 스스로 문서를 쓰는 knowledge pages까지 — 하나씩 뜯어봅니다. 마지막에는 "역대 최고 정확도" 같은 벤치마크 주장을 어떻게 걸러 읽어야 하는지도 다룹니다.</p>
+
+<div class="ham-note">
+이 블로그에서 에이전트 메모리를 처음 접한다면 <a href="/posts/agent-memory-engineering/">에이전트 메모리 기초</a> 편을, 통합(consolidation) 연구 쪽 배경이 궁금하다면 <a href="/posts/agent-memory-consolidation-substrates/">메모리 통합과 substrate 선택</a> 편을 먼저 읽으면 이 글이 더 잘 읽힙니다. 오늘 글은 그 개념들이 실제 오픈소스 제품에서 어떤 모습으로 조립됐는지에 집중합니다.
+</div>
+
+<h2 id="sec-2">2. 배경 — '저장하는 메모리'는 어디서 막히나</h2>
+
+<p>에이전트에 장기 기억을 붙이는 가장 흔한 방법은 사실상 RAG(retrieval-augmented generation) 파이프라인의 재활용입니다. 대화가 끝나면 로그(또는 로그에서 추출한 사실 문장)를 임베딩해 벡터 DB에 넣고, 다음 세션에서 질문이 오면 유사한 조각을 top-k로 검색해 프롬프트에 끼워 넣습니다. Mem0 같은 대표적인 메모리 레이어의 기본 동작이 이 계열이고, 실제로 "지난번에 말한 내 알레르기가 뭐였지?" 같은 <em>조회형</em> 질문에는 잘 통합니다.</p>
+
+<p>문제는 메모리가 쌓일수록 드러납니다. 세 가지가 특히 아픕니다.</p>
+
+<ul>
+  <li><strong>중복이 쌓입니다.</strong> "사용자는 Python을 선호한다"는 사실이 표현만 바뀌어 수십 번 저장됩니다. 검색 결과 top-k가 같은 얘기의 변주로 가득 차면, 정작 필요한 다른 정보가 밀려납니다.</li>
+  <li><strong>모순이 방치됩니다.</strong> 3월에는 "스타트업 A에 다닌다", 9월에는 "회사 B로 이직했다"가 둘 다 저장돼 있고, 어느 쪽이 현재인지 판단하는 일은 통째로 LLM에게 떠넘겨집니다.</li>
+  <li><strong>종합이 안 됩니다.</strong> "우리 팀 에러 처리 컨벤션이 뭐지?" 같은 질문의 답은 어느 한 조각에도 없습니다. 수십 개 세션에 흩어진 결정들을 <em>요약·일반화</em>해야 나오는 답인데, 검색은 조각을 가져올 뿐 조각을 합쳐 주지 않습니다.</li>
+</ul>
+
+<p>사람의 기억은 이렇게 동작하지 않습니다. 우리는 경험을 원문 그대로 쌓아 두지 않고, 자는 동안·쉬는 동안 그것을 일반화된 지식과 믿음으로 통합합니다. "저장하는 메모리"와 "학습하는 메모리"의 차이가 바로 여기에 있고, Hindsight는 이 통합 과정을 시스템의 1급 시민으로 설계한 경우입니다.</p>
+
+<figure class="ham-fig">
+<svg viewBox="0 0 760 470" role="img" aria-label="저장형 메모리와 학습형 메모리를 비교하는 다이어그램. 위쪽 저장형은 대화 로그를 임베딩해 벡터 DB에 쌓고 질문마다 top-k 검색을 반복해 중복과 모순이 그대로 전달된다. 아래쪽 학습형은 retain으로 사실을 추출하고 배경 통합을 거쳐 observation과 mental model로 승격시켜 정리된 답을 준다.">
+  <text x="380" y="26" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">저장하는 메모리 vs 학습하는 메모리</text>
+
+  <!-- 상단: 저장형 -->
+  <text x="30" y="60" font-size="13.5" font-weight="700" fill="var(--ham-rose)">저장형: 쌓고, 매번 검색만 한다</text>
+  <g font-size="12" font-weight="700">
+    <rect x="30" y="76" width="120" height="46" rx="8" fill="none" stroke="var(--ham-slate)" stroke-width="2"/>
+    <text x="90" y="96" text-anchor="middle" fill="currentColor">대화 로그</text>
+    <text x="90" y="113" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">원문 그대로</text>
+
+    <rect x="200" y="76" width="120" height="46" rx="8" fill="none" stroke="var(--ham-slate)" stroke-width="2"/>
+    <text x="260" y="96" text-anchor="middle" fill="currentColor">임베딩</text>
+    <text x="260" y="113" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">벡터 변환</text>
+
+    <rect x="370" y="76" width="130" height="46" rx="8" fill="none" stroke="var(--ham-rose)" stroke-width="2.2"/>
+    <text x="435" y="96" text-anchor="middle" fill="currentColor">벡터 DB</text>
+    <text x="435" y="113" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">중복·모순 누적</text>
+
+    <rect x="550" y="76" width="180" height="46" rx="8" fill="none" stroke="var(--ham-slate)" stroke-width="2"/>
+    <text x="640" y="96" text-anchor="middle" fill="currentColor">질문마다 top-k 검색</text>
+    <text x="640" y="113" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">정리는 LLM에게 떠넘김</text>
+  </g>
+  <g stroke="var(--ham-slate)" stroke-width="1.8" fill="none">
+    <path d="M 150 99 L 196 99"/><path d="M 190 94 l 8 5 l -8 5 z" fill="var(--ham-slate)" stroke="none"/>
+    <path d="M 320 99 L 366 99"/><path d="M 360 94 l 8 5 l -8 5 z" fill="var(--ham-slate)" stroke="none"/>
+    <path d="M 500 99 L 546 99"/><path d="M 540 94 l 8 5 l -8 5 z" fill="var(--ham-slate)" stroke="none"/>
+  </g>
+  <text x="380" y="152" text-anchor="middle" font-size="11.5" fill="var(--ham-gray)">"팀 에러 처리 컨벤션은?" → 조각 20개 반환, 종합은 못 함</text>
+
+  <line x1="30" y1="176" x2="730" y2="176" stroke="var(--ham-slate)" stroke-width="1" stroke-dasharray="4 6"/>
+
+  <!-- 하단: 학습형 -->
+  <text x="30" y="206" font-size="13.5" font-weight="700" fill="var(--ham-green)">학습형(Hindsight): 쌓은 것을 배경에서 지식으로 승격시킨다</text>
+  <g font-size="12" font-weight="700">
+    <rect x="30" y="224" width="130" height="50" rx="8" fill="none" stroke="var(--ham-slate)" stroke-width="2"/>
+    <text x="95" y="245" text-anchor="middle" fill="currentColor">retain</text>
+    <text x="95" y="262" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">LLM으로 사실 추출</text>
+
+    <rect x="210" y="224" width="150" height="50" rx="8" fill="none" stroke="var(--ham-amber)" stroke-width="2.2"/>
+    <text x="285" y="245" text-anchor="middle" fill="currentColor">통합 (배경 작업)</text>
+    <text x="285" y="262" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">중복 제거·모순 조정</text>
+
+    <rect x="410" y="200" width="150" height="44" rx="8" fill="none" stroke="var(--ham-sky)" stroke-width="2.2"/>
+    <text x="485" y="219" text-anchor="middle" fill="currentColor">observation</text>
+    <text x="485" y="235" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">근거 있는 종합 요약</text>
+
+    <rect x="410" y="256" width="150" height="44" rx="8" fill="none" stroke="var(--ham-violet)" stroke-width="2.2"/>
+    <text x="485" y="275" text-anchor="middle" fill="currentColor">mental model</text>
+    <text x="485" y="291" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">미리 써 둔 표준 답변</text>
+
+    <rect x="610" y="224" width="120" height="50" rx="8" fill="none" stroke="var(--ham-green)" stroke-width="2.4"/>
+    <text x="670" y="245" text-anchor="middle" fill="var(--ham-green)">recall / reflect</text>
+    <text x="670" y="262" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">정리된 답 즉시 제공</text>
+  </g>
+  <g stroke="var(--ham-slate)" stroke-width="1.8" fill="none">
+    <path d="M 160 249 L 206 249"/><path d="M 200 244 l 8 5 l -8 5 z" fill="var(--ham-slate)" stroke="none"/>
+    <path d="M 360 240 L 406 226"/><path d="M 399 223 l 9 2 l -6 8 z" fill="var(--ham-slate)" stroke="none"/>
+    <path d="M 360 260 L 406 274"/><path d="M 400 267 l 8 6 l -10 3 z" fill="var(--ham-slate)" stroke="none"/>
+    <path d="M 560 226 L 606 242"/><path d="M 599 235 l 9 6 l -11 3 z" fill="var(--ham-slate)" stroke="none"/>
+    <path d="M 560 274 L 606 258"/><path d="M 598 255 l 10 -1 l -5 9 z" fill="var(--ham-slate)" stroke="none"/>
+  </g>
+
+  <rect x="30" y="330" width="700" height="66" rx="10" fill="none" stroke="var(--ham-green)" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="380" y="356" text-anchor="middle" font-size="11.5" fill="currentColor">같은 질문 → "컨벤션은 sentry 래퍼 + 도메인 예외 계층입니다. 근거: 6월 3일·8월 12일 세션 결정"</text>
+  <text x="380" y="378" text-anchor="middle" font-size="11.5" fill="var(--ham-gray)">답이 검색 시점이 아니라 저장 이후 배경 통합 단계에서 이미 만들어져 있음</text>
+
+  <text x="380" y="436" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ham-gray)">저장형은 원문을 보관하고, 학습형은 원문에서 지식을 만든다</text>
+</svg>
+<figcaption>그림 1. 저장형 메모리는 질문 시점에 조각을 검색해 LLM에 떠넘기지만, 학습형 메모리는 저장 이후 배경에서 통합을 돌려 정리된 지식을 미리 만들어 둡니다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 네 개의 메모리 네트워크 — 사실·경험·요약·믿음을 분리하다</h2>
+
+<p>Hindsight는 Vectorize가 2025년 12월 16일 MIT 라이선스로 공개한 오픈소스입니다. 설계 근거는 기술 보고서 <a href="https://arxiv.org/abs/2512.12818" target="_blank" rel="noopener">"Hindsight is 20/20: Building Agent Memory that Retains, Recalls, and Reflects"</a>(Virginia Tech 연구진과 공동)에 정리돼 있습니다. 핵심 아이디어는 메모리를 한 덩어리 저장소가 아니라, 성격이 다른 <strong>네 개의 논리적 네트워크</strong>로 분리하는 것입니다.</p>
+
+<table class="ham-table">
+  <tr><th>네트워크</th><th>담는 것</th><th>예시</th></tr>
+  <tr><td><strong>World</strong> (세계)</td><td>에이전트 관점과 무관한 객관적 사실</td><td>"Alice는 Google의 소프트웨어 엔지니어다"</td></tr>
+  <tr><td><strong>Experience</strong> (경험)</td><td>에이전트 자신의 행동·상호작용, 1인칭 기록</td><td>"나는 어제 배포 스크립트 버그를 고쳐 줬다"</td></tr>
+  <tr><td><strong>Observation</strong> (관찰)</td><td>여러 사실을 통합해 만든 개체별 종합 요약</td><td>"Alice는 인프라 자동화에 관심이 많고 Python을 주로 쓴다"</td></tr>
+  <tr><td><strong>Opinion</strong> (의견)</td><td>확신도(confidence)와 타임스탬프가 붙은, 시간에 따라 변하는 믿음</td><td>"이 프로젝트는 테스트 커버리지가 부족하다 (확신도 0.8)"</td></tr>
+</table>
+
+<p>왜 굳이 나눌까요? 성격이 다른 기억은 <strong>수명과 갱신 규칙이 다르기 때문</strong>입니다. 객관적 사실은 새 증거가 오면 교체되면 되고, 경험은 시간순 기록이라 덮어쓰면 안 되고, 의견은 증거가 쌓이면 확신도가 오르내려야 합니다. 이걸 한 벡터 DB에 뭉뚱그리면 "이직했다"는 새 사실이 옛 사실을 밀어내지 못하고 나란히 공존하는, 2절의 모순 문제가 그대로 재현됩니다. 인지과학에서 말하는 의미 기억·일화 기억 구분을 공학적으로 흉내 냈다고 보면 이해가 빠릅니다.</p>
+
+<p>저장소 자체는 특별하지 않습니다. PostgreSQL + pgvector 위에 네 네트워크를 올리고, 벡터·키워드·그래프(개체와 시간 링크) 인덱스를 함께 유지합니다. 그리고 모든 데이터는 <strong>bank</strong>라는 격리 단위에 속합니다. bank 하나가 사용자 한 명, 에이전트 하나, 프로젝트 하나의 "뇌"이고, bank 사이에는 데이터가 새지 않습니다.</p>
+
+<h2 id="sec-4">4. 세 가지 연산 — retain, recall, reflect</h2>
+
+<p>네트워크가 그릇이라면, 연산은 그 그릇을 다루는 동사입니다. Hindsight의 API는 딱 세 개의 동사로 요약됩니다.</p>
+
+<h3>retain — 원문이 아니라 사실을 저장한다</h3>
+
+<p><code>retain</code>에 텍스트를 넘기면 원문이 그대로 저장되는 게 아닙니다. LLM이 텍스트에서 <strong>사실, 개체(entity), 개체 간 관계, 시간 정보</strong>를 추출하고 정규화된 표현으로 바꿔 네 네트워크에 나눠 적습니다. 여기서 첫 번째 트레이드오프가 나옵니다. 쓰기 한 번마다 LLM 호출이 들어가므로, 저장형 메모리보다 <strong>쓰기 비용이 비쌉니다</strong>. 대신 읽기 시점의 품질을 미리 사 두는 구조입니다.</p>
+
+<h3>recall — 네 갈래 검색을 합쳐 돌려준다</h3>
+
+<p><code>recall</code>은 빠른 조회용입니다. 한 번의 호출로 네 가지 검색이 병렬로 돕니다: 의미 검색(벡터 유사도), 키워드 검색(BM25), 그래프 검색(개체·시간 링크 추적), 시간 필터링. 결과는 RRF(reciprocal rank fusion)로 합쳐 리랭킹합니다. 하이브리드 검색 + RRF는 <a href="/posts/reranking-two-stage-retrieval/">2단계 검색</a>에서 다룬 그 패턴인데, 여기에 그래프·시간 축이 추가된 형태입니다. "작년 3월에 Alice가 뭐라고 했지?" 같은 질문은 벡터 유사도만으로는 잘 안 잡히기 때문입니다.</p>
+
+<h3>reflect — 조회가 아니라 숙고</h3>
+
+<p><code>reflect</code>가 Hindsight의 차별점입니다. 단순 조회로 답할 수 없는 질문 — "Alice에 대해 아는 걸 정리해 줘", "이 프로젝트의 위험 요소는?" — 을 받으면, 메모리를 넓게 모아 연결 짓고 종합해 답을 <em>생성</em>합니다. 이때 소스를 우선순위대로 뒤집니다: <strong>mental model → observation → 원시 사실</strong> 순서입니다.</p>
+
+<p>mental model은 "bank에 대한 특정 질문의 상비(standing) 답변"입니다. 자주 물을 질문을 mental model로 등록해 두면 Hindsight가 reflect를 돌려 답을 저장해 두고, <strong>새 기억이 쌓일 때마다 배경에서 그 답을 다시 고쳐 씁니다</strong>. 질문 시점에 매번 조각을 모아 요약하는 대신, 답을 미리 만들어 두고 계속 최신으로 유지하는 것 — 이게 "학습하는 메모리"라는 구호의 실체입니다.</p>
+
+<figure class="ham-fig">
+<svg viewBox="0 0 760 430" role="img" aria-label="Hindsight 아키텍처 다이어그램. 왼쪽에서 retain이 LLM 추출을 거쳐 World, Experience, Observation, Opinion 네 네트워크에 기록하고, 오른쪽에서 recall은 벡터, BM25, 그래프, 시간 네 갈래 검색을 RRF로 합치며, reflect는 mental model, observation, 원시 사실 순서로 종합한다.">
+  <text x="380" y="26" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">Hindsight 한 장 요약 — 하나의 bank 내부</text>
+
+  <!-- retain -->
+  <rect x="24" y="60" width="150" height="56" rx="9" fill="none" stroke="var(--ham-amber)" stroke-width="2.2"/>
+  <text x="99" y="84" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ham-amber)">retain(content)</text>
+  <text x="99" y="102" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">LLM 추출·정규화</text>
+  <text x="99" y="136" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">사실·개체·관계·시간</text>
+
+  <!-- 4 networks -->
+  <g font-size="12" font-weight="700">
+    <rect x="250" y="52" width="200" height="40" rx="8" fill="none" stroke="var(--ham-sky)" stroke-width="2"/>
+    <text x="350" y="70" text-anchor="middle" fill="currentColor">World — 객관적 사실</text>
+    <text x="350" y="85" text-anchor="middle" font-size="10" fill="var(--ham-gray)">새 증거가 오면 교체</text>
+    <rect x="250" y="102" width="200" height="40" rx="8" fill="none" stroke="var(--ham-sky)" stroke-width="2"/>
+    <text x="350" y="120" text-anchor="middle" fill="currentColor">Experience — 1인칭 경험</text>
+    <text x="350" y="135" text-anchor="middle" font-size="10" fill="var(--ham-gray)">시간순 보존</text>
+    <rect x="250" y="152" width="200" height="40" rx="8" fill="none" stroke="var(--ham-violet)" stroke-width="2"/>
+    <text x="350" y="170" text-anchor="middle" fill="currentColor">Observation — 종합 요약</text>
+    <text x="350" y="185" text-anchor="middle" font-size="10" fill="var(--ham-gray)">통합이 만들어 냄</text>
+    <rect x="250" y="202" width="200" height="40" rx="8" fill="none" stroke="var(--ham-violet)" stroke-width="2"/>
+    <text x="350" y="220" text-anchor="middle" fill="currentColor">Opinion — 믿음</text>
+    <text x="350" y="235" text-anchor="middle" font-size="10" fill="var(--ham-gray)">확신도·타임스탬프</text>
+  </g>
+  <g stroke="var(--ham-slate)" stroke-width="1.6" fill="none">
+    <path d="M 174 78 L 246 70"/><path d="M 239 66 l 9 3 l -8 6 z" fill="var(--ham-slate)" stroke="none"/>
+    <path d="M 174 92 L 246 118"/><path d="M 238 112 l 9 5 l -11 4 z" fill="var(--ham-slate)" stroke="none"/>
+  </g>
+  <path d="M 350 92 L 350 98 M 350 142 L 350 148 M 350 192 L 350 198" stroke="var(--ham-slate)" stroke-width="1.2" fill="none"/>
+  <text x="350" y="270" text-anchor="middle" font-size="11" fill="var(--ham-gray)">PostgreSQL + pgvector · 벡터/키워드/그래프 인덱스</text>
+
+  <!-- recall -->
+  <rect x="520" y="52" width="216" height="118" rx="9" fill="none" stroke="var(--ham-green)" stroke-width="2.2"/>
+  <text x="628" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ham-green)">recall(query)</text>
+  <text x="628" y="97" text-anchor="middle" font-size="10.8" fill="currentColor">벡터 ∥ BM25 ∥ 그래프 ∥ 시간</text>
+  <text x="628" y="115" text-anchor="middle" font-size="10.8" fill="currentColor">4갈래 병렬 → RRF 융합 → 리랭킹</text>
+  <text x="628" y="140" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">빠른 조회용 — "저번에 뭐라 했지?"</text>
+
+  <!-- reflect -->
+  <rect x="520" y="192" width="216" height="128" rx="9" fill="none" stroke="var(--ham-violet)" stroke-width="2.2"/>
+  <text x="628" y="216" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ham-violet)">reflect(query)</text>
+  <text x="628" y="238" text-anchor="middle" font-size="10.8" fill="currentColor">① mental model (상비 답변)</text>
+  <text x="628" y="256" text-anchor="middle" font-size="10.8" fill="currentColor">② observation (종합 요약)</text>
+  <text x="628" y="274" text-anchor="middle" font-size="10.8" fill="currentColor">③ 원시 사실</text>
+  <text x="628" y="298" text-anchor="middle" font-size="10.5" fill="var(--ham-gray)">숙고용 — "정리해 줘 / 판단해 줘"</text>
+
+  <g stroke="var(--ham-slate)" stroke-width="1.6" fill="none">
+    <path d="M 450 100 L 516 100"/><path d="M 510 95 l 8 5 l -8 5 z" fill="var(--ham-slate)" stroke="none"/>
+    <path d="M 450 210 L 516 240"/><path d="M 508 234 l 9 6 l -11 3 z" fill="var(--ham-slate)" stroke="none"/>
+  </g>
+
+  <!-- background consolidation loop -->
+  <rect x="140" y="330" width="420" height="60" rx="10" fill="none" stroke="var(--ham-amber)" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <text x="350" y="355" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ham-amber)">배경 통합 루프</text>
+  <text x="350" y="375" text-anchor="middle" font-size="10.8" fill="var(--ham-gray)">중복 제거 · 모순 조정 · observation 갱신 · mental model 다시 쓰기</text>
+  <g stroke="var(--ham-amber)" stroke-width="1.6" fill="none">
+    <path d="M 300 246 C 260 290 240 310 230 326"/><path d="M 226 318 l 3 10 l 8 -6 z" fill="var(--ham-amber)" stroke="none"/>
+    <path d="M 470 326 C 490 300 520 280 560 262"/><path d="M 553 260 l 9 -3 l -3 10 z" fill="var(--ham-amber)" stroke="none"/>
+  </g>
+
+  <text x="380" y="418" text-anchor="middle" font-size="11.5" fill="var(--ham-gray)">읽기 품질을 쓰기·배경 작업 시점에 미리 사 두는 구조</text>
+</svg>
+<figcaption>그림 2. retain이 네 네트워크에 정규화된 기억을 적고, 배경 통합 루프가 그것을 지식으로 승격시키며, recall/reflect가 목적에 맞게 꺼내 씁니다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. knowledge pages — 메모리 뱅크가 스스로 쓰는 위키</h2>
+
+<p>올여름 0.9.0(2026년 8월 7일)에서 추가된 <strong>knowledge pages</strong>는 mental model을 한 단계 밀어붙인 기능입니다. knowledge page는 "bank가 자기 자신에 대해 쓰는 살아 있는 문서"로, 위키처럼 폴더로 조직되고 검색 가능합니다. 예를 들어 "우리 서비스의 에러 처리 컨벤션"이라는 페이지를 만들어 두면, 관련된 새 지식이 통합될 때마다 Hindsight가 문서를 통째로 재생성하는 게 아니라 <strong>해당 부분만 증분 편집</strong>합니다.</p>
+
+<p>공식 문서의 비유가 좋습니다. knowledge page는 <strong>DB의 뷰(view)</strong>에 가깝습니다. 테이블(원시 기억)이 아니라, 이미 추출·중복 제거·모순 조정이 끝난 기억 위에 투영된 화면이라는 뜻입니다. <code>AGENTS.md</code> 같은 컨텍스트 파일을 사람이 손으로 관리해 본 팀이라면 이 기능이 무엇을 자동화하려는지 바로 감이 올 겁니다. 에이전트가 일하며 배운 것이 사람이 읽을 수 있는 문서로 계속 정리되는 것이니까요. <code>hindsight fs</code>라는 CLI로 이 페이지들을 파일시스템처럼 다룰 수도 있습니다.</p>
+
+<p>릴리스 속도도 트렌딩의 배경입니다. 0.10.0(9월 14일), 0.10.1(9월 21일)이 연달아 나오면서 bank별 검색 토글, mental model 사용량 계측 같은 운영 기능이 계속 붙고 있습니다.</p>
+
+<h2 id="sec-6">6. 숫자 읽기 — 벤치마크 결과와 걸러 읽는 법</h2>
+
+<p>Hindsight가 내세우는 대표 숫자는 장기 대화 메모리 벤치마크 <a href="https://arxiv.org/abs/2410.10813" target="_blank" rel="noopener">LongMemEval</a> 결과입니다. 기술 보고서 기준으로, 오픈소스 20B 모델(gpt-oss-20b)을 백본으로 쓴 Hindsight가 <strong>전체 정확도 83.6%</strong>를 기록했습니다. 같은 20B 모델에 대화 전체를 그대로 밀어 넣은 full-context 베이스라인이 39.0%였으니 <strong>+44.6%p</strong>이고, full-context GPT-4o(60.2%)보다도 높습니다. 더 강한 백본을 쓰면 91.4%까지 올라가는데, Vectorize는 이를 "90% 선을 처음 넘은 에이전트 메모리 시스템"이라고 홍보했습니다.</p>
+
+<p>또 다른 장기 대화 벤치마크 LoCoMo에서 보고된 비교는 이렇습니다(기술 보고서의 overall 수치).</p>
+
+<figure class="ham-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="LoCoMo 벤치마크 overall 정확도 가로 막대 차트. Mem0 66.88, Mem0-Graph 68.44, Zep 75.14, Memobase 75.78, Hindsight OSS-20B 83.18, Hindsight OSS-120B 85.67, Hindsight Gemini-3 89.61 퍼센트.">
+  <text x="380" y="26" text-anchor="middle" font-size="15" font-weight="800" fill="currentColor">LoCoMo overall 정확도 (%) — Hindsight 기술 보고서 보고치</text>
+  <g font-size="12">
+    <!-- axis reference at x=200 (0%) to x=710 (100%) : 5.1px per % -->
+    <text x="190" y="66" text-anchor="end" fill="currentColor">Mem0</text>
+    <rect x="200" y="52" width="341" height="20" rx="4" fill="var(--ham-gray)"/>
+    <text x="549" y="67" font-size="11.5" font-weight="700" fill="currentColor">66.88</text>
+
+    <text x="190" y="100" text-anchor="end" fill="currentColor">Mem0-Graph</text>
+    <rect x="200" y="86" width="349" height="20" rx="4" fill="var(--ham-gray)"/>
+    <text x="557" y="101" font-size="11.5" font-weight="700" fill="currentColor">68.44</text>
+
+    <text x="190" y="134" text-anchor="end" fill="currentColor">Zep</text>
+    <rect x="200" y="120" width="383" height="20" rx="4" fill="var(--ham-slate)"/>
+    <text x="591" y="135" font-size="11.5" font-weight="700" fill="currentColor">75.14</text>
+
+    <text x="190" y="168" text-anchor="end" fill="currentColor">Memobase</text>
+    <rect x="200" y="154" width="386" height="20" rx="4" fill="var(--ham-slate)"/>
+    <text x="594" y="169" font-size="11.5" font-weight="700" fill="currentColor">75.78</text>
+
+    <text x="190" y="202" text-anchor="end" fill="currentColor">Hindsight (OSS-20B)</text>
+    <rect x="200" y="188" width="424" height="20" rx="4" fill="var(--ham-green)"/>
+    <text x="632" y="203" font-size="11.5" font-weight="700" fill="currentColor">83.18</text>
+
+    <text x="190" y="236" text-anchor="end" fill="currentColor">Hindsight (OSS-120B)</text>
+    <rect x="200" y="222" width="437" height="20" rx="4" fill="var(--ham-green)"/>
+    <text x="645" y="237" font-size="11.5" font-weight="700" fill="currentColor">85.67</text>
+
+    <text x="190" y="270" text-anchor="end" fill="currentColor">Hindsight (Gemini-3)</text>
+    <rect x="200" y="256" width="457" height="20" rx="4" fill="var(--ham-green)"/>
+    <text x="665" y="271" font-size="11.5" font-weight="700" fill="currentColor">89.61</text>
+  </g>
+  <line x1="200" y1="44" x2="200" y2="286" stroke="var(--ham-slate)" stroke-width="1"/>
+  <text x="380" y="312" text-anchor="middle" font-size="11" fill="var(--ham-gray)">출처: arXiv:2512.12818 — 벤더가 직접 수행한 평가라는 점을 감안하고 볼 것</text>
+</svg>
+<figcaption>그림 3. LoCoMo overall 정확도 비교. Hindsight 기술 보고서가 보고한 수치로, 백본 모델이 다르면 직접 비교가 어렵다는 점에 유의해야 합니다.</figcaption>
+</figure>
+
+<p>인상적인 숫자지만, 에이전트 메모리 분야의 벤치마크는 <strong>액면 그대로 믿으면 안 되는 대표적 영역</strong>입니다. 걸러 읽는 기준 세 가지를 챙기세요.</p>
+
+<ul>
+  <li><strong>전부 벤더가 직접 돌린 평가입니다.</strong> 어떤 reader 모델로 답을 만들고, 어떤 judge 모델·프롬프트로 채점하고, 검색 컨텍스트를 몇 토큰 넣는지는 벤더마다 다릅니다. 실제로 Mem0과 Zep은 서로의 LoCoMo 점수 산정을 두고 <a href="https://blog.getzep.com/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory/" target="_blank" rel="noopener">공개 설전</a>을 벌인 전력이 있고, 위 표에서 Zep이 75.14%로 나온 것도 Zep 자체 보고(더 높음)와 다릅니다. 같은 벤치마크 이름 아래 서로 다른 실험이 섞여 있는 셈입니다.</li>
+  <li><strong>LoCoMo 자체가 한계에 왔습니다.</strong> 대화 전체가 요즘 모델 컨텍스트 윈도우에 그냥 들어갈 만큼 짧아서, "다 밀어 넣기"로도 점수가 꽤 나옵니다. 메모리 아키텍처의 우열을 가리는 압력이 약해졌다는 뜻입니다.</li>
+  <li><strong>정확도만 축이 아닙니다.</strong> retain마다 LLM 호출이 들어가는 구조는 쓰기 지연·비용 축에서 불리할 수 있습니다. 여러분의 워크로드(쓰기:읽기 비율, 지연 요구)에서 직접 재기 전까지는 어떤 시스템도 "최고"가 아닙니다.</li>
+</ul>
+
+<h2 id="sec-7">7. 실전 — 10분 만에 돌려 보기</h2>
+
+<p>Docker 하나로 전체 스택(pgvector 포함)이 뜹니다. LLM 제공자는 OpenAI·Anthropic·Gemini·Ollama 등 25개 이상을 지원하니 로컬 모델로도 시험할 수 있습니다.</p>
+
+{{< highlight bash >}}
+export OPENAI_API_KEY=sk-...
+
+docker run -it --pull always --name hindsight \
+  -p 8888:8888 -p 9999:9999 \
+  -e HINDSIGHT_API_LLM_API_KEY=$OPENAI_API_KEY \
+  -v hindsight-data:/home/hindsight/.pg0 \
+  ghcr.io/vectorize-io/hindsight:latest
+{{< /highlight >}}
+
+<p>Python 클라이언트로 세 동사를 그대로 써 봅니다.</p>
+
+{{< highlight python >}}
+from hindsight_client import Hindsight
+
+client = Hindsight(base_url="http://localhost:8888")
+
+# retain: 원문이 아니라 LLM이 추출한 사실·개체·관계·시간이 저장된다
+client.retain(
+    bank_id="proj-alpha",   # bank = 프로젝트/사용자 단위로 격리된 '뇌'
+    content="회고에서 결정: 에러는 도메인 예외 계층으로 감싸고 sentry로 보낸다",
+)
+client.retain(
+    bank_id="proj-alpha",
+    content="9월 배포 장애의 원인은 재시도 로직이 멱등하지 않았던 것",
+)
+
+# recall: 4갈래(벡터·BM25·그래프·시간) 검색 + RRF — 빠른 조회
+hits = client.recall(bank_id="proj-alpha", query="배포 장애 원인이 뭐였지?")
+
+# reflect: mental model → observation → 원시 사실 순으로 종합 — 숙고형 질문
+answer = client.reflect(
+    bank_id="proj-alpha",
+    query="이 프로젝트의 에러 처리 원칙을 신규 팀원에게 설명해 줘",
+)
+{{< /highlight >}}
+
+<p>서버 없이 노트북에서 실험만 해 보고 싶다면 embedded 모드도 있습니다.</p>
+
+{{< highlight python >}}
+import os
+from hindsight import HindsightServer, HindsightClient
+
+# 프로세스 안에서 서버를 띄우는 embedded 모드 — 실험용
+with HindsightServer(
+    llm_provider="openai",
+    llm_model="gpt-4-mini",
+    llm_api_key=os.environ["OPENAI_API_KEY"],
+) as server:
+    client = HindsightClient(base_url=server.url)
+    client.retain(bank_id="scratch", content="Alice는 Google에서 일한다")
+{{< /highlight >}}
+
+<p>설계 관점의 조언 하나: <strong>bank 경계를 먼저 정하세요.</strong> 사용자별 개인화 메모리라면 bank = 사용자, 코딩 에이전트의 프로젝트 지식이라면 bank = 리포지토리가 자연스럽습니다. 경계를 넓게 잡으면(예: 전사 공용 bank) 무관한 기억이 섞여 recall 품질이 떨어지고, 사용자 데이터 격리 요구와도 충돌합니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>모든 턴을 retain하지 않기.</strong> retain은 호출마다 LLM 추출이 도는 비싼 쓰기입니다. 잡담까지 전부 넣으면 비용도 늘고 통합 파이프라인에 잡음이 쌓입니다. "결정·사실·선호가 새로 생긴 순간"에만 저장하는 게 기본기입니다.</li>
+  <li><strong>recall과 reflect를 구분해 쓰기.</strong> 단순 조회에 reflect를 쓰면 지연과 비용을 낭비하고, 종합이 필요한 질문에 recall만 쓰면 조각만 받아 놓고 "메모리가 멍청하다"고 오해하게 됩니다. 자주 묻는 종합형 질문은 mental model로 등록해 사전 계산으로 돌리세요.</li>
+  <li><strong>벤치마크 1등 = 우리 서비스 최적, 이 아닙니다.</strong> 6절에서 봤듯 벤더 자체 평가는 reader/judge 설정에 민감합니다. 여러분의 실제 트래픽에서 뽑은 질문 20~30개로 작은 자체 평가를 만들어 Mem0·Zep·Hindsight를 같은 조건으로 돌려 보는 편이 훨씬 믿을 만합니다.</li>
+  <li><strong>메모리에 쓰는 것도 입력 검증 대상입니다.</strong> 통합을 거친 믿음은 이후 모든 세션에 영향을 주므로, 오염된 입력이 들어가면 피해가 지속됩니다. <a href="/posts/agent-memory-poisoning-defense/">메모리 포이즈닝 방어</a> 편에서 다룬 쓰기 시 검증·출처(provenance) 관리가 학습형 메모리에서는 더 중요해집니다.</li>
+  <li><strong>지운 기억이 정말 지워졌는지 확인하기.</strong> 학습형 메모리는 원시 사실이 observation과 mental model로 파생됩니다. 사용자가 삭제를 요청했을 때 원본만 지우고 파생물이 남는 설계는 규정 준수(GDPR 등) 관점에서 사고입니다. 삭제 경로가 파생물까지 닿는지 직접 테스트하세요.</li>
+  <li><strong>어린 프로젝트라는 점을 감안하기.</strong> 첫 공개가 2025년 12월입니다. 스타 상승세와 별개로 API가 아직 빠르게 변합니다(0.9→0.10에서도 토크나이저 교체 같은 변경이 있었습니다). 핵심 서비스에 넣기 전에 마이그레이션 비용을 계산에 넣으세요.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>이번 주 GitHub 트렌딩 1위 Hindsight(MIT, Vectorize)는 "기억하는 메모리가 아니라 학습하는 메모리"를 내건 오픈소스 에이전트 메모리 시스템입니다. 9월 25~26일 이틀 연속 1위, 사흘 새 스타 28k→37k.</li>
+  <li>기존 저장형 메모리(임베딩 + top-k 검색)는 중복 누적·모순 방치·종합 불가라는 세 가지 벽에 부딪힙니다. Hindsight는 기억을 World/Experience/Observation/Opinion 네 네트워크로 분리하고, 배경 통합으로 사실을 지식과 믿음으로 승격시켜 이 벽을 넘으려 합니다.</li>
+  <li>API는 동사 세 개: <code>retain</code>(LLM 추출 저장), <code>recall</code>(벡터·BM25·그래프·시간 4갈래 + RRF), <code>reflect</code>(mental model → observation → 원시 사실 순 종합). 0.9.0의 knowledge pages는 bank가 스스로 유지하는 위키 문서입니다.</li>
+  <li>보고된 성적은 LongMemEval 83.6%(20B 백본, full-context 동일 백본 39.0% 대비 +44.6%p, full-context GPT-4o 60.2% 상회), LoCoMo overall 83.18~89.61%. 단, 벤더 자체 평가이고 LoCoMo는 수명이 다해 간다는 비판이 있으니 자체 평가로 검증 후 채택하세요.</li>
+  <li>트레이드오프의 본질: 저장형은 읽기 시점에 비용을 내고, 학습형은 쓰기·배경 작업 시점에 비용을 냅니다. 쓰기:읽기 비율과 지연 요구에 따라 답이 달라집니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://github.com/vectorize-io/hindsight" target="_blank" rel="noopener">GitHub — vectorize-io/hindsight (MIT, 아키텍처·quickstart)</a></li>
+  <li><a href="https://arxiv.org/abs/2512.12818" target="_blank" rel="noopener">Latimer et al. — Hindsight is 20/20: Building Agent Memory that Retains, Recalls, and Reflects (arXiv:2512.12818, 2025-12)</a></li>
+  <li><a href="https://hindsight.vectorize.io/blog/2026/09/18/what-hindsight-learned-this-summer" target="_blank" rel="noopener">Hindsight 블로그 — What Hindsight Learned This Summer (knowledge pages 회고, 2026-09-18)</a></li>
+  <li><a href="https://hindsight.vectorize.io/developer/knowledge-pages" target="_blank" rel="noopener">Hindsight 문서 — Knowledge Pages</a></li>
+  <li><a href="https://hindsight.vectorize.io/blog/2026/06/05/mental-models-deep-dive" target="_blank" rel="noopener">Hindsight 블로그 — How Hindsight Learns: A Deep Dive Into Mental Models (2026-06-05)</a></li>
+  <li><a href="https://github.com/vectorize-io/hindsight/releases" target="_blank" rel="noopener">GitHub — Hindsight Releases (0.9.0 knowledge pages, 0.10.x)</a></li>
+  <li><a href="https://www.morningstar.com/news/pr-newswire/20251216ph48348/vectorize-breaks-90-on-longmemeval-open-source-ai-agent-memory-system" target="_blank" rel="noopener">PR Newswire — Vectorize Breaks 90% on LongMemEval (2025-12-16)</a></li>
+  <li><a href="https://trendshift.io/repositories/15603" target="_blank" rel="noopener">Trendshift — vectorize-io/hindsight GitHub 트렌딩 통계</a></li>
+  <li><a href="https://arxiv.org/abs/2410.10813" target="_blank" rel="noopener">Wu et al. — LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory (arXiv:2410.10813)</a></li>
+  <li><a href="https://blog.getzep.com/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory/" target="_blank" rel="noopener">Zep 블로그 — Is Mem0 Really SOTA in Agent Memory? (메모리 벤치마크 논쟁)</a></li>
+  <li><a href="https://www.getzep.com/vectorize-hindsight-alternative/" target="_blank" rel="noopener">Zep — Zep vs. Vectorize Hindsight (경쟁사 관점 비교)</a></li>
+</ul>

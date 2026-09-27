@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="470" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-09-28</text>
+
+  <!-- center hub -->
+  <rect x="290" y="210" width="220" height="52" rx="26" fill="#1a1a2e"/>
+  <text x="400" y="237" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">에이전트 '코어'에 들어가는</text>
+  <text x="400" y="253" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">신뢰(Trust) 계층</text>
+
+  <!-- connectors -->
+  <line x1="230" y1="130" x2="330" y2="212" stroke="#c5c9d6" stroke-width="2"/>
+  <line x1="570" y1="130" x2="470" y2="212" stroke="#c5c9d6" stroke-width="2"/>
+  <line x1="230" y1="360" x2="330" y2="260" stroke="#c5c9d6" stroke-width="2"/>
+  <line x1="570" y1="360" x2="470" y2="260" stroke="#c5c9d6" stroke-width="2"/>
+
+  <!-- quadrant: models -->
+  <rect x="40" y="60" width="330" height="118" rx="12" fill="#eef4ff" stroke="#4a7dff" stroke-width="1.5"/>
+  <text x="56" y="86" font-size="15" font-weight="700" fill="#2453c9">🤖 모델</text>
+  <text x="56" y="112" font-size="13" fill="#1a1a2e">MiniMax M3.1-Flash-Preview (9/27)</text>
+  <text x="56" y="130" font-size="12" fill="#555f77">모델 카드·가격 없이 MiniMax Code에 조용히 투입</text>
+  <text x="56" y="152" font-size="13" fill="#1a1a2e">xAI Grok 4.7 (9/21)</text>
+  <text x="56" y="170" font-size="12" fill="#555f77">가격 동결($2/$6) · 500K 컨텍스트 · 코딩은 열세</text>
+
+  <!-- quadrant: papers -->
+  <rect x="430" y="60" width="330" height="118" rx="12" fill="#f3efff" stroke="#8a63e8" stroke-width="1.5"/>
+  <text x="446" y="86" font-size="15" font-weight="700" fill="#6b3fd4">📚 논문</text>
+  <text x="446" y="112" font-size="13" fill="#1a1a2e">AgentKernel (2609.29647)</text>
+  <text x="446" y="130" font-size="12" fill="#555f77">에이전트 아래에 'OS급' 보안 계층을 두자는 제안</text>
+  <text x="446" y="152" font-size="13" fill="#1a1a2e">Qwen-Planner-Agent (2609.29892)</text>
+  <text x="446" y="170" font-size="12" fill="#555f77">데이터 생산→학습→배포를 닫힌 루프로</text>
+
+  <!-- quadrant: open source -->
+  <rect x="40" y="300" width="330" height="118" rx="12" fill="#eafaf1" stroke="#2fb673" stroke-width="1.5"/>
+  <text x="56" y="326" font-size="15" font-weight="700" fill="#1d8a55">🛠 오픈소스</text>
+  <text x="56" y="352" font-size="13" fill="#1a1a2e">Recurse — 리버스 엔지니어링 IDE + MCP</text>
+  <text x="56" y="370" font-size="12" fill="#555f77">바이너리 분석을 에이전트 도구로 노출</text>
+  <text x="56" y="392" font-size="13" fill="#1a1a2e">AgentRun — 에이전트용 워크플로 DSL</text>
+  <text x="56" y="410" font-size="12" fill="#555f77">판정(judge) 노드 + 신뢰도 임계값 + 에스컬레이션</text>
+
+  <!-- quadrant: tools -->
+  <rect x="430" y="300" width="330" height="118" rx="12" fill="#fff4e8" stroke="#e8963f" stroke-width="1.5"/>
+  <text x="446" y="326" font-size="15" font-weight="700" fill="#c26a10">🧑‍💻 도구</text>
+  <text x="446" y="352" font-size="13" fill="#1a1a2e">Codex Guardian v2</text>
+  <text x="446" y="370" font-size="12" fill="#555f77">비동기 보안 분류기 — 정책·프롬프트 전문 공개</text>
+  <text x="446" y="392" font-size="13" fill="#1a1a2e">Claude Code mods/</text>
+  <text x="446" y="410" font-size="12" fill="#555f77">내장 플러그인 4종 소스 공개 (AGENTS.md 지원 포함)</text>
+
+  <text x="400" y="452" text-anchor="middle" font-size="11" fill="#8a8fa3">공통 흐름: 보안 리뷰어·정책·확장 계층이 에이전트 런타임 '코어'로 들어가고, 그 소스가 공개되는 중</text>
+</svg>

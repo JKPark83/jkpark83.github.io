@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="560" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">Sonnet 5 → Sonnet 5.5 마이그레이션 체크리스트</text>
+
+  <!-- unchanged column -->
+  <rect x="40" y="60" width="345" height="180" rx="12" fill="#eafaf1" stroke="#2fb673" stroke-width="1.5"/>
+  <text x="56" y="88" font-size="15" font-weight="700" fill="#1d8a55">✅ 그대로인 것</text>
+  <text x="56" y="116" font-size="13" fill="#1a1a2e">• 가격: 입력 $2 / 출력 $10 (1M 토큰당)</text>
+  <text x="56" y="140" font-size="13" fill="#1a1a2e">• 캐시 읽기: $0.20/MTok</text>
+  <text x="56" y="164" font-size="13" fill="#1a1a2e">• 컨텍스트 1M / 최대 출력 128K</text>
+  <text x="56" y="188" font-size="13" fill="#1a1a2e">• 토크나이저 (재측정 불필요)</text>
+  <text x="56" y="212" font-size="13" fill="#1a1a2e">• effort 기본값 high</text>
+
+  <!-- gains column -->
+  <rect x="415" y="60" width="345" height="180" rx="12" fill="#eef4ff" stroke="#4a7dff" stroke-width="1.5"/>
+  <text x="431" y="88" font-size="15" font-weight="700" fill="#2453c9">⚡ 좋아지는 것 (벤더 주장)</text>
+  <text x="431" y="116" font-size="13" fill="#1a1a2e">• 출력 생성 30% 이상 빠름</text>
+  <text x="431" y="140" font-size="13" fill="#1a1a2e">• 툴 호출 수 감소 → 태스크당</text>
+  <text x="431" y="158" font-size="13" fill="#1a1a2e">  비용 최대 30% 절감</text>
+  <text x="431" y="182" font-size="13" fill="#1a1a2e">• 버그 수정·문서/슬라이드 등</text>
+  <text x="431" y="200" font-size="13" fill="#1a1a2e">  범위가 명확한 일상 작업에 강점</text>
+  <text x="431" y="224" font-size="12" fill="#555f77">Opus 5.5의 저비용 보완재 포지션</text>
+
+  <!-- breaking changes -->
+  <rect x="40" y="264" width="720" height="212" rx="12" fill="#fdeeee" stroke="#d95757" stroke-width="1.5"/>
+  <text x="56" y="292" font-size="15" font-weight="700" fill="#b53232">⚠️ 코드가 깨지는 지점 (Sonnet 5 대비 400 에러)</text>
+  <text x="56" y="320" font-size="13" fill="#1a1a2e">1. thinking: disabled → 400. 끄려면 thinking: between_tools (effort high 이하에서만)</text>
+  <text x="56" y="346" font-size="13" fill="#1a1a2e">2. 강제 tool_choice any/tool → 400. auto + strict: true + 프롬프트 지시로 대체</text>
+  <text x="56" y="372" font-size="13" fill="#1a1a2e">3. thinking 블록이 모델·대화에 귀속 — 히스토리를 수정하는 하네스는 점검 필요</text>
+  <text x="56" y="398" font-size="13" fill="#1a1a2e">4. computer use는 computer_toolset_20260801만 허용 (구 computer_20251124 → 400)</text>
+  <text x="56" y="424" font-size="13" fill="#1a1a2e">5. advisor 도구가 구세대 advisor(Opus 4.7/4.8, Sonnet 5) 조합 거부</text>
+  <text x="56" y="456" font-size="13" font-weight="700" fill="#b53232">+ effort 레벨 재보정됨 → 스윕 다시: 에이전트 코딩은 medium부터, 챗은 low부터</text>
+
+  <text x="400" y="508" text-anchor="middle" font-size="12" fill="#555f77">권장 순서: ① 스테이징에 모델 ID만 교체 → ② 400 에러 지점 수정 → ③ effort 스윕 → ④ eval 통과 후 프로덕션</text>
+  <text x="400" y="540" text-anchor="middle" font-size="11" fill="#8a90a3">출처: Anthropic 공지(복수 매체 교차 확인) + Claude API 공식 마이그레이션 가이드 요약 (2026-09-28)</text>
+</svg>

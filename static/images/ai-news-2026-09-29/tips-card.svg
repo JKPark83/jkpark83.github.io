@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="400" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">Codex vs Claude Code — 오늘의 실전 카드</text>
+
+  <!-- Codex card -->
+  <rect x="40" y="60" width="345" height="280" rx="12" fill="#eafaf1" stroke="#2fb673" stroke-width="1.5"/>
+  <text x="56" y="90" font-size="15" font-weight="700" fill="#1d8a55">🟩 Codex — Mermaid 터미널 렌더링</text>
+  <text x="56" y="118" font-size="13" fill="#1a1a2e">codex-rs/mermaid: 외부 런타임 없이</text>
+  <text x="56" y="136" font-size="13" fill="#1a1a2e">텍스트로 다이어그램을 그리는 자체 렌더러</text>
+  <rect x="56" y="152" width="313" height="96" rx="8" fill="#10241a"/>
+  <text x="70" y="176" font-size="12" font-family="monospace" fill="#8ef0b8">flowchart LR</text>
+  <text x="70" y="196" font-size="12" font-family="monospace" fill="#8ef0b8">  A[요청] -- 검증 --&gt; B{게이트}</text>
+  <text x="70" y="216" font-size="12" font-family="monospace" fill="#8ef0b8">  B -.재시도.-&gt; A</text>
+  <text x="70" y="236" font-size="12" font-family="monospace" fill="#8ef0b8">  A &amp; B --&gt; C[로그]</text>
+  <text x="56" y="272" font-size="12" fill="#555f77">지원: flowchart · sequence · state ·</text>
+  <text x="56" y="290" font-size="12" fill="#555f77">class · ER (명시된 부분집합)</text>
+  <text x="56" y="316" font-size="12" font-weight="700" fill="#1d8a55">9/28: 방향 기본값·점선·양방향·팬아웃 확장</text>
+
+  <!-- Claude Code card -->
+  <rect x="415" y="60" width="345" height="280" rx="12" fill="#fff4e8" stroke="#e8963f" stroke-width="1.5"/>
+  <text x="431" y="90" font-size="15" font-weight="700" fill="#c26a10">🟦 Claude Code 2.1.284 — 기본 auto 모드</text>
+  <text x="431" y="118" font-size="13" fill="#1a1a2e">권한 모드 미설정 시 인터랙티브 세션이</text>
+  <text x="431" y="136" font-size="13" fill="#1a1a2e">이제 auto 모드로 시작 (전 플랜·전 프로바이더)</text>
+  <rect x="431" y="152" width="313" height="96" rx="8" fill="#2b1e10"/>
+  <text x="445" y="176" font-size="12" font-family="monospace" fill="#ffd9a8">// .claude/settings.json</text>
+  <text x="445" y="196" font-size="12" font-family="monospace" fill="#ffd9a8">{ "permissions": {</text>
+  <text x="445" y="216" font-size="12" font-family="monospace" fill="#ffd9a8">    "defaultMode": "default"</text>
+  <text x="445" y="236" font-size="12" font-family="monospace" fill="#ffd9a8">} }</text>
+  <text x="431" y="272" font-size="12" fill="#555f77">되돌리려면 defaultMode 명시,</text>
+  <text x="431" y="290" font-size="12" fill="#555f77">디렉터리 밖 읽기엔 "이번만 허용" 선택지 추가</text>
+  <text x="431" y="316" font-size="12" font-weight="700" fill="#c26a10">Sonnet 5.5 탑재 + /mcp reconnect all 신설</text>
+
+  <text x="400" y="372" text-anchor="middle" font-size="11" fill="#8a90a3">출처: openai/codex·anthropics/claude-code 저장소 (클론으로 확인, 2026-09-28 커밋)</text>
+</svg>

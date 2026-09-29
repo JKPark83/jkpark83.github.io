@@ -1,0 +1,348 @@
+---
+title: "모델은 한 줄로 바꿨는데, 프롬프트는? — 프론티어 3연발 주간의 프롬프트 마이그레이션 엔지니어링"
+date: 2026-09-30T07:30:00+09:00
+draft: false
+tags: ["AI", "프롬프트 마이그레이션", "prompt engineering", "프롬프트 엔지니어링", "Claude Opus 5.5", "GPT-6", "effort", "adaptive thinking", "회귀 평가", "골든셋", "prompt cruft", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "9월 22일 하루에 GPT-6 Sol·Luna와 Claude Opus 5.5가, 28일에는 Claude Sonnet 5.5가 나왔습니다. 일주일 새 프론티어 모델이 셋 — 이제 모델 교체는 연례행사가 아니라 상시 업무입니다. 그리고 그 주말, Anthropic의 'Prompting Claude Opus 5.5' 문서가 Hacker News 프런트페이지에 올라 200개 넘는 댓글이 달렸습니다. 문서가 보여 준 건 뜻밖의 사실입니다. 새 모델에서 프롬프트는 '더 잘 쓰는' 게 아니라 '걷어내는' 쪽으로 이동하고 있고, 진짜 위험은 400 에러가 아니라 에러 없이 조용히 무너지는 UX라는 것. 깨지는 API 계약 4가지, 무증상 회귀 5가지, 증상 주도 프롬프팅 패턴, 그리고 골든셋 회귀 평가로 안전하게 갈아타는 순서까지 — 모델 업그레이드 주간의 생존법을 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "prompt-migration-model-upgrades-cover.svg"
+  alt: "일주일 사이 세 프론티어 모델이 출시되는 타임라인 아래에서 구세대 프롬프트 파일에 금이 가고, 골든셋 평가와 체크리스트로 마이그레이션하는 모습을 그린 그림"
+  caption: "모델 ID는 한 줄이면 바뀝니다. 문제는 그 모델에 맞춰 쌓아 온 프롬프트와 하네스입니다."
+  relative: false
+---
+
+<style>
+/* ── 프롬프트 마이그레이션 포스트 전용 스타일 (pmg- 접두사) ── */
+.pmg-fig{
+  --pmg-green:#16a34a; --pmg-rose:#e11d48; --pmg-amber:#d97706; --pmg-sky:#0284c7;
+  --pmg-violet:#7c3aed; --pmg-slate:#64748b; --pmg-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .pmg-fig{
+  --pmg-green:#4ade80; --pmg-rose:#fb7185; --pmg-amber:#fbbf24; --pmg-sky:#38bdf8;
+  --pmg-violet:#a78bfa; --pmg-slate:#94a3b8; --pmg-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .pmg-fig{
+    --pmg-green:#4ade80; --pmg-rose:#fb7185; --pmg-amber:#fbbf24; --pmg-sky:#38bdf8;
+    --pmg-violet:#a78bfa; --pmg-slate:#94a3b8; --pmg-gray:#64748b;
+  }
+}
+.pmg-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.pmg-fig text{font-family:inherit}
+.pmg-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.pmg-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.pmg-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.pmg-toc ol{margin:0;padding-left:1.25rem}
+.pmg-toc li{margin:.22rem 0;font-size:.95rem}
+.pmg-toc a{text-decoration:none}
+.pmg-toc a:hover{text-decoration:underline}
+.pmg-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.pmg-table th,.pmg-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.pmg-table th{background:var(--entry)}
+.pmg-note{border-left:4px solid var(--pmg-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="pmg-toc">
+  <div class="pmg-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 일주일에 프론티어 모델이 셋</a></li>
+    <li><a href="#sec-2">배경 — 프롬프트는 '그 모델의 약점 보정 코드'다</a></li>
+    <li><a href="#sec-3">시끄럽게 깨지는 것 — API 계약 변화 4가지</a></li>
+    <li><a href="#sec-4">조용히 깨지는 것 — 에러 없는 회귀 5가지</a></li>
+    <li><a href="#sec-5">증상 주도 프롬프팅 — 문서 읽는 법이 바뀌었다</a></li>
+    <li><a href="#sec-6">실전 — 골든셋 회귀 평가로 갈아타는 순서</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 일주일에 프론티어 모델이 셋</h2>
+
+<p>지난주는 모델 출시 일정이 유난히 촘촘했습니다. 9월 22일 하루에 OpenAI가 <a href="https://techcrunch.com/2026/09/22/openai-launches-gpt-6-sol-and-luna/" target="_blank" rel="noopener">GPT-6 Sol·Luna</a>를, Anthropic이 <a href="https://www.anthropic.com/claude-opus-5-5" target="_blank" rel="noopener">Claude Opus 5.5</a>를 내놨고, 28일에는 <a href="https://www.anthropic.com/claude-sonnet-5-5" target="_blank" rel="noopener">Claude Sonnet 5.5</a>가 뒤따랐습니다. 셋 다 "전작보다 빠르고 싸다"를 앞세웁니다. Opus 5.5는 Opus 5보다 30% 이상 빠른 출력에 가격은 40% 인하($4/$20 per M tokens), Sonnet 5.5는 같은 가격($2/$10)에 30% 이상 빨라졌고, GPT-6 Sol·Luna는 API 가격을 절반으로 내렸습니다.</p>
+
+<p>그리고 주말, 모델 발표 글이 아니라 <strong>프롬프팅 문서</strong> 하나가 Hacker News 프런트페이지에 올랐습니다. Anthropic의 <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5" target="_blank" rel="noopener">"Prompting Claude Opus 5.5"</a> — <a href="https://news.ycombinator.com/item?id=49874728" target="_blank" rel="noopener">200개가 넘는 댓글</a>이 달리며 "새 모델이 나올 때마다 프롬프트를 갈아엎어야 하나"라는 실무자들의 해묵은 피로가 터져 나왔습니다.</p>
+
+<p>이 상황이 시사하는 건 하나입니다. <strong>모델 교체는 이제 연례행사가 아니라 상시 업무</strong>라는 것. 그런데 많은 팀의 마이그레이션은 아직도 모델 ID 한 줄 바꾸고 "잘 되는 것 같은데?"로 끝납니다. 이번 글은 지난주 문서들을 재료 삼아, 모델을 갈아탈 때 프롬프트와 하네스(harness)에 실제로 무슨 일이 생기는지, 그리고 어떤 순서로 갈아타야 사고가 안 나는지 정리합니다.</p>
+
+<div class="pmg-note">
+하네스가 뭔지 처음 듣는다면 <a href="/posts/harness-engineering/">하네스 엔지니어링</a> 편을, effort·thinking 같은 추론 조절 손잡이의 기초는 <a href="/posts/reasoning-effort-thinking-budget/">추론 예산 다루는 법</a> 편을 먼저 읽으면 오늘 글이 훨씬 수월합니다.
+</div>
+
+<h2 id="sec-2">2. 배경 — 프롬프트는 '그 모델의 약점 보정 코드'다</h2>
+
+<p>왜 모델을 바꾸면 프롬프트가 문제가 될까요? 프롬프트의 정체를 다시 보면 답이 나옵니다.</p>
+
+<p>실무에서 오래 굴러간 프롬프트는 순수한 '작업 설명'이 아닙니다. 절반쯤은 <strong>특정 모델의 약점을 때우는 보정 코드</strong>입니다. 추론이 약한 모델에는 "step by step으로 생각하라"를 넣었고, 게을렀던 모델에는 "반드시 도구를 써라"를 세 번 반복했고, thinking을 끈 통합에서는 "답하기 전에 추론 과정을 먼저 써라"로 생각을 흉내 내게 했습니다. 안경 도수처럼, 프롬프트는 그 시점 그 모델의 시력에 맞춰져 있습니다.</p>
+
+<p>모델 세대가 바뀌면 이 보정들의 운명은 둘 중 하나입니다. <strong>불필요해지거나, 해로워지거나.</strong> Anthropic의 <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" target="_blank" rel="noopener">범용 프롬프팅 가이드</a>는 마이그레이션 항목에서 이렇게 명시합니다. 이전 모델에서 철저함을 끌어내려고 넣었던 지시(anti-laziness prompting)는 새 모델에서 <strong>과발동(overtrigger)</strong>하니 오히려 덜어내라고요. 도수가 맞던 안경도 시력이 좋아지면 어지럼증을 일으키는 것과 같습니다. 실무자들이 "prompt cruft"라고 부르는 이 침전물은 코드의 기술 부채와 성질이 똑같습니다. 쌓일 때는 티가 안 나고, 갈아탈 때 청구서가 날아옵니다.</p>
+
+<p>여기에 한 층이 더 있습니다. 프롬프트 문자열만 낡는 게 아니라, <strong>프롬프트를 둘러싼 하네스 코드도 함께 낡습니다.</strong> 응답의 첫 블록이 텍스트라고 가정한 파싱 코드, thinking을 끄는 설정, 특정 도구 호출을 강제하는 <code>tool_choice</code> — 전부 "그 모델의 API 계약"에 기대 있던 코드입니다. 그래서 마이그레이션은 두 종류의 깨짐을 상대해야 합니다. 시끄럽게 깨지는 것과, 조용히 깨지는 것.</p>
+
+<h2 id="sec-3">3. 시끄럽게 깨지는 것 — API 계약 변화 4가지</h2>
+
+<p>먼저 좋은 소식부터. 시끄럽게 깨지는 건 고마운 깨짐입니다. 400 에러는 스테이징에서 바로 잡히니까요. Opus 5.5의 <a href="https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5" target="_blank" rel="noopener">What's new 문서</a>가 명시한 breaking change는 네 가지입니다.</p>
+
+<ul>
+  <li><strong>① thinking을 끌 수 없습니다.</strong> Opus 5에서 통하던 <code>thinking: {"type": "disabled"}</code>도, 수동 예산 <code>budget_tokens</code>도 400 에러를 반환합니다. adaptive thinking이 항상 켜져 있고, 깊이는 <code>effort</code> 파라미터로만 조절합니다.</li>
+  <li><strong>② 강제 도구 호출이 사라졌습니다.</strong> <code>tool_choice</code>의 <code>"any"</code>·<code>"tool"</code> 타입이 400 에러입니다. 스키마가 맞는 JSON이 필요하면 strict tool use나 structured outputs로, "이럴 땐 이 도구를 써라"는 프롬프트 문장으로 옮깁니다.</li>
+  <li><strong>③ thinking 블록이 모델·대화에 묶입니다.</strong> 블록마다 생산한 모델이 기록되고, 대화 앞부분(system·tools·이전 메시지)이 바뀐 채 블록을 재전송하면 최신 계정 기준으로 400 에러가 납니다. 대화 이력은 append-only로 유지하고, 지시 변경은 mid-conversation system message로 처리해야 합니다.</li>
+  <li><strong>④ 구버전 computer use 도구(<code>computer_20251124</code>)가 거부됩니다.</strong> Claude API·Google Cloud에서는 <code>computer_toolset_20260801</code> 툴셋으로 옮겨야 합니다.</li>
+</ul>
+
+<p>코드로 보면 이렇게 요약됩니다.</p>
+
+{{< highlight python >}}
+# Before — Claude Opus 5에서 돌던 요청
+response = client.messages.create(
+    model="claude-opus-5",
+    thinking={"type": "disabled"},   # ①. 5.5에서는 400 에러
+    tool_choice={"type": "any"},     # ②. 5.5에서는 400 에러
+    max_tokens=4096,
+    messages=messages,
+)
+
+# After — Claude Opus 5.5
+response = client.messages.create(
+    model="claude-opus-5-5",
+    # thinking은 항상 켜짐. 깊이는 effort로 조절 (기본값 medium)
+    output_config={"effort": "medium"},
+    tool_choice={"type": "auto"},    # 강제 대신 strict tool use / structured outputs
+    max_tokens=128_000,              # thinking 토큰도 max_tokens에 포함됨
+    messages=messages,
+)
+
+# 응답은 위치가 아니라 블록 타입으로 읽는다 —
+# 첫 블록이 text라는 가정은 이제 버그다
+for block in response.content:
+    if block.type == "thinking":
+        pass                         # 기본 display에서는 내용이 비어 있음
+    elif block.type == "text":
+        print(block.text)
+{{< /highlight >}}
+
+<p>눈여겨볼 건 방향성입니다. 세 변화(①②③) 모두 <strong>"모델을 밖에서 미세 조종하던 손잡이"를 회수</strong>하는 쪽입니다. thinking을 끄고 켜고, 예산을 수동 배분하고, 특정 도구를 강제하던 제어가 사라지고, 그 자리에 "effort 하나로 조절하고 나머지는 모델에 맡겨라"가 들어왔습니다. 참고로 마지막 assistant 턴을 미리 채워 출력 형식을 강제하던 prefill 기법도 최신 세대부터 지원이 끊겼습니다. 프롬프트 엔지니어링의 무게중심이 '조종'에서 '명세'로 옮겨 가는 흐름이 API 표면에도 그대로 반영된 셈입니다.</p>
+
+<h2 id="sec-4">4. 조용히 깨지는 것 — 에러 없는 회귀 5가지</h2>
+
+<p>진짜 위험은 여기부터입니다. 요청은 전부 200 OK인데 서비스 품질이 무너지는, <strong>무증상 회귀</strong>입니다.</p>
+
+<figure class="pmg-fig">
+<svg viewBox="0 0 760 400" role="img" aria-label="모델 마이그레이션에서 생기는 두 종류의 실패를 비교한 다이어그램. 왼쪽의 시끄러운 실패는 400 에러로 스테이징에서 즉시 발견되지만, 오른쪽의 조용한 실패는 200 OK 응답 속에서 UI 침묵, 비용 증가, 조기 종료, 캐시 미스, 새 거부 응답 형태로 프로덕션까지 흘러간다.">
+  <text x="380" y="28" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">마이그레이션의 두 얼굴: 시끄러운 실패 vs 조용한 실패</text>
+
+  <!-- 왼쪽: 시끄러운 실패 -->
+  <rect x="30" y="55" width="330" height="300" rx="14" fill="none" stroke="var(--pmg-green)" stroke-width="2.2"/>
+  <text x="195" y="86" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--pmg-green)">시끄러운 실패 — 고마운 깨짐</text>
+  <rect x="60" y="105" width="270" height="46" rx="9" fill="none" stroke="var(--pmg-rose)" stroke-width="1.8"/>
+  <text x="195" y="124" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--pmg-rose)">400 invalid_request_error</text>
+  <text x="195" y="141" text-anchor="middle" font-size="10.5" fill="var(--pmg-gray)">thinking disabled · tool_choice any · 구버전 도구</text>
+  <g font-size="11" fill="currentColor">
+    <text x="70" y="180">· 스테이징에서 즉시 발견</text>
+    <text x="70" y="203">· 에러 메시지가 대체 방법까지 안내</text>
+    <text x="70" y="226">· 고치는 데 몇 시간이면 충분</text>
+  </g>
+  <text x="195" y="330" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--pmg-green)">배포 전에 끝나는 문제</text>
+
+  <!-- 오른쪽: 조용한 실패 -->
+  <rect x="400" y="55" width="330" height="300" rx="14" fill="none" stroke="var(--pmg-rose)" stroke-width="2.2"/>
+  <text x="565" y="86" text-anchor="middle" font-size="13.5" font-weight="800" fill="var(--pmg-rose)">조용한 실패 — 전부 200 OK</text>
+  <g font-size="11" fill="currentColor">
+    <rect x="430" y="103" width="270" height="40" rx="8" fill="none" stroke="var(--pmg-amber)" stroke-width="1.6"/>
+    <text x="440" y="120">긴 턴 동안 UI가 침묵</text>
+    <text x="440" y="135" font-size="10" fill="var(--pmg-gray)">진행 노트가 text가 아닌 thinking 블록으로 이동</text>
+    <rect x="430" y="150" width="270" height="40" rx="8" fill="none" stroke="var(--pmg-amber)" stroke-width="1.6"/>
+    <text x="440" y="167">같은 effort인데 턴이 길고 비싸짐</text>
+    <text x="440" y="182" font-size="10" fill="var(--pmg-gray)">레벨 이름이 모델 간에 같은 양을 뜻하지 않음</text>
+    <rect x="430" y="197" width="270" height="40" rx="8" fill="none" stroke="var(--pmg-amber)" stroke-width="1.6"/>
+    <text x="440" y="214">무인 에이전트가 중간에 멈춤</text>
+    <text x="440" y="229" font-size="10" fill="var(--pmg-gray)">진행 보고로 턴이 끝나는 걸 완료로 오인</text>
+    <rect x="430" y="244" width="270" height="40" rx="8" fill="none" stroke="var(--pmg-amber)" stroke-width="1.6"/>
+    <text x="440" y="261">응답이 중간에 잘림</text>
+    <text x="440" y="276" font-size="10" fill="var(--pmg-gray)">thinking이 max_tokens를 잠식</text>
+    <rect x="430" y="291" width="270" height="40" rx="8" fill="none" stroke="var(--pmg-amber)" stroke-width="1.6"/>
+    <text x="440" y="308">멀쩡하던 요청이 거부됨</text>
+    <text x="440" y="323" font-size="10" fill="var(--pmg-gray)">새 refusal 카테고리 (reasoning_extraction 등)</text>
+  </g>
+  <text x="565" y="348" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--pmg-rose)">모니터링 없으면 프로덕션에서 발견</text>
+</svg>
+<figcaption>400 에러는 스테이징에서 잡히지만, 조용한 회귀는 응답 코드만 봐서는 보이지 않습니다. 지표(침묵 구간, 토큰, 조기 종료율)를 따로 봐야 합니다.</figcaption>
+</figure>
+
+<p>Opus 5.5 문서가 예고한 조용한 변화를 다섯 가지로 추리면 이렇습니다.</p>
+
+<p><strong>첫째, 툴콜 사이의 텍스트가 사라져 보입니다.</strong> 에이전트가 도구를 연달아 부르는 동안 쓰는 짧은 진행 노트("테스트 12개 통과, 이제 남은 두 파일을 고칩니다")가, 5.5부터는 <code>text</code> 블록이 아니라 progress-update <code>thinking</code> 블록으로 옵니다. 기본 설정(<code>display: "omitted"</code>)에서는 내용이 빈 채로요. <code>text</code> 블록만 렌더링하던 앱은 <strong>에러 하나 없이 긴 턴 내내 조용해집니다.</strong> 해법은 beta 헤더와 함께 <code>display: "updates"</code>를 설정해 노트 요약을 받는 것입니다.</p>
+
+<p><strong>둘째, effort의 눈금이 모델마다 다릅니다.</strong> 기본값부터 다릅니다(Opus 5는 <code>high</code>, 5.5는 <code>medium</code>). 게다가 Anthropic 측정에서 5.5의 <code>medium</code>은 코딩·지식 노동 평가에서 Opus 5의 <code>high</code>와 대등하거나 그 이상이었습니다. 같은 레벨 이름이 같은 생각량을 뜻하지 않으니, <strong>이전 모델에서 쓰던 effort 값을 들고 오지 말고 스윕(sweep)을 다시 돌리라</strong>는 게 공식 권고입니다. 특히 <code>xhigh</code>·<code>max</code>는 같은 레벨에서도 전작보다 생각을 더 많이 하므로, 측정된 품질 이득이 있을 때만 씁니다.</p>
+
+<p><strong>셋째, 잘림이 생깁니다.</strong> thinking 토큰은 (내용을 안 받아도) <code>max_tokens</code>에 포함됩니다. thinking을 끄고 쓰던 시절 크기(예: 4,096)를 그대로 두면 응답이 중간에 잘립니다. 에이전트형 작업에는 최대치인 128,000이 잘 맞았다는 게 문서의 값입니다.</p>
+
+<p><strong>넷째, 잘 돌던 프롬프트가 거부당할 수 있습니다.</strong> 5.5에는 새 안전 분류기가 붙었는데, 그중 <code>reasoning_extraction</code>이 마이그레이션과 직결됩니다. thinking을 끈 통합에서 흔했던 "추론 과정을 응답에 먼저 써라"류 지시가 <strong>내부 추론을 재출력하라는 요청으로 분류돼 거부될 수 있습니다.</strong> 그 지시를 지우고 <code>display: "summarized"</code>로 요약된 thinking을 읽는 게 교체 경로입니다.</p>
+
+<p><strong>다섯째, 캐시가 샐 수 있습니다.</strong> 요청 사이에 top-level <code>effort</code> 값을 바꾸면 prompt cache가 무효화됩니다. 난이도에 따라 effort를 오르내리게 설계했다면, 턴 단위 조절은 per-message effort(베타)로 해야 캐시가 유지됩니다. 캐시 적중률이 비용에 얼마나 직결되는지는 <a href="/posts/prompt-caching-cache-aware-agents/">prompt caching</a> 편에서 다뤘습니다.</p>
+
+<h2 id="sec-5">5. 증상 주도 프롬프팅 — 문서 읽는 법이 바뀌었다</h2>
+
+<p>이번 프롬프팅 문서에서 가장 흥미로운 건 개별 팁이 아니라 <strong>문서의 구성 방식</strong>입니다. "이렇게 써라"의 나열이 아니라, 처음부터 끝까지 <em>관찰된 증상 → 원인 → 패치</em>로 짜여 있습니다. "턴이 길어지고 비싸졌다면 → Calibrate effort로", "무인 에이전트가 중간에 멈춘다면 → Unattended agentic runs로". 프롬프팅 가이드가 튜토리얼이 아니라 <strong>트러블슈팅 런북(runbook)</strong>이 된 겁니다.</p>
+
+<p>이건 프롬프트 엔지니어링의 성격 변화를 정확히 반영합니다. 모델이 알아서 잘하는 영역이 넓어질수록, 엔지니어가 할 일은 "말을 잘 고르는 것"에서 <strong>"내 시스템의 증상을 관찰하고 좁게 패치하는 것"</strong>으로 이동합니다. 문서 전체를 증상별 매핑으로 요약하면 이렇습니다.</p>
+
+<table class="pmg-table">
+  <thead>
+    <tr><th>관찰되는 증상</th><th>원인</th><th>패치</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>턴이 길어지고 비용 증가</td><td>같은 effort 레벨에서 생각량 증가</td><td>effort 스윕 재실행 · <code>max_tokens</code> 상향 · <code>xhigh</code>/<code>max</code>는 측정된 이득이 있을 때만</td></tr>
+    <tr><td>긴 에이전트 턴 동안 UI 침묵</td><td>진행 노트가 thinking 블록으로 이동</td><td><code>display: "updates"</code> + 침묵이 길면 하네스가 리마인더 삽입</td></tr>
+    <tr><td>무인 에이전트가 작업 중간에 멈춤</td><td>진행 보고로 턴 종료(<code>end_turn</code>)</td><td>체크리스트 관리 + 이어가기 메시지(2~3회 제한) + 조기 종료 유형을 지목한 시스템 프롬프트</td></tr>
+    <tr><td><code>stop_reason: "refusal"</code></td><td>새 분류기(<code>reasoning_extraction</code> 등)</td><td>추론 재출력 지시 제거 · <code>display: "summarized"</code> · fallback 구성</td></tr>
+    <tr><td>채팅 첫 응답이 느림</td><td>"신중히 생각하라" 지시 + 이전 답 재검토 성향</td><td>생각 지시 제거(effort로 조절) · "답한 건 끝난 것으로" 지시</td></tr>
+    <tr><td>멀티에이전트 팀이 늑장</td><td>시간 감각을 줄 신호 부재</td><td>메시지 끝에 <code>elapsed 340s / 1200s</code>식 시간 신호</td></tr>
+    <tr><td>붙여넣은 텍스트 속 지시를 따라감</td><td>사용자 텍스트와 외부 텍스트 미구분</td><td>랜덤 id를 단 <code>&lt;pasted_content&gt;</code> 태그로 출처 표시</td></tr>
+  </tbody>
+</table>
+
+<p>이 중 에이전트 운영자에게 가장 값진 세 가지만 자세히 봅니다.</p>
+
+<h3>조기 종료: "보고"를 "완료"로 착각하지 않기</h3>
+
+<p>Opus 5.5는 긴 작업 중간중간 사용자에게 상황을 보고하는 성향이 있고, 그 보고가 툴콜 없이 <code>end_turn</code>으로 끝나기도 합니다. 무인(unattended) 에이전트 루프가 "턴이 텍스트로 끝남 = 작업 완료"로 처리하면 <strong>작업이 중간에 증발합니다.</strong> 문서의 권고는 하네스 쪽 방어입니다. 작업 항목을 체크리스트(to-do 도구나 파일)로 관리하고, 열린 항목이 남았는데 블로커 언급 없이 턴이 끝나면 이어가기 메시지를 보내되, <strong>같은 작업에 2~3회로 제한</strong>해 진짜 막힌 실행이 무한 루프에 빠지지 않게 합니다.</p>
+
+{{< highlight python >}}
+MAX_AUTO_CONTINUES = 3
+
+def on_turn_end(response, todo, auto_continues):
+    open_items = todo.open_items()
+    if response.stop_reason != "end_turn" or not open_items:
+        return "done"
+    if mentions_blocker(response):            # 모델이 "X 때문에 막혔다"고 말했는가
+        return "escalate"
+    if auto_continues >= MAX_AUTO_CONTINUES:  # 진짜 멈춘 실행은 사람이 검토
+        return "escalate"
+    send_user_message(
+        f"작업 목록에 아직 열린 항목이 있습니다: {', '.join(open_items)}. "
+        "이어서 진행하세요. 막힌 항목이 있다면 무엇이 막고 있는지 말해 주세요."
+    )
+    return "continued"
+{{< /highlight >}}
+
+<p>시스템 프롬프트 쪽에서도 도울 수 있는데, 방법이 구체적입니다. "끝까지 해라" 같은 뭉뚱그린 지시가 아니라, <strong>피하고 싶은 조기 종료의 유형을 하나하나 지목</strong>하는 겁니다(다음 단계를 '예고'만 하고 끝나는 요약, 아무것도 막지 않는데 사용자 결정을 기다리는 질문 목록 등). 5.5가 이런 명시적 지목에 잘 반응한다는 게 문서의 설명입니다.</p>
+
+<h3>침묵하는 에이전트: 하네스가 말을 시키기</h3>
+
+<p>진행 노트를 <code>display: "updates"</code>로 받게 했는데도 툴콜 연쇄가 길어지면 조용한 구간이 생길 수 있습니다. 문서의 해법이 재미있습니다. <strong>사용자에게 보여줄 게 없는 스텝이 연달아 5개쯤 쌓이면, 하네스가 툴 결과 뒤에 "사용자가 소식을 기다립니다 — 지금 뭘 하는지 몇 마디로 말하고 계속하세요"라는 리마인더를 끼워 넣으라는 것.</strong> 리마인더를 넣었다 뺐다 하지 않고 append만 하기 때문에 prompt cache도 깨지지 않습니다. Anthropic 측정으로는 이 패턴이 긴 침묵 구간이 있는 작업 비율을 절반 수준으로 줄였고, 비용 변화는 측정되지 않았습니다.</p>
+
+<h3>시간 신호: 팀을 빨리 끝나게 하는 한 줄</h3>
+
+<p>멀티에이전트 하네스라면, 모델에 돌려보내는 메시지 끝에 <code>elapsed 340s / 1200s</code>처럼 <strong>경과 시간/예산</strong>을 붙이는 것만으로 팀이 병렬화를 더 적극적으로 해 일찍 끝난다는 측정이 실렸습니다. 주의할 구분: 예산을 조이는 것과 effort를 낮추는 건 다릅니다. effort를 낮추면 일 자체가 줄고, 시간 예산은 주로 <strong>같은 일을 더 병렬로</strong> 하게 만듭니다. 예산은 어디까지나 권고 신호라 실제 차단은 하네스의 타임아웃이 맡아야 합니다.</p>
+
+<h2 id="sec-6">6. 실전 — 골든셋 회귀 평가로 갈아타는 순서</h2>
+
+<p>이제 순서를 정리합시다. 핵심 원칙은 하나입니다. <strong>평가 없이 갈아타지 않는다.</strong> "새 모델이 더 좋다더라"는 벤치마크 얘기고, 내 프롬프트·내 도구·내 데이터에서 좋아지는지는 내 평가만 답할 수 있습니다. 실제로 Opus 5.5 발표문조차 "벤치마크 격차는 실사용 차이를 예측하는 힘이 떨어졌다"고 인정합니다.</p>
+
+<figure class="pmg-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="프롬프트 마이그레이션 5단계 파이프라인. 골든셋으로 기준선을 만들고, API 계약 깨짐을 스테이징에서 잡고, effort 스윕을 돌리고, 낡은 보정 지시를 걷어내며 행동 지표를 비교하고, 마지막으로 트래픽 일부만 새 모델로 보내는 카나리 배포로 마무리한다.">
+  <text x="380" y="28" text-anchor="middle" font-size="15.5" font-weight="800" fill="currentColor">프롬프트 마이그레이션 파이프라인</text>
+  <g font-size="11.5" font-weight="700">
+    <rect x="25" y="60" width="130" height="86" rx="10" fill="none" stroke="var(--pmg-sky)" stroke-width="2.2"/>
+    <text x="90" y="86" text-anchor="middle" fill="var(--pmg-sky)">① 기준선</text>
+    <text x="90" y="106" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">골든셋 20~50개를</text>
+    <text x="90" y="121" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">현행 모델로 측정</text>
+
+    <rect x="175" y="60" width="130" height="86" rx="10" fill="none" stroke="var(--pmg-green)" stroke-width="2.2"/>
+    <text x="240" y="86" text-anchor="middle" fill="var(--pmg-green)">② 계약 체크</text>
+    <text x="240" y="106" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">400 에러 전부 수거</text>
+    <text x="240" y="121" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">블록 타입 파싱 수정</text>
+
+    <rect x="325" y="60" width="130" height="86" rx="10" fill="none" stroke="var(--pmg-amber)" stroke-width="2.2"/>
+    <text x="390" y="86" text-anchor="middle" fill="var(--pmg-amber)">③ effort 스윕</text>
+    <text x="390" y="106" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">low·medium·high를</text>
+    <text x="390" y="121" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">골든셋으로 비교</text>
+
+    <rect x="475" y="60" width="130" height="86" rx="10" fill="none" stroke="var(--pmg-violet)" stroke-width="2.2"/>
+    <text x="540" y="86" text-anchor="middle" fill="var(--pmg-violet)">④ 다이어트</text>
+    <text x="540" y="106" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">낡은 보정 지시를</text>
+    <text x="540" y="121" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">하나씩 빼며 재측정</text>
+
+    <rect x="625" y="60" width="110" height="86" rx="10" fill="none" stroke="var(--pmg-rose)" stroke-width="2.2"/>
+    <text x="680" y="86" text-anchor="middle" fill="var(--pmg-rose)">⑤ 카나리</text>
+    <text x="680" y="106" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">트래픽 일부만</text>
+    <text x="680" y="121" text-anchor="middle" font-size="10" font-weight="400" fill="currentColor">새 모델로</text>
+  </g>
+  <g stroke="var(--pmg-slate)" stroke-width="1.8" fill="none">
+    <path d="M 155 103 L 171 103"/><path d="M 166 98 l 8 5 l -8 5 z" fill="var(--pmg-slate)" stroke="none"/>
+    <path d="M 305 103 L 321 103"/><path d="M 316 98 l 8 5 l -8 5 z" fill="var(--pmg-slate)" stroke="none"/>
+    <path d="M 455 103 L 471 103"/><path d="M 466 98 l 8 5 l -8 5 z" fill="var(--pmg-slate)" stroke="none"/>
+    <path d="M 605 103 L 621 103"/><path d="M 616 98 l 8 5 l -8 5 z" fill="var(--pmg-slate)" stroke="none"/>
+  </g>
+  <rect x="90" y="190" width="580" height="72" rx="10" fill="none" stroke="var(--pmg-gray)" stroke-width="1.6" stroke-dasharray="6 4"/>
+  <text x="380" y="217" text-anchor="middle" font-size="11.5" font-weight="700" fill="currentColor">모든 단계에서 같은 지표를 본다</text>
+  <text x="380" y="241" text-anchor="middle" font-size="10.5" fill="var(--pmg-gray)">정답률 · 출력 토큰(비용) · 지연 · 턴 수 · 조기 종료율 · 침묵 구간 · refusal 비율</text>
+</svg>
+<figcaption>어느 단계든 지표가 기준선보다 나빠지면 그 자리에서 멈추고 원인을 찾습니다. ①이 없으면 ③~⑤는 감으로 하는 도박이 됩니다.</figcaption>
+</figure>
+
+<p>골든셋(golden set)은 거창할 필요 없습니다. 실제 트래픽에서 뽑은 대표 과제 20~50개와 기대 결과, 그리고 채점 함수면 시작할 수 있습니다. 채점을 LLM에 맡기는 방법과 함정은 <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-Judge</a> 편에서 다뤘습니다.</p>
+
+{{< highlight python >}}
+CASES = load_jsonl("golden_set.jsonl")     # 실트래픽에서 뽑은 20~50개
+
+def run_suite(model_id, effort):
+    results = []
+    for case in CASES:
+        out = run_agent(model_id, effort, case["input"])
+        results.append({
+            "passed":  grade(out, case["expected"]),  # 규칙 채점 + LLM 채점 병행
+            "tokens":  out.output_tokens,             # 비용 축
+            "latency": out.wall_clock,                # 지연 축
+            "turns":   out.num_turns,                 # 행동 축: 조기 종료 감지에 유용
+        })
+    return summarize(results)
+
+baseline = run_suite("claude-opus-5", "high")         # ① 기준선 먼저!
+for effort in ["low", "medium", "high"]:              # ③ 새 모델은 값을 물려받지 말고 스윕
+    report(effort, run_suite("claude-opus-5-5", effort), baseline)
+{{< /highlight >}}
+
+<p>④ 프롬프트 다이어트가 마이그레이션의 숨은 알짜입니다. "step by step으로 생각하라", "반드시 철저하게 검토하라"처럼 구세대를 위해 넣었던 문장을 <strong>한 번에 하나씩</strong> 빼면서 골든셋을 다시 돌려 보세요. 점수가 그대로면 그 문장은 cruft였던 겁니다. 채팅 제품이라면 "신중히 생각하라"류 지시 제거가 첫 응답 지연까지 줄여 줍니다(품질 저하 없이 응답이 빨라졌다는 게 문서의 측정입니다). 빠질 문장이 생각보다 많이 나옵니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>이전 모델의 effort 값을 그대로 들고 온다.</strong> 기본값도(high→medium), 레벨당 생각량도 다릅니다. 스윕을 다시 돌리는 게 정석이고, 문서 기준으로는 여러 코딩 평가에서 <code>low</code>가 훨씬 싼 비용으로 Opus 5의 <code>high</code>에 근접했습니다. 내려 볼 생각부터 하세요.</li>
+  <li><strong><code>max_tokens</code>를 옛날 크기로 둔다.</strong> thinking이 포함되므로 잘림의 주범입니다. 에이전트 작업이면 크게(문서 권고는 128,000).</li>
+  <li><strong>첫 콘텐츠 블록이 text라고 가정한다.</strong> 응답이 thinking 블록으로 시작할 수 있습니다. 타입으로 분기하고, 툴 루프에서는 thinking 블록을 그대로 되돌려 보내야 합니다.</li>
+  <li><strong>대화 이력을 중간에 편집한다.</strong> 요약으로 옛 턴을 갈아 끼우거나 system을 다시 짜면 이후 thinking 블록이 전부 무효가 됩니다. append-only를 지키고, 지시 변경은 mid-conversation system message로.</li>
+  <li><strong>난이도별로 effort를 바꾸면서 캐시를 잊는다.</strong> top-level effort 변경은 캐시 무효화입니다. 턴 단위 조절은 per-message effort(베타)로.</li>
+  <li><strong>"프롬프트로 생각을 줄이려" 한다.</strong> 생각량을 줄이는 데는 지시문보다 effort 인하가 더 확실하게 듣습니다. 손잡이가 있으면 손잡이를 쓰세요.</li>
+  <li><strong>출시 당일 프로덕션을 스왑한다.</strong> 계약 깨짐이야 바로 잡히지만 조용한 회귀는 시간이 걸립니다. 카나리로 며칠 굴리며 침묵 구간·조기 종료율·refusal 비율을 지켜보고 넓히세요.</li>
+  <li><strong>팁: 프롬프트에 버전을 남기세요.</strong> 프롬프트 파일에 "이 문장은 X 모델의 Y 증상 때문에 추가(날짜, 근거 링크)"를 주석으로 남기면, 다음 마이그레이션 때 무엇이 cruft 후보인지 바로 보입니다. 세션 간 기억을 옮기는 문제는 <a href="/posts/agent-memory-portability-model-upgrade/">메모리 이식성</a> 편도 참고하세요.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>9/22 GPT-6 Sol·Luna와 Claude Opus 5.5, 9/28 Claude Sonnet 5.5 — 일주일에 프론티어 모델 셋. 모델 교체는 이제 상시 업무고, 그 주말 "Prompting Claude Opus 5.5" 문서가 HN 프런트페이지에 오르며 마이그레이션 피로가 화두가 됐습니다.</li>
+  <li>프롬프트의 절반은 특정 모델의 약점을 보정하던 코드입니다. 모델이 바뀌면 보정은 불필요해지거나(빼면 그만) 해로워집니다(과발동). 프롬프트 cruft는 기술 부채처럼 갈아탈 때 청구됩니다.</li>
+  <li>시끄러운 깨짐(Opus 5.5 기준 4가지: thinking 비활성화 불가·강제 tool_choice 불가·thinking 블록의 모델/대화 바인딩·구버전 computer use 거부)은 400 에러라 고맙습니다. 위험한 건 200 OK 속의 조용한 회귀 — UI 침묵, effort 눈금 변화로 인한 비용 증가, 무인 에이전트 조기 종료, max_tokens 잘림, 새 refusal 카테고리.</li>
+  <li>프롬프팅 가이드는 이제 튜토리얼이 아니라 런북입니다. 증상을 관찰하고(침묵, 조기 종료, 늑장) 좁게 패치하세요(display:"updates", 이어가기 메시지 2~3회, elapsed/budget 시간 신호).</li>
+  <li>순서가 전부입니다: 골든셋 기준선 → 계약 체크 → effort 스윕 → 프롬프트 다이어트(한 문장씩) → 카나리. 평가 없는 마이그레이션은 감으로 하는 도박입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5" target="_blank" rel="noopener">Prompting Claude Opus 5.5 — Anthropic 공식 문서</a> (이번 주 HN 화제의 중심)</li>
+  <li><a href="https://news.ycombinator.com/item?id=49874728" target="_blank" rel="noopener">Prompting Claude Opus 5.5 — Hacker News 토론</a></li>
+  <li><a href="https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5" target="_blank" rel="noopener">What's new in Claude Opus 5.5 — breaking changes와 행동 변화</a></li>
+  <li><a href="https://platform.claude.com/docs/en/models/opus-5-5/migration-guide" target="_blank" rel="noopener">Claude Opus 5.5 Migration Guide</a></li>
+  <li><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" target="_blank" rel="noopener">Claude Prompting Best Practices — 세대 간 마이그레이션 고려사항 포함</a></li>
+  <li><a href="https://platform.claude.com/docs/en/build-with-claude/effort" target="_blank" rel="noopener">Effort 파라미터 공식 문서</a></li>
+  <li><a href="https://www.anthropic.com/claude-opus-5-5" target="_blank" rel="noopener">Introducing Claude Opus 5.5 — Anthropic (2026-09-22)</a></li>
+  <li><a href="https://www.anthropic.com/claude-sonnet-5-5" target="_blank" rel="noopener">Introducing Claude Sonnet 5.5 — Anthropic (2026-09-28)</a></li>
+  <li><a href="https://techcrunch.com/2026/09/22/openai-launches-gpt-6-sol-and-luna/" target="_blank" rel="noopener">OpenAI launches GPT-6 Sol and Luna — TechCrunch (2026-09-22)</a></li>
+  <li><a href="https://www.macrumors.com/2026/09/22/openai-gpt-6-sol-luna/" target="_blank" rel="noopener">OpenAI's New GPT-6 Sol and Luna Models — MacRumors</a></li>
+</ul>

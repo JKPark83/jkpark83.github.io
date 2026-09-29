@@ -1,0 +1,58 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="일주일 사이 GPT-6 Sol·Luna, Claude Opus 5.5, Claude Sonnet 5.5 세 프론티어 모델이 출시되는 타임라인 아래에서, 구세대 모델에 맞춰 작성된 프롬프트 파일에 금이 가고, 오른쪽에서 평가 기준선과 마이그레이션 체크리스트로 고쳐 쓰는 모습을 그린 그림.">
+  <defs>
+    <linearGradient id="pmgbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e3a5f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#pmgbg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">모델은 한 줄로 바꿨는데, 프롬프트는?</text>
+  <text x="600" y="122" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="23">프론티어 모델 3연발 주간의 프롬프트 마이그레이션 엔지니어링</text>
+
+  <!-- 타임라인 -->
+  <line x1="120" y1="200" x2="1080" y2="200" stroke="#475569" stroke-width="3"/>
+  <g font-family="system-ui,sans-serif">
+    <circle cx="260" cy="200" r="9" fill="#38bdf8"/>
+    <rect x="150" y="225" width="220" height="58" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="260" y="250" text-anchor="middle" fill="#7dd3fc" font-size="19" font-weight="700">GPT-6 Sol · Luna</text>
+    <text x="260" y="273" text-anchor="middle" fill="#94a3b8" font-size="15">9/22</text>
+
+    <circle cx="600" cy="200" r="9" fill="#fbbf24"/>
+    <rect x="490" y="225" width="220" height="58" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+    <text x="600" y="250" text-anchor="middle" fill="#fcd34d" font-size="19" font-weight="700">Claude Opus 5.5</text>
+    <text x="600" y="273" text-anchor="middle" fill="#94a3b8" font-size="15">9/22</text>
+
+    <circle cx="940" cy="200" r="9" fill="#4ade80"/>
+    <rect x="830" y="225" width="220" height="58" rx="10" fill="#1e293b" stroke="#4ade80" stroke-width="2"/>
+    <text x="940" y="250" text-anchor="middle" fill="#86efac" font-size="19" font-weight="700">Claude Sonnet 5.5</text>
+    <text x="940" y="273" text-anchor="middle" fill="#94a3b8" font-size="15">9/28</text>
+  </g>
+
+  <!-- 낡은 프롬프트 파일 -->
+  <g font-family="ui-monospace,monospace">
+    <rect x="150" y="340" width="380" height="210" rx="14" fill="#1e293b" stroke="#fb7185" stroke-width="2.5"/>
+    <text x="180" y="378" fill="#fb7185" font-size="19" font-weight="700">prompt_v1.txt (2025)</text>
+    <text x="180" y="412" fill="#cbd5e1" font-size="16">"Think step by step..."</text>
+    <text x="180" y="440" fill="#cbd5e1" font-size="16">thinking: disabled</text>
+    <text x="180" y="468" fill="#cbd5e1" font-size="16">tool_choice: "any"</text>
+    <text x="180" y="496" fill="#cbd5e1" font-size="16">"반드시 도구를 써라 (x3 반복)"</text>
+    <path d="M 300 340 l 24 40 l -18 30 l 26 44" fill="none" stroke="#fb7185" stroke-width="3.5" stroke-linecap="round"/>
+    <text x="340" y="540" fill="#fda4af" font-family="system-ui,sans-serif" font-size="16" text-anchor="middle">구세대 약점을 보정하던 지시들</text>
+  </g>
+
+  <!-- 화살표 -->
+  <path d="M 560 445 L 640 445" stroke="#94a3b8" stroke-width="4" fill="none"/>
+  <path d="M 630 435 l 18 10 l -18 10 z" fill="#94a3b8"/>
+
+  <!-- 마이그레이션 체크리스트 -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="670" y="340" width="380" height="210" rx="14" fill="#1e293b" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="700" y="378" fill="#4ade80" font-size="19" font-weight="700">프롬프트 마이그레이션</text>
+    <text x="700" y="412" fill="#cbd5e1" font-size="16">✓ 골든셋 평가로 기준선 먼저</text>
+    <text x="700" y="440" fill="#cbd5e1" font-size="16">✓ 깨지는 API 계약 4가지 정리</text>
+    <text x="700" y="468" fill="#cbd5e1" font-size="16">✓ effort 스윕 다시 돌리기</text>
+    <text x="700" y="496" fill="#cbd5e1" font-size="16">✓ 낡은 보정 지시 걷어내기</text>
+    <text x="700" y="524" fill="#cbd5e1" font-size="16">✓ 조용한 회귀(침묵·조기 종료) 감시</text>
+  </g>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="500" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">미드티어 정면충돌 — Sonnet 5.5 vs GPT-6.1 Sol</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">하루 간격 출시 (9/28 vs 9/29) · 동일한 $2/$10 가격</text>
+
+  <!-- left card: Sonnet 5.5 -->
+  <rect x="40" y="80" width="345" height="290" rx="14" fill="#f7f3ff" stroke="#8a63e8" stroke-width="2"/>
+  <text x="212" y="110" text-anchor="middle" font-size="16" font-weight="700" fill="#6b3fd4">Claude Sonnet 5.5</text>
+  <text x="212" y="128" text-anchor="middle" font-size="11" fill="#8a90a3">Anthropic · 9/28 출시</text>
+  <text x="60" y="158" font-size="13" fill="#1a1a2e">입력/출력: $2 / $10 (MTok)</text>
+  <text x="60" y="182" font-size="13" fill="#1a1a2e">캐시 읽기: $0.20 / MTok</text>
+  <text x="60" y="206" font-size="13" fill="#1a1a2e">컨텍스트: 1M · 최대 출력 128K</text>
+  <text x="60" y="230" font-size="13" fill="#1a1a2e">셀링 포인트: 30% 빠른 출력,</text>
+  <text x="60" y="248" font-size="13" fill="#1a1a2e">툴 호출 감소로 태스크당 -30% 비용</text>
+  <text x="60" y="278" font-size="12" fill="#b3261e">주의: Sonnet 5 대비 파괴적 변경 5건</text>
+  <text x="60" y="296" font-size="12" fill="#555f77">(thinking/tool_choice 계약 변화)</text>
+  <text x="60" y="326" font-size="12" fill="#555f77">제공: Anthropic API·AWS·GCP·Azure</text>
+
+  <!-- right card: GPT-6.1 Sol -->
+  <rect x="415" y="80" width="345" height="290" rx="14" fill="#eef7f1" stroke="#2fb673" stroke-width="2"/>
+  <text x="587" y="110" text-anchor="middle" font-size="16" font-weight="700" fill="#1d8a55">GPT-6.1 Sol</text>
+  <text x="587" y="128" text-anchor="middle" font-size="11" fill="#8a90a3">OpenAI · 9/29 DevDay 출시</text>
+  <text x="435" y="158" font-size="13" fill="#1a1a2e">입력/출력: $2 / $10 (MTok)</text>
+  <text x="435" y="182" font-size="13" fill="#1a1a2e">캐시 읽기: $0.10 / MTok</text>
+  <text x="435" y="206" font-size="13" fill="#1a1a2e">컨텍스트: 1.05M · 최대 출력 128K</text>
+  <text x="435" y="230" font-size="13" fill="#1a1a2e">셀링 포인트: Astra 근접 성능을</text>
+  <text x="435" y="248" font-size="13" fill="#1a1a2e">1/5 토큰 단가로 (태스크비 -80%)</text>
+  <text x="435" y="278" font-size="12" fill="#1d8a55">OSWorld 2.0: 71.4% (Astra 73.5%)</text>
+  <text x="435" y="296" font-size="12" fill="#555f77">DeepSWE v1.1: Astra 최고치와 동급</text>
+  <text x="435" y="326" font-size="12" fill="#555f77">Codex용 Ultrafast(8배 속도) 예고</text>
+
+  <!-- vs badge -->
+  <circle cx="400" cy="225" r="26" fill="#1a1a2e"/>
+  <text x="400" y="231" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">VS</text>
+
+  <!-- bottom takeaway -->
+  <rect x="40" y="390" width="720" height="70" rx="12" fill="#fff8ec" stroke="#e8963f" stroke-width="1.5"/>
+  <text x="60" y="416" font-size="13" font-weight="700" fill="#c26a10">에이전트 빌더 체크포인트</text>
+  <text x="60" y="438" font-size="12.5" fill="#1a1a2e">토큰 단가는 동률 — 승부처는 캐시 단가(반복 컨텍스트가 크면 Sol 유리)와 실제 태스크당 툴콜 횟수.</text>
+  <text x="60" y="454" font-size="12.5" fill="#1a1a2e">내 워크로드 10개 태스크로 양쪽 태스크 단가를 직접 재는 것이 벤치보다 정확합니다.</text>
+
+  <text x="400" y="486" text-anchor="middle" font-size="11" fill="#8a90a3">자체 제작 · 성능/비용 수치는 각 벤더 발표 기준(독립 검증 전) · 출처: 본문 링크</text>
+</svg>

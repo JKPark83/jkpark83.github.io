@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">TokenCast — 실행 중 토큰 소모 예측 &amp; 예산 제어</text>
+
+  <!-- step 1: segments -->
+  <rect x="40" y="70" width="215" height="120" rx="12" fill="#eef4ff" stroke="#4a7dff" stroke-width="1.5"/>
+  <text x="147" y="96" text-anchor="middle" font-size="14" font-weight="700" fill="#2453c9">① 세그먼트별 비용 표현</text>
+  <text x="56" y="122" font-size="12" fill="#1a1a2e">실행 구간마다 두 가지 기록:</text>
+  <text x="56" y="142" font-size="12" fill="#555f77">· 자체 토큰 소모</text>
+  <text x="56" y="160" font-size="12" fill="#555f77">· 유발한 컨텍스트 증가량</text>
+  <text x="56" y="180" font-size="11" fill="#8a90a3">(뒤 호출 전부의 입력을 키움)</text>
+
+  <line x1="255" y1="130" x2="292" y2="130" stroke="#c5c9d6" stroke-width="2.5"/>
+  <path d="M292 130 l-9 -5 v10 z" fill="#c5c9d6"/>
+
+  <!-- step 2: compose -->
+  <rect x="293" y="70" width="215" height="120" rx="12" fill="#f3efff" stroke="#8a63e8" stroke-width="1.5"/>
+  <text x="400" y="96" text-anchor="middle" font-size="14" font-weight="700" fill="#6b3fd4">② 합성해 누적 예측</text>
+  <text x="309" y="122" font-size="12" fill="#1a1a2e">인접 세그먼트를 합성하면</text>
+  <text x="309" y="142" font-size="12" fill="#1a1a2e">"앞 컨텍스트를 뒤에서 다시 읽는</text>
+  <text x="309" y="160" font-size="12" fill="#1a1a2e">추가 입력 비용"까지 반영된</text>
+  <text x="309" y="178" font-size="12" fill="#555f77">누적 소모 추정치가 나옴</text>
+
+  <line x1="508" y1="130" x2="545" y2="130" stroke="#c5c9d6" stroke-width="2.5"/>
+  <path d="M545 130 l-9 -5 v10 z" fill="#c5c9d6"/>
+
+  <!-- step 3: refresh -->
+  <rect x="546" y="70" width="215" height="120" rx="12" fill="#eafaf1" stroke="#2fb673" stroke-width="1.5"/>
+  <text x="653" y="96" text-anchor="middle" font-size="14" font-weight="700" fill="#1d8a55">③ 실행 중 갱신</text>
+  <text x="562" y="122" font-size="12" fill="#1a1a2e">새 관측이 들어올 때마다</text>
+  <text x="562" y="142" font-size="12" fill="#1a1a2e">예측을 갱신 — 추가 LLM 호출</text>
+  <text x="562" y="160" font-size="12" fill="#1a1a2e">없이 평균 32.8ms/런</text>
+  <text x="562" y="180" font-size="11" fill="#8a90a3">(SWE-bench Verified 기준)</text>
+
+  <!-- results strip -->
+  <rect x="40" y="225" width="720" height="88" rx="12" fill="#1a1a2e"/>
+  <text x="400" y="252" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">검증된 결과 (4개 태스크 스위트 × 6개 에이전트 모델, 96개 조합)</text>
+  <text x="180" y="282" text-anchor="middle" font-size="15" font-weight="700" fill="#7fd6a8">MAE -14.5%</text>
+  <text x="180" y="300" text-anchor="middle" font-size="11" fill="#c5c9d6">최강 비교군 대비 평균 오차 감소</text>
+  <text x="400" y="282" text-anchor="middle" font-size="15" font-weight="700" fill="#7fd6a8">토큰 -21.3%</text>
+  <text x="400" y="300" text-anchor="middle" font-size="11" fill="#c5c9d6">고정 예산 정책 대비 (동일 완료율)</text>
+  <text x="620" y="282" text-anchor="middle" font-size="15" font-weight="700" fill="#7fd6a8">32.8ms</text>
+  <text x="620" y="300" text-anchor="middle" font-size="11" fill="#c5c9d6">런당 평균 누적 예측 시간</text>
+
+  <!-- builder implication -->
+  <rect x="40" y="335" width="720" height="66" rx="12" fill="#fff8ec" stroke="#e8963f" stroke-width="1.5"/>
+  <text x="60" y="360" font-size="13" font-weight="700" fill="#c26a10">Agent Builder 시사점</text>
+  <text x="60" y="380" font-size="12.5" fill="#1a1a2e">"태스크당 고정 토큰 예산"은 낭비가 큼 — 세그먼트 로그만 쌓아도 실행 중 예측·중단·재계획 루프를 만들 수 있다.</text>
+  <text x="60" y="396" font-size="12.5" fill="#555f77">먼저 할 일: 툴콜 단위로 (자체 소모, 컨텍스트 증가량) 2개 필드를 로깅 스키마에 추가.</text>
+
+  <text x="400" y="426" text-anchor="middle" font-size="11" fill="#8a90a3">자체 제작 · 수치 출처: arXiv:2609.35760 (논문 보고 수치)</text>
+</svg>

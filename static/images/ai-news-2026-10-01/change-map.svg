@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="520" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-01</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">프런티어 3파전 개막 + 하네스가 연구·관측의 단위가 되다</text>
+
+  <!-- quadrant: 모델 -->
+  <rect x="40" y="80" width="345" height="180" rx="14" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="60" y="108" font-size="14" font-weight="700" fill="#2d5bb0">🤖 모델</text>
+  <text x="60" y="134" font-size="13" font-weight="700" fill="#1a1a2e">Gemini 4 Argon (9/30)</text>
+  <text x="60" y="154" font-size="12" fill="#1a1a2e">DeepSWE 77.9% · 출력 1M 토큰</text>
+  <text x="60" y="172" font-size="12" fill="#1a1a2e">$2/$10 (도입가) · 사이버 방어 우선 공개</text>
+  <text x="60" y="198" font-size="12" fill="#555f77">OpenAI: GPT-6.1 Astra 출시 취소 (안전)</text>
+  <text x="60" y="216" font-size="12" fill="#555f77">FTC: Anthropic·OpenAI 안전성 조사 개시</text>
+
+  <!-- quadrant: 논문 -->
+  <rect x="415" y="80" width="345" height="180" rx="14" fill="#f7f3ff" stroke="#8a63e8" stroke-width="2"/>
+  <text x="435" y="108" font-size="14" font-weight="700" fill="#6b3fd4">📚 논문</text>
+  <text x="435" y="134" font-size="13" font-weight="700" fill="#1a1a2e">Raven: Harness of Harnesses</text>
+  <text x="435" y="154" font-size="12" fill="#1a1a2e">하네스를 자동 생성·진화시키는 생태계</text>
+  <text x="435" y="172" font-size="12" fill="#8a90a3">arXiv:2609.33439 · HF 데일리 1위</text>
+  <text x="435" y="198" font-size="13" font-weight="700" fill="#1a1a2e">LibraryDesignBench</text>
+  <text x="435" y="216" font-size="12" fill="#1a1a2e">에이전트는 라이브러리를 잘 짓고, 덜 쓴다</text>
+  <text x="435" y="234" font-size="12" fill="#8a90a3">arXiv:2609.36730</text>
+
+  <!-- quadrant: 오픈소스 -->
+  <rect x="40" y="280" width="345" height="160" rx="14" fill="#eef7f1" stroke="#2f9d63" stroke-width="2"/>
+  <text x="60" y="308" font-size="14" font-weight="700" fill="#1d7a4b">🛠 오픈소스</text>
+  <text x="60" y="334" font-size="13" font-weight="700" fill="#1a1a2e">Paperclip — 에이전트 관리 현황판</text>
+  <text x="60" y="352" font-size="12" fill="#1a1a2e">일 배정·진행 추적 · 주간 +2,401★</text>
+  <text x="60" y="378" font-size="13" font-weight="700" fill="#1a1a2e">Hindsight — 학습하는 에이전트 메모리</text>
+  <text x="60" y="396" font-size="12" fill="#1a1a2e">세션 간 지속 기억 · Python/TS 클라이언트</text>
+  <text x="60" y="420" font-size="12" fill="#8a90a3">둘 다 9/30에도 커밋 (클론 검증)</text>
+
+  <!-- quadrant: 도구 -->
+  <rect x="415" y="280" width="345" height="160" rx="14" fill="#fff8ec" stroke="#e8963f" stroke-width="2"/>
+  <text x="435" y="308" font-size="14" font-weight="700" fill="#c26a10">🧑‍💻 도구</text>
+  <text x="435" y="334" font-size="13" font-weight="700" fill="#1a1a2e">Codex: skill 사용을 OTel로 관측</text>
+  <text x="435" y="352" font-size="12" fill="#1a1a2e">codex.skill_invocation 이벤트 (9/30)</text>
+  <text x="435" y="378" font-size="13" font-weight="700" fill="#1a1a2e">Claude Code 2.1.286</text>
+  <text x="435" y="396" font-size="12" fill="#1a1a2e">모델 거부 시 같은 티어로 1회 자동 재시도</text>
+  <text x="435" y="420" font-size="12" fill="#1a1a2e">--fallback-model 안정화 · 권한 프롬프트 개수 표시</text>
+
+  <!-- bottom takeaway -->
+  <rect x="40" y="458" width="720" height="44" rx="12" fill="#1a1a2e"/>
+  <text x="400" y="485" text-anchor="middle" font-size="13" fill="#ffffff">오늘의 실행 항목: Argon 대기자 등록 · 에이전트에 reuse-first 규칙 추가 · skill 사용 관측 파이프라인 점검</text>
+</svg>

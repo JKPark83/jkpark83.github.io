@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">DeepSWE v1.1 — 프런티어 3파전 현재 스코어</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">코딩 에이전트 벤치마크 · Google 발표 수치 (독립 검증 전) · 축은 0부터</text>
+
+  <!-- axis -->
+  <line x1="180" y1="80" x2="180" y2="250" stroke="#d7dae3" stroke-width="1"/>
+  <line x1="180" y1="250" x2="740" y2="250" stroke="#d7dae3" stroke-width="1"/>
+  <text x="180" y="268" text-anchor="middle" font-size="10" fill="#8a90a3">0</text>
+  <text x="460" y="268" text-anchor="middle" font-size="10" fill="#8a90a3">50</text>
+  <text x="740" y="268" text-anchor="middle" font-size="10" fill="#8a90a3">100</text>
+  <line x1="460" y1="80" x2="460" y2="250" stroke="#eef0f4" stroke-width="1"/>
+  <line x1="740" y1="80" x2="740" y2="250" stroke="#eef0f4" stroke-width="1"/>
+
+  <!-- bars: 5.6px per point, origin x=180 -->
+  <text x="170" y="107" text-anchor="end" font-size="13" fill="#1a1a2e">Gemini 4 Argon</text>
+  <rect x="180" y="92" width="436.2" height="22" rx="4" fill="#4a7fd4"/>
+  <text x="624" y="107" font-size="13" font-weight="700" fill="#2d5bb0">77.9%</text>
+
+  <text x="170" y="157" text-anchor="end" font-size="13" fill="#1a1a2e">Claude Opus 5.5</text>
+  <rect x="180" y="142" width="415.5" height="22" rx="4" fill="#c2622d"/>
+  <text x="604" y="157" font-size="13" font-weight="700" fill="#a34e1e">74.2%</text>
+
+  <text x="170" y="207" text-anchor="end" font-size="13" fill="#1a1a2e">GPT-6 Astra</text>
+  <rect x="180" y="192" width="414.9" height="22" rx="4" fill="#2f9d63"/>
+  <text x="603" y="207" font-size="13" font-weight="700" fill="#1d7a4b">74.1%</text>
+
+  <!-- fact strip -->
+  <rect x="40" y="292" width="232" height="96" rx="12" fill="#eef3fc" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="156" y="320" text-anchor="middle" font-size="12" fill="#555f77">출시 도입가 (MTok)</text>
+  <text x="156" y="348" text-anchor="middle" font-size="20" font-weight="700" fill="#2d5bb0">$2 / $10</text>
+  <text x="156" y="372" text-anchor="middle" font-size="11" fill="#8a90a3">Sonnet 5.5·GPT-6.1 Sol과 동률</text>
+
+  <rect x="284" y="292" width="232" height="96" rx="12" fill="#eef3fc" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="400" y="320" text-anchor="middle" font-size="12" fill="#555f77">단일 응답 최대 출력</text>
+  <text x="400" y="348" text-anchor="middle" font-size="20" font-weight="700" fill="#2d5bb0">1M 토큰</text>
+  <text x="400" y="372" text-anchor="middle" font-size="11" fill="#8a90a3">기존 128K급 한계의 약 8배</text>
+
+  <rect x="528" y="292" width="232" height="96" rx="12" fill="#eef3fc" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="644" y="320" text-anchor="middle" font-size="12" fill="#555f77">벤치 18개 중 단독 1위</text>
+  <text x="644" y="348" text-anchor="middle" font-size="20" font-weight="700" fill="#2d5bb0">12개</text>
+  <text x="644" y="372" text-anchor="middle" font-size="11" fill="#8a90a3">Astra 3승 · Opus 5.5 2승</text>
+
+  <text x="400" y="420" text-anchor="middle" font-size="11.5" fill="#8a90a3">공개 순서: Fairwind 프로그램(사이버 방어 신뢰 테스터) → 유료 API·AI Ultra 구독자</text>
+</svg>

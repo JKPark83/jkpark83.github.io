@@ -1,0 +1,415 @@
+---
+title: "채팅창을 닫아도 일하는 에이전트 — 상시 가동(ambient) 에이전트 엔지니어링"
+date: 2026-10-01T07:30:00+09:00
+draft: false
+tags: ["AI", "ambient agents", "상시 가동 에이전트", "OpenAI Dots", "트리거", "멱등성", "human-in-the-loop", "notify question review", "cron", "웹훅", "에이전트 아키텍처", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "9월 29일 OpenAI가 DevDay에서 '채팅창을 닫아도 계속 일하는' 상시 가동 에이전트 dots를 발표했고, Hacker News에서 464점·353댓글로 한 주 내내 화제였습니다. 9월 한 달만 봐도 Meta Muse(9/8), OpenAI Agents API 베타(9/10), dots(9/29)까지 — 업계가 일제히 '항상 켜져 있는 에이전트'로 이동 중입니다. 그런데 상시 가동 에이전트는 채팅 에이전트에 루프 하나 더한 게 아닙니다. 트리거 설계, 실행 사이에 상태를 잇는 영속 상태와 멱등성, 사람을 부르는 타이밍(notify·question·review), 그리고 24시간 돌아도 파산하지 않는 비용 구조까지 — 부품이 다릅니다. 직접 만들 수 있는 미니 앰비언트 에이전트 예제와 함께, junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "ambient-agents-always-on-engineering-cover.svg"
+  alt: "사람이 잠든 밤에도 트리거를 받아 깨어나 일하고, 중요한 순간에만 사람에게 알림을 보내는 상시 가동 에이전트의 하루를 그린 그림"
+  caption: "상시 가동 에이전트의 실체는 '항상 도는 프로세스'가 아니라, 트리거가 올 때마다 깨어나 상태를 이어받는 루프입니다."
+  relative: false
+---
+
+<style>
+/* ── 상시 가동 에이전트 포스트 전용 스타일 (amb- 접두사) ── */
+.amb-fig{
+  --amb-green:#16a34a; --amb-rose:#e11d48; --amb-amber:#d97706; --amb-sky:#0284c7;
+  --amb-violet:#7c3aed; --amb-slate:#64748b; --amb-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .amb-fig{
+  --amb-green:#4ade80; --amb-rose:#fb7185; --amb-amber:#fbbf24; --amb-sky:#38bdf8;
+  --amb-violet:#a78bfa; --amb-slate:#94a3b8; --amb-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .amb-fig{
+    --amb-green:#4ade80; --amb-rose:#fb7185; --amb-amber:#fbbf24; --amb-sky:#38bdf8;
+    --amb-violet:#a78bfa; --amb-slate:#94a3b8; --amb-gray:#64748b;
+  }
+}
+.amb-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.amb-fig text{font-family:inherit}
+.amb-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.amb-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.amb-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.amb-toc ol{margin:0;padding-left:1.25rem}
+.amb-toc li{margin:.22rem 0;font-size:.95rem}
+.amb-toc a{text-decoration:none}
+.amb-toc a:hover{text-decoration:underline}
+.amb-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.amb-table th,.amb-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.amb-table th{background:var(--entry)}
+.amb-note{border-left:4px solid var(--amb-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="amb-toc">
+  <div class="amb-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 업계가 일제히 '항상 켜진 에이전트'로</a></li>
+    <li><a href="#sec-2">배경 — 채팅 에이전트와 뭐가 다른가</a></li>
+    <li><a href="#sec-3">부품 ① 트리거 — 누가 에이전트를 깨우는가</a></li>
+    <li><a href="#sec-4">부품 ② 런 라이프사이클 — 상태·멱등성·델타</a></li>
+    <li><a href="#sec-5">부품 ③ 사람을 부르는 타이밍 — notify·question·review</a></li>
+    <li><a href="#sec-6">실전 — 릴리스 감시 앰비언트 에이전트 만들기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 업계가 일제히 '항상 켜진 에이전트'로</h2>
+
+<p>9월 29일 DevDay에서 OpenAI가 <strong>dots</strong>를 발표했습니다. 홍보 문구를 한 줄로 줄이면 이렇습니다. <em>"채팅창을 닫아도 계속 일하는 에이전트."</em> dot마다 자체 클라우드 컴퓨터와 브라우저를 받고, 4,000개 넘는 앱에 연결되고, 대화와 대화 사이에도 프로젝트를 지켜보다가 완성된 작업을 들고 돌아옵니다. Hacker News 스레드는 464점에 댓글 353개(9/30 집계)가 달리며 한 주 내내 화제였습니다.</p>
+
+<p>dots 하나만이 아닙니다. 9월 한 달 동안 벌어진 일을 늘어놓으면 방향이 보입니다. 9월 8일 Meta가 이메일·캘린더·결제까지 연결해 여러 단계 목표를 알아서 처리하는 에이전트 <strong>Muse</strong>를 출시했고, 9월 10일 OpenAI는 durable session 위에서 장시간 도는 에이전트를 만드는 <strong>Agents API</strong>를 퍼블릭 베타로 열었습니다. 그리고 9월 29일 dots까지. 업계가 일제히 "사용자가 보고 있지 않은 시간"으로 에이전트를 밀어 넣고 있습니다.</p>
+
+<p>이 글은 dots 사용 후기가 아닙니다. 제품 발표는 계기일 뿐이고, 진짜 질문은 이겁니다. <strong>상시 가동 에이전트는 채팅 에이전트와 구조가 어떻게 다르고, 직접 만들려면 어떤 부품이 필요한가?</strong> 결론부터 말하면 부품은 세 가지입니다. 트리거, 상태를 잇는 런 라이프사이클, 그리고 사람을 부르는 타이밍 설계. 하나씩 뜯어봅니다.</p>
+
+<div class="amb-note">
+참고로 이 개념 자체는 새것이 아닙니다. LangChain의 Harrison Chase가 2025년 1월 "ambient agents"라는 이름으로 정리했고, 오픈소스 이메일 비서로 시연까지 했습니다. 2026년 9월의 변화는 이 패턴이 <strong>프론티어 랩의 플래그십 제품</strong>이 됐다는 점입니다. 개념이 궁금하면 원문(<a href="https://www.langchain.com/blog/introducing-ambient-agents" target="_blank" rel="noopener">Introducing ambient agents</a>)을 함께 보세요.
+</div>
+
+<h2 id="sec-2">2. 배경 — 채팅 에이전트와 뭐가 다른가</h2>
+
+<p>지금까지 만들던 에이전트는 대부분 <strong>채팅형</strong>입니다. 사람이 메시지를 보내야 시작하고, 사람이 화면을 보고 있는 동안 돌고, 답을 내놓으면 끝납니다. 상호작용의 시작점이 항상 사람입니다. 이 구조의 한계는 명확합니다. 사람이 시키지 않으면 아무 일도 안 하고, 사람 한 명이 동시에 볼 수 있는 채팅창 수만큼만 확장됩니다.</p>
+
+<p><strong>앰비언트 에이전트(ambient agent)</strong>는 시작점을 뒤집습니다. 사람 대신 <em>이벤트</em>가 에이전트를 깨웁니다. 새 이메일, CI 실패, 새벽 3시의 cron, 경쟁사 가격 변동 — 세상의 변화가 트리거이고, 사람은 중요한 순간에만 호출됩니다. 비유하면 채팅 에이전트는 "말을 걸어야 대답하는 비서"이고, 앰비언트 에이전트는 "우편함을 계속 지켜보다가 등기가 오면 전화해 주는 비서"입니다.</p>
+
+<figure class="amb-fig">
+<svg viewBox="0 0 760 340" role="img" aria-label="채팅 에이전트와 앰비언트 에이전트의 상호작용 모델 비교. 왼쪽 채팅 에이전트는 사람이 요청을 보내야 실행이 시작되고 응답으로 끝나는 동기 왕복 구조라 사람이 병목이 된다. 오른쪽 앰비언트 에이전트는 이벤트·스케줄·임계값 트리거가 실행을 시작하고, 에이전트가 여러 건을 병렬로 처리하다가 중요한 순간에만 사람에게 알림·질문·승인 요청을 보낸다.">
+  <text x="190" y="30" text-anchor="middle" font-size="16" font-weight="700" fill="var(--amb-slate)">채팅 에이전트</text>
+  <text x="570" y="30" text-anchor="middle" font-size="16" font-weight="700" fill="var(--amb-slate)">앰비언트 에이전트</text>
+
+  <!-- left: chat -->
+  <rect x="120" y="55" width="140" height="44" rx="10" fill="none" stroke="var(--amb-sky)" stroke-width="2"/>
+  <text x="190" y="82" text-anchor="middle" font-size="14" fill="var(--amb-sky)">사람 👤</text>
+  <rect x="120" y="185" width="140" height="44" rx="10" fill="none" stroke="var(--amb-violet)" stroke-width="2"/>
+  <text x="190" y="212" text-anchor="middle" font-size="14" fill="var(--amb-violet)">에이전트</text>
+  <path d="M160 99 L160 185" stroke="var(--amb-sky)" stroke-width="2" marker-end="url(#amb-ar1)"/>
+  <text x="152" y="146" text-anchor="end" font-size="12" fill="var(--amb-sky)">요청 (시작점)</text>
+  <path d="M220 185 L220 99" stroke="var(--amb-violet)" stroke-width="2" marker-end="url(#amb-ar2)"/>
+  <text x="228" y="146" font-size="12" fill="var(--amb-violet)">응답 (끝)</text>
+  <text x="190" y="270" text-anchor="middle" font-size="12.5" fill="var(--amb-rose)">사람이 트리거 = 사람이 병목</text>
+  <text x="190" y="292" text-anchor="middle" font-size="12.5" fill="var(--amb-gray)">사람이 보는 동안만 실행</text>
+
+  <!-- right: ambient -->
+  <rect x="430" y="55" width="86" height="36" rx="8" fill="none" stroke="var(--amb-amber)" stroke-width="2"/>
+  <text x="473" y="78" text-anchor="middle" font-size="12" fill="var(--amb-amber)">이벤트</text>
+  <rect x="527" y="55" width="86" height="36" rx="8" fill="none" stroke="var(--amb-amber)" stroke-width="2"/>
+  <text x="570" y="78" text-anchor="middle" font-size="12" fill="var(--amb-amber)">스케줄</text>
+  <rect x="624" y="55" width="86" height="36" rx="8" fill="none" stroke="var(--amb-amber)" stroke-width="2"/>
+  <text x="667" y="78" text-anchor="middle" font-size="12" fill="var(--amb-amber)">임계값</text>
+  <path d="M473 91 L555 135" stroke="var(--amb-amber)" stroke-width="1.6" marker-end="url(#amb-ar3)"/>
+  <path d="M570 91 L570 135" stroke="var(--amb-amber)" stroke-width="1.6" marker-end="url(#amb-ar3)"/>
+  <path d="M667 91 L585 135" stroke="var(--amb-amber)" stroke-width="1.6" marker-end="url(#amb-ar3)"/>
+  <rect x="490" y="137" width="160" height="46" rx="10" fill="none" stroke="var(--amb-violet)" stroke-width="2"/>
+  <text x="570" y="160" text-anchor="middle" font-size="14" fill="var(--amb-violet)">에이전트 (N건 병렬)</text>
+  <text x="570" y="176" text-anchor="middle" font-size="11" fill="var(--amb-gray)">사람 없이도 실행</text>
+  <path d="M570 183 L570 225" stroke="var(--amb-green)" stroke-width="2" marker-end="url(#amb-ar4)"/>
+  <text x="578" y="208" font-size="12" fill="var(--amb-green)">중요할 때만</text>
+  <rect x="500" y="227" width="140" height="44" rx="10" fill="none" stroke="var(--amb-sky)" stroke-width="2"/>
+  <text x="570" y="250" text-anchor="middle" font-size="14" fill="var(--amb-sky)">사람 👤</text>
+  <text x="570" y="264" text-anchor="middle" font-size="11" fill="var(--amb-gray)">알림 · 질문 · 승인</text>
+  <text x="570" y="300" text-anchor="middle" font-size="12.5" fill="var(--amb-green)">세상의 변화가 트리거 = 사람은 검토 지점에만</text>
+
+  <defs>
+    <marker id="amb-ar1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-sky)"/></marker>
+    <marker id="amb-ar2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-violet)"/></marker>
+    <marker id="amb-ar3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-amber)"/></marker>
+    <marker id="amb-ar4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-green)"/></marker>
+  </defs>
+</svg>
+<figcaption>그림 1. 채팅 에이전트는 사람이 시작점이자 병목입니다. 앰비언트 에이전트는 이벤트가 시작점이고, 사람은 알림·질문·승인 지점에만 등장합니다.</figcaption>
+</figure>
+
+<p>여기서 junior가 가장 많이 하는 오해가 하나 있습니다. "상시 가동이면 프로세스가 24시간 떠 있어야 하나?" 아닙니다. dots도, LangChain의 이메일 비서도, 실체는 <strong>트리거가 올 때마다 짧게 깨어나는 실행(run)의 연속</strong>입니다. LLM 호출은 어차피 stateless라서, "항상 켜져 있다"는 느낌은 실행과 실행 사이를 잇는 <em>영속 상태(persistent state)</em>가 만들어 냅니다. 그래서 엔지니어링 문제도 "데몬을 어떻게 띄우나"가 아니라 "깨어날 때마다 무엇을 이어받고, 무엇을 남기고 잠드나"가 됩니다.</p>
+
+<h2 id="sec-3">3. 부품 ① 트리거 — 누가 에이전트를 깨우는가</h2>
+
+<p>트리거는 세 종류로 정리됩니다. 어떤 조합을 쓰느냐가 반응 속도와 비용을 동시에 결정합니다.</p>
+
+<table class="amb-table">
+  <thead>
+    <tr><th>트리거</th><th>동작 방식</th><th>지연</th><th>비용 특성</th><th>예시</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>스케줄(schedule)</strong></td>
+      <td>cron처럼 정해진 시각에 실행</td>
+      <td>주기만큼 늦음</td>
+      <td>예측 가능, 빈 실행 낭비 있음</td>
+      <td>매일 아침 브리핑, 주간 리포트</td>
+    </tr>
+    <tr>
+      <td><strong>이벤트(event)</strong></td>
+      <td>웹훅·메시지 큐로 변화가 직접 쏨</td>
+      <td>수 초</td>
+      <td>변화 있을 때만 실행 — 가장 효율적</td>
+      <td>CI 실패 웹훅, 새 이메일, PR 코멘트</td>
+    </tr>
+    <tr>
+      <td><strong>임계값 폴링(polling)</strong></td>
+      <td>주기적으로 값을 읽어 조건 검사</td>
+      <td>주기만큼 늦음</td>
+      <td>웹훅이 없는 대상에 차선책</td>
+      <td>재고·가격·에러율 감시</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>원칙은 간단합니다. <strong>웹훅이 있으면 웹훅, 없으면 폴링, 정기 요약은 스케줄.</strong> 그리고 폴링을 쓰더라도 LLM을 폴링 루프 안에 넣으면 안 됩니다. "값을 읽어 조건을 검사"하는 부분은 LLM 없이 일반 코드로 처리하고, 조건이 참일 때만 에이전트를 깨워야 합니다. dots 발표 당일 HN에서 가장 많이 나온 걱정이 "always-on이면 컴퓨트가 얼마나 낭비될까"였는데, 트리거 계층을 제대로 나누면 상시 가동 에이전트는 사실 <em>거의 항상 잠들어 있습니다</em>. 프레임워크 차원에서는 LangGraph가 cron 잡과 영속 상태를 내장해 이 패턴을 지원하고, OpenAI Agents API는 durable session으로 실행 사이의 상태 유지를 대신 해 줍니다(<a href="/posts/agents-api-managed-harness/">Agents API 해부</a> 편 참고).</p>
+
+<h2 id="sec-4">4. 부품 ② 런 라이프사이클 — 상태·멱등성·델타</h2>
+
+<p>트리거가 에이전트를 깨운 다음부터가 본론입니다. 한 번의 실행은 다섯 단계를 거칩니다.</p>
+
+<figure class="amb-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="상시 가동 에이전트의 런 라이프사이클 다섯 단계. 트리거가 실행을 깨우면 1단계에서 영속 상태를 로드해 멱등성 검사로 중복 실행을 걸러내고, 2단계에서 워터마크 이후의 델타만 감지한다. 변화가 없으면 즉시 종료한다. 3단계에서 계획과 실행, 4단계에서 행동의 위험도에 따라 자율 실행 또는 사람 승인 게이트를 거치고, 5단계에서 워터마크와 결과를 영속 상태에 저장하고 잠든다.">
+  <text x="380" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--amb-slate)">한 번의 실행(run)이 거치는 다섯 단계</text>
+
+  <rect x="20" y="60" width="100" height="52" rx="10" fill="none" stroke="var(--amb-amber)" stroke-width="2"/>
+  <text x="70" y="83" text-anchor="middle" font-size="13" fill="var(--amb-amber)">트리거</text>
+  <text x="70" y="100" text-anchor="middle" font-size="10.5" fill="var(--amb-gray)">cron·웹훅·폴링</text>
+
+  <rect x="150" y="60" width="128" height="52" rx="10" fill="none" stroke="var(--amb-sky)" stroke-width="2"/>
+  <text x="214" y="80" text-anchor="middle" font-size="13" fill="var(--amb-sky)">① 상태 로드</text>
+  <text x="214" y="98" text-anchor="middle" font-size="10.5" fill="var(--amb-gray)">멱등성 검사</text>
+
+  <rect x="308" y="60" width="128" height="52" rx="10" fill="none" stroke="var(--amb-sky)" stroke-width="2"/>
+  <text x="372" y="80" text-anchor="middle" font-size="13" fill="var(--amb-sky)">② 델타 감지</text>
+  <text x="372" y="98" text-anchor="middle" font-size="10.5" fill="var(--amb-gray)">워터마크 이후만</text>
+
+  <rect x="466" y="60" width="128" height="52" rx="10" fill="none" stroke="var(--amb-violet)" stroke-width="2"/>
+  <text x="530" y="80" text-anchor="middle" font-size="13" fill="var(--amb-violet)">③ 계획·실행</text>
+  <text x="530" y="98" text-anchor="middle" font-size="10.5" fill="var(--amb-gray)">여기서만 LLM</text>
+
+  <rect x="624" y="60" width="116" height="52" rx="10" fill="none" stroke="var(--amb-rose)" stroke-width="2"/>
+  <text x="682" y="80" text-anchor="middle" font-size="13" fill="var(--amb-rose)">④ HITL 게이트</text>
+  <text x="682" y="98" text-anchor="middle" font-size="10.5" fill="var(--amb-gray)">위험하면 승인</text>
+
+  <path d="M120 86 L150 86" stroke="var(--amb-slate)" stroke-width="2" marker-end="url(#amb-br)"/>
+  <path d="M278 86 L308 86" stroke="var(--amb-slate)" stroke-width="2" marker-end="url(#amb-br)"/>
+  <path d="M436 86 L466 86" stroke="var(--amb-slate)" stroke-width="2" marker-end="url(#amb-br)"/>
+  <path d="M594 86 L624 86" stroke="var(--amb-slate)" stroke-width="2" marker-end="url(#amb-br)"/>
+
+  <!-- early exits -->
+  <path d="M214 112 L214 170" stroke="var(--amb-green)" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#amb-gr)"/>
+  <rect x="140" y="172" width="148" height="40" rx="9" fill="none" stroke="var(--amb-green)" stroke-width="1.6"/>
+  <text x="214" y="190" text-anchor="middle" font-size="11.5" fill="var(--amb-green)">이미 처리한 실행이면</text>
+  <text x="214" y="205" text-anchor="middle" font-size="11.5" fill="var(--amb-green)">아무것도 안 하고 종료</text>
+
+  <path d="M372 112 L372 170" stroke="var(--amb-green)" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#amb-gr)"/>
+  <rect x="298" y="172" width="148" height="40" rx="9" fill="none" stroke="var(--amb-green)" stroke-width="1.6"/>
+  <text x="372" y="190" text-anchor="middle" font-size="11.5" fill="var(--amb-green)">변화 없으면 LLM 호출</text>
+  <text x="372" y="205" text-anchor="middle" font-size="11.5" fill="var(--amb-green)">없이 조용히 종료</text>
+
+  <!-- save state -->
+  <path d="M682 112 L682 240 L470 240" stroke="var(--amb-slate)" stroke-width="2" marker-end="url(#amb-br)"/>
+  <rect x="308" y="218" width="160" height="52" rx="10" fill="none" stroke="var(--amb-sky)" stroke-width="2"/>
+  <text x="388" y="240" text-anchor="middle" font-size="13" fill="var(--amb-sky)">⑤ 상태 저장</text>
+  <text x="388" y="257" text-anchor="middle" font-size="10.5" fill="var(--amb-gray)">워터마크·결과·감사 로그</text>
+  <path d="M308 244 L100 244 L70 112" stroke="var(--amb-gray)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#amb-gy)"/>
+  <text x="130" y="232" font-size="11" fill="var(--amb-gray)">잠들었다가 다음 트리거에 반복</text>
+
+  <text x="380" y="308" text-anchor="middle" font-size="12.5" fill="var(--amb-slate)">핵심: LLM은 ③에서만 등장 — ①·②의 문지기는 값싼 일반 코드</text>
+
+  <defs>
+    <marker id="amb-br" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-slate)"/></marker>
+    <marker id="amb-gr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-green)"/></marker>
+    <marker id="amb-gy" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-gray)"/></marker>
+  </defs>
+</svg>
+<figcaption>그림 2. 런 라이프사이클. 멱등성 검사와 델타 감지가 LLM 앞의 문지기 역할을 해서, 대부분의 깨어남은 LLM 호출 없이 끝납니다.</figcaption>
+</figure>
+
+<p>세 가지 개념만 잡으면 됩니다.</p>
+
+<p><strong>멱등성(idempotency).</strong> 같은 트리거로 두 번 깨어나도 결과가 한 번 실행한 것과 같아야 한다는 성질입니다. cron은 중복 발화할 수 있고, 웹훅은 재전송되고, 실행 도중 죽어서 재시작될 수도 있습니다. 그래서 실행 첫 단계에서 "이 작업, 이미 했나?"를 확인하는 <em>멱등성 키</em>(날짜, 이벤트 ID 등)를 영속 상태에서 조회합니다. 실제로 이 블로그의 글도 매일 아침 에이전트가 발행하는데, 히스토리 파일에 오늘 날짜가 이미 있으면 아무것도 하지 않고 종료합니다. 그 한 줄이 없으면 스케줄러가 꼬인 날 같은 글이 두 번 올라갑니다.</p>
+
+<p><strong>워터마크(watermark)와 델타 감지.</strong> 매 실행이 세상 전체를 다시 읽으면 느리고 비쌉니다. "지난 실행이 어디까지 봤는지"를 표시한 지점이 워터마크이고, 이번 실행은 그 이후의 변화(델타)만 처리합니다. 이메일 비서라면 마지막으로 처리한 메시지 ID, 릴리스 감시라면 마지막으로 본 버전 태그가 워터마크입니다. 델타가 비어 있으면 LLM을 부르지도 않고 종료합니다 — 앞서 말한 "거의 항상 잠들어 있는" 구조가 여기서 나옵니다.</p>
+
+<p><strong>실행 간 상태 vs 실행 중 상태.</strong> 워터마크·누적 학습·감사 로그처럼 실행 사이를 잇는 상태는 파일이든 DB든 <em>외부</em>에 있어야 합니다. 반면 실행 도중의 대화 컨텍스트는 그 실행과 함께 버려지는 소모품입니다. 이 둘을 섞으면(컨텍스트를 통째로 저장해 다음 실행에 재주입) 컨텍스트가 무한히 자라며 썩습니다. 긴 작업 하나가 중간에 죽는 문제까지 다루려면 <a href="/posts/durable-execution-agents/">durable execution</a> 편을, 잠든 시간을 역으로 활용하는 발상은 <a href="/posts/sleep-time-compute-idle-agents/">sleep-time compute</a> 편을 이어서 보면 좋습니다.</p>
+
+<h2 id="sec-5">5. 부품 ③ 사람을 부르는 타이밍 — notify·question·review</h2>
+
+<p>상시 가동 에이전트의 성패는 역설적으로 "사람을 언제 부르느냐"에서 갈립니다. 너무 자주 부르면 채팅 에이전트보다 나을 게 없고(그냥 알림 공장), 너무 안 부르면 새벽에 에이전트가 저지른 사고를 아침에 발견하게 됩니다.</p>
+
+<p>LangChain은 앰비언트 에이전트의 사람 개입(human-in-the-loop) 패턴을 세 가지로 정리했습니다. 실무에서 그대로 쓸 수 있는 어휘입니다.</p>
+
+<ul>
+  <li><strong>notify(알림)</strong> — "이런 일이 있었어요"라고 알려만 주고 행동은 하지 않습니다. 에이전트에게 권한이 없는 중요 이벤트에 씁니다. 예: 받은편지함에 서명 요청 문서가 도착했을 때.</li>
+  <li><strong>question(질문)</strong> — 정보가 부족해 막혔을 때 추측하지 않고 사람에게 묻습니다. 예: "회신에 참석 여부를 적어야 하는데, 금요일 미팅 가시나요?"</li>
+  <li><strong>review(검토/승인)</strong> — "이렇게 하려는데 승인해 주세요." 실행 능력은 있지만 위험하거나 대외적인 행동 앞에 세우는 게이트입니다. 예: 고객에게 나가는 이메일 발송 직전.</li>
+</ul>
+
+<p>어느 패턴을 쓸지는 행동의 <strong>가역성</strong>과 <strong>파급 범위</strong>로 정하는 게 정석입니다. 내부에서 되돌릴 수 있는 일은 자율 실행하고 로그만 남기고, 외부로 나가거나 되돌리기 어려운 일은 review를 거칩니다. dots도 같은 구조를 제품화했습니다. 보도에 따르면 별도의 자동 검토(auto-review) 시스템이 파급이 큰 행동을 사용자 지시·Custom Rules·안전 요건과 대조해 자율 진행할지 승인을 받을지 결정하고, 비밀번호 변경 같은 민감한 작업은 아예 사람 전용으로 남겨 둡니다. 재미있는 건 하드웨어까지 내려간 흐름인데, 같은 주에 Nvidia가 "모든 AI 에이전트 옆에 감시용 워치독 칩을 두겠다"는 구상을 공개했을 정도입니다.</p>
+
+<figure class="amb-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="에이전트 행동을 어떻게 처리할지 정하는 결정 트리. 행동이 필요 없는 중요 이벤트는 notify로 사람에게 알리고, 정보가 부족하면 question으로 묻는다. 행동이 가능하고 정보도 충분할 때, 되돌리기 쉽고 내부에 머무는 행동은 자율 실행 후 감사 로그를 남기고, 되돌리기 어렵거나 외부로 나가는 행동은 review 게이트에서 사람의 승인을 받는다.">
+  <text x="380" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--amb-slate)">이 행동, 사람 없이 해도 되나? — 결정 트리</text>
+
+  <rect x="290" y="48" width="180" height="40" rx="10" fill="none" stroke="var(--amb-violet)" stroke-width="2"/>
+  <text x="380" y="73" text-anchor="middle" font-size="13" fill="var(--amb-violet)">에이전트가 행동을 제안</text>
+
+  <path d="M320 88 L150 130" stroke="var(--amb-slate)" stroke-width="1.8" marker-end="url(#amb-tr)"/>
+  <text x="212" y="103" text-anchor="end" font-size="11.5" fill="var(--amb-slate)">내가 할 일이 아님</text>
+  <path d="M380 88 L380 130" stroke="var(--amb-slate)" stroke-width="1.8" marker-end="url(#amb-tr)"/>
+  <text x="388" y="112" font-size="11.5" fill="var(--amb-slate)">정보 부족</text>
+  <path d="M440 88 L610 130" stroke="var(--amb-slate)" stroke-width="1.8" marker-end="url(#amb-tr)"/>
+  <text x="548" y="103" font-size="11.5" fill="var(--amb-slate)">실행 가능</text>
+
+  <rect x="60" y="132" width="180" height="56" rx="10" fill="none" stroke="var(--amb-sky)" stroke-width="2"/>
+  <text x="150" y="155" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--amb-sky)">notify</text>
+  <text x="150" y="174" text-anchor="middle" font-size="11" fill="var(--amb-gray)">알려만 주고 행동 안 함</text>
+
+  <rect x="290" y="132" width="180" height="56" rx="10" fill="none" stroke="var(--amb-amber)" stroke-width="2"/>
+  <text x="380" y="155" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--amb-amber)">question</text>
+  <text x="380" y="174" text-anchor="middle" font-size="11" fill="var(--amb-gray)">추측 대신 사람에게 질문</text>
+
+  <rect x="520" y="132" width="180" height="56" rx="10" fill="none" stroke="var(--amb-slate)" stroke-width="2"/>
+  <text x="610" y="152" text-anchor="middle" font-size="12.5" fill="var(--amb-slate)">가역성·파급 범위 판정</text>
+  <text x="610" y="172" text-anchor="middle" font-size="11" fill="var(--amb-gray)">되돌릴 수 있나? 밖으로 나가나?</text>
+
+  <path d="M565 188 L505 232" stroke="var(--amb-green)" stroke-width="1.8" marker-end="url(#amb-tg)"/>
+  <text x="512" y="205" text-anchor="end" font-size="11.5" fill="var(--amb-green)">가역 · 내부</text>
+  <path d="M655 188 L695 232" stroke="var(--amb-rose)" stroke-width="1.8" marker-end="url(#amb-tro)"/>
+  <text x="692" y="205" font-size="11.5" fill="var(--amb-rose)">비가역 · 외부</text>
+
+  <rect x="390" y="234" width="190" height="52" rx="10" fill="none" stroke="var(--amb-green)" stroke-width="2"/>
+  <text x="485" y="256" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--amb-green)">자율 실행</text>
+  <text x="485" y="274" text-anchor="middle" font-size="11" fill="var(--amb-gray)">+ 감사 로그 필수</text>
+
+  <rect x="610" y="234" width="140" height="52" rx="10" fill="none" stroke="var(--amb-rose)" stroke-width="2"/>
+  <text x="680" y="256" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--amb-rose)">review</text>
+  <text x="680" y="274" text-anchor="middle" font-size="11" fill="var(--amb-gray)">승인 후 실행</text>
+
+  <defs>
+    <marker id="amb-tr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-slate)"/></marker>
+    <marker id="amb-tg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-green)"/></marker>
+    <marker id="amb-tro" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--amb-rose)"/></marker>
+  </defs>
+</svg>
+<figcaption>그림 3. notify·question·review 결정 트리. 자율 실행에도 감사 로그는 필수입니다 — 새벽에 한 일을 아침에 설명할 수 있어야 합니다.</figcaption>
+</figure>
+
+<div class="amb-note">
+review 게이트를 만들면 곧바로 다음 문제가 옵니다. 승인 요청이 쌓이면 사람이 안 읽고 전부 승인 버튼을 누르기 시작합니다(승인 피로). 게이트의 임계값 설계는 <a href="/posts/agent-approval-fatigue-permission-design/">승인 피로와 권한 설계</a> 편에서 자세히 다뤘습니다.
+</div>
+
+<h2 id="sec-6">6. 실전 — 릴리스 감시 앰비언트 에이전트 만들기</h2>
+
+<p>부품 세 개를 전부 조립해 봅니다. 시나리오: 우리 서비스가 의존하는 오픈소스 라이브러리의 새 릴리스를 감시하다가, 새 버전이 나오면 변경 사항을 읽고 <em>우리 코드에 영향이 있는지</em> 분석해 Slack으로 알려 주는 에이전트입니다. 트리거는 GitHub Actions의 스케줄을 씁니다.</p>
+
+{{< highlight yaml >}}
+# .github/workflows/release-watcher.yml
+name: release-watcher
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # 6시간마다 깨어남 (트리거 = 스케줄)
+  workflow_dispatch: {}      # 수동 실행도 가능하게
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python watcher.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+{{< /highlight >}}
+
+<p>본체는 그림 2의 라이프사이클을 그대로 코드로 옮긴 형태입니다. 멱등성 검사와 델타 감지가 LLM 호출보다 <em>앞에</em> 있다는 점이 전부라고 해도 과언이 아닙니다.</p>
+
+{{< highlight python >}}
+# watcher.py — 런 라이프사이클 5단계를 그대로 코드로
+import json, os, pathlib, urllib.request
+
+WATCHED = ["encode/httpx", "pydantic/pydantic"]
+STATE = pathlib.Path("state.json")          # 실행 사이를 잇는 영속 상태
+
+def load_state():
+    return json.loads(STATE.read_text()) if STATE.exists() else {}
+
+def latest_release(repo):
+    url = f"https://api.github.com/repos/{repo}/releases/latest"
+    with urllib.request.urlopen(url) as r:
+        return json.loads(r.read())
+
+def run():
+    state = load_state()                    # ① 상태 로드
+    for repo in WATCHED:
+        rel = latest_release(repo)
+        tag = rel["tag_name"]
+        if state.get(repo) == tag:          # ②+멱등성: 워터마크와 같으면
+            continue                        #   LLM 없이 조용히 넘어감
+        impact = analyze(repo, rel)         # ③ 새 릴리스만 LLM 분석
+        if impact["affected"]:
+            notify_slack(repo, tag, impact) # ④ HITL: notify 패턴
+        state[repo] = tag                   # ⑤ 워터마크 전진
+    STATE.write_text(json.dumps(state))     #    다음 실행을 위해 저장
+{{< /highlight >}}
+
+<p>분석 단계는 릴리스 노트와 우리 쪽 의존성 사용 방식을 함께 주고, 구조화된 판정을 받습니다. 여기서도 비용 습관 하나를 챙깁니다. 판정(싸고 자주)과 심층 분석(비싸고 가끔)을 나누고, 판정은 작은 모델로 돌리는 겁니다.</p>
+
+{{< highlight python >}}
+import anthropic
+
+def analyze(repo, rel):
+    client = anthropic.Anthropic()
+    # 1차 판정은 작은 모델 — 대부분의 릴리스는 "영향 없음"으로 끝남
+    resp = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": f"""다음은 {repo}의 새 릴리스 노트입니다.
+우리 프로젝트는 이 라이브러리를 requirements.txt로 고정해 씁니다.
+
+<release_notes>{rel["body"][:8000]}</release_notes>
+
+breaking change, deprecation, 보안 패치가 있는지 판정하고
+JSON으로만 답하세요: {{"affected": bool, "severity": "low|med|high",
+"summary": "<한국어 두 문장 요약>"}}"""}],
+    )
+    return json.loads(resp.content[0].text)
+{{< /highlight >}}
+
+<p>이 작은 에이전트에 이미 세 부품이 다 들어 있습니다. 트리거(6시간 cron), 영속 상태와 워터마크(<code>state.json</code>), HITL(notify). 여기서 확장하는 길도 자연스럽습니다. severity가 <code>high</code>면 업그레이드 PR 초안까지 만들되 머지는 review 게이트로 사람에게 넘기고(자율 실행 → review로 승격), 분석 결과를 누적해 "이 라이브러리는 마이너 버전에서도 자주 깨진다" 같은 판단 근거를 상태에 쌓으면 dots가 말하는 "피드백으로 학습하는" 구조의 축소판이 됩니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>멱등성 없이 시작한다.</strong> 처음엔 티가 안 나다가 스케줄러 중복 발화, 웹훅 재전송, 재시작이 겹치는 날 사고가 납니다. 알림 두 번은 애교지만, "PR 두 개 생성"이나 "환불 두 번"은 사고입니다. 실행 첫 줄에 멱등성 키 검사부터 넣으세요.</li>
+  <li><strong>폴링 루프 안에 LLM을 넣는다.</strong> HN의 "컴퓨트 낭비" 걱정이 현실이 되는 지점입니다. 변화 감지는 일반 코드로, LLM은 델타가 있을 때만. 매 실행 앞부분이 같은 프롬프트라면 prompt caching도 겹쳐 쓰세요(<a href="/posts/prompt-caching-cache-aware-agents/">캐시 인지 에이전트</a> 편).</li>
+  <li><strong>notify를 남발한다.</strong> "변화 없음, 이상 없음"까지 알리는 에이전트는 일주일 안에 음소거당하고, 음소거된 에이전트는 없는 에이전트입니다. 조용한 실행은 로그에만 남기고, 알림은 사람이 <em>행동할</em> 일이 있을 때만 보내는 게 원칙입니다.</li>
+  <li><strong>자격 증명을 통째로 넘긴다.</strong> dots 스레드에서 가장 뜨거웠던 우려가 이것입니다 — 상시 가동 에이전트는 사람이 안 보는 시간에도 자격 증명을 쥐고 있습니다. 읽기 전용 토큰부터 시작해 필요한 권한만 추가하고(최소 권한), 쓰기 권한이 필요한 행동은 review 게이트 뒤에 두세요.</li>
+  <li><strong>감사 로그를 안 남긴다.</strong> 채팅 에이전트는 사람이 실시간으로 지켜보는 게 곧 감사였지만, 앰비언트 에이전트는 아무도 안 볼 때 일합니다. "언제 깨어나 무엇을 읽고 무엇을 했는지"를 실행마다 남기지 않으면, 이상 동작을 발견해도 재구성할 방법이 없습니다.</li>
+  <li><strong>실행 중 컨텍스트를 영속 상태에 욱여넣는다.</strong> 대화 이력 전체를 저장해 다음 실행에 재주입하면 컨텍스트가 매 실행 커지며 품질이 떨어집니다. 남길 것은 워터마크·판정 결과·교훈 같은 <em>증류된</em> 상태뿐, 원본 컨텍스트는 실행과 함께 버리세요.</li>
+  <li><strong>팁: 처음 2주는 전부 notify 모드로 돌리세요.</strong> 자율 실행 예정인 행동도 "이렇게 했을 겁니다"만 보내게 해 두면, 에이전트의 판단 분포를 공짜로 관찰할 수 있습니다. 오탐률을 보고 나서 자율 실행으로 승격해도 늦지 않습니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>9월 한 달 — Meta Muse(9/8), OpenAI Agents API 베타(9/10), OpenAI dots(9/29, HN 464점·353댓글) — 업계가 일제히 상시 가동 에이전트로 이동했습니다. 개념 자체는 LangChain이 2025년 1월 "ambient agents"로 정리한 것이고, 이제 프론티어 랩의 플래그십 제품이 됐습니다.</li>
+  <li>상시 가동의 실체는 24시간 도는 데몬이 아니라 <strong>트리거가 올 때마다 깨어나 영속 상태를 이어받는 실행의 연속</strong>입니다. 부품은 셋: 트리거, 런 라이프사이클, 사람 개입 설계.</li>
+  <li>트리거는 웹훅 &gt; 폴링, 정기 요약은 스케줄. 변화 감지는 일반 코드가 맡고 LLM은 델타가 있을 때만 — 잘 만든 앰비언트 에이전트는 거의 항상 잠들어 있습니다.</li>
+  <li>런 라이프사이클의 문지기는 멱등성 키(중복 실행 방지)와 워터마크(델타만 처리)입니다. 실행 사이에는 증류된 상태만 남기고, 실행 중 컨텍스트는 버립니다.</li>
+  <li>사람 개입은 notify(알림만)·question(막히면 질문)·review(승인 후 실행) 세 패턴으로, 행동의 가역성과 파급 범위로 고릅니다. dots의 auto-review도 같은 구조의 제품화입니다. 그리고 아무도 안 보는 시간에 일하는 에이전트일수록, 최소 권한과 감사 로그가 생명줄입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://openai.com/index/introducing-dots/" target="_blank" rel="noopener">Introducing dots — OpenAI (2026-09-29)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49896604" target="_blank" rel="noopener">Dots: Always-on agents — Hacker News 토론 (464점·353댓글)</a></li>
+  <li><a href="https://techcrunch.com/2026/09/29/openai-launches-dots-its-bubbly-agentic-avatar/" target="_blank" rel="noopener">OpenAI launches Dots — TechCrunch (2026-09-29)</a></li>
+  <li><a href="https://www.macrumors.com/2026/09/29/openai-launches-dots/" target="_blank" rel="noopener">OpenAI Launches Always-On 'Dots' Agents — MacRumors (2026-09-29)</a></li>
+  <li><a href="https://www.langchain.com/blog/introducing-ambient-agents" target="_blank" rel="noopener">Introducing ambient agents — LangChain, Harrison Chase (2025-01-14)</a></li>
+  <li><a href="https://www.langchain.com/blog/ux-for-agents-part-2-ambient" target="_blank" rel="noopener">UX for Agents, Part 2: Ambient — LangChain (notify·question·review 패턴)</a></li>
+  <li><a href="https://github.com/langchain-ai/ambient-agent-101" target="_blank" rel="noopener">ambient-agent-101 — LangGraph로 앰비언트 이메일 에이전트 만들기 실습 저장소</a></li>
+  <li><a href="https://techcrunch.com/2026/09/23/everything-new-coming-to-metas-ai-agent-muse/" target="_blank" rel="noopener">Everything new coming to Meta's AI agent Muse — TechCrunch (2026-09-23)</a></li>
+  <li><a href="https://www.cnbc.com/2026/09/28/nvidia-releases.html" target="_blank" rel="noopener">Nvidia wants to put a watchdog chip next to every AI agent — CNBC (2026-09-28)</a></li>
+</ul>

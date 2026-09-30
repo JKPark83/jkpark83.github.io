@@ -1,0 +1,64 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="사람이 잠든 밤, 스케줄·웹훅·임계값 트리거가 에이전트를 깨워 일을 시키고, 에이전트는 중요한 순간에만 사람의 휴대폰으로 알림을 보내는 상시 가동 에이전트의 구조를 그린 그림.">
+  <defs>
+    <linearGradient id="ambbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1026"/>
+      <stop offset="1" stop-color="#1e2a5f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#ambbg)"/>
+
+  <!-- stars & moon -->
+  <circle cx="120" cy="90" r="2" fill="#94a3b8"/>
+  <circle cx="240" cy="60" r="1.6" fill="#94a3b8"/>
+  <circle cx="980" cy="70" r="2" fill="#94a3b8"/>
+  <circle cx="1100" cy="130" r="1.6" fill="#94a3b8"/>
+  <circle cx="860" cy="50" r="1.4" fill="#64748b"/>
+  <path d="M1060 88 a30 30 0 1 0 22 50 a25 25 0 1 1 -22 -50 Z" fill="#fbbf24" opacity=".85"/>
+
+  <text x="600" y="90" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="44" font-weight="800">채팅창을 닫아도 일하는 에이전트</text>
+  <text x="600" y="136" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24">상시 가동(ambient) 에이전트 엔지니어링 — 트리거 · 멱등성 · 사람을 부르는 타이밍</text>
+
+  <g font-family="system-ui,sans-serif">
+    <!-- sleeping human -->
+    <rect x="90" y="360" width="250" height="150" rx="16" fill="#111a3d" stroke="#334155" stroke-width="2"/>
+    <text x="215" y="420" text-anchor="middle" font-size="52">😴</text>
+    <text x="215" y="462" text-anchor="middle" font-size="19" fill="#94a3b8">사람은 잠든 시간</text>
+    <text x="265" y="358" font-size="22" fill="#64748b">z z</text>
+
+    <!-- triggers -->
+    <rect x="430" y="212" width="132" height="44" rx="10" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+    <text x="496" y="240" text-anchor="middle" font-size="19" fill="#fbbf24">⏰ 스케줄</text>
+    <rect x="576" y="212" width="132" height="44" rx="10" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+    <text x="642" y="240" text-anchor="middle" font-size="19" fill="#fbbf24">⚡ 웹훅</text>
+    <rect x="722" y="212" width="132" height="44" rx="10" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+    <text x="788" y="240" text-anchor="middle" font-size="19" fill="#fbbf24">📈 임계값</text>
+
+    <path d="M496 256 L610 316" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#amb-ca)"/>
+    <path d="M642 256 L642 316" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#amb-ca)"/>
+    <path d="M788 256 L674 316" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#amb-ca)"/>
+
+    <!-- agent -->
+    <rect x="500" y="320" width="284" height="150" rx="16" fill="#111a3d" stroke="#a78bfa" stroke-width="2.5"/>
+    <text x="642" y="378" text-anchor="middle" font-size="46">🤖</text>
+    <text x="642" y="418" text-anchor="middle" font-size="19" fill="#c4b5fd">깨어나 일하는 에이전트</text>
+    <text x="642" y="448" text-anchor="middle" font-size="16" fill="#64748b">상태 로드 → 델타 감지 → 실행 → 저장</text>
+
+    <!-- notify to phone -->
+    <path d="M500 400 L370 412" stroke="#4ade80" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#amb-cg)"/>
+    <text x="435" y="388" text-anchor="middle" font-size="17" fill="#4ade80">중요할 때만 🔔</text>
+
+    <!-- world / apps -->
+    <rect x="900" y="330" width="210" height="130" rx="16" fill="#111a3d" stroke="#38bdf8" stroke-width="2"/>
+    <text x="1005" y="382" text-anchor="middle" font-size="40">🌐</text>
+    <text x="1005" y="422" text-anchor="middle" font-size="18" fill="#7dd3fc">앱 · API · 세상의 변화</text>
+    <path d="M900 395 L784 395" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#amb-cb)"/>
+
+    <text x="600" y="560" text-anchor="middle" font-size="21" fill="#94a3b8">실체는 24시간 도는 데몬이 아니라, 트리거마다 깨어나 상태를 이어받는 루프</text>
+  </g>
+
+  <defs>
+    <marker id="amb-ca" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 Z" fill="#fbbf24"/></marker>
+    <marker id="amb-cg" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 Z" fill="#4ade80"/></marker>
+    <marker id="amb-cb" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 Z" fill="#38bdf8"/></marker>
+  </defs>
+</svg>

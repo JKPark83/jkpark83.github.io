@@ -1,0 +1,53 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="프롬프트 하나가 에이전트 826개로 부채꼴처럼 증식해 78,000달러 청구서를 만들어 내는 모습과, 이를 둘러싼 루프·하네스·플랫폼·인프라 네 겹의 가드레일을 그린 그림.">
+  <defs>
+    <linearGradient id="arcbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#180b26"/>
+      <stop offset="1" stop-color="#4a1d2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#arcbg)"/>
+
+  <text x="600" y="88" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">에이전트 826개가 저절로 깨어났다</text>
+  <text x="600" y="134" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24">$78,000 폭주 사건으로 배우는 예산 가드레일 엔지니어링</text>
+
+  <g font-family="system-ui,sans-serif">
+    <!-- prompt -->
+    <rect x="80" y="330" width="190" height="80" rx="14" fill="#1b1033" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="175" y="365" text-anchor="middle" font-size="22" fill="#38bdf8">💬 프롬프트 1개</text>
+    <text x="175" y="394" text-anchor="middle" font-size="16" fill="#94a3b8">"UI 검증해 줘"</text>
+
+    <!-- fan-out -->
+    <path d="M270 360 L430 230" stroke="#fb7185" stroke-width="2.5"/>
+    <path d="M270 368 L430 310" stroke="#fb7185" stroke-width="2.5"/>
+    <path d="M270 376 L430 390" stroke="#fb7185" stroke-width="2.5"/>
+    <path d="M270 384 L430 470" stroke="#fb7185" stroke-width="2.5"/>
+
+    <g fill="#2a1140" stroke="#fb7185" stroke-width="2">
+      <rect x="432" y="200" width="150" height="54" rx="10"/>
+      <rect x="432" y="282" width="150" height="54" rx="10"/>
+      <rect x="432" y="364" width="150" height="54" rx="10"/>
+      <rect x="432" y="446" width="150" height="54" rx="10"/>
+    </g>
+    <text x="507" y="233" text-anchor="middle" font-size="18" fill="#fb7185">🤖 자식 #1</text>
+    <text x="507" y="315" text-anchor="middle" font-size="18" fill="#fb7185">🤖 자식 #2</text>
+    <text x="507" y="397" text-anchor="middle" font-size="18" fill="#fb7185">⋮ ×826</text>
+    <text x="507" y="479" text-anchor="middle" font-size="18" fill="#fb7185">🤖 자식 #826</text>
+
+    <path d="M582 340 L660 340" stroke="#fbbf24" stroke-width="3"/>
+    <rect x="662" y="296" width="200" height="88" rx="14" fill="#33210e" stroke="#fbbf24" stroke-width="2.5"/>
+    <text x="762" y="334" text-anchor="middle" font-size="26" font-weight="800" fill="#fbbf24">$78,000</text>
+    <text x="762" y="364" text-anchor="middle" font-size="16" fill="#94a3b8">결과물 없음 · 기록 삭제</text>
+
+    <!-- guardrail arcs -->
+    <g fill="none" stroke-linecap="round">
+      <path d="M980 180 a150 150 0 0 1 0 300" stroke="#4ade80" stroke-width="7"/>
+      <path d="M1010 150 a185 185 0 0 1 0 360" stroke="#38bdf8" stroke-width="7"/>
+      <path d="M1040 120 a220 220 0 0 1 0 420" stroke="#fbbf24" stroke-width="7"/>
+      <path d="M1070 90 a255 255 0 0 1 0 480" stroke="#fb7185" stroke-width="7"/>
+    </g>
+    <text x="968" y="332" text-anchor="end" font-size="16" fill="#4ade80">L1 루프</text>
+    <text x="1004" y="560" text-anchor="middle" font-size="16" fill="#38bdf8">L2 하네스</text>
+    <text x="1043" y="100" text-anchor="middle" font-size="16" fill="#fbbf24">L3 플랫폼</text>
+    <text x="1108" y="600" text-anchor="middle" font-size="16" fill="#fb7185">L4 인프라</text>
+  </g>
+</svg>

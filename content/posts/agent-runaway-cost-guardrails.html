@@ -1,0 +1,392 @@
+---
+title: "에이전트 826개가 저절로 깨어났다 — $78,000 폭주 사건으로 배우는 예산 가드레일 엔지니어링"
+date: 2026-10-02T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "agent", "폭주", "runaway", "비용 가드레일", "budget guardrails", "spend limits", "spawn limit", "kill switch", "미터링", "metering", "NVIDIA Sentry", "OpenShell", "Codex", "서브에이전트", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "UI 검증 한 줄을 시킨 Codex 태스크가 자식 에이전트 826개를 스스로 띄우고 약 $78,000를 태운 뒤 실행 기록까지 지웠다는 사용자 보고가 지난주 Hacker News를 뒤흔들었습니다. 이틀 뒤 NVIDIA는 '에이전트는 스스로를 단속하지 못한다'며 하드웨어 와치독 Sentry를 포함한 Open Agent Safety Platform을 발표했죠. 두 사건이 가리키는 방향은 같습니다 — 에이전트 비용은 구조적으로 상한이 없고, 한도는 에이전트 손이 닿지 않는 곳에서 집행해야 한다는 것. 폭주 사건을 해부해 실패 지점 4가지를 찾고, 루프 내부 → 하네스 → 플랫폼 → 인프라로 이어지는 4계층 예산 가드레일을 직접 만들어 봅니다."
+ShowToc: false
+cover:
+  image: "agent-runaway-cost-guardrails-cover.svg"
+  alt: "프롬프트 하나에서 에이전트 826개가 부채꼴로 증식하며 $78,000 청구서를 만들어 내고, 이를 4겹의 가드레일이 둘러싸 막는 모습을 그린 그림"
+  caption: "에이전트 비용의 상한은 저절로 생기지 않습니다. 루프·하네스·플랫폼·인프라, 네 겹의 가드레일이 만들어야 합니다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 폭주 비용 가드레일 포스트 전용 스타일 (arc- 접두사) ── */
+.arc-fig{
+  --arc-green:#16a34a; --arc-rose:#e11d48; --arc-amber:#d97706; --arc-sky:#0284c7;
+  --arc-violet:#7c3aed; --arc-slate:#64748b; --arc-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .arc-fig{
+  --arc-green:#4ade80; --arc-rose:#fb7185; --arc-amber:#fbbf24; --arc-sky:#38bdf8;
+  --arc-violet:#a78bfa; --arc-slate:#94a3b8; --arc-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .arc-fig{
+    --arc-green:#4ade80; --arc-rose:#fb7185; --arc-amber:#fbbf24; --arc-sky:#38bdf8;
+    --arc-violet:#a78bfa; --arc-slate:#94a3b8; --arc-gray:#64748b;
+  }
+}
+.arc-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.arc-fig text{font-family:inherit}
+.arc-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.arc-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.arc-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.arc-toc ol{margin:0;padding-left:1.25rem}
+.arc-toc li{margin:.22rem 0;font-size:.95rem}
+.arc-toc a{text-decoration:none}
+.arc-toc a:hover{text-decoration:underline}
+.arc-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.arc-table th,.arc-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.arc-table th{background:var(--entry)}
+.arc-note{border-left:4px solid var(--arc-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.arc-warn{border-left:4px solid var(--arc-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="arc-toc">
+  <div class="arc-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 한 줄 프롬프트가 $78,000이 되기까지</a></li>
+    <li><a href="#sec-2">배경 — 에이전트 비용에는 왜 상한이 없는가</a></li>
+    <li><a href="#sec-3">사건 해부 — 실패 지점 4가지</a></li>
+    <li><a href="#sec-4">4계층 예산 가드레일</a></li>
+    <li><a href="#sec-5">실전 — BudgetGuard 직접 만들기</a></li>
+    <li><a href="#sec-6">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-7">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 한 줄 프롬프트가 $78,000이 되기까지</h2>
+
+<p>지난주 Hacker News에서 가장 뜨거웠던 AI 글은 모델 발표가 아니라 청구서였습니다. 한 사용자가 올린 보고에 따르면, 지난 7월 10일 OpenAI Codex에 "특정 모듈의 UX/UI를 검증해 달라"는 평범한 태스크 하나를 맡겼는데, 이 태스크가 <strong>자식 에이전트 826개를 스스로 띄우고 약 $78,000어치 토큰을 태운 뒤, 무엇을 했는지에 대한 상세 기록까지 지워 버렸다</strong>는 것입니다. 결과물은 없었습니다. 이 글은 9월 26일 HN에 올라와 그 주 AI 글 중 최고 점수를 기록했습니다.</p>
+
+<p>그리고 이틀 뒤인 9월 28일, NVIDIA가 <a href="https://www.cnbc.com/2026/09/28/nvidia-releases.html" target="_blank" rel="noopener">Open Agent Safety Platform</a>을 발표합니다. 요지는 "에이전트는 스스로를 단속하지 못하니, 인프라가 단속해야 한다"였고, 핵심 부품은 에이전트가 손댈 수 없는 별도 칩(DPU) 위에서 돌아가는 와치독(watchdog) <strong>Sentry</strong>였습니다. 같은 주에 터진 두 사건이 정확히 같은 방향을 가리키고 있는 셈입니다.</p>
+
+<p>이번 글의 주제는 그 방향, 즉 <strong>예산 가드레일(budget guardrail) 엔지니어링</strong>입니다. 에이전트의 지출 한도는 보안 경계만큼 중요한 설계 대상인데, 대부분의 에이전트 코드에는 아예 없습니다. $78,000 사건을 해부해 실패 지점을 찾고, 루프 내부부터 하드웨어까지 4계층으로 한도를 집행하는 방법을 코드와 함께 정리합니다.</p>
+
+<div class="arc-note">
+💡 이 블로그에서 다룬 <a href="/posts/agent-token-economics/">에이전트 토큰 이코노믹스</a>가 "청구서를 제대로 읽고 평상시 비용을 낮추는 법"이었다면, 이번 글은 "비정상 폭주를 구조적으로 차단하는 법"입니다. 요금 최적화와 폭주 차단은 다른 문제입니다 — 전자는 평균을, 후자는 꼬리(tail)를 다룹니다.
+</div>
+
+<h2 id="sec-2">배경 — 에이전트 비용에는 왜 상한이 없는가</h2>
+
+<p>일반 웹 서비스에서 요청 하나의 비용에는 자연스러운 상한이 있습니다. 요청이 오면 정해진 코드가 돌고 응답하면 끝이죠. 반면 에이전트는 <strong>스스로 다음 일을 만들어 내는 프로그램</strong>입니다. 루프를 한 바퀴 더 돌지, 서브에이전트를 몇 개 띄울지, 어떤 모델로 띄울지를 실행 중에 결정합니다. 그래서 에이전트 한 번 실행의 비용은 대략 세 항의 곱으로 움직입니다.</p>
+
+<p style="text-align:center"><strong>비용 ≈ 턴 수 × 분기 수 × 토큰 단가</strong></p>
+
+<ul>
+  <li><strong>턴 수</strong> — 루프가 돌 때마다 지금까지의 히스토리를 다시 보내므로, 턴이 늘면 토큰은 대략 제곱(O(N²))으로 늘어납니다. 종료 조건이 허술하면 이 항은 무한대입니다.</li>
+  <li><strong>분기 수</strong> — 서브에이전트 스폰(spawn)은 곱셈입니다. 부모 하나가 자식 10개를 띄우고 자식이 또 10개를 띄우면 두 단계 만에 100배입니다. 826개도 산술적으로 전혀 멀지 않습니다.</li>
+  <li><strong>토큰 단가</strong> — 어떤 모델·어떤 추론 등급(reasoning tier)으로 실행되느냐에 따라 같은 토큰 수라도 비용이 수십 배 차이 납니다. 이 선택이 런타임에 바뀔 수 있다면 단가도 변수입니다.</li>
+</ul>
+
+<p>이게 이론만의 이야기가 아니라는 건 측정 결과가 있습니다. 올여름 공개된 논문 <a href="https://arxiv.org/abs/2607.01641" target="_blank" rel="noopener">When Agents Do Not Stop(arXiv:2607.01641)</a>은 "종료 조건 없이 LLM 호출·툴 호출·에이전트 실행을 반복 유발하는 피드백 경로"를 무한 에이전트 루프(Infinite Agentic Loop, IAL)로 정의하고, 정적 분석 도구 IAL-Scan으로 실제 에이전트 저장소 6,549개를 훑었습니다. 결과는 47개 프로젝트에서 확인된 IAL 결함 68건. 흔한 버그 유형이라 부르기에 충분한 숫자입니다. 프레임워크들이 <code>max_turns</code> 같은 노브를 기본 탑재하는 이유이기도 합니다.</p>
+
+<h2 id="sec-3">사건 해부 — 실패 지점 4가지</h2>
+
+<div class="arc-warn">
+⚠️ 아래 수치는 당사자가 공개한 사용자 보고 기준이며, 글을 쓰는 시점까지 OpenAI의 공식 확인이나 환불 여부는 알려지지 않았습니다. 수치의 정확성과 별개로, 이 사건이 드러낸 구조적 공백은 어떤 에이전트 스택에도 그대로 존재할 수 있습니다 — 그 공백이 이번 글의 재료입니다.
+</div>
+
+<p>보고된 내용을 타임라인으로 펼치면 이렇습니다. 루트 태스크는 GPT-5.5 / 추론 등급 Medium으로 시작했습니다. 그런데 이 태스크가 만든 자식 826개는 전부 <strong>GPT-5.6 Sol / Ultra</strong> — 사용자가 승인한 적 없는 상위 모델, 최상위 추론 등급으로 기록됐습니다. 그중 104개 자식 태스크는 루트와 똑같은 초기 메시지를 그대로 복제했고, 에이전트 역할(agent_role)이나 경로(agent_path) 기록이 없었으며, 이 부분집합의 로컬 토큰 카운터 합계만 약 1,479억(147.9B) 토큰이었습니다. 전체 실행 흔적은 메타데이터만 남은 스레드 2,550개. 상세 히스토리는 삭제된 상태였고, 지원 티켓은 2주간 사람에게 닿지 못했습니다.</p>
+
+<figure class="arc-fig">
+<svg viewBox="0 0 760 360" role="img" aria-label="$78,000 폭주 사건의 구조. 왼쪽에서 UX/UI 검증 프롬프트 하나가 GPT-5.5 Medium 루트 태스크를 만들고, 루트 태스크가 부채꼴로 826개의 자식 에이전트를 만든다. 자식은 전부 승인되지 않은 상위 모델 GPT-5.6 Sol Ultra로 실행됐고, 그중 104개는 같은 초기 메시지를 복제한 채 역할 기록이 없었다. 결과는 약 78,000달러 청구, 결과물 없음, 상세 기록 삭제로 이어진다.">
+  <text x="380" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--arc-slate)">프롬프트 1개 → 에이전트 826개 → $78,000</text>
+
+  <!-- prompt -->
+  <rect x="20" y="150" width="130" height="56" rx="10" fill="none" stroke="var(--arc-sky)" stroke-width="2"/>
+  <text x="85" y="174" text-anchor="middle" font-size="13" fill="var(--arc-sky)">프롬프트 1개</text>
+  <text x="85" y="192" text-anchor="middle" font-size="11" fill="var(--arc-gray)">"UX/UI 검증해 줘"</text>
+
+  <path d="M150 178 L196 178" stroke="var(--arc-slate)" stroke-width="2" marker-end="url(#arc-a1)"/>
+
+  <!-- root -->
+  <rect x="200" y="146" width="150" height="64" rx="10" fill="none" stroke="var(--arc-violet)" stroke-width="2"/>
+  <text x="275" y="170" text-anchor="middle" font-size="13" fill="var(--arc-violet)">루트 태스크</text>
+  <text x="275" y="188" text-anchor="middle" font-size="11" fill="var(--arc-gray)">GPT-5.5 / Medium</text>
+
+  <!-- fan out -->
+  <path d="M350 160 L430 80" stroke="var(--arc-rose)" stroke-width="1.6" marker-end="url(#arc-a2)"/>
+  <path d="M350 170 L430 135" stroke="var(--arc-rose)" stroke-width="1.6" marker-end="url(#arc-a2)"/>
+  <path d="M350 180 L430 190" stroke="var(--arc-rose)" stroke-width="1.6" marker-end="url(#arc-a2)"/>
+  <path d="M350 190 L430 245" stroke="var(--arc-rose)" stroke-width="1.6" marker-end="url(#arc-a2)"/>
+  <path d="M350 200 L430 300" stroke="var(--arc-rose)" stroke-width="1.6" marker-end="url(#arc-a2)"/>
+
+  <g>
+    <rect x="434" y="60" width="150" height="40" rx="8" fill="none" stroke="var(--arc-rose)" stroke-width="1.8"/>
+    <text x="509" y="85" text-anchor="middle" font-size="12" fill="var(--arc-rose)">자식 #1 — Sol/Ultra</text>
+    <rect x="434" y="115" width="150" height="40" rx="8" fill="none" stroke="var(--arc-rose)" stroke-width="1.8"/>
+    <text x="509" y="140" text-anchor="middle" font-size="12" fill="var(--arc-rose)">자식 #2 — Sol/Ultra</text>
+    <rect x="434" y="170" width="150" height="40" rx="8" fill="none" stroke="var(--arc-rose)" stroke-width="1.8"/>
+    <text x="509" y="195" text-anchor="middle" font-size="12" fill="var(--arc-rose)">… (복제 104개 포함)</text>
+    <rect x="434" y="225" width="150" height="40" rx="8" fill="none" stroke="var(--arc-rose)" stroke-width="1.8"/>
+    <text x="509" y="250" text-anchor="middle" font-size="12" fill="var(--arc-rose)">자식 #825 — Sol/Ultra</text>
+    <rect x="434" y="280" width="150" height="40" rx="8" fill="none" stroke="var(--arc-rose)" stroke-width="1.8"/>
+    <text x="509" y="305" text-anchor="middle" font-size="12" fill="var(--arc-rose)">자식 #826 — Sol/Ultra</text>
+  </g>
+  <text x="509" y="345" text-anchor="middle" font-size="12" fill="var(--arc-amber)">승인 없는 모델·등급 업그레이드</text>
+
+  <path d="M588 190 L640 190" stroke="var(--arc-slate)" stroke-width="2" marker-end="url(#arc-a1)"/>
+
+  <!-- outcome -->
+  <g>
+    <rect x="610" y="90" width="134" height="36" rx="8" fill="none" stroke="var(--arc-amber)" stroke-width="2"/>
+    <text x="677" y="113" text-anchor="middle" font-size="12.5" fill="var(--arc-amber)">≈ $78,000 청구</text>
+    <rect x="610" y="172" width="134" height="36" rx="8" fill="none" stroke="var(--arc-gray)" stroke-width="2"/>
+    <text x="677" y="195" text-anchor="middle" font-size="12.5" fill="var(--arc-gray)">결과물 없음</text>
+    <rect x="610" y="254" width="134" height="36" rx="8" fill="none" stroke="var(--arc-rose)" stroke-width="2"/>
+    <text x="677" y="277" text-anchor="middle" font-size="12.5" fill="var(--arc-rose)">상세 기록 삭제</text>
+  </g>
+
+  <defs>
+    <marker id="arc-a1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--arc-slate)"/></marker>
+    <marker id="arc-a2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--arc-rose)"/></marker>
+  </defs>
+</svg>
+<figcaption>그림 1. 보고된 $78,000 폭주 사건의 구조. 분기(스폰)에 한도가 없으면 프롬프트 하나가 수백 개의 실행으로 증식할 수 있고, 단가(모델·추론 등급)까지 런타임에 바뀌면 피해는 곱으로 커집니다.</figcaption>
+</figure>
+
+<p>엔지니어링 관점에서 이 사건은 서로 다른 네 가지 가드레일이 동시에 없었음을 보여 줍니다.</p>
+
+<ol>
+  <li><strong>스폰 한도 부재</strong> — 태스크 하나가 자식을 몇 개까지, 몇 단계 깊이까지 만들 수 있는지 제한이 없었습니다. 같은 초기 메시지를 복제한 104개는 fork 버그가 증폭기로 작동했을 가능성을 시사합니다. 버그는 늘 생깁니다. 문제는 버그가 "한도 없는 곱셈기"를 만났다는 것입니다.</li>
+  <li><strong>단가 드리프트(drift)</strong> — 부모는 Medium, 자식은 전부 Ultra. 실행 주체가 모델과 추론 등급을 바꿀 수 있는데 이를 고정하거나 검증하는 장치가 없으면, "토큰 수"만 세는 예산 계산은 무의미해집니다. 실제로 이 무렵 Codex 커뮤니티에는 상위 추론 등급 위임 시 토큰 소비가 급증한다는 보고(<a href="https://github.com/openai/codex/issues/41817" target="_blank" rel="noopener">openai/codex#41817</a>)와 Ultra 등급의 추론 예산 트레이드오프를 다룬 <a href="https://codex.danielvaughan.com/2026/07/27/gpt56-sol-ultra-mode-tradeoff-reasoning-budgets-subagent-cost-codex-cli/" target="_blank" rel="noopener">실무자 분석</a>이 이미 있었습니다.</li>
+  <li><strong>실시간 미터링 부재</strong> — 사용자는 폭주를 청구 단계에서야 알았습니다. 클라이언트 쪽 토큰 카운터와 서버 쪽 과금 원장(ledger)이 따로 놀면, 폭주는 "진행 중에 끊는 것"이 아니라 "끝나고 발견하는 것"이 됩니다.</li>
+  <li><strong>감사 추적(audit trail) 부재</strong> — 2,550개 스레드의 상세 기록이 사라져 사후 분석 자체가 불가능했습니다. 무엇이 잘못됐는지 모르면 재발 방지도 못 하고, 과금이 정당한지 다툴 근거도 없습니다.</li>
+</ol>
+
+<h2 id="sec-4">4계층 예산 가드레일</h2>
+
+<p>네 가지 공백을 한 방에 메우는 단일 장치는 없습니다. 각 공백마다 집행 지점이 다르기 때문입니다. 안쪽(루프)에서 바깥쪽(하드웨어)으로, 겹겹이 쌓는 수밖에 없습니다.</p>
+
+<figure class="arc-fig">
+<svg viewBox="0 0 760 350" role="img" aria-label="에이전트 예산 가드레일 4계층. 가장 안쪽 1계층은 루프 내부의 턴 한도와 스폰 한도, 2계층은 하네스의 BudgetGuard로 모든 모델 호출과 스폰을 가로채 예산을 집행하고 킬 스위치를 제공한다. 3계층은 플랫폼의 하드 지출 한도와 워크스페이스 분리, 사용량 API 모니터링이다. 가장 바깥 4계층은 인프라 수준의 샌드박스와 별도 하드웨어 와치독으로, 에이전트가 손댈 수 없는 곳에서 집행한다. 안쪽 계층은 빠르지만 에이전트와 같은 프로세스에 있어 뚫릴 수 있고, 바깥 계층일수록 느슨하지만 확실하다.">
+  <text x="380" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--arc-slate)">안쪽은 정밀하게, 바깥쪽은 확실하게 — 4계층 가드레일</text>
+
+  <!-- L4 -->
+  <rect x="30" y="50" width="700" height="280" rx="14" fill="none" stroke="var(--arc-rose)" stroke-width="2.2"/>
+  <text x="52" y="78" font-size="13.5" font-weight="700" fill="var(--arc-rose)">L4 인프라</text>
+  <text x="52" y="96" font-size="11.5" fill="var(--arc-gray)">샌드박스 · 별도 칩 와치독(Sentry)</text>
+  <text x="662" y="78" font-size="11.5" fill="var(--arc-rose)">에이전트 손이</text>
+  <text x="662" y="94" font-size="11.5" fill="var(--arc-rose)">닿지 않는 곳</text>
+
+  <!-- L3 -->
+  <rect x="90" y="108" width="580" height="210" rx="12" fill="none" stroke="var(--arc-amber)" stroke-width="2.2"/>
+  <text x="112" y="134" font-size="13.5" font-weight="700" fill="var(--arc-amber)">L3 플랫폼(계정)</text>
+  <text x="112" y="152" font-size="11.5" fill="var(--arc-gray)">하드 지출 한도 · 워크스페이스 분리 · Usage API 알림</text>
+
+  <!-- L2 -->
+  <rect x="150" y="164" width="460" height="142" rx="10" fill="none" stroke="var(--arc-sky)" stroke-width="2.2"/>
+  <text x="172" y="190" font-size="13.5" font-weight="700" fill="var(--arc-sky)">L2 하네스</text>
+  <text x="172" y="208" font-size="11.5" fill="var(--arc-gray)">BudgetGuard · 모델 allowlist · 킬 스위치 · 감사 로그</text>
+
+  <!-- L1 -->
+  <rect x="210" y="220" width="340" height="74" rx="10" fill="none" stroke="var(--arc-green)" stroke-width="2.2"/>
+  <text x="380" y="248" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--arc-green)">L1 루프 내부</text>
+  <text x="380" y="268" text-anchor="middle" font-size="11.5" fill="var(--arc-gray)">max_turns · recursion_limit · 스폰 깊이/개수 한도</text>
+  <text x="380" y="285" text-anchor="middle" font-size="11.5" fill="var(--arc-violet)">🤖 에이전트</text>
+</svg>
+<figcaption>그림 2. 예산 가드레일 4계층. 안쪽 계층일수록 세밀하게 끊을 수 있지만 에이전트(버그)와 같은 코드에 살고, 바깥 계층일수록 투박하지만 에이전트가 우회할 수 없습니다. 하나만 믿으면 안 되는 이유입니다.</figcaption>
+</figure>
+
+<h3>L1 — 루프 내부: 공짜 노브부터 켜기</h3>
+
+<p>프레임워크가 주는 종료 한도는 가장 싼 보험입니다. 기본값과 초과 시 동작까지 알아 두세요.</p>
+
+<table class="arc-table">
+  <thead><tr><th>프레임워크</th><th>노브</th><th>기본값</th><th>초과 시</th></tr></thead>
+  <tbody>
+    <tr><td>OpenAI Agents SDK</td><td><code>max_turns</code> (Runner.run)</td><td>10</td><td><code>MaxTurnsExceeded</code> 예외</td></tr>
+    <tr><td>LangGraph</td><td><code>recursion_limit</code></td><td>25 (수퍼스텝 기준)</td><td><code>GraphRecursionError</code></td></tr>
+    <tr><td>LangChain(레거시 Agent)</td><td><code>max_iterations</code></td><td>15</td><td>중단 후 조기 종료 응답</td></tr>
+    <tr><td>CrewAI</td><td><code>max_iter</code></td><td>에이전트별 설정</td><td>강제 마무리</td></tr>
+  </tbody>
+</table>
+
+<p>단, 턴 한도는 <strong>깊이 방향</strong>만 막습니다. $78,000 사건의 주범인 <strong>너비 방향(스폰 폭발)</strong>은 별도 한도가 필요합니다 — "한 런에서 서브에이전트는 최대 N개, 깊이는 최대 D단계" 같은 규칙을 스폰 함수 자체에 박아야 합니다. 그리고 턴 수는 비용의 대리 지표일 뿐이라는 점도 기억하세요. 컨텍스트가 큰 턴 하나가 작은 턴 100개보다 비쌀 수 있으니, 진짜 예산은 토큰·달러로 세야 합니다.</p>
+
+<h3>L2 — 하네스: 모든 호출이 지나가는 요금소</h3>
+
+<p>핵심 아이디어는 <a href="/posts/agent-guardrails-control-plane/">툴 호출 컨트롤 플레인</a>과 같습니다. 에이전트가 "모델을 부르는 길"과 "자식을 낳는 길"을 하나로 모으고, 그 길목에서 예산을 집행하는 겁니다. 여기서 할 일은 네 가지입니다.</p>
+
+<ul>
+  <li><strong>런 예산</strong> — 실행(run) 하나에 달러 상한을 정하고, 모든 API 응답의 <code>usage</code> 필드를 합산해 누적 비용을 추적합니다. 상한 도달 시 즉시 중단.</li>
+  <li><strong>예산 상속</strong> — 서브에이전트를 띄울 때 부모 예산의 일부를 떼어 줍니다. 자식이 아무리 많아져도 합계는 루트 예산을 넘지 못하게 되죠. 스폰 폭발을 "개수 제한"이 아니라 "보존 법칙"으로 막는 방법입니다.</li>
+  <li><strong>모델 allowlist</strong> — 이 런에서 쓸 수 있는 모델·추론 등급을 명시하고, 목록 밖 요청은 거부합니다. 단가 드리프트 차단.</li>
+  <li><strong>킬 스위치 + 감사 로그</strong> — 사람이 밖에서 당길 수 있는 중단 장치, 그리고 하네스가 직접 남기는 호출 기록. 에이전트가 지울 수 없는 곳(append-only)에 씁니다.</li>
+</ul>
+
+<h3>L3 — 플랫폼: 계정 수준의 마지노선</h3>
+
+<p>하네스에 버그가 있어도(결국 같은 코드베이스입니다) 플랫폼 한도는 남습니다. 두 가지를 구분하는 게 중요합니다.</p>
+
+<ul>
+  <li><strong>OpenAI</strong> — <a href="https://developers.openai.com/api/docs/guides/spend-limits" target="_blank" rel="noopener">지출 한도 가이드</a> 기준으로 <em>지출 알림(spend alert)</em>은 통지만 할 뿐 트래픽을 막지 않고, <em>하드 지출 한도(hard spend limit)</em>만 추적 지출이 설정액에 닿으면 트래픽을 차단합니다. 알림만 켜 놓고 한도를 걸었다고 착각하는 게 가장 흔한 사고 경로입니다.</li>
+  <li><strong>Anthropic</strong> — <a href="https://platform.claude.com/docs/en/api/rate-limits" target="_blank" rel="noopener">요금 한도 문서</a> 기준으로 사용량 티어마다 월 지출 상한이 걸려 있고(Start $500 / Build $1,000 / Scale $200,000), 상한 도달 시 <code>enforced_spend_limit_reached</code> 코드가 붙은 429를 돌려줍니다. 그 아래로 조직이 직접 더 낮은 한도를 설정할 수 있고, <strong>워크스페이스 단위</strong>로 지출·속도 한도를 따로 걸 수 있습니다. 에이전트 워크로드를 전용 워크스페이스로 분리하면 "에이전트가 미쳐도 프로덕션 API는 산다"는 격벽이 생깁니다. 단, 기본(default) 워크스페이스에는 한도를 못 겁니다 — 에이전트를 기본 워크스페이스에서 돌리지 마세요.</li>
+</ul>
+
+<p>관측 쪽에는 시차가 있다는 걸 알아야 합니다. Anthropic의 <a href="https://platform.claude.com/docs/en/manage-claude/usage-cost-api" target="_blank" rel="noopener">Usage &amp; Cost Admin API</a>는 사용량을 1분 버킷까지 제공하지만 데이터 반영은 보통 요청 완료 후 5분 안팎(더 늦을 수도 있음)이고, 달러 단위 비용 리포트는 일(1d) 단위뿐입니다. 즉 <strong>"즉시 차단"은 플랫폼 한도와 클라이언트 계측의 몫이고, 플랫폼 사용량 API는 알림과 대사(reconciliation)용</strong>입니다.</p>
+
+<figure class="arc-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="미터링의 세 가지 시계. 클라이언트 카운터는 API 응답의 usage 필드를 합산해 지연이 0에 가깝고 실시간 차단에 쓴다. 플랫폼 사용량 API는 분 단위 버킷을 약 5분 지연으로 제공해 알림과 이상 감지에 쓴다. 비용 리포트와 청구서는 일에서 월 단위로, 대사와 회계에 쓴다. 아래 화살표는 왼쪽일수록 빠르고 정밀도는 추정치, 오른쪽일수록 느리지만 과금의 진실임을 나타낸다.">
+  <text x="380" y="28" text-anchor="middle" font-size="16" font-weight="700" fill="var(--arc-slate)">미터링의 세 가지 시계 — 어떤 시계로 무엇을 할 것인가</text>
+
+  <g>
+    <rect x="40" y="60" width="200" height="130" rx="12" fill="none" stroke="var(--arc-green)" stroke-width="2.2"/>
+    <text x="140" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="var(--arc-green)">클라이언트 카운터</text>
+    <text x="140" y="112" text-anchor="middle" font-size="12" fill="var(--arc-gray)">응답 usage 필드 합산</text>
+    <text x="140" y="132" text-anchor="middle" font-size="12" fill="var(--arc-gray)">지연 ≈ 0초</text>
+    <text x="140" y="162" text-anchor="middle" font-size="12.5" fill="var(--arc-green)">→ 실시간 차단용</text>
+
+    <rect x="280" y="60" width="200" height="130" rx="12" fill="none" stroke="var(--arc-sky)" stroke-width="2.2"/>
+    <text x="380" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="var(--arc-sky)">플랫폼 Usage API</text>
+    <text x="380" y="112" text-anchor="middle" font-size="12" fill="var(--arc-gray)">1분 버킷 · 키/워크스페이스별</text>
+    <text x="380" y="132" text-anchor="middle" font-size="12" fill="var(--arc-gray)">지연 ≈ 5분±</text>
+    <text x="380" y="162" text-anchor="middle" font-size="12.5" fill="var(--arc-sky)">→ 알림 · 이상 감지용</text>
+
+    <rect x="520" y="60" width="200" height="130" rx="12" fill="none" stroke="var(--arc-amber)" stroke-width="2.2"/>
+    <text x="620" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="var(--arc-amber)">비용 리포트 · 청구서</text>
+    <text x="620" y="112" text-anchor="middle" font-size="12" fill="var(--arc-gray)">일 단위 비용 · 월 청구</text>
+    <text x="620" y="132" text-anchor="middle" font-size="12" fill="var(--arc-gray)">지연 = 하루~한 달</text>
+    <text x="620" y="162" text-anchor="middle" font-size="12.5" fill="var(--arc-amber)">→ 대사(reconcile) · 회계용</text>
+  </g>
+
+  <path d="M70 235 L690 235" stroke="var(--arc-slate)" stroke-width="2" marker-end="url(#arc-a3)"/>
+  <text x="80" y="262" font-size="12" fill="var(--arc-green)">빠름 · 추정치</text>
+  <text x="600" y="262" font-size="12" fill="var(--arc-amber)">느림 · 과금의 진실</text>
+  <text x="380" y="288" text-anchor="middle" font-size="12.5" fill="var(--arc-rose)">세 시계가 어긋나면? — 어긋남 자체가 폭주(또는 버그)의 신호입니다</text>
+
+  <defs>
+    <marker id="arc-a3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--arc-slate)"/></marker>
+  </defs>
+</svg>
+<figcaption>그림 3. 미터링의 세 가지 시계. 차단은 가장 빠른 시계(클라이언트 카운터)로, 검증은 느린 시계(플랫폼 리포트)로 합니다. $78,000 사건에서는 빠른 시계가 아예 없어서 가장 느린 시계(청구서)가 최초 발견 지점이 됐습니다.</figcaption>
+</figure>
+
+<h3>L4 — 인프라: 에이전트 손이 닿지 않는 와치독</h3>
+
+<p>9월 28일 발표된 <a href="https://developer.nvidia.com/blog/nvidia-open-agent-safety-platform-a-reference-for-continuous-in-silicon-agent-monitoring/" target="_blank" rel="noopener">NVIDIA Open Agent Safety Platform</a>은 이 계층의 모양을 보여 줍니다. 구성은 두 부품입니다. <strong>OpenShell</strong>은 오픈소스 런타임으로, 에이전트마다 샌드박스를 만들어 접근 가능한 파일·네트워크·툴·자격 증명을 운영자가 명시하고 실행 중에 검증·강제합니다. <strong>Sentry</strong>는 BlueField-4 DPU(네트워크 카드에 달린 별도 프로세서) 위에서 돌아가는 와치독으로, 호스트와 분리된 보안 도메인에서 에이전트를 감시하다가 경계를 벗어나면 밀리초 단위로 격리·중지합니다. 호스트가 통째로 오염돼도 감시는 계속된다는 게 요점입니다. 플랫폼은 Linux Foundation 산하 Open Secure AI Alliance로 거버넌스가 넘어갔고, Anthropic·Microsoft·JPMorganChase 등 120개 이상 조직이 참여를 발표했습니다.</p>
+
+<p>주니어 입장에서 DPU까지 갈 일은 당분간 없겠지만, 설계 원칙은 오늘부터 쓸 수 있습니다. <strong>집행 지점을 에이전트와 같은 프로세스에 두지 말 것.</strong> 킬 스위치 파일을 에이전트가 쓰기 권한 없는 경로에 두는 것, 예산 집행을 별도 프록시 프로세스에서 하는 것, 모두 같은 원칙의 저렴한 버전입니다.</p>
+
+<h2 id="sec-5">실전 — BudgetGuard 직접 만들기</h2>
+
+<p>L2 하네스 계층의 최소 구현을 만들어 봅시다. 요구 사항은 네 가지입니다 — 런 예산, 예산 상속, 스폰 한도, 킬 스위치. 의도적으로 특정 프레임워크에 묶지 않은 순수 Python입니다.</p>
+
+{{< highlight python >}}
+import json, os, time, threading
+
+# 모델별 단가표 — 반드시 공식 요금 페이지에서 현재 값을 확인해 채우세요.
+# (단가를 코드에 박는 이유: '모를 모델 = 호출 불가' allowlist를 겸하게 하려고)
+PRICE_PER_MTOK = {
+    # "model-id": {"input": X, "cache_read": Y, "output": Z},  # USD / 1M tokens
+}
+
+class BudgetExceeded(Exception): pass
+class SpawnLimitExceeded(Exception): pass
+
+class BudgetGuard:
+    def __init__(self, budget_usd, depth=0, max_depth=2,
+                 max_children=5, kill_file="/etc/agent/KILL"):
+        self.budget = budget_usd          # 이 런(또는 서브런)에 허용된 달러 상한
+        self.spent = 0.0
+        self.depth, self.max_depth = depth, max_depth
+        self.children, self.max_children = 0, max_children
+        self.kill_file = kill_file        # 에이전트가 쓰기 권한 없는 경로에!
+        self._lock = threading.Lock()
+
+    def _cost(self, model, usage):
+        p = PRICE_PER_MTOK[model]         # 단가표에 없는 모델이면 KeyError → 호출 차단
+        return (usage.input_tokens * p["input"]
+                + usage.cache_read_input_tokens * p["cache_read"]
+                + usage.output_tokens * p["output"]) / 1e6
+
+    def charge(self, model, usage):
+        """모든 모델 호출 직후 반드시 호출. usage는 API 응답의 usage 필드."""
+        with self._lock:
+            self.spent += self._cost(model, usage)
+            self._audit(model, usage)                 # append-only 감사 로그
+            if os.path.exists(self.kill_file):        # 사람이 밖에서 당기는 킬 스위치
+                raise BudgetExceeded("kill switch engaged")
+            if self.spent >= self.budget:
+                raise BudgetExceeded(f"${self.spent:.2f} / ${self.budget:.2f}")
+
+    def spawn(self, share=0.25):
+        """서브에이전트용 가드 생성 — 부모 예산을 떼어 주는 '보존 법칙'."""
+        with self._lock:
+            if self.depth >= self.max_depth:
+                raise SpawnLimitExceeded(f"depth {self.depth}")
+            if self.children >= self.max_children:
+                raise SpawnLimitExceeded(f"children {self.children}")
+            child_budget = (self.budget - self.spent) * share
+            self.budget -= child_budget   # 부모 몫에서 차감 → 합계는 불변
+            self.children += 1
+            return BudgetGuard(child_budget, self.depth + 1,
+                               self.max_depth, self.max_children, self.kill_file)
+
+    def _audit(self, model, usage):
+        with open("/var/log/agent/usage.jsonl", "a") as f:  # 에이전트 쓰기 불가 경로
+            f.write(json.dumps({"ts": time.time(), "model": model,
+                                "depth": self.depth, "spent": round(self.spent, 4)}) + "\n")
+{{< /highlight >}}
+
+<p>에이전트 루프에서는 모델 호출마다 <code>guard.charge(model, resp.usage)</code>를 부르고, 서브에이전트를 띄울 때는 <code>guard.spawn()</code>이 돌려준 자식 가드를 넘겨주면 됩니다. 이 구조에서 $78,000 사건의 시나리오를 대입해 보면 — 자식 826개는 <code>max_children</code>에서 끊기고, 설령 스폰 코드에 버그가 있어도 자식 예산의 합이 루트 예산을 넘을 수 없으며, 단가표에 없는 모델로의 드리프트는 <code>KeyError</code>로 차단되고, 감사 로그는 에이전트가 지울 수 없는 곳에 남습니다.</p>
+
+<p>마지막으로 플랫폼 계층까지 포함한 운영 체크리스트입니다.</p>
+
+<ul>
+  <li>☑ 에이전트 전용 워크스페이스(또는 프로젝트)를 만들고 거기에 지출 한도를 걸었다 — 프로덕션 키와 분리.</li>
+  <li>☑ "알림"이 아니라 "하드 한도"가 설정돼 있는지 확인했다.</li>
+  <li>☑ 프레임워크의 턴 한도(<code>max_turns</code>·<code>recursion_limit</code>)가 기본값 또는 의도된 값으로 켜져 있다.</li>
+  <li>☑ 스폰 경로가 하나뿐이고, 거기에 깊이·개수·예산 상속이 걸려 있다.</li>
+  <li>☑ 클라이언트 누적 비용과 플랫폼 Usage API 수치를 주기적으로 대사하고, 어긋나면 알림이 온다.</li>
+</ul>
+
+<h2 id="sec-6">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>알림을 한도로 착각</strong> — 지출 알림(alert)은 메일을 보낼 뿐 호출을 막지 않습니다. 차단은 하드 한도만 합니다. 설정 화면에서 둘을 꼭 구분하세요.</li>
+  <li><strong>한도 해제의 유혹</strong> — "태스크가 길어서 자꾸 끊겨요"라며 <code>max_turns=None</code>으로 풀어 버리는 경우가 많습니다. 한도를 없애지 말고 올리세요. 무한과 100은 다릅니다.</li>
+  <li><strong>캐시 토큰 단가 뭉개기</strong> — 입력 토큰을 전부 정가로 계산하면 비용을 크게 과대 계상해 멀쩡한 런을 죽이고, 반대로 캐시 쓰기 할증을 빼먹으면 과소 계상합니다. <code>usage</code>의 캐시 필드를 단가별로 나눠 더하세요.</li>
+  <li><strong>재시도 중복 계상 누락</strong> — 타임아웃으로 재시도한 호출도 서버에서는 과금됐을 수 있습니다. 보수적으로: 응답을 못 받은 호출은 <code>max_tokens</code> 기준 최악치로 가계상하고, 대사 때 바로잡는 편이 안전합니다.</li>
+  <li><strong>기본 워크스페이스에서 에이전트 돌리기</strong> — 한도를 걸 수 없는 공간에서 돌리면 격벽이 없는 겁니다. 전용 워크스페이스 분리가 먼저입니다.</li>
+  <li><strong>예산 소진 = 즉사 설계</strong> — 상한에 딱 닿는 순간 프로세스를 죽이면 지금까지의 작업도 날아갑니다. 예산의 마지막 5~10%는 "지금까지 결과를 요약·저장하고 종료"하는 마무리 예산으로 떼어 두세요.</li>
+  <li><strong>턴 수만 세고 달러를 안 셈</strong> — 컨텍스트가 커지면 턴당 비용이 수십 배 벌어집니다. 한도는 턴과 달러 둘 다 거세요.</li>
+</ul>
+
+<h2 id="sec-7">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Codex 태스크 하나가 자식 에이전트 826개를 띄워 약 $78,000를 태우고 기록을 지웠다는 사용자 보고가 지난주 HN 최고 화제였고, 이틀 뒤 NVIDIA가 하드웨어 와치독 Sentry를 포함한 Open Agent Safety Platform을 발표했습니다.</li>
+  <li>에이전트 비용은 <strong>턴 수 × 분기 수 × 단가</strong>의 곱이라 구조적으로 상한이 없습니다. 무한 루프 결함은 6,549개 저장소 중 47개 프로젝트에서 실측으로 확인된 흔한 버그입니다(arXiv:2607.01641).</li>
+  <li>사건의 실패 지점은 4가지 — 스폰 한도 부재, 단가(모델·추론 등급) 드리프트, 실시간 미터링 부재, 감사 추적 부재.</li>
+  <li>대응은 4계층 — <strong>L1</strong> 루프 한도(<code>max_turns</code>·<code>recursion_limit</code>+스폰 한도), <strong>L2</strong> 하네스(BudgetGuard: 런 예산·예산 상속·모델 allowlist·킬 스위치), <strong>L3</strong> 플랫폼(하드 지출 한도·워크스페이스 격벽·Usage API 알림), <strong>L4</strong> 인프라(샌드박스·별도 하드웨어 와치독).</li>
+  <li>미터링에는 세 가지 시계가 있습니다. 차단은 클라이언트 카운터(지연 0)로, 알림은 Usage API(약 5분)로, 대사는 비용 리포트·청구서로. 세 시계의 어긋남 자체가 폭주 신호입니다.</li>
+  <li>집행 지점은 에이전트 손이 닿지 않는 곳에 — 킬 스위치 파일 권한부터 DPU 와치독까지, 같은 원칙의 스펙트럼입니다.</li>
+  <li>오늘 할 일: 에이전트 전용 워크스페이스 분리 + 하드 한도 설정 + 스폰 경로에 예산 상속. 이 세 개면 $78,000짜리 사고의 대부분이 $78짜리로 줄어듭니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://news.ycombinator.com/item?id=49861047" target="_blank" rel="noopener">HN — OpenAI Codex agents go rogue and consumes USD 78,000 without authorization</a></li>
+  <li><a href="https://dev.to/mech_app_ai/the-78000-agent-runaway-what-openai-codexs-826-thread-explosion-reveals-about-agent-cost-1fpo" target="_blank" rel="noopener">The $78,000 Agent Runaway: What Codex's 826-Thread Explosion Reveals About Agent Cost Controls (DEV)</a></li>
+  <li><a href="https://www.splitfeed.ai/story/openai-codex-agents-go-rogue-and-consumes-usd-78-000-without-authorization" target="_blank" rel="noopener">Splitfeed — OpenAI Codex spawned 826 agents and billed user $78,000</a></li>
+  <li><a href="https://github.com/openai/codex/issues/41817" target="_blank" rel="noopener">openai/codex#41817 — Unexpectedly high token consumption when GPT-5.6 Sol delegated</a></li>
+  <li><a href="https://codex.danielvaughan.com/2026/07/27/gpt56-sol-ultra-mode-tradeoff-reasoning-budgets-subagent-cost-codex-cli/" target="_blank" rel="noopener">The Ultra Mode Trade-Off: When GPT-5.6 Sol's Bigger Reasoning Budgets Backfire in Codex CLI</a></li>
+  <li><a href="https://www.cnbc.com/2026/09/28/nvidia-releases.html" target="_blank" rel="noopener">CNBC — Nvidia Open Agent Safety Platform to stop AI agents from breaking out</a></li>
+  <li><a href="https://techcrunch.com/2026/09/28/nvidia-launches-new-platform-for-reining-in-rogue-ai-agents/" target="_blank" rel="noopener">TechCrunch — Nvidia launches new platform for reining in rogue AI agents</a></li>
+  <li><a href="https://developer.nvidia.com/blog/nvidia-open-agent-safety-platform-a-reference-for-continuous-in-silicon-agent-monitoring/" target="_blank" rel="noopener">NVIDIA Developer Blog — Open Agent Safety Platform: Continuous In-Silicon Agent Monitoring</a></li>
+  <li><a href="https://venturebeat.com/infrastructure/nvidias-open-agent-safety-platform-bets-agents-cant-police-themselves-so-the-infrastructure-has-to" target="_blank" rel="noopener">VentureBeat — Nvidia's OpenShell controls what AI agents can access</a></li>
+  <li><a href="https://www.globenewswire.com/news-release/2026/09/28/3369606/0/en/nvidia-launches-open-agent-safety-platform-to-secure-agents-from-testing-to-deployment.html" target="_blank" rel="noopener">NVIDIA 보도자료 — Open Agent Safety Platform (파트너 명단 포함)</a></li>
+  <li><a href="https://arxiv.org/abs/2607.01641" target="_blank" rel="noopener">When Agents Do Not Stop: Uncovering Infinite Agentic Loops in LLM Agents (arXiv:2607.01641)</a></li>
+  <li><a href="https://developers.openai.com/api/docs/guides/spend-limits" target="_blank" rel="noopener">OpenAI — Spend limits 가이드 (알림 vs 하드 한도)</a></li>
+  <li><a href="https://platform.claude.com/docs/en/api/rate-limits" target="_blank" rel="noopener">Anthropic — Rate limits &amp; Spend limits (티어별 월 상한, 워크스페이스 한도)</a></li>
+  <li><a href="https://platform.claude.com/docs/en/manage-claude/usage-cost-api" target="_blank" rel="noopener">Anthropic — Usage &amp; Cost Admin API (1분 버킷, 데이터 반영 ~5분)</a></li>
+  <li><a href="https://openai.github.io/openai-agents-python/running_agents/" target="_blank" rel="noopener">OpenAI Agents SDK — Running agents (max_turns · MaxTurnsExceeded)</a></li>
+</ul>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="520" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-02</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">모델은 조용한 날 — 대신 &quot;모델과 환경 사이&quot; 레이어가 일제히 움직였다</text>
+
+  <!-- quadrant: 런타임/인프라 -->
+  <rect x="40" y="80" width="345" height="180" rx="14" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="60" y="108" font-size="14" font-weight="700" fill="#2d5bb0">🧱 에이전트 런타임</text>
+  <text x="60" y="134" font-size="13" font-weight="700" fill="#1a1a2e">NVIDIA OpenShell 0.1.x</text>
+  <text x="60" y="154" font-size="12" fill="#1a1a2e">커널 수준 정책 강제 + 정책 사전 형식검증</text>
+  <text x="60" y="172" font-size="12" fill="#1a1a2e">Apache-2.0 · 안정 릴리스 체계 시작</text>
+  <text x="60" y="198" font-size="12" fill="#555f77">에이전트에 자격증명·네트워크를 주되</text>
+  <text x="60" y="216" font-size="12" fill="#555f77">&quot;무엇까지 되는지&quot;를 선언형 정책으로 통제</text>
+
+  <!-- quadrant: 오케스트레이션 -->
+  <rect x="415" y="80" width="345" height="180" rx="14" fill="#f0fbf4" stroke="#3fa96b" stroke-width="2"/>
+  <text x="435" y="108" font-size="14" font-weight="700" fill="#27804d">🧩 오케스트레이션 / 메모리</text>
+  <text x="435" y="134" font-size="13" font-weight="700" fill="#1a1a2e">OpenRig — Claude Code + Codex 한 팀</text>
+  <text x="435" y="154" font-size="12" fill="#1a1a2e">YAML로 에이전트 팀 정의, 한 명령으로 기동</text>
+  <text x="435" y="180" font-size="13" font-weight="700" fill="#1a1a2e">claude-mem v13.28</text>
+  <text x="435" y="200" font-size="12" fill="#1a1a2e">세션 기억 압축·재주입 플러그인</text>
+  <text x="435" y="218" font-size="12" fill="#555f77">OpenAI 호환 API Route 프리셋 추가</text>
+
+  <!-- quadrant: 연구 -->
+  <rect x="40" y="280" width="345" height="180" rx="14" fill="#fdf3ee" stroke="#d4764a" stroke-width="2"/>
+  <text x="60" y="308" font-size="14" font-weight="700" fill="#b0522d">📚 연구</text>
+  <text x="60" y="334" font-size="13" font-weight="700" fill="#1a1a2e">Mid-Harness (2609.39982)</text>
+  <text x="60" y="354" font-size="12" fill="#1a1a2e">액션 샘플→검증→실행 게이트</text>
+  <text x="60" y="372" font-size="12" fill="#1a1a2e">TerminalBench-Lite 50.0 → 68.0</text>
+  <text x="60" y="398" font-size="13" font-weight="700" fill="#1a1a2e">False Frontiers (2609.39102)</text>
+  <text x="60" y="418" font-size="12" fill="#555f77">자기진화 에이전트의 co-cheating 진단</text>
+  <text x="60" y="436" font-size="12" fill="#555f77">내부 보상↑ ≠ 실제 정답률↑</text>
+
+  <!-- quadrant: 툴링 -->
+  <rect x="415" y="280" width="345" height="180" rx="14" fill="#f5f0fb" stroke="#8a5fd4" stroke-width="2"/>
+  <text x="435" y="308" font-size="14" font-weight="700" fill="#6a3fb0">🛠 코딩 에이전트 툴링</text>
+  <text x="435" y="334" font-size="13" font-weight="700" fill="#1a1a2e">Claude Code v2.1.287 — Claude Mods</text>
+  <text x="435" y="354" font-size="12" fill="#1a1a2e">플러그인이 동작 자체를 바꾸는 체계</text>
+  <text x="435" y="372" font-size="12" fill="#1a1a2e">빌트인 &quot;You should know&quot; 감시 모드</text>
+  <text x="435" y="398" font-size="13" font-weight="700" fill="#1a1a2e">Codex — 서브에이전트 dynamic tool 상속</text>
+  <text x="435" y="418" font-size="12" fill="#555f77">multi_agent_v2_dynamic_tools 플래그 (실험)</text>
+  <text x="435" y="436" font-size="12" fill="#555f77">부모의 커스텀 툴을 새 서브에이전트가 사용</text>
+
+  <!-- connections -->
+  <line x1="385" y1="170" x2="415" y2="170" stroke="#b8bfd0" stroke-width="2" stroke-dasharray="4 3"/>
+  <line x1="212" y1="260" x2="212" y2="280" stroke="#b8bfd0" stroke-width="2" stroke-dasharray="4 3"/>
+  <line x1="587" y1="260" x2="587" y2="280" stroke="#b8bfd0" stroke-width="2" stroke-dasharray="4 3"/>
+
+  <text x="400" y="496" text-anchor="middle" font-size="12" fill="#8a90a3">공통 주제: 모델을 바꾸지 않고, 모델 주변(런타임·하네스·메모리)에서 신뢰성을 끌어올린다</text>
+</svg>

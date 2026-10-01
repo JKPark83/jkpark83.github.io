@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="430" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">오늘의 오픈소스 3종 — 에이전트 스택에서의 위치</text>
+  <text x="400" y="55" text-anchor="middle" font-size="12" fill="#8a90a3">세 프로젝트 모두 Apache-2.0 · 10/1 기준 활발히 커밋 중 (클론으로 확인)</text>
+
+  <!-- layer 3: memory -->
+  <rect x="80" y="80" width="640" height="92" rx="12" fill="#f0fbf4" stroke="#3fa96b" stroke-width="2"/>
+  <text x="100" y="108" font-size="14" font-weight="700" fill="#27804d">기억 레이어 — claude-mem (thedotmack)</text>
+  <text x="100" y="130" font-size="12" fill="#1a1a2e">Claude Code 세션 기록을 압축해 다음 세션에 재주입 · TypeScript/Bun · v13.28</text>
+  <text x="100" y="150" font-size="12" fill="#555f77">쓰임새: 장기 프로젝트에서 &quot;어제 한 일&quot;을 에이전트가 기억하게</text>
+
+  <!-- layer 2: orchestration -->
+  <rect x="80" y="188" width="640" height="92" rx="12" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="100" y="216" font-size="14" font-weight="700" fill="#2d5bb0">오케스트레이션 레이어 — OpenRig (mvschwarz)</text>
+  <text x="100" y="238" font-size="12" fill="#1a1a2e">Claude Code·Codex 하네스를 YAML 팀으로 묶어 한 명령으로 기동 · TypeScript · npm @openrig/cli</text>
+  <text x="100" y="258" font-size="12" fill="#555f77">쓰임새: 리드 에이전트 1 + 전문 에이전트 N의 지속 조직 운영 (tmux 기반)</text>
+
+  <!-- layer 1: runtime -->
+  <rect x="80" y="296" width="640" height="92" rx="12" fill="#fdf3ee" stroke="#d4764a" stroke-width="2"/>
+  <text x="100" y="324" font-size="14" font-weight="700" fill="#b0522d">실행 런타임 레이어 — OpenShell (NVIDIA)</text>
+  <text x="100" y="346" font-size="12" fill="#1a1a2e">파일·시스템콜·네트워크를 커널 수준에서 정책으로 강제 · Rust/Python · 0.1.x 안정 릴리스</text>
+  <text x="100" y="366" font-size="12" fill="#555f77">쓰임새: 자율 에이전트 플릿에 자격증명·네트워크를 주면서 피해 반경 통제</text>
+
+  <text x="400" y="414" text-anchor="middle" font-size="11" fill="#8a90a3">위에서 아래로: 무엇을 기억하나 → 누가 일하나 → 어디까지 허용되나</text>
+</svg>

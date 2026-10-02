@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="560" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-03</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">공통 테마: 에이전트가 "무엇을 보고, 무엇을 기억할지"가 학습·설계 대상이 되다</text>
+
+  <!-- quadrant: 모델 수직화 -->
+  <rect x="40" y="80" width="345" height="190" rx="14" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="60" y="108" font-size="14" font-weight="700" fill="#2d5bb0">🏭 모델 — 수직화</text>
+  <text x="60" y="134" font-size="13" font-weight="700" fill="#1a1a2e">GPT-Synopsys (OpenAI × Synopsys)</text>
+  <text x="60" y="154" font-size="12" fill="#1a1a2e">EDA 툴을 직접 조작하는 반도체 설계 특화 모델</text>
+  <text x="60" y="172" font-size="12" fill="#1a1a2e">PPA 최적화·타이밍/검증 클로저를 에이전트에 위임</text>
+  <text x="60" y="190" font-size="12" fill="#1a1a2e">OpenAI 인프라 구동 · 고객 agent harness와 통합</text>
+  <text x="60" y="216" font-size="12" fill="#555f77">"범용 모델 + 수직 툴 조작 + 하네스 통합"이</text>
+  <text x="60" y="234" font-size="12" fill="#555f77">버티컬 에이전트의 표준 패턴으로 굳어지는 중</text>
+
+  <!-- quadrant: 연구 -->
+  <rect x="415" y="80" width="345" height="190" rx="14" fill="#fdf3ee" stroke="#d4764a" stroke-width="2"/>
+  <text x="435" y="108" font-size="14" font-weight="700" fill="#b0522d">📚 연구 — 컨텍스트가 정책이 되다</text>
+  <text x="435" y="134" font-size="13" font-weight="700" fill="#1a1a2e">VISTA (2610.02200)</text>
+  <text x="435" y="154" font-size="12" fill="#1a1a2e">무손실 시각 메모리 하네스 → ARC-AGI-3 만점</text>
+  <text x="435" y="180" font-size="13" font-weight="700" fill="#1a1a2e">AutoCompact (2610.02163)</text>
+  <text x="435" y="200" font-size="12" fill="#1a1a2e">"언제·무엇을 컴팩션할지"를 RL로 학습</text>
+  <text x="435" y="218" font-size="12" fill="#1a1a2e">SWE-bench Verified +9.2%p (절대치)</text>
+  <text x="435" y="244" font-size="12" fill="#555f77">기억 관리가 프롬프트 요령에서 모델 정책으로</text>
+
+  <!-- quadrant: 오픈소스 -->
+  <rect x="40" y="290" width="345" height="190" rx="14" fill="#f0fbf4" stroke="#3fa96b" stroke-width="2"/>
+  <text x="60" y="318" font-size="14" font-weight="700" fill="#27804d">🛠 오픈소스 — 트렌딩 3종</text>
+  <text x="60" y="344" font-size="13" font-weight="700" fill="#1a1a2e">jevgrep — 시맨틱 코드 검색 CLI/MCP</text>
+  <text x="60" y="362" font-size="12" fill="#1a1a2e">"무엇을 하는 코드인지"로 질문해 찾는다</text>
+  <text x="60" y="388" font-size="13" font-weight="700" fill="#1a1a2e">coucou — 노치에서 에이전트 감시·승인</text>
+  <text x="60" y="414" font-size="13" font-weight="700" fill="#1a1a2e">dots — 차단 안 당하는 브라우저 내장 에이전트</text>
+  <text x="60" y="440" font-size="12" fill="#555f77">찾기(검색) → 지켜보기(승인) → 실행(웹)까지</text>
+  <text x="60" y="458" font-size="12" fill="#555f77">에이전트 루프의 빈칸을 각자 하나씩 채운다</text>
+
+  <!-- quadrant: 툴링 -->
+  <rect x="415" y="290" width="345" height="190" rx="14" fill="#f5f0fb" stroke="#8a5fd4" stroke-width="2"/>
+  <text x="435" y="318" font-size="14" font-weight="700" fill="#6a3fb0">🧰 코딩 에이전트 툴링</text>
+  <text x="435" y="344" font-size="13" font-weight="700" fill="#1a1a2e">Claude Code v2.1.288</text>
+  <text x="435" y="362" font-size="12" fill="#1a1a2e">/code-review --max-findings n|all</text>
+  <text x="435" y="380" font-size="12" fill="#1a1a2e">API 타임아웃 시 부분 응답에서 이어가기</text>
+  <text x="435" y="406" font-size="13" font-weight="700" fill="#1a1a2e">Codex — 관리형 worktree 도구 (10/2)</text>
+  <text x="435" y="424" font-size="12" fill="#1a1a2e">에이전트가 직접 create_worktree 호출</text>
+  <text x="435" y="450" font-size="12" fill="#555f77">병렬 작업 분기를 모델이 스스로 만드는 방향</text>
+
+  <!-- bottom strip -->
+  <rect x="40" y="500" width="720" height="40" rx="10" fill="#f7f7fa" stroke="#c9cdd8" stroke-width="1"/>
+  <text x="400" y="525" text-anchor="middle" font-size="12" fill="#555f77">오늘 해볼 것: 내 에이전트의 컴팩션 시점·보존 항목을 로그로 남기고, worktree 분기를 에이전트에게 맡겨보기</text>
+</svg>

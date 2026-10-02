@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="430" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">오늘의 논문 스코어보드 (논문 보고치)</text>
+
+  <!-- left: VISTA -->
+  <rect x="40" y="56" width="350" height="330" rx="14" fill="#fdf8f4" stroke="#d4764a" stroke-width="2"/>
+  <text x="60" y="86" font-size="14" font-weight="700" fill="#b0522d">VISTA — ARC-AGI-3 행동 효율(RHAE)</text>
+  <text x="60" y="106" font-size="12" fill="#555f77">Claude Opus 5.0 동일, 하네스만 교체</text>
+
+  <!-- bars: baseline 40.68 vs VISTA 100.00, scale 100 -> 260px -->
+  <text x="60" y="150" font-size="12" fill="#1a1a2e">기존 하네스</text>
+  <rect x="60" y="160" width="106" height="30" rx="4" fill="#6f97d8"/>
+  <text x="174" y="181" font-size="13" font-weight="700" fill="#1a1a2e">40.68</text>
+
+  <text x="60" y="226" font-size="12" fill="#1a1a2e">VISTA (무손실 시각 메모리)</text>
+  <rect x="60" y="236" width="260" height="30" rx="4" fill="#2d5bb0"/>
+  <text x="300" y="257" font-size="13" font-weight="700" fill="#ffffff" text-anchor="end">100.00</text>
+
+  <text x="60" y="300" font-size="12" fill="#1a1a2e">· 공개 25게임 전부 완료 (25/25)</text>
+  <text x="60" y="320" font-size="12" fill="#1a1a2e">· 첫 도전 인간 대비 행동 수 57.4% 적게 사용</text>
+  <text x="60" y="340" font-size="12" fill="#555f77">· 과거 관측을 원본 그대로 저장, 필요 시 재조회</text>
+  <text x="60" y="360" font-size="12" fill="#555f77">· 추가 3개 시각 벤치마크에서도 베이스라인 상회</text>
+
+  <!-- right: AutoCompact -->
+  <rect x="410" y="56" width="350" height="330" rx="14" fill="#f4f7fd" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="430" y="86" font-size="14" font-weight="700" fill="#2d5bb0">AutoCompact — 통과율 상승폭(절대 %p)</text>
+  <text x="430" y="106" font-size="12" fill="#555f77">컴팩션 결정을 SFT+RL로 정책에 내재화</text>
+
+  <!-- delta bars: +9.2, +5.0, scale 10 -> 260px -->
+  <text x="430" y="150" font-size="12" fill="#1a1a2e">SWE-bench Verified</text>
+  <rect x="430" y="160" width="239" height="30" rx="4" fill="#2d5bb0"/>
+  <text x="677" y="181" font-size="13" font-weight="700" fill="#1a1a2e">+9.2%p</text>
+
+  <text x="430" y="226" font-size="12" fill="#1a1a2e">SWE-PolyBench Verified</text>
+  <rect x="430" y="236" width="130" height="30" rx="4" fill="#6f97d8"/>
+  <text x="568" y="257" font-size="13" font-weight="700" fill="#1a1a2e">+5.0%p</text>
+
+  <text x="430" y="300" font-size="12" fill="#1a1a2e">· 모든 추론 예산 구간에서 개선 유지</text>
+  <text x="430" y="320" font-size="12" fill="#1a1a2e">· 256K 컨텍스트에서 오버플로 0회</text>
+  <text x="430" y="340" font-size="12" fill="#555f77">· 판정자가 컴팩션 결정을 교정한 궤적으로 SFT</text>
+  <text x="430" y="360" font-size="12" fill="#555f77">· 이후 과제 성공 보상으로 코딩+컴팩션 공동 RL</text>
+
+  <text x="400" y="414" text-anchor="middle" font-size="11" fill="#8a90a3">값은 각 논문(arXiv 2610.02200, 2610.02163) 보고치. 베이스 대비 상승폭은 절대 퍼센트포인트.</text>
+</svg>

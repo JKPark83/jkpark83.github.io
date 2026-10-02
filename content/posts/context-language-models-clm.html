@@ -1,0 +1,337 @@
+---
+title: "컨텍스트는 쌓는 게 아니라 고쳐 쓰는 것 — 자기 컨텍스트를 파일처럼 편집하는 CLM"
+date: 2026-10-03T07:30:00+09:00
+draft: false
+tags: ["AI", "컨텍스트 엔지니어링", "context engineering", "CLM", "Context Language Models", "compaction", "요약", "컨텍스트 관리", "prefix cache", "suffix cache reuse", "SGLang", "멀티 에이전트", "GRPO", "Meta", "UW", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "지금까지 컨텍스트 관리는 하네스의 일이었습니다. 창이 차면 하네스가 오래된 턴을 요약하고, 모델은 그 결과를 받아들일 뿐이었죠. 이번 주 UW·Meta가 공개한 Context Language Models(CLM)는 이 분업을 뒤집습니다. 컨텍스트를 파일로 미러링해 모델에게 통째로 넘기고, 지우든 고치든 요약하든 모델이 알아서 하게 두는 겁니다. 그랬더니 사람이 설계한 최신 컨텍스트 관리 전략을 정확도와 연산량 모두에서 이겼고, 모델은 아무도 가르쳐 주지 않은 전략 — 상태 블록 163회 제자리 갱신, 스스로 만든 compact_turns() 헬퍼 — 을 만들어 냈습니다. '컨텍스트 관리의 bitter lesson'이라 불리며 화제가 된 이 논문을 메커니즘부터 서빙 비용, 남은 위험까지 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "context-language-models-clm-cover.svg"
+  alt: "왼쪽에는 아래로만 자라는 append-only 컨텍스트, 오른쪽에는 모델이 직접 고쳐 쓰는 컨텍스트 파일을 대비시킨 그림"
+  caption: "append-only 로그였던 컨텍스트가, 모델이 직접 편집하는 파일이 됩니다."
+  relative: false
+---
+
+<style>
+/* ── CLM 포스트 전용 스타일 (clm- 접두사) ── */
+.clm-fig{
+  --clm-green:#16a34a; --clm-rose:#e11d48; --clm-amber:#d97706; --clm-sky:#0284c7;
+  --clm-violet:#7c3aed; --clm-slate:#64748b; --clm-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .clm-fig{
+  --clm-green:#4ade80; --clm-rose:#fb7185; --clm-amber:#fbbf24; --clm-sky:#38bdf8;
+  --clm-violet:#a78bfa; --clm-slate:#94a3b8; --clm-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .clm-fig{
+    --clm-green:#4ade80; --clm-rose:#fb7185; --clm-amber:#fbbf24; --clm-sky:#38bdf8;
+    --clm-violet:#a78bfa; --clm-slate:#94a3b8; --clm-gray:#64748b;
+  }
+}
+.clm-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.clm-fig text{font-family:inherit}
+.clm-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.clm-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.clm-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.clm-toc ol{margin:0;padding-left:1.25rem}
+.clm-toc li{margin:.22rem 0;font-size:.95rem}
+.clm-toc a{text-decoration:none}
+.clm-toc a:hover{text-decoration:underline}
+.clm-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.clm-table th,.clm-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.clm-table th{background:var(--entry)}
+.clm-note{border-left:4px solid var(--clm-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.clm-warn{border-left:4px solid var(--clm-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="clm-toc">
+  <div class="clm-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 요약이 지워 버린 그 한 줄</a></li>
+    <li><a href="#sec-2">배경 — 컨텍스트 관리, 제어의 사다리</a></li>
+    <li><a href="#sec-3">메커니즘 — 컨텍스트를 파일로 미러링한다</a></li>
+    <li><a href="#sec-4">결과 — 사람이 설계한 전략을 정확도·연산량 모두에서 이겼다</a></li>
+    <li><a href="#sec-5">창발 전략 — 아무도 가르쳐 주지 않은 수법들</a></li>
+    <li><a href="#sec-6">서빙 문제 — 편집은 캐시를 깬다, Suffix Cache Reuse</a></li>
+    <li><a href="#sec-7">실전 — 미니 CLM 루프 직접 만들어 보기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 요약이 지워 버린 그 한 줄</h2>
+
+<p>코딩 에이전트를 오래 돌려 본 분이라면 한 번쯤 겪었을 겁니다. 컨텍스트 창이 차서 하네스가 자동 compaction을 돌렸는데, 하필 그 요약이 "포트는 8081을 써야 한다"는 한 줄을 지워 버립니다. 모델은 다음 턴부터 태연하게 8080으로 돌아가고, 같은 디버깅을 처음부터 다시 합니다. 요약은 하네스가 했는데, 뭘 지우면 안 되는지는 모델만 알고 있었던 거죠.</p>
+
+<p>이번 주 X와 Hacker News를 달군 논문은 바로 이 분업을 겨냥합니다. 9월 29일 University of Washington과 Meta Superintelligence Labs 연구진(Rulin Shao, Luke Zettlemoyer, Pang Wei Koh 등)이 공개한 <a href="https://arxiv.org/abs/2609.37725" target="_blank" rel="noopener">Context Language Models(CLM)</a>입니다. 1저자 Rulin Shao는 발표 스레드에서 이렇게 요약했습니다 — <strong>"컨텍스트 관리의 bitter lesson: 사람이 설계한 SOTA보다, 모델에게 컨텍스트 통제권을 통째로 주는 쪽이 이긴다."</strong> 공개 사흘 만에 공식 저장소가 스타 400개를 넘겼고, Hacker News 토론에 오르고, 다른 에이전트 프레임워크 저장소에는 벌써 "CLM 방식 넣어 달라"는 feature request가 달렸습니다.</p>
+
+<p>핵심 아이디어는 허무할 만큼 단순합니다. <strong>컨텍스트를 파일로 미러링해 모델에게 주고, 그 파일을 마음대로 고치게 둔다.</strong> 지우기, 고치기, 요약하기, 다시 꺼내 오기 — 전부 모델 마음입니다. 이 글에서는 이게 정확히 어떻게 동작하는지, 왜 기존 방식을 이기는지, 서빙 비용은 어떻게 되는지, 그리고 아직 남은 위험은 뭔지 순서대로 뜯어봅니다.</p>
+
+<h2 id="sec-2">배경 — 컨텍스트 관리, 제어의 사다리</h2>
+
+<p>먼저 전제부터. LLM의 컨텍스트는 기본적으로 <strong>append-only</strong>입니다. 대화가 진행되면 턴이 뒤에 계속 붙기만 하고, 한 번 들어간 토큰은 수정되지 않습니다. 창이 유한하니 언젠가 넘치고, 넘치기 전에도 길어질수록 정확도가 떨어집니다(<a href="/posts/context-rot-long-context-degradation/">context rot</a>). 그래서 장시간 도는 에이전트에는 반드시 컨텍스트 관리(context management)가 필요합니다.</p>
+
+<p>지금까지의 해법들은 "누가 결정하느냐"를 기준으로 사다리처럼 배열할 수 있습니다.</p>
+
+<figure class="clm-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="컨텍스트 관리 제어의 사다리. 1단은 하네스가 규칙으로 결정하는 자동 compaction, 2단은 모델이 고정된 연산을 호출하는 메모리 도구, 3단은 모델이 컨텍스트 파일을 무제한 편집하는 CLM. 위로 갈수록 모델의 통제권이 커진다.">
+  <text x="380" y="26" text-anchor="middle" font-size="15" font-weight="700" fill="var(--clm-slate)">컨텍스트 관리 — 제어의 사다리</text>
+
+  <!-- rung 1 -->
+  <rect x="40" y="240" width="680" height="62" rx="10" fill="none" stroke="var(--clm-slate)" stroke-width="2"/>
+  <text x="60" y="266" font-size="13" font-weight="700" fill="var(--clm-slate)">1단 · 하네스가 결정</text>
+  <text x="60" y="288" font-size="12" fill="var(--clm-gray)">창이 N% 차면 자동 요약(compaction) — Claude Code·Codex의 기본 동작. 모델은 결과를 받기만 함</text>
+
+  <!-- rung 2 -->
+  <rect x="80" y="150" width="640" height="62" rx="10" fill="none" stroke="var(--clm-amber)" stroke-width="2"/>
+  <text x="100" y="176" font-size="13" font-weight="700" fill="var(--clm-amber)">2단 · 모델이 고정 연산을 호출</text>
+  <text x="100" y="198" font-size="12" fill="var(--clm-gray)">memory tool·노트 파일·offloading — 언제 부를지는 모델이, 무엇이 가능한지는 설계자가 정함</text>
+
+  <!-- rung 3 -->
+  <rect x="120" y="60" width="600" height="62" rx="10" fill="none" stroke="var(--clm-sky)" stroke-width="2.5"/>
+  <text x="140" y="86" font-size="13" font-weight="700" fill="var(--clm-sky)">3단 · 모델이 무엇이든 편집 — CLM</text>
+  <text x="140" y="108" font-size="12" fill="var(--clm-gray)">컨텍스트 전체가 편집 가능한 파일 — 어디를, 언제, 어떻게 고칠지 전부 모델이 결정</text>
+
+  <path d="M48 230 L48 140" stroke="var(--clm-gray)" stroke-width="1.6" marker-end="url(#clm-la)"/>
+  <defs><marker id="clm-la" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 z" fill="var(--clm-gray)"/></marker></defs>
+  <text x="38" y="135" font-size="11" fill="var(--clm-gray)" transform="rotate(-90 38 135)">모델 통제권 ↑</text>
+</svg>
+<figcaption>그림 1. 컨텍스트 관리 방식을 "누가 결정하는가"로 배열한 사다리. CLM은 맨 윗단 — 결정권을 통째로 모델에게 넘깁니다.</figcaption>
+</figure>
+
+<p>1단이 지금 가장 흔한 방식입니다. 하네스가 규칙(창 사용률, 턴 수)에 따라 오래된 턴을 요약으로 교체합니다. 구현이 단순하고 예측 가능하지만, 도입부의 "포트 8081" 사고처럼 <strong>무엇이 중요한지 모르는 쪽이 지우개를 쥐고 있다</strong>는 구조적 문제가 있습니다. 이 블로그에서 다뤘던 <a href="/posts/context-compaction-long-horizon-agents/">compaction</a>이 여기에 속합니다. 2단은 모델에게 메모리 도구를 줘서 "언제"는 모델이 정하게 하되, 가능한 연산은 저장·검색 등으로 고정된 방식입니다. CLM은 3단, 즉 연산 자체를 제한하지 않는 끝판입니다.</p>
+
+<div class="clm-note">
+<strong>bitter lesson이 왜 여기서 나오나요?</strong> Rich Sutton의 원래 bitter lesson은 "사람이 지식을 하드코딩한 방법은 결국 계산과 학습에 밀린다"는 교훈입니다. CLM 저자들의 주장도 같은 구조입니다 — 컨텍스트 관리 '정책'을 사람이 규칙으로 설계하지 말고, 모델이 스스로 배우고 결정하게 두라는 것. 그래서 발표 스레드 제목이 "The Bitter Lesson for context management"였습니다.
+</div>
+
+<h2 id="sec-3">메커니즘 — 컨텍스트를 파일로 미러링한다</h2>
+
+<p>CLM의 구현은 논문 제목의 거창함에 비해 놀랄 만큼 소박합니다. 새 아키텍처도, 특수 토큰도 없습니다. 기존 모델에 그대로 얹을 수 있는 <strong>약 40줄짜리 시스템 프롬프트와 파일 동기화 루프</strong>가 전부입니다.</p>
+
+<ol>
+  <li><strong>미러링</strong> — 매 턴, 라이브 컨텍스트(서버에 쌓인 대화 전체)를 작업 공간의 파일 하나로 그대로 내려씁니다. 파일 경로는 시스템 프롬프트에 적어 줍니다.</li>
+  <li><strong>편집</strong> — 모델은 평소처럼 토큰을 뒤에 이어 쓸 수도 있고, Bash나 Python으로 그 파일을 <em>아무 데나</em> 고칠 수도 있습니다. 중간 턴을 지우거나, 한 줄을 바꾸거나, 전체를 요약본으로 갈아 끼우거나 — 제한이 없습니다.</li>
+  <li><strong>동기화</strong> — 파일이 바뀌면 다음 모델 호출 때 그 내용이 곧 라이브 컨텍스트가 됩니다. 즉 모델이 방금 고친 파일이, 다음 턴에 자기가 읽을 프롬프트입니다.</li>
+</ol>
+
+<figure class="clm-fig">
+<svg viewBox="0 0 760 340" role="img" aria-label="CLM 동작 루프. 서버의 라이브 컨텍스트가 작업 공간의 context.md 파일로 미러링되고, 모델이 Bash나 Python으로 그 파일을 편집하면, 다음 턴 prefill 때 편집된 파일이 그대로 라이브 컨텍스트가 된다. 세 단계가 원형으로 순환한다.">
+  <text x="380" y="26" text-anchor="middle" font-size="15" font-weight="700" fill="var(--clm-slate)">CLM 루프 — 고친 파일이 다음 턴의 컨텍스트가 된다</text>
+
+  <!-- live context -->
+  <rect x="40" y="70" width="200" height="110" rx="12" fill="none" stroke="var(--clm-violet)" stroke-width="2.2"/>
+  <text x="140" y="98" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-violet)">라이브 컨텍스트</text>
+  <text x="140" y="118" text-anchor="middle" font-size="11" fill="var(--clm-gray)">(추론 서버의 입력)</text>
+  <text x="140" y="140" text-anchor="middle" font-size="11" fill="var(--clm-gray)">system · user · tool …</text>
+  <text x="140" y="160" text-anchor="middle" font-size="11" fill="var(--clm-gray)">매 턴 prefill 대상</text>
+
+  <!-- mirror file -->
+  <rect x="520" y="70" width="200" height="110" rx="12" fill="none" stroke="var(--clm-sky)" stroke-width="2.2"/>
+  <text x="620" y="98" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-sky)">context.md</text>
+  <text x="620" y="118" text-anchor="middle" font-size="11" fill="var(--clm-gray)">(작업 공간의 미러 파일)</text>
+  <text x="620" y="140" text-anchor="middle" font-size="11" fill="var(--clm-gray)">경로는 시스템 프롬프트에</text>
+  <text x="620" y="160" text-anchor="middle" font-size="11" fill="var(--clm-gray)">명시 — 모델이 읽고 쓴다</text>
+
+  <!-- model -->
+  <rect x="280" y="220" width="200" height="90" rx="12" fill="none" stroke="var(--clm-amber)" stroke-width="2.2"/>
+  <text x="380" y="250" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-amber)">모델 턴</text>
+  <text x="380" y="272" text-anchor="middle" font-size="11" fill="var(--clm-gray)">append (평소처럼 생성) 또는</text>
+  <text x="380" y="292" text-anchor="middle" font-size="11" fill="var(--clm-gray)">Bash/Python으로 파일 편집</text>
+
+  <defs>
+    <marker id="clm-a1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 z" fill="var(--clm-slate)"/></marker>
+  </defs>
+  <path d="M245 125 L515 125" stroke="var(--clm-slate)" stroke-width="2" marker-end="url(#clm-a1)"/>
+  <text x="380" y="115" text-anchor="middle" font-size="11.5" fill="var(--clm-slate)">① 매 턴 미러링</text>
+
+  <path d="M600 185 Q560 250 485 262" stroke="var(--clm-slate)" stroke-width="2" fill="none" marker-end="url(#clm-a1)"/>
+  <text x="590" y="240" text-anchor="middle" font-size="11.5" fill="var(--clm-slate)">② 자유 편집</text>
+
+  <path d="M275 262 Q180 250 145 185" stroke="var(--clm-slate)" stroke-width="2" fill="none" marker-end="url(#clm-a1)"/>
+  <text x="168" y="240" text-anchor="middle" font-size="11.5" fill="var(--clm-slate)">③ 다음 턴에 동기화</text>
+</svg>
+<figcaption>그림 2. CLM의 3단계 루프. 모델이 고친 <code>context.md</code>가 다음 턴의 라이브 컨텍스트로 동기화됩니다. "컨텍스트 = 파일" 한 줄이 설계의 전부입니다.</figcaption>
+</figure>
+
+<p>이 설계의 영리한 점은 <strong>기존 도구 사용 능력을 재활용</strong>한다는 데 있습니다. 요즘 모델은 파일을 읽고, <code>sed</code>로 치환하고, Python으로 텍스트를 가공하는 일을 코딩 에이전트 훈련 덕분에 이미 잘합니다. 컨텍스트를 파일로 바꿔 주는 순간, 그 능력이 전부 "자기 컨텍스트 관리 능력"이 됩니다. 별도 하네스 로직을 새로 만들 필요가 없는 거죠. 저자 Pang Wei Koh는 이 점을 "no more harness engineering"이라고 표현했습니다.</p>
+
+<p>왜 기존 방식으로는 안 되는지 보여 주려고, 논문은 네 가지 진단 과제를 먼저 제시합니다. 요점만 추리면 이렇습니다.</p>
+
+<table class="clm-table">
+  <tr><th>진단 과제</th><th>요구 능력</th><th>기존 방식이 막히는 지점</th></tr>
+  <tr><td>Needle Retention</td><td>사소해 보이는 한 줄을 끝까지 유지</td><td>요약 compaction이 정보를 유실하거나 지어냄</td></tr>
+  <tr><td>Sudoku Sketchpad</td><td>상태 일부만 제자리 수정</td><td>제자리 편집이 없는 방식은 전체 상태를 매번 재생성</td></tr>
+  <tr><td>KV Store / Log Triage</td><td>치운 정보 다시 꺼내 오기 / 라이브 컨텍스트에서 쫓아내기</td><td>offloading 도구는 저장은 해도 라이브 컨텍스트에서 즉시 퇴거(evict)시키지 못함</td></tr>
+</table>
+
+<p>전부 "별것 아닌" 과제인데도, 고정된 연산만 가진 기존 방식은 어느 하나에서든 구멍이 납니다. 무제한 편집이 가능한 CLM만 네 과제를 모두 통과합니다.</p>
+
+<h2 id="sec-4">결과 — 사람이 설계한 전략을 정확도·연산량 모두에서 이겼다</h2>
+
+<p>CLM은 세 가지 방법으로 만들 수 있습니다. ① 기존 모델에 40줄 프롬프트만 얹는 zero-shot, ② 컨텍스트 관리 요령을 자연어 지침으로 진화시키는 skill-optimization(스킬 최적화 루프로 지침을 다듬으면 held-out 과제 정확도가 최대 35.9포인트 상승), ③ 온라인 강화학습(stepwise GRPO)으로 아예 가중치에 정책을 굽는 방법입니다.</p>
+
+<p>주목할 건 <strong>zero-shot만으로 이미 사람이 설계한 SOTA를 이긴다</strong>는 점입니다. 논문 초록 기준으로:</p>
+
+<ul>
+  <li><strong>BrowseComp-Plus</strong>(웹 리서치) — 최강 베이스라인이었던 Codex식 요약 대비 정확도 상대 +11.4%, FLOPs는 21.5% 절감.</li>
+  <li><strong>12시간 EdgeBench</strong>(저장소 최적화, 검증기 피드백 포함 장기 과제) — 점수 +5%에 FLOPs 59% 절감. 논문 보고 기준 CLM은 179 PFLOPs로 44.6점, 요약 베이스라인은 437 PFLOPs를 쓰고도 42.3점이었습니다.</li>
+  <li><strong>24시간 멀티 저장소 agent swarm</strong>(에이전트 6개) — 같은 컴퓨트로 개선 폭이 65% 더 컸습니다.</li>
+  <li><strong>RL까지 얹으면</strong> — Qwen3.5-9B의 BrowseComp-Plus 성능이 28.8%에서 42.5%로(+47.6%), FLOPs는 오히려 12% 줄었습니다. 작은 모델도 정책을 가중치로 배울 수 있다는 증거입니다.</li>
+</ul>
+
+<figure class="clm-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="12시간 EdgeBench-10에서 CLM과 요약 베이스라인을 비교한 두 개의 막대 그래프. 왼쪽 패널은 점수로 CLM 44.6점, 요약 42.3점. 오른쪽 패널은 연산량으로 CLM 179 페타플롭스, 요약 437 페타플롭스. CLM이 점수는 더 높으면서 연산은 59% 적게 쓴다.">
+  <text x="380" y="24" text-anchor="middle" font-size="15" font-weight="700" fill="var(--clm-slate)">12시간 EdgeBench-10 — 점수는 올리고, 연산은 반 이하로</text>
+
+  <!-- legend -->
+  <g font-size="12">
+    <rect x="270" y="40" width="13" height="13" rx="3" fill="#0284c7"/>
+    <text x="289" y="51" fill="var(--clm-slate)">CLM (zero-shot)</text>
+    <rect x="420" y="40" width="13" height="13" rx="3" fill="#d97706"/>
+    <text x="439" y="51" fill="var(--clm-slate)">요약 베이스라인</text>
+  </g>
+
+  <!-- left panel: score. scale: 0..50 -> y 290..90 (4px/unit) -->
+  <g>
+    <text x="190" y="84" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-slate)">점수 (높을수록 좋음)</text>
+    <line x1="80" y1="290" x2="300" y2="290" stroke="var(--clm-gray)" stroke-width="1"/>
+    <rect x="110" y="111.6" width="70" height="178.4" rx="4" fill="#0284c7"/>
+    <text x="145" y="103" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-slate)">44.6</text>
+    <rect x="200" y="120.8" width="70" height="169.2" rx="4" fill="#d97706"/>
+    <text x="235" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-slate)">42.3</text>
+    <text x="145" y="308" text-anchor="middle" font-size="11.5" fill="var(--clm-gray)">CLM</text>
+    <text x="235" y="308" text-anchor="middle" font-size="11.5" fill="var(--clm-gray)">요약</text>
+  </g>
+
+  <!-- right panel: PFLOPs. scale: 0..450 -> y 290..90 (0.4444px/unit) -->
+  <g>
+    <text x="570" y="84" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-slate)">연산량 PFLOPs (낮을수록 좋음)</text>
+    <line x1="460" y1="290" x2="680" y2="290" stroke="var(--clm-gray)" stroke-width="1"/>
+    <rect x="490" y="210.4" width="70" height="79.6" rx="4" fill="#0284c7"/>
+    <text x="525" y="202" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-slate)">179</text>
+    <rect x="580" y="95.8" width="70" height="194.2" rx="4" fill="#d97706"/>
+    <text x="615" y="87.5" text-anchor="middle" font-size="13" font-weight="700" fill="var(--clm-slate)">437</text>
+    <text x="525" y="308" text-anchor="middle" font-size="11.5" fill="var(--clm-gray)">CLM</text>
+    <text x="615" y="308" text-anchor="middle" font-size="11.5" fill="var(--clm-gray)">요약</text>
+    <text x="570" y="328" text-anchor="middle" font-size="11" fill="var(--clm-green)">−59% 연산</text>
+  </g>
+</svg>
+<figcaption>그림 3. 12시간 EdgeBench-10(논문 보고 수치). 점수와 연산량은 단위가 다르므로 패널을 나눴습니다. CLM은 더 높은 점수를 절반 이하의 연산으로 달성합니다 — 지운 토큰은 다음 턴부터 prefill 비용에서도 빠지기 때문입니다.</figcaption>
+</figure>
+
+<p>FLOPs가 줄어드는 이유는 직관적입니다. append-only에서는 쌓인 토큰 전부가 매 턴 prefill 비용으로 되돌아옵니다. CLM이 컨텍스트를 6~8K 토큰으로 유지하면, 그 작은 창이 수백 턴 내내 반복 과금되는 단가가 됩니다. 정확도 향상과 비용 절감이 한 동작에서 같이 나오는 구조입니다.</p>
+
+<h2 id="sec-5">창발 전략 — 아무도 가르쳐 주지 않은 수법들</h2>
+
+<p>이 논문에서 제일 재미있는 부분은 숫자가 아니라 <strong>모델이 스스로 발명한 관리 전략</strong>들입니다. 프롬프트에는 "파일을 편집할 수 있다"고만 적혀 있을 뿐, 어떻게 쓰라는 지시는 없습니다. 그런데 관찰된 행동은 이렇습니다.</p>
+
+<ul>
+  <li><strong>상태 블록(scoreboard)</strong> — 서브에이전트들을 굴려 수학 문제를 풀던 모델이, 컨텍스트 맨 위에 "현재 최고 점수·에이전트 수·핵심 파일"을 담은 상태 블록을 만들어 두고 <strong>163번 제자리 갱신</strong>했습니다. 그동안 전체 컨텍스트는 6~8K 토큰으로 일정하게 유지됐습니다.</li>
+  <li><strong>자작 헬퍼 함수</strong> — 오래된 턴들을 접는 <code>compact_turns()</code> 함수를 스스로 작성해 두고 과제 내내 37번 호출했습니다. 컨텍스트 관리를 재사용 가능한 코드로 추상화한 겁니다.</li>
+  <li><strong>내부 메모용 role 발명</strong> — 대화 형식에 없던 새 chat role을 만들어 자기만 보는 노트를 구분해 두는 행동도 관찰됐습니다.</li>
+</ul>
+
+<p>멀티 에이전트로의 확장도 우아합니다. 컨텍스트가 파일이라면, <strong>에이전트 N개 = 컨텍스트 파일 N개</strong>입니다. 서브에이전트를 띄우고 싶으면 컨텍스트 파일을 하나 새로 만들면 되고, 끝내고 싶으면 그 파일을 지우면 됩니다. 오케스트레이터가 워커의 컨텍스트 파일을 직접 읽거나 고칠 수도 있습니다. 별도의 멀티 에이전트 프레임워크 없이, 파일 시스템이 곧 오케스트레이션 레이어가 되는 셈입니다.</p>
+
+<div class="clm-note">
+이 블로그에서 다뤘던 <a href="/posts/programmatic-context-management-scroll/">Scroll의 프로그래머틱 컨텍스트 관리</a>나 <a href="/posts/recursive-language-models-rlm/">RLM(재귀 언어 모델)</a>과 비교해 보면 위치가 선명해집니다. Scroll은 append-only 로그 위에 코드로 뷰를 만드는 쪽이고, RLM은 큰 컨텍스트를 변수로 두고 재귀 호출로 파고드는 쪽입니다. CLM은 더 급진적으로, <strong>라이브 컨텍스트 자체를 가변(mutable) 상태로</strong> 만들어 버립니다.
+</div>
+
+<h2 id="sec-6">서빙 문제 — 편집은 캐시를 깬다, Suffix Cache Reuse</h2>
+
+<p>여기까지 읽고 "그럼 당장 프로덕션에 넣자"가 안 되는 이유가 하나 있습니다. <strong>프리픽스 캐시(prefix cache)</strong>입니다. vLLM·SGLang 같은 서빙 엔진은 이전 요청과 앞부분이 같으면 KV 캐시를 재사용해 prefill을 건너뜁니다(<a href="/posts/prompt-caching-cache-aware-agents/">프롬프트 캐싱</a>에서 다뤘던 그 원리입니다). 그런데 CLM이 컨텍스트 <em>중간</em>을 고치면, 고친 지점 이후의 캐시가 전부 무효가 됩니다. 어텐션의 위치 인코딩이 토큰 위치에 묶여 있어서, 뒷부분이 한 칸이라도 밀리면 기존 KV를 그대로 못 쓰기 때문입니다. 최악의 경우 턴마다 전체 재prefill — 모처럼 아낀 토큰을 캐시 미스로 도로 뱉는 꼴이 됩니다.</p>
+
+<p>그래서 논문은 서빙 쪽 장치를 하나 같이 내놨습니다. <strong>Suffix Cache Reuse(SCR)</strong>입니다. 아이디어는 "일치하는 프리픽스까지만 재사용"이라는 기존 규칙을 깨고, <strong>편집에서 살아남은 뒷부분(suffix)의 캐시도 재사용</strong>하는 것입니다. 살아남은 구간의 KV를 새 위치로 옮기고, RoPE(회전 위치 인코딩) 키를 새 위치 기준으로 다시 회전시켜 맞춥니다. 수학적으로 완전히 동일한 값은 아니지만, 논문 실험에서는 과제 성능을 유지하면서 표준 SGLang 대비 서버 측 연산을 35% 줄였습니다. 공식 저장소에 <code>suffix_cache_reuse</code> 모듈로 공개돼 있습니다.</p>
+
+<p>정리하면 CLM의 비용 방정식은 "편집으로 아끼는 prefill − 편집이 깨는 캐시 + SCR의 회수분"입니다. API 과금(토큰 단가) 기준으로는 컨텍스트가 작아지는 것만으로 이득이 크지만, 자체 서빙이라면 SCR 같은 캐시 전략까지 묶어서 봐야 진짜 절감이 나옵니다.</p>
+
+<h2 id="sec-7">실전 — 미니 CLM 루프 직접 만들어 보기</h2>
+
+<p>공식 구현을 쓰는 게 정석이지만, 원리를 몸으로 익히기엔 직접 40줄짜리 루프를 짜 보는 게 최고입니다. 핵심은 "매 호출 전에 파일에서 메시지를 다시 읽는다" 한 줄입니다.</p>
+
+{{< highlight python >}}
+import json, subprocess
+
+CTX_PATH = "context.json"   # 라이브 컨텍스트의 미러 파일
+
+SYSTEM = f"""너의 대화 컨텍스트 전체는 {CTX_PATH} 파일에 JSON으로 미러링되어 있다.
+run_bash 도구로 이 파일을 자유롭게 편집해도 된다 — 오래된 턴 삭제,
+제자리 수정, 요약으로 교체 모두 가능하다. 편집 결과는 다음 턴부터
+네가 읽을 컨텍스트가 된다. 중요한 제약·결정·상태는 반드시 파일에 남겨라."""
+
+def save(messages):
+    with open(CTX_PATH, "w") as f:
+        json.dump(messages, f, ensure_ascii=False, indent=1)
+
+def load():
+    with open(CTX_PATH) as f:
+        return json.load(f)
+
+messages = [{"role": "system", "content": SYSTEM}]
+save(messages)
+
+while not task_done():
+    messages = load()                 # ← 핵심: 모델이 고친 파일을 다시 읽는다
+    reply = llm(messages, tools=[run_bash])   # 평소 쓰는 LLM API 호출
+    if reply.tool_calls:
+        for call in reply.tool_calls:
+            out = subprocess.run(call.args["cmd"], shell=True,
+                                 capture_output=True, text=True)
+            messages.append(tool_result(call, out.stdout[-2000:]))
+    else:
+        messages.append({"role": "assistant", "content": reply.content})
+    save(messages)                    # 턴 결과를 다시 미러링
+{{< /highlight >}}
+
+<p>모델이 <code>run_bash</code>로 <code>context.json</code>을 고치면, 다음 루프의 <code>load()</code>가 그 편집을 라이브 컨텍스트로 승격시킵니다. 이게 전부입니다. 논문 수준의 결과를 재현하려면 예산 리마인더(창 사용률 알림)와 편집 실패 시 롤백 정도를 더 얹으면 됩니다.</p>
+
+<p>공식 구현으로 바로 돌려 보고 싶다면 <a href="https://github.com/facebookresearch/context-language-models" target="_blank" rel="noopener">facebookresearch/context-language-models</a>를 받아서:</p>
+
+{{< highlight bash >}}
+pip install -e .
+# Harbor 태스크를 CLM 하네스(clm-minimal)로 실행
+clm-harbor run -p <harbor-task> -a clm-minimal -m openai/<model> \
+  --agent-kwarg api_base=http://localhost:8000/v1
+{{< /highlight >}}
+
+<p>저장소에는 zero-shot 하네스(<code>clm/clm_harness</code>) 외에 in-context 학습(<code>clm_icl</code>), GRPO 학습 코드(<code>clm_rl</code>), SCR 서빙 패치(<code>suffix_cache_reuse</code>)가 함께 들어 있습니다. 라이선스는 CC BY-NC 4.0, 즉 <strong>비상업 조건</strong>이니 회사 프로덕션에 코드를 그대로 가져다 쓰기 전에 꼭 확인하세요(아이디어 자체를 직접 구현하는 것과는 별개 문제입니다).</p>
+
+<h2 id="sec-8">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>편집 비용을 공짜로 계산하지 마세요.</strong> 중간 편집 한 번은 그 지점 이후의 프리픽스 캐시를 날립니다. API 모델 위에서 흉내 낼 때는 편집을 턴마다 하지 말고, 창 사용률 임계(예: 70%)에서 몰아서 하는 쪽이 캐시 적중률을 덜 해칩니다.</li>
+  <li><strong>self-injection을 경계하세요.</strong> CLM의 구조적 위험은 "모델이 다음 턴에 읽을 텍스트를 모델이 쓴다"는 점입니다. 모델이 쓴 요약에 지시문이 섞여 들어가 다음 턴에 시스템 지시처럼 작동한 사고는 이미 하네스 compaction에서도 보고된 바 있습니다. 컨텍스트 파일에서 지시형 문장을 걸러 내는 sanitize 단계, 그리고 시스템 프롬프트 영역은 편집 불가로 묶는 보호가 필요합니다. 논문도 이 방어는 숙제로 남겨 뒀습니다.</li>
+  <li><strong>벤치마크 숫자는 조건을 같이 읽으세요.</strong> CLM 쪽에만 예산 리마인더·롤백이 주어진 비대칭 비교라는 지적이 있고, 장기 과제 결과는 시드 수가 적습니다(EdgeBench best-of-3 등). "zero-shot으로도 이긴다"는 방향성은 탄탄하지만, 여러분 워크로드에서의 폭은 직접 재야 합니다.</li>
+  <li><strong>작은 모델에 바로 기대하지 마세요.</strong> 편집 전략의 질은 모델 능력을 따라갑니다. 9B급은 zero-shot만으로는 약하고, GRPO 학습을 얹어야 본 실력이 나왔습니다. 호스팅 프런티어 모델일수록 zero-shot CLM의 이득이 큽니다.</li>
+  <li><strong>지우기 전에 치워 두는 습관을 들이세요.</strong> 무제한 편집이라도 "삭제"보다는 "별도 파일로 옮기고 컨텍스트에서 제거"가 안전합니다. 나중에 필요하면 다시 꺼내 올 수 있고, 창발 전략 중에서도 성적이 좋았던 패턴입니다.</li>
+</ul>
+
+<h2 id="sec-9">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>UW·Meta의 <strong>Context Language Models</strong>(arXiv:2609.37725, 9/29 공개)는 컨텍스트를 파일로 미러링해 모델이 Bash/Python으로 <strong>무제한 편집</strong>하게 하는 방식입니다 — 편집된 파일이 다음 턴의 라이브 컨텍스트가 됩니다.</li>
+  <li>약 40줄 시스템 프롬프트의 <strong>zero-shot만으로</strong> Codex식 요약 등 사람이 설계한 SOTA를 이겼습니다: BrowseComp-Plus 정확도 +11.4%·FLOPs −21.5%, 12시간 EdgeBench 점수 +5%·FLOPs −59%, 24시간 6-에이전트 swarm 개선 폭 +65%.</li>
+  <li>모델은 상태 블록 163회 제자리 갱신, 자작 <code>compact_turns()</code> 헬퍼 같은 <strong>창발 전략</strong>을 만들어 냈고, 멀티 에이전트는 "컨텍스트 파일 N개"로 자연히 확장됩니다.</li>
+  <li>중간 편집은 프리픽스 캐시를 깹니다. 논문은 살아남은 suffix의 KV를 재배치·RoPE 재회전으로 살리는 <strong>Suffix Cache Reuse</strong>로 SGLang 대비 서버 연산 35%를 회수했습니다.</li>
+  <li>남은 숙제: 모델이 자기 컨텍스트에 지시를 심는 <strong>self-injection 방어</strong>, 비대칭 비교·적은 시드라는 평가 한계, 작은 모델의 약한 zero-shot 성능, 그리고 CC BY-NC 라이선스.</li>
+  <li>방향은 분명합니다 — 컨텍스트 관리의 결정권이 하네스에서 모델로 넘어가는 중입니다. 하네스 엔지니어의 일은 "정책 설계"에서 "편집 가능한 환경과 안전장치 설계"로 옮겨 갑니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2609.37725" target="_blank" rel="noopener">Context Language Models — Shao et al., arXiv:2609.37725</a></li>
+  <li><a href="https://github.com/facebookresearch/context-language-models" target="_blank" rel="noopener">facebookresearch/context-language-models — 공식 저장소 (CC BY-NC 4.0)</a></li>
+  <li><a href="https://x.com/RulinShao/status/2105282444270448647" target="_blank" rel="noopener">Rulin Shao — "The Bitter Lesson for context management" 발표 스레드 (X)</a></li>
+  <li><a href="https://x.com/PangWeiKoh/status/2105323683896275288" target="_blank" rel="noopener">Pang Wei Koh — 창발 전략과 "no more harness engineering" 스레드 (X)</a></li>
+  <li><a href="https://huggingface.co/papers/2609.37725" target="_blank" rel="noopener">Hugging Face Daily Papers — Context Language Models</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49922437" target="_blank" rel="noopener">Hacker News — Context Language Models 토론</a></li>
+  <li><a href="https://dev.to/gaurav_dadhich/context-language-models-what-the-uw-and-meta-paper-changes-for-agent-builders-and-what-it-leaves-40a7" target="_blank" rel="noopener">DEV — What the UW and Meta Paper Changes for Agent Builders</a></li>
+  <li><a href="https://kgptalkie.com/tutorials/llm-benchmarking/context-language-models-paper-review" target="_blank" rel="noopener">KGP Talkie — CLM Paper Review: LLMs That Edit Their Own Context</a></li>
+  <li><a href="https://github.com/NousResearch/hermes-agent/issues/129584" target="_blank" rel="noopener">NousResearch/hermes-agent#129584 — CLM 방식 도입 feature request (생태계 반응)</a></li>
+  <li><a href="https://gist.github.com/badlogic/cd2ef65b0697c4dbe2d13fbecb0a0a5f" target="_blank" rel="noopener">Context Compaction Research — Claude Code·Codex CLI 등 하네스별 compaction 조사</a></li>
+</ul>

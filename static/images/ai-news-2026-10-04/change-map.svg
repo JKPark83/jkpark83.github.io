@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="560" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-04</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">공통 테마: 에이전트 스택의 빈칸 채우기 — 귀와 입(음성), 세계관(belief), 훈련장(데이터), 플러그인 생태계</text>
+
+  <!-- quadrant: 모델/음성 -->
+  <rect x="40" y="80" width="345" height="190" rx="14" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="60" y="108" font-size="14" font-weight="700" fill="#2d5bb0">🎙 모델 — 음성 에이전트 파이프라인</text>
+  <text x="60" y="134" font-size="13" font-weight="700" fill="#1a1a2e">Microsoft MAI-Transcribe-2-Streaming</text>
+  <text x="60" y="154" font-size="12" fill="#1a1a2e">첫 실시간 STT · 60개 언어 · WER 2.5% (AA 1위)</text>
+  <text x="60" y="172" font-size="12" fill="#1a1a2e">발화 종료 0.13초 뒤 최종 트랜스크립트</text>
+  <text x="60" y="192" font-size="13" font-weight="700" fill="#1a1a2e">MAI-Voice-2.1 / 2.1-Flash (TTS)</text>
+  <text x="60" y="212" font-size="12" fill="#1a1a2e">23개 언어 · Flash는 ~150ms 지연</text>
+  <text x="60" y="238" font-size="12" fill="#555f77">듣기→생각→말하기 전 구간을 MAI로 채워</text>
+  <text x="60" y="256" font-size="12" fill="#555f77">Foundry 위 음성 에이전트 스택 완성</text>
+
+  <!-- quadrant: 연구 -->
+  <rect x="415" y="80" width="345" height="190" rx="14" fill="#fdf3ee" stroke="#d4764a" stroke-width="2"/>
+  <text x="435" y="108" font-size="14" font-weight="700" fill="#b0522d">📚 연구 — 기억에서 믿음으로</text>
+  <text x="435" y="134" font-size="13" font-weight="700" fill="#1a1a2e">PoS (2610.01415)</text>
+  <text x="435" y="154" font-size="12" fill="#1a1a2e">히스토리 대신 명시적 belief state 유지</text>
+  <text x="435" y="172" font-size="12" fill="#1a1a2e">4개 벤치마크 × 3개 백본 전부 최고 성능</text>
+  <text x="435" y="196" font-size="13" font-weight="700" fill="#1a1a2e">GraphForge (2609.38923)</text>
+  <text x="435" y="216" font-size="12" fill="#1a1a2e">실제 파일 기반 에이전트 훈련 과제 합성</text>
+  <text x="435" y="234" font-size="12" fill="#1a1a2e">SpreadsheetBench II +13.7 (Claude Code 하네스)</text>
+  <text x="435" y="256" font-size="12" fill="#555f77">컨텍스트 관리와 훈련 데이터, 둘 다 설계 대상</text>
+
+  <!-- quadrant: 오픈소스 -->
+  <rect x="40" y="290" width="345" height="190" rx="14" fill="#f0fbf4" stroke="#3fa96b" stroke-width="2"/>
+  <text x="60" y="318" font-size="14" font-weight="700" fill="#27804d">🛠 오픈소스 — 트렌딩 3종</text>
+  <text x="60" y="344" font-size="13" font-weight="700" fill="#1a1a2e">Agent-Reach — 에이전트에 인터넷 능력 장착</text>
+  <text x="60" y="362" font-size="12" fill="#1a1a2e">웹·YouTube·RSS·검색을 유료 API 없이</text>
+  <text x="60" y="388" font-size="13" font-weight="700" fill="#1a1a2e">cursor/plugins — Cursor 공식 플러그인 레포</text>
+  <text x="60" y="406" font-size="12" fill="#1a1a2e">orchestrate·advisor 등 37종 공개</text>
+  <text x="60" y="430" font-size="13" font-weight="700" fill="#1a1a2e">marketingskills — 마케팅 도메인 스킬 모음</text>
+  <text x="60" y="456" font-size="12" fill="#555f77">접근(인터넷) · 확장(플러그인) · 도메인(스킬)</text>
+
+  <!-- quadrant: 생태계/툴링 -->
+  <rect x="415" y="290" width="345" height="190" rx="14" fill="#f5f0fb" stroke="#8a5fd4" stroke-width="2"/>
+  <text x="435" y="318" font-size="14" font-weight="700" fill="#6a3fb0">🧰 생태계 &amp; 툴링</text>
+  <text x="435" y="344" font-size="13" font-weight="700" fill="#1a1a2e">Claude Frontier Academy ($100M)</text>
+  <text x="435" y="362" font-size="12" fill="#1a1a2e">2027년까지 배포 엔지니어 1만 명 양성</text>
+  <text x="435" y="386" font-size="13" font-weight="700" fill="#1a1a2e">Codex — 커스텀 프로바이더 capability 제어</text>
+  <text x="435" y="404" font-size="12" fill="#1a1a2e">웹 접근·원격 컴팩션을 TOML로 지정</text>
+  <text x="435" y="428" font-size="13" font-weight="700" fill="#1a1a2e">Claude Code — plugin-dev 툴킷</text>
+  <text x="435" y="446" font-size="12" fill="#1a1a2e">/plugin-dev:create-plugin 8단계 워크플로</text>
+  <text x="435" y="468" font-size="12" fill="#555f77">만드는 사람(FDE)과 만드는 도구가 같이 큰다</text>
+
+  <text x="400" y="520" text-anchor="middle" font-size="12" fill="#8a90a3">수치는 각 공식 발표·논문 보고치 기준 · 2026-10-04 자체 제작</text>
+</svg>

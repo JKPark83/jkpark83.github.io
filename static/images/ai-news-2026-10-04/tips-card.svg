@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="420" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">Codex vs Claude Code 오늘의 실전 팁</text>
+
+  <!-- Codex card -->
+  <rect x="40" y="60" width="345" height="300" rx="14" fill="#f0fbf4" stroke="#3fa96b" stroke-width="2"/>
+  <text x="60" y="90" font-size="14" font-weight="700" fill="#27804d">🟩 Codex — 커스텀 프로바이더 capability</text>
+  <text x="60" y="114" font-size="12" fill="#1a1a2e">LiteLLM·게이트웨이 뒤에 Codex를 물릴 때</text>
+  <text x="60" y="132" font-size="12" fill="#1a1a2e">웹 접근·컴팩션 동작을 직접 선언</text>
+  <rect x="60" y="148" width="305" height="120" rx="8" fill="#1a1a2e"/>
+  <text x="74" y="172" font-size="11" fill="#9fdfbf" font-family="monospace">[model_providers.custom</text>
+  <text x="74" y="190" font-size="11" fill="#9fdfbf" font-family="monospace">  .capabilities]</text>
+  <text x="74" y="212" font-size="11" fill="#e8e8f0" font-family="monospace">external_web_access = false</text>
+  <text x="74" y="234" font-size="11" fill="#e8e8f0" font-family="monospace">remote_compaction =</text>
+  <text x="74" y="252" font-size="11" fill="#e8e8f0" font-family="monospace">  "unsupported"  # 로컬 컴팩션</text>
+  <text x="60" y="292" font-size="12" fill="#1a1a2e">호스티드 웹서치의 실시간 접근 차단,</text>
+  <text x="60" y="310" font-size="12" fill="#1a1a2e">원격/로컬 컴팩션 선택이 설정으로 명시화</text>
+  <text x="60" y="336" font-size="11" fill="#555f77">커밋 c6049eb (#50459, 10/2) · 생략 시 기존 기본값</text>
+
+  <!-- Claude Code card -->
+  <rect x="415" y="60" width="345" height="300" rx="14" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="435" y="90" font-size="14" font-weight="700" fill="#2d5bb0">🟦 Claude Code — plugin-dev 툴킷</text>
+  <text x="435" y="114" font-size="12" fill="#1a1a2e">공식 레포에 포함된 플러그인 개발 플러그인:</text>
+  <text x="435" y="132" font-size="12" fill="#1a1a2e">훅·MCP·스킬·커맨드 7개 전문 스킬 내장</text>
+  <rect x="435" y="148" width="305" height="76" rx="8" fill="#1a1a2e"/>
+  <text x="449" y="176" font-size="11" fill="#9fc3ef" font-family="monospace">/plugin-dev:create-plugin \</text>
+  <text x="449" y="196" font-size="11" fill="#e8e8f0" font-family="monospace">  DB 마이그레이션 관리 플러그인</text>
+  <text x="449" y="214" font-size="11" fill="#8a90a3" font-family="monospace"># 발견→설계→구현→검증 8단계</text>
+  <text x="435" y="248" font-size="12" fill="#1a1a2e">요구사항 질문 → 컴포넌트 설계 →</text>
+  <text x="435" y="266" font-size="12" fill="#1a1a2e">validate-hook-schema.sh 등 검증 유틸까지</text>
+  <text x="435" y="284" font-size="12" fill="#1a1a2e">한 커맨드로 끝까지 안내</text>
+  <text x="435" y="310" font-size="12" fill="#1a1a2e">반복 워크플로를 팀에 배포할 때 출발점</text>
+  <text x="435" y="336" font-size="11" fill="#555f77">anthropics/claude-code 레포 plugins/plugin-dev</text>
+
+  <text x="400" y="394" text-anchor="middle" font-size="11" fill="#8a90a3">두 레포 모두 클론으로 실존 확인 · 2026-10-04 자체 제작</text>
+</svg>

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#ffffff"/>
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 z" fill="#555f77"/>
+    </marker>
+    <marker id="arrRed" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 z" fill="#c0504a"/>
+    </marker>
+  </defs>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">PoS: 히스토리 보존 대신 "믿음 상태" 유지 루프</text>
+  <text x="400" y="54" text-anchor="middle" font-size="12" fill="#8a90a3">arXiv 2610.01415 구조를 단순화한 모식도 (자체 제작)</text>
+
+  <!-- 1. observation -->
+  <rect x="40" y="90" width="200" height="74" rx="12" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="140" y="120" text-anchor="middle" font-size="13" font-weight="700" fill="#2d5bb0">① 관찰</text>
+  <text x="140" y="140" text-anchor="middle" font-size="12" fill="#1a1a2e">도구 결과 · 환경 피드백</text>
+
+  <!-- 2. belief update -->
+  <rect x="300" y="82" width="220" height="90" rx="12" fill="#fdf3ee" stroke="#d4764a" stroke-width="2"/>
+  <text x="410" y="108" text-anchor="middle" font-size="13" font-weight="700" fill="#b0522d">② Belief 갱신</text>
+  <text x="410" y="128" text-anchor="middle" font-size="12" fill="#1a1a2e">현재 세계 상태 추정</text>
+  <text x="410" y="146" text-anchor="middle" font-size="12" fill="#1a1a2e">+ 미해결 과제 요구사항</text>
+  <text x="410" y="164" text-anchor="middle" font-size="11" fill="#8a90a3">= 모델이 보는 결정 컨텍스트</text>
+
+  <!-- 3. validation -->
+  <rect x="580" y="90" width="180" height="74" rx="12" fill="#f0fbf4" stroke="#3fa96b" stroke-width="2"/>
+  <text x="670" y="120" text-anchor="middle" font-size="13" font-weight="700" fill="#27804d">③ 일관성 검증</text>
+  <text x="670" y="140" text-anchor="middle" font-size="12" fill="#1a1a2e">믿음 ↔ 관찰 모순 점검</text>
+
+  <!-- 4. progress monitor -->
+  <rect x="580" y="230" width="180" height="90" rx="12" fill="#f5f0fb" stroke="#8a5fd4" stroke-width="2"/>
+  <text x="670" y="258" text-anchor="middle" font-size="13" font-weight="700" fill="#6a3fb0">④ 진전 감시</text>
+  <text x="670" y="278" text-anchor="middle" font-size="12" fill="#1a1a2e">행동은 계속하는데</text>
+  <text x="670" y="296" text-anchor="middle" font-size="12" fill="#1a1a2e">진전이 없으면?</text>
+
+  <!-- 5. trapping recovery -->
+  <rect x="300" y="230" width="220" height="90" rx="12" fill="#fbeeee" stroke="#c0504a" stroke-width="2"/>
+  <text x="410" y="258" text-anchor="middle" font-size="13" font-weight="700" fill="#a03c36">⑤ Belief Trapping 복구</text>
+  <text x="410" y="278" text-anchor="middle" font-size="12" fill="#1a1a2e">갇힘 패턴 × 미해결 요구사항</text>
+  <text x="410" y="296" text-anchor="middle" font-size="12" fill="#1a1a2e">유형에 맞춰 복구 전략 선택</text>
+
+  <!-- 6. act -->
+  <rect x="40" y="230" width="200" height="90" rx="12" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="140" y="262" text-anchor="middle" font-size="13" font-weight="700" fill="#2d5bb0">⑥ 행동 선택</text>
+  <text x="140" y="284" text-anchor="middle" font-size="12" fill="#1a1a2e">갱신된 belief 기반으로</text>
+  <text x="140" y="302" text-anchor="middle" font-size="12" fill="#1a1a2e">다음 도구 호출 결정</text>
+
+  <!-- arrows -->
+  <line x1="240" y1="127" x2="296" y2="127" stroke="#555f77" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="520" y1="127" x2="576" y2="127" stroke="#555f77" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="670" y1="164" x2="670" y2="226" stroke="#555f77" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="576" y1="275" x2="524" y2="275" stroke="#c0504a" stroke-width="2" marker-end="url(#arrRed)"/>
+  <line x1="296" y1="275" x2="244" y2="275" stroke="#555f77" stroke-width="2" marker-end="url(#arr)"/>
+  <path d="M 140 230 L 140 127" stroke="#555f77" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <text x="652" y="210" font-size="11" fill="#555f77">검증 통과 후</text>
+  <text x="530" y="265" font-size="11" fill="#c0504a" text-anchor="end"></text>
+  <text x="120" y="190" font-size="11" fill="#555f77" transform="rotate(-90 120 190)"></text>
+
+  <text x="400" y="372" text-anchor="middle" font-size="12" fill="#555f77">핵심: 컨텍스트에 쌓이는 건 대화 로그가 아니라 "지금 세계가 어떤 상태이고, 뭐가 남았는지"</text>
+  <text x="400" y="392" text-anchor="middle" font-size="12" fill="#555f77">4개 벤치마크(실행·진단) × 3개 LLM 백본 전부에서 최고 성능 (논문 보고치)</text>
+
+  <text x="400" y="434" text-anchor="middle" font-size="11" fill="#8a90a3">히스토리 압축·보존의 대안으로 "믿음 구성 + 지속 유지"를 제안 — Luo et al., 2026</text>
+</svg>

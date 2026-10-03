@@ -1,0 +1,325 @@
+---
+title: "에이전트를 내 컴퓨터에서 돌리면 안 되나요? — 커널을 내 칩에 맞춰 튜닝하는 로컬 추론 엔진 Magnitude"
+date: 2026-10-04T07:30:00+09:00
+draft: false
+tags: ["AI", "로컬 추론", "local inference", "Magnitude", "llama.cpp", "Ollama", "커널 튜닝", "autotuning", "온디바이스", "에이전트", "추론 서빙", "Metal", "CUDA", "ds4", "프라이버시", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주는 클라우드 에이전트가 미덥지 않은 주였습니다. FTC가 OpenAI·Anthropic의 에이전트 위험을 조사하기 시작했고, 대화 내용이 광고 트래커로 새어 나간다는 프라이버시 논문이 HN 422포인트를 받았습니다. 같은 주, HN 프런트페이지에는 로컬 추론 도구가 줄줄이 올라왔습니다. 그 중심에 있던 Magnitude는 '에이전트를 위한 추론 엔진'을 표방하며 색다른 접근을 들고 나왔습니다 — 미리 컴파일된 커널을 배포하는 대신, 여러분의 컴퓨터에서 커널을 컴파일하고 튜닝해서 llama.cpp보다 최대 2배 빠르게 돌린다는 겁니다. 에이전트 워크로드는 왜 기존 추론 엔진과 안 맞는지, '커널을 기기에서 튜닝한다'는 게 정확히 무슨 뜻인지, 그리고 내 노트북의 Claude Code를 로컬 모델에 연결하는 법까지 차근차근 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "local-agent-inference-magnitude-cover.svg"
+  alt: "클라우드 에이전트의 요금·프라이버시 걱정과, 노트북 속 칩에 커널 블록이 꼭 맞게 끼워지는 모습을 대비시킨 그림"
+  caption: "에이전트를 집으로 데려오되, 커널은 내 칩에 맞춰 다시 짓습니다."
+  relative: false
+---
+
+<style>
+/* ── 로컬 에이전트 추론 포스트 전용 스타일 (lim- 접두사) ── */
+.lim-fig{
+  --lim-green:#16a34a; --lim-rose:#e11d48; --lim-amber:#d97706; --lim-sky:#0284c7;
+  --lim-violet:#7c3aed; --lim-slate:#64748b; --lim-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .lim-fig{
+  --lim-green:#4ade80; --lim-rose:#fb7185; --lim-amber:#fbbf24; --lim-sky:#38bdf8;
+  --lim-violet:#a78bfa; --lim-slate:#94a3b8; --lim-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .lim-fig{
+    --lim-green:#4ade80; --lim-rose:#fb7185; --lim-amber:#fbbf24; --lim-sky:#38bdf8;
+    --lim-violet:#a78bfa; --lim-slate:#94a3b8; --lim-gray:#64748b;
+  }
+}
+.lim-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.lim-fig text{font-family:inherit}
+.lim-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.lim-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.lim-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.lim-toc ol{margin:0;padding-left:1.25rem}
+.lim-toc li{margin:.22rem 0;font-size:.95rem}
+.lim-toc a{text-decoration:none}
+.lim-toc a:hover{text-decoration:underline}
+.lim-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.lim-table th,.lim-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.lim-table th{background:var(--entry)}
+.lim-note{border-left:4px solid var(--lim-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.lim-warn{border-left:4px solid var(--lim-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="lim-toc">
+  <div class="lim-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 클라우드가 미덥지 않았던 한 주</a></li>
+    <li><a href="#sec-2">배경 — 로컬 추론이 어려운 진짜 이유</a></li>
+    <li><a href="#sec-3">기존 선택지 세 가지, 그리고 비어 있던 자리</a></li>
+    <li><a href="#sec-4">Magnitude의 답 — 커널을 내 칩에서 컴파일하고 튜닝한다</a></li>
+    <li><a href="#sec-5">에이전트를 위한 설계 — 메모리·캐시·투기적 디코딩</a></li>
+    <li><a href="#sec-6">실전 — Claude Code를 내 로컬 모델에 연결하기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 클라우드가 미덥지 않았던 한 주</h2>
+
+<p>이번 주 AI 엔지니어링 동네의 분위기는 한 문장으로 요약됩니다. <strong>"그 에이전트, 꼭 남의 서버에서 돌려야 하나?"</strong></p>
+
+<p>계기는 겹쳤습니다. 9월 30일 미국 FTC가 OpenAI와 Anthropic을 상대로 에이전트형 AI의 소비자 위험에 대한 조사를 시작했습니다. 며칠 전에는 주요 대화형 AI 서비스 9곳의 웹·모바일 배포를 분석해 보니 대화 제목, 프롬프트, 심지어 스크린샷까지 광고·추적 서비스(제3자 트래커)로 흘러가더라는 논문 — 제목부터 찰진 <a href="https://dspace.networks.imdea.org/handle/20.500.12761/2073" target="_blank" rel="noopener">"Prompt like a Butterfly, Sting like a Tracker"</a> — 이 Hacker News 422포인트를 받으며 화제가 됐습니다. 지난주 OpenAI의 상시 가동 에이전트 <a href="/posts/ambient-agents-always-on-engineering/">Dots 발표</a> 이후 "항상 켜진 채 내 자격 증명을 쥐고 있는 클라우드 에이전트"에 대한 불안이 커지던 참이었죠.</p>
+
+<p>그리고 같은 주, HN 프런트페이지에는 로컬 추론 도구가 줄을 섰습니다. 브라우저에서 작은 모델 7종을 돌려 보는 MicroLLM Lab(281pt), Redis를 만든 antirez의 DeepSeek 전용 엔진 <a href="https://news.ycombinator.com/item?id=48142108" target="_blank" rel="noopener">ds4</a>(144pt), 심지어 ESP32 마이크로컨트롤러 클러스터에서 1.58비트 BitNet 모델을 돌린 실험(150pt)까지. 그 한복판에 이 글의 주인공이 있습니다. 9월 30일 <a href="https://news.ycombinator.com/item?id=49911995" target="_blank" rel="noopener">Launch HN</a>으로 공개된 YC S25 스타트업의 오픈소스 추론 엔진 <a href="https://github.com/magnitudedev/magnitude" target="_blank" rel="noopener">Magnitude</a>입니다. 공개 며칠 만에 스타 6천 개를 넘겼고, 주장하는 숫자가 눈을 끌었습니다 — <strong>같은 모델이 llama.cpp보다 Metal에서 디코드 92% 더 빠르다</strong>는 겁니다.</p>
+
+<p>비결이 재미있습니다. 더 좋은 커널을 미리 짜서 배포하는 게 아니라, <strong>여러분의 컴퓨터에서, 여러분의 칩에 맞춰 커널을 컴파일하고 튜닝</strong>합니다. 이 글에서는 에이전트 워크로드가 기존 추론 엔진과 왜 안 맞는지부터, "기기에서 튜닝한다"는 말의 정확한 의미, 그리고 Claude Code를 내 로컬 모델에 붙이는 실습까지 순서대로 갑니다.</p>
+
+<h2 id="sec-2">배경 — 로컬 추론이 어려운 진짜 이유</h2>
+
+<p>먼저 최소한의 기초 두 가지만 깔고 갑니다.</p>
+
+<p><strong>첫째, LLM 추론은 두 단계입니다.</strong> 프롬프트 전체를 한 번에 읽어 들이는 프리필(prefill)과, 토큰을 하나씩 뱉는 디코드(decode)입니다. 프리필은 행렬 곱이 쏟아지는 연산 바운드 작업이고, 디코드는 매 토큰마다 모델 가중치 전체를 메모리에서 읽어 와야 하는 <strong>메모리 대역폭 바운드</strong> 작업입니다. 채팅이든 에이전트든 체감 속도를 좌우하는 건 대부분 디코드 쪽입니다. (자세한 구조는 <a href="/posts/llm-serving-engine-internals/">서빙 엔진 내부 구조 글</a>을 참고하세요.)</p>
+
+<p><strong>둘째, 데이터센터 서빙과 로컬 서빙은 최적화 목표가 다릅니다.</strong> vLLM 같은 데이터센터 엔진의 목표는 처리량입니다. 수백 명의 요청을 continuous batching으로 묶어 GPU를 꽉 채우죠. 그 대가로 개별 세션 하나의 응답성은 뒤로 밀립니다. 반면 내 노트북에는 사용자가 한 명뿐입니다. 묶을 요청이 없으니 배칭의 이득은 사라지고, 한 세션의 지연(latency)이 전부가 됩니다.</p>
+
+<p>여기에 "에이전트"가 끼어들면 요구 사항이 또 달라집니다. Magnitude 팀이 Launch HN에서 깐 문제 정의가 정확히 이 지점입니다. 기존 엔진은 데이터센터 배치용이거나, 폭넓은 호환성 위주거나, 특정 하드웨어·모델 전용인데 — <strong>셋 다 "로컬에서 에이전트를 돌리는" 상황을 위해 설계된 게 아니라는</strong> 겁니다. 로컬 에이전트 워크로드의 특징은 이렇습니다.</p>
+
+<ul>
+  <li><strong>세션이 깁니다.</strong> 채팅은 몇 번 주고받고 끝나지만, 코딩 에이전트는 몇 시간씩 돌며 컨텍스트가 수만~수십만 토큰으로 자랍니다. KV 캐시가 계속 커진다는 뜻입니다.</li>
+  <li><strong>여러 개가 동시에 돕니다.</strong> 에이전트 하나가 서브에이전트를 띄우거나, 터미널 두 개에서 각각 작업을 시키는 게 일상입니다.</li>
+  <li><strong>프리픽스가 겹칩니다.</strong> 같은 시스템 프롬프트, 같은 도구 정의를 세션마다 다시 계산하는 건 낭비입니다.</li>
+  <li><strong>그 컴퓨터로 다른 일도 해야 합니다.</strong> 에이전트가 도는 동안에도 IDE와 브라우저는 열려 있어야 하죠. 추론 엔진이 메모리를 미리 왕창 쥐고 안 놓으면 곤란합니다.</li>
+</ul>
+
+<figure class="lim-fig">
+<svg viewBox="0 0 760 320" role="img" aria-label="데이터센터 서빙과 로컬 에이전트 추론을 대비한 그림. 왼쪽은 수많은 사용자 요청을 배치로 묶어 GPU를 꽉 채우는 처리량 중심 구조, 오른쪽은 한 명의 사용자가 길게 도는 에이전트 세션 몇 개를 띄우고 IDE·브라우저와 메모리를 나눠 쓰는 지연·공존 중심 구조.">
+  <text x="190" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="var(--lim-sky)">데이터센터 서빙 — 처리량</text>
+  <rect x="30" y="44" width="320" height="248" rx="12" fill="none" stroke="var(--lim-slate)" stroke-width="1.5"/>
+  <g font-size="12" fill="var(--lim-gray)">
+    <text x="60" y="80">👤👤👤👤👤👤 수백 개 요청</text>
+  </g>
+  <g>
+    <rect x="60" y="96" width="260" height="30" rx="6" fill="none" stroke="var(--lim-sky)" stroke-width="1.6"/>
+    <text x="190" y="116" text-anchor="middle" font-size="12" fill="var(--lim-sky)">continuous batching</text>
+    <rect x="60" y="140" width="260" height="110" rx="8" fill="none" stroke="var(--lim-violet)" stroke-width="1.8"/>
+    <text x="190" y="172" text-anchor="middle" font-size="13" fill="var(--lim-violet)">GPU를 꽉 채운다</text>
+    <text x="190" y="196" text-anchor="middle" font-size="12" fill="var(--lim-gray)">배치가 클수록 효율↑</text>
+    <text x="190" y="218" text-anchor="middle" font-size="12" fill="var(--lim-gray)">세션 하나의 지연은 뒷전</text>
+  </g>
+  <text x="190" y="278" text-anchor="middle" font-size="12" fill="var(--lim-slate)">vLLM · SGLang …</text>
+
+  <text x="570" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="var(--lim-green)">로컬 에이전트 — 지연과 공존</text>
+  <rect x="410" y="44" width="320" height="248" rx="12" fill="none" stroke="var(--lim-slate)" stroke-width="1.5"/>
+  <text x="440" y="80" font-size="12" fill="var(--lim-gray)">👤 사용자 한 명, 긴 세션 몇 개</text>
+  <g font-size="12">
+    <rect x="440" y="96" width="150" height="34" rx="6" fill="none" stroke="var(--lim-green)" stroke-width="1.6"/>
+    <text x="515" y="118" text-anchor="middle" fill="var(--lim-green)">agent #1 (3시간째)</text>
+    <rect x="440" y="140" width="150" height="34" rx="6" fill="none" stroke="var(--lim-green)" stroke-width="1.6"/>
+    <text x="515" y="162" text-anchor="middle" fill="var(--lim-green)">agent #2 (서브에이전트)</text>
+    <rect x="610" y="96" width="92" height="78" rx="6" fill="none" stroke="var(--lim-amber)" stroke-width="1.6" stroke-dasharray="5 3"/>
+    <text x="656" y="128" text-anchor="middle" fill="var(--lim-amber)">IDE ·</text>
+    <text x="656" y="148" text-anchor="middle" fill="var(--lim-amber)">브라우저</text>
+  </g>
+  <rect x="440" y="192" width="262" height="58" rx="8" fill="none" stroke="var(--lim-violet)" stroke-width="1.8"/>
+  <text x="571" y="216" text-anchor="middle" font-size="12" fill="var(--lim-violet)">메모리는 나눠 쓰고, 끝나면 돌려준다</text>
+  <text x="571" y="236" text-anchor="middle" font-size="12" fill="var(--lim-gray)">겹치는 프리픽스는 캐시로 공유</text>
+  <text x="570" y="278" text-anchor="middle" font-size="12" fill="var(--lim-slate)">배칭 이득 없음 → 단일 세션 속도가 전부</text>
+</svg>
+<figcaption>같은 "추론 서빙"이라도 최적화 목표가 다릅니다. 데이터센터는 처리량, 로컬 에이전트는 단일 세션 지연과 다른 앱과의 공존이 우선입니다.</figcaption>
+</figure>
+
+<h2 id="sec-3">기존 선택지 세 가지, 그리고 비어 있던 자리</h2>
+
+<p>로컬에서 모델을 돌려 본 적이 있다면 아마 llama.cpp나 그 위에 얹힌 Ollama, LM Studio를 썼을 겁니다. 이 생태계와 이번 주의 신인들을 한 축 위에 놓고 보면 구도가 선명해집니다.</p>
+
+<table class="lim-table">
+  <thead><tr><th>접근</th><th>대표</th><th>장점</th><th>약점</th></tr></thead>
+  <tbody>
+    <tr><td><strong>범용 — 미리 컴파일</strong></td><td>llama.cpp · Ollama · LM Studio</td><td>어디서나 돌아감, 모델 지원 폭넓음</td><td>커널이 "하드웨어 부류" 단위로 빌드됨 — 내 칩의 최적은 아님</td></tr>
+    <tr><td><strong>데이터센터 — 배치 처리량</strong></td><td>vLLM · SGLang</td><td>다중 사용자 처리량 최강</td><td>단일 세션 지연 손해, 메모리를 미리 크게 점유</td></tr>
+    <tr><td><strong>특화 — 한 우물</strong></td><td>ds4(DeepSeek V4 Flash 전용) · MLX(Apple 전용)</td><td>좁힌 만큼 빠르고 단순</td><td>그 모델/그 하드웨어 밖에서는 무용지물</td></tr>
+    <tr><td><strong>온디바이스 튜닝</strong></td><td>Magnitude</td><td>내 칩에 맞춘 커널 + 에이전트용 설계</td><td>첫 구동 전 컴파일·튜닝 비용, 신생 프로젝트</td></tr>
+  </tbody>
+</table>
+
+<p>세 번째 줄의 ds4가 좋은 대조군입니다. antirez는 llama.cpp처럼 수십 가지 모델 아키텍처를 지원하는 대신 DeepSeek V4 Flash 하나에 모든 걸 걸고, 비대칭 2비트/8비트 양자화 같은 수작업 최적화로 속도를 뽑았습니다. "일반성을 버려서 빠르다"는 전략이죠. Magnitude는 같은 문제를 다른 축으로 풉니다. <strong>모델이 아니라 하드웨어 쪽의 일반성을 버리지 않으면서, 최적화를 사람 손이 아닌 기계에게 맡기는</strong> 겁니다.</p>
+
+<h2 id="sec-4">Magnitude의 답 — 커널을 내 칩에서 컴파일하고 튜닝한다</h2>
+
+<p>커널(kernel)부터 짚고 갑시다. 커널은 GPU에서 도는 작은 프로그램 하나입니다. 행렬 곱, 어텐션, 정규화 같은 연산마다 커널이 있고, LLM 추론은 결국 이 커널 수십 개를 수없이 반복 실행하는 일입니다. 그런데 같은 행렬 곱 커널이라도 <strong>타일 크기, 스레드그룹 구성, 벡터화 폭, 어떤 연산을 하나로 묶을지(fusion)</strong> 같은 선택지가 있고, 어떤 조합이 빠른지는 칩마다 다릅니다. 메모리 대역폭, 캐시 크기, 연산 유닛 구성이 다 다르니까요. M1 에어의 최적과 M4 프로의 최적, RTX 4090의 최적은 서로 다른 조합입니다.</p>
+
+<p>llama.cpp 같은 범용 엔진은 이 조합을 "Apple Silicon용", "CUDA용"처럼 하드웨어 부류 단위로 골라서 미리 빌드해 배포합니다. 폭넓게 돌아가지만, 어떤 특정 칩에서도 최적은 아닌 타협이죠. 이런 선택을 기계에게 맡기는 아이디어 자체는 ML 컴파일러 동네에서 역사가 깁니다 — TVM의 AutoTVM이나 Triton의 autotuner가 바로 "후보 커널들을 실제 기기에서 돌려 보고 빠른 걸 고르는" 도구들입니다. Magnitude는 이 발상을 로컬 추론 제품에 통째로 들여왔습니다. 공식 문구로는 이렇습니다: <em>"다른 엔진은 폭넓은 하드웨어 부류용으로 미리 컴파일한 커널을 배포한다. Magnitude는 모델이 돌기 전에 당신의 실제 기기에서 커널을 컴파일하고 튜닝해서, 당신의 칩에 꼭 맞춘다."</em></p>
+
+<p>저장소를 열어 보면 이 "튜닝"이 감이 아니라 수학으로 돼 있습니다. 엔진은 Rust로 작성됐고, 커널은 Seismic이라는 자체 커널 기술 언어로 "실행 구조가 열려 있는" 형태로 작성됩니다. 파이프라인은 대략 <strong>검사 → 구조화 IR → 후보 패밀리 → 예산 내 선택 → 인스턴스화 → 네이티브 커널 생성</strong> 순서입니다(Metal이 기준 백엔드, CPU는 Cranelift, NVIDIA는 PTX). 핵심인 "선택" 단계는 <code>magnitude-solver</code>라는 조합 최적화기가 맡습니다. 커널 구현·fusion 그룹·수치 처리 방식의 조합을 유한한 제약 모델로 놓고, 정확해 탐색과 대규모 근방 탐색(large-neighborhood search)을 섞어 비용이 최소인 조합을 찾는 구조입니다. "우리 엔지니어가 밤새 튜닝했다"가 아니라 <strong>"당신 칩을 제약 조건으로 넣고 최적화 문제를 푼다"</strong>에 가깝습니다.</p>
+
+<figure class="lim-fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="Magnitude의 온디바이스 커널 튜닝 파이프라인. 파라미터가 열린 커널 정의에서 타일 크기, fusion, 벡터화 조합으로 이루어진 후보 공간이 만들어지고, solver가 내 칩의 제약과 비용 모델을 바탕으로 예산 안에서 최적 조합을 선택하면, 네이티브 커널로 컴파일되어 캐시된다.">
+  <rect x="20" y="60" width="160" height="110" rx="10" fill="none" stroke="var(--lim-sky)" stroke-width="2"/>
+  <text x="100" y="92" text-anchor="middle" font-size="13" font-weight="700" fill="var(--lim-sky)">파라미터가 열린 커널</text>
+  <text x="100" y="116" text-anchor="middle" font-size="11.5" fill="var(--lim-gray)">matmul · attention · norm</text>
+  <text x="100" y="136" text-anchor="middle" font-size="11.5" fill="var(--lim-gray)">타일? fusion? 벡터화?</text>
+  <text x="100" y="156" text-anchor="middle" font-size="11.5" fill="var(--lim-gray)">(Seismic으로 기술)</text>
+
+  <line x1="180" y1="115" x2="222" y2="115" stroke="var(--lim-slate)" stroke-width="2" marker-end="url(#lim-ar1)"/>
+  <defs><marker id="lim-ar1" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 z" fill="var(--lim-slate)"/></marker></defs>
+
+  <rect x="226" y="40" width="170" height="150" rx="10" fill="none" stroke="var(--lim-violet)" stroke-width="2"/>
+  <text x="311" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--lim-violet)">후보 공간</text>
+  <g font-size="10.5" fill="var(--lim-gray)">
+    <rect x="244" y="82" width="60" height="22" rx="4" fill="none" stroke="var(--lim-gray)"/><text x="274" y="97" text-anchor="middle">타일 32×32</text>
+    <rect x="316" y="82" width="60" height="22" rx="4" fill="none" stroke="var(--lim-gray)"/><text x="346" y="97" text-anchor="middle">타일 64×16</text>
+    <rect x="244" y="112" width="60" height="22" rx="4" fill="none" stroke="var(--lim-gray)"/><text x="274" y="127" text-anchor="middle">fusion A+B</text>
+    <rect x="316" y="112" width="60" height="22" rx="4" fill="none" stroke="var(--lim-gray)"/><text x="346" y="127" text-anchor="middle">fusion 없음</text>
+    <rect x="244" y="142" width="60" height="22" rx="4" fill="none" stroke="var(--lim-gray)"/><text x="274" y="157" text-anchor="middle">vec4</text>
+    <rect x="316" y="142" width="60" height="22" rx="4" fill="none" stroke="var(--lim-gray)"/><text x="346" y="157" text-anchor="middle">vec8</text>
+  </g>
+
+  <line x1="396" y1="115" x2="438" y2="115" stroke="var(--lim-slate)" stroke-width="2" marker-end="url(#lim-ar1)"/>
+
+  <rect x="442" y="40" width="170" height="150" rx="10" fill="none" stroke="var(--lim-amber)" stroke-width="2"/>
+  <text x="527" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="var(--lim-amber)">solver — 예산 내 선택</text>
+  <text x="527" y="94" text-anchor="middle" font-size="11.5" fill="var(--lim-gray)">조합 최적화</text>
+  <text x="527" y="114" text-anchor="middle" font-size="11.5" fill="var(--lim-gray)">(정확해 + 근방 탐색)</text>
+  <text x="527" y="140" text-anchor="middle" font-size="11.5" fill="var(--lim-gray)">제약: 내 칩의 한계</text>
+  <text x="527" y="160" text-anchor="middle" font-size="11.5" fill="var(--lim-gray)">목적: 비용 최소</text>
+
+  <line x1="612" y1="115" x2="654" y2="115" stroke="var(--lim-slate)" stroke-width="2" marker-end="url(#lim-ar1)"/>
+
+  <rect x="658" y="60" width="86" height="110" rx="10" fill="none" stroke="var(--lim-green)" stroke-width="2.2"/>
+  <text x="701" y="98" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--lim-green)">네이티브</text>
+  <text x="701" y="118" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--lim-green)">커널</text>
+  <text x="701" y="146" text-anchor="middle" font-size="11" fill="var(--lim-gray)">내 칩 전용</text>
+
+  <rect x="226" y="228" width="386" height="46" rx="10" fill="none" stroke="var(--lim-slate)" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="419" y="256" text-anchor="middle" font-size="12" fill="var(--lim-gray)">모델이 돌기 전에 1회 수행 — 이후에는 맞춰진 커널로 바로 실행</text>
+  <line x1="419" y1="228" x2="419" y2="196" stroke="var(--lim-slate)" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="380" y="308" text-anchor="middle" font-size="11.5" fill="var(--lim-slate)">백엔드: Metal(기준) · CUDA(PTX) · CPU(Cranelift) · Vulkan</text>
+</svg>
+<figcaption>미리 컴파일된 커널을 내려받는 대신, 열린 파라미터를 가진 커널 정의에서 내 칩에 맞는 조합을 solver가 골라 네이티브 커널로 굽습니다.</figcaption>
+</figure>
+
+<p>효과는 어디서 날까요? 공개된 벤치마크 수치를 보면 방향이 읽힙니다.</p>
+
+<figure class="lim-fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="Magnitude가 llama.cpp 대비 얼마나 빠른지를 나타낸 막대 그래프. Metal에서는 프리필 9%, 디코드 92% 더 빠르고, CUDA에서는 프리필 23%, 디코드 19% 더 빠르다. 디코드 92%가 가장 큰 막대로 강조되어 있다.">
+  <text x="380" y="26" text-anchor="middle" font-size="14" font-weight="700" fill="var(--lim-slate)">llama.cpp 대비 속도 향상 (Magnitude 공식 벤치마크)</text>
+  <g font-size="12.5">
+    <text x="60" y="76" fill="var(--lim-gray)">Metal 프리필</text>
+    <rect x="190" y="60" width="47" height="24" rx="4" fill="var(--lim-sky)" opacity="0.85"/>
+    <text x="245" y="77" fill="var(--lim-sky)" font-weight="700">+9%</text>
+
+    <text x="60" y="124" fill="var(--lim-gray)">Metal 디코드</text>
+    <rect x="190" y="108" width="478" height="24" rx="4" fill="var(--lim-green)" opacity="0.9"/>
+    <text x="676" y="125" fill="var(--lim-green)" font-weight="800">+92%</text>
+
+    <text x="60" y="188" fill="var(--lim-gray)">CUDA 프리필</text>
+    <rect x="190" y="172" width="120" height="24" rx="4" fill="var(--lim-sky)" opacity="0.85"/>
+    <text x="318" y="189" fill="var(--lim-sky)" font-weight="700">+23%</text>
+
+    <text x="60" y="236" fill="var(--lim-gray)">CUDA 디코드</text>
+    <rect x="190" y="220" width="99" height="24" rx="4" fill="var(--lim-green)" opacity="0.9"/>
+    <text x="297" y="237" fill="var(--lim-green)" font-weight="700">+19%</text>
+  </g>
+  <line x1="190" y1="48" x2="190" y2="252" stroke="var(--lim-slate)" stroke-width="1.5"/>
+  <text x="380" y="284" text-anchor="middle" font-size="11.5" fill="var(--lim-slate)">체감 속도를 좌우하는 디코드에서, 특히 Metal에서 격차가 큽니다 — 자사 측정치라는 점은 감안하세요.</text>
+</svg>
+<figcaption>Magnitude의 공식 벤치마크. Metal 프리필 +9%, 디코드 +92%, CUDA 프리필 +23%, 디코드 +19%. "최대 2배"라는 홍보 문구는 Metal 디코드 수치에서 나온 것입니다.</figcaption>
+</figure>
+
+<p>디코드는 메모리 대역폭 바운드라고 했죠. 커널이 칩의 캐시·대역폭 특성에 꼭 맞으면 같은 하드웨어에서 토큰이 더 빨리 나옵니다. 특히 Apple Silicon처럼 세대·등급마다 메모리 구성이 제각각인 칩에서 격차가 크게 벌어진 게 눈에 띕니다. 다만 두 가지는 유념해야 합니다. 이 숫자는 <strong>자사 벤치마크</strong>이고(독립 재현은 아직 쌓이는 중), "모든 모델"이 아니라 <strong>인기 있는 오픈 모델 패밀리에 손수 최적화한 커널을 쓰는 모델들</strong>에 대한 이야기입니다. llama.cpp처럼 "일단 뭐든 돌리는" 폭은 아직 좁습니다.</p>
+
+<h2 id="sec-5">에이전트를 위한 설계 — 메모리·캐시·투기적 디코딩</h2>
+
+<p>속도만큼 흥미로운 게 "에이전트를 위한 엔진"이라는 정체성입니다. 2장에서 꼽은 로컬 에이전트 워크로드의 특징에 하나씩 대응이 붙어 있습니다.</p>
+
+<ul>
+  <li><strong>메모리가 늘었다 줄었다 합니다.</strong> 시작할 때는 모델 가중치만큼만 잡고, 에이전트 세션이 자라면 힙을 늘리고, 에이전트가 끝나면 그만큼 돌려줍니다. 공식 수치로는 에이전트당 메모리 27% 절감. "추론 서버 켜 두면 램을 통째로 먹는다"는 로컬 서빙의 고질병을 정면으로 겨냥한 설계입니다.</li>
+  <li><strong>동시 세션은 프리픽스 캐시를 공유합니다.</strong> 에이전트 두 개가 같은 시스템 프롬프트로 시작하면 그 프리필 결과를 나눠 씁니다. <a href="/posts/prompt-caching-cache-aware-agents/">프롬프트 캐싱</a>이 로컬에서도 기본값이 된 셈입니다.</li>
+  <li><strong><a href="/posts/speculative-decoding/">투기적 디코딩</a>을 알아서 깔아 줍니다.</strong> 지원 모델에는 MTP, DFlash, DSpark 같은 방식이 모델별로 미리 준비돼 있고, 설정은 엔진이 합니다. 드래프트 모델 고르고 파라미터 맞추는 수고가 없습니다.</li>
+  <li><strong>모델은 요청이 올 때 로드되고, 놀면 내려갑니다.</strong> 에이전트가 부르면 메모리에 올라오고, 한동안 안 쓰거나 메모리가 빠듯하면 스스로 내려갑니다. 그래서 오랜만의 첫 응답은 느립니다 — 버그가 아니라 설계입니다.</li>
+</ul>
+
+<div class="lim-note">
+<strong>참고:</strong> 이 글은 Magnitude 광고가 아닙니다. 공개 일주일이 안 된 신생 프로젝트고, 벤치마크는 자사 측정이며, 지원 모델 폭은 llama.cpp보다 좁습니다. 그래도 뜯어볼 가치가 있는 이유는 <strong>"에이전트 워크로드는 전용 서빙 설계가 필요하다"는 문제 제기</strong>와 <strong>"커널 최적화를 배포 시점이 아니라 설치 시점에, 사람 손이 아니라 탐색으로 한다"는 접근</strong>이 프로젝트 하나의 성패와 무관하게 로컬 추론의 방향을 보여 주기 때문입니다.
+</div>
+
+<h2 id="sec-6">실전 — Claude Code를 내 로컬 모델에 연결하기</h2>
+
+<p>직접 해 봅시다. 흐름은 세 단계입니다: 앱 설치 → 모델 다운로드 → 에이전트 연결.</p>
+
+<p><strong>1) 설치와 모델 다운로드.</strong> <a href="https://magnitude.dev/download" target="_blank" rel="noopener">magnitude.dev/download</a>에서 macOS/Windows/Linux용 데스크톱 앱을 받습니다(CLI 포함). 앱의 <strong>Discover</strong> 탭이 내 하드웨어를 평가해서 돌아갈 모델을 추천해 줍니다 — Fastest부터 Smartest까지 속도·지능 트레이드오프 슬라이더가 있는데, 처음에는 Balanced 추천을 받는 게 무난합니다. 파라미터 수가 아니라 <strong>추천과 메모리 적합도</strong>를 보고 고르세요.</p>
+
+<p><strong>2) API 확인.</strong> Magnitude는 <code>127.0.0.1:10100</code>에 OpenAI 호환 + Anthropic 호환 API를 동시에 엽니다. 모델이 뜨는지 먼저 확인합니다.</p>
+
+{{< highlight bash >}}
+# 사용 가능한 모델 확인
+curl http://127.0.0.1:10100/inference/v1/models
+
+# OpenAI Chat Completions 형식으로 테스트
+curl http://127.0.0.1:10100/inference/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "MODEL_ID",
+    "messages": [{"role": "user", "content": "프롬프트 캐싱을 한 문단으로 설명해줘"}],
+    "max_tokens": 256
+  }'
+{{< /highlight >}}
+
+<p>OpenAI 호환 API가 열려 있다는 건, Magnitude가 공식 지원하지 않는 도구라도 <code>base_url</code>만 바꾸면 붙는다는 뜻입니다. 공식 원클릭 연결은 Pi, OpenCode, Hermes, OpenClaw, Codex, Claude Code, Cline 등을 지원합니다.</p>
+
+<p><strong>3) Claude Code 연결.</strong> 앱의 <strong>Connections → Claude Code → Connect</strong>를 누르면 <code>~/.claude/settings.json</code>에 게이트웨이 설정이 기록됩니다. 수동으로 쓰면 이런 모양입니다.</p>
+
+{{< highlight json >}}
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:10100/inference/anthropic/proxies/claude-code",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"
+  },
+  "model": "anthropic-local/MODEL_ID"
+}
+{{< /highlight >}}
+
+<p>그다음 프로젝트 폴더에서 로컬 모델 ID를 지정해 실행합니다. 모델 ID는 표시 이름이 아니라 정확한 ID여야 합니다(예: <code>gemma-4-e2b-it-qat:gguf:q4</code>). Connections 카드에 복사 버튼이 있으니 그대로 붙여 넣으면 됩니다.</p>
+
+{{< highlight bash >}}
+claude --model anthropic-local/MODEL_ID
+{{< /highlight >}}
+
+<p>이제 Claude Code의 요청이 클라우드가 아니라 내 컴퓨터의 모델로 갑니다. 토큰 요금은 0원이고, 프롬프트와 코드가 기기 밖으로 나가지 않습니다. 연결된 동안에는 Magnitude 앱을 켜 둬야 하고, 다시 클라우드 모델로 돌아가려면 Disconnect 후 Claude Code를 재시작합니다.</p>
+
+<p><strong>4) 뭘 측정할까.</strong> 앱의 Usage 화면이 로컬 추론의 기본 지표를 보여 줍니다. 볼 것은 세 가지입니다 — <strong>생성 속도(출력 토큰/초)</strong>는 디코드 성능, <strong>TTFT(첫 토큰까지 시간)</strong>는 모델 로드+프리필 비용, <strong>cached input 비율</strong>은 프리픽스 캐시가 실제로 먹히고 있는지를 알려 줍니다. 에이전트가 답답하게 느껴질 때 이 셋을 보면 병목이 로드인지, 프리필인지, 디코드인지 구분할 수 있습니다.</p>
+
+<h2 id="sec-7">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>통합 메모리 32GB ≠ 모델용 32GB.</strong> Apple Silicon의 통합 메모리는 macOS와 다른 앱이 같이 씁니다. 로드가 실패하면 메모리 잡아먹는 앱부터 닫고, Discover의 적합도 평가를 믿으세요.</li>
+  <li><strong>"다운로드됨"과 "로드됨"은 다릅니다.</strong> 다운로드한 모델은 디스크만 차지하고, 로드해야 추론 메모리를 씁니다. 오랜만에 보낸 첫 요청이 한참 걸리는 건 온디맨드 로드 때문입니다.</li>
+  <li><strong>컨텍스트 길이는 공짜가 아닙니다.</strong> 긴 컨텍스트 설정은 메모리를 더 먹고 응답을 늦춥니다. 에이전트에 붙일 거라면 특히 KV 캐시가 감당되는지 확인하세요.</li>
+  <li><strong>하드웨어 제약 확인.</strong> CUDA 빌드는 현재 Ampere 세대 이상을 대상으로 하고, AMD는 ROCm이 아니라 Vulkan 경로입니다(Vulkan 1.1+). Intel Mac은 CPU 추론입니다.</li>
+  <li><strong>양자화는 트레이드오프입니다.</strong> 낮은 비트 변형은 메모리를 아끼지만 품질을 조금 깎습니다. 감으로 고르지 말고 <a href="/posts/llm-quantization-fp8-int4-fp4/">양자화 글</a>의 기준대로 내 작업에서 체감 차이를 확인하세요.</li>
+  <li><strong>로컬이 만능은 아닙니다.</strong> 노트북에서 도는 오픈 모델이 프런티어 클라우드 모델의 결과 품질을 대체하지는 못합니다. 민감한 코드·반복적인 잔작업은 로컬로, 어려운 설계·디버깅은 클라우드로 보내는 하이브리드가 현실적입니다. 마침 이번 주 HN에서는 코딩 에이전트용 오픈소스 모델 라우팅도 화제였는데, 기본 발상은 <a href="/posts/llm-model-routing/">LLM 라우팅 글</a>에서 다뤘습니다.</li>
+  <li><strong>벤치마크는 내 기기에서 다시.</strong> "+92%"는 특정 조건의 자사 측정입니다. 온디바이스 튜닝의 본질상 효과는 칩마다 다르니, 같은 모델을 llama.cpp와 나란히 돌려 보고 결정하세요.</li>
+</ul>
+
+<h2 id="sec-8">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>FTC의 에이전트 위험 조사, 대화가 트래커로 새는 프라이버시 논문, 상시 가동 클라우드 에이전트에 대한 불안이 겹치며 — 이번 주 HN에는 <strong>로컬 추론 도구 러시</strong>가 왔습니다.</li>
+  <li>로컬 에이전트 워크로드는 데이터센터 서빙과 다릅니다: 배칭 이득이 없고, 세션이 길고, 여럿이 동시에 돌고, 다른 앱과 메모리를 나눠 써야 합니다.</li>
+  <li><strong>Magnitude</strong>(Apache 2.0, Rust)는 미리 컴파일한 커널 대신 <strong>내 기기에서 커널을 컴파일·튜닝</strong>합니다. 커널 선택을 조합 최적화 문제로 풀어, llama.cpp 대비 Metal 디코드 +92%, CUDA 디코드 +19%를 주장합니다(자사 측정).</li>
+  <li>에이전트용 설계가 따라옵니다: 세션 종료 시 반환되는 유연한 메모리(에이전트당 27%↓), 동시 세션의 프리픽스 캐시 공유, 투기적 디코딩 자동 설정, 온디맨드 모델 로드.</li>
+  <li><code>127.0.0.1:10100</code>의 OpenAI/Anthropic 호환 API로 어떤 도구든 붙일 수 있고, Claude Code는 <code>ANTHROPIC_BASE_URL</code> 게이트웨이 + <code>anthropic-local/MODEL_ID</code>로 원클릭 연결됩니다.</li>
+  <li>교훈: 특화(ds4)와 범용(llama.cpp) 사이에 <strong>"기기별 자동 특화"</strong>라는 세 번째 길이 열렸습니다. 로컬·클라우드는 대결이 아니라 분업입니다 — 민감하고 반복적인 일은 집에서, 어려운 일은 밖에서.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://github.com/magnitudedev/magnitude" target="_blank" rel="noopener">Magnitude — GitHub 저장소</a> (README·docs·inference-v4 엔진 문서)</li>
+  <li><a href="https://news.ycombinator.com/item?id=49911995" target="_blank" rel="noopener">Launch HN: Magnitude (YC S25) — Self-optimizing inference engine for agents</a></li>
+  <li><a href="https://docs.magnitude.dev" target="_blank" rel="noopener">Magnitude 공식 문서</a> — 모델·하드웨어·API·에이전트 연결 가이드</li>
+  <li><a href="https://gigazine.net/gsc_news/en/20261001-magnitude/" target="_blank" rel="noopener">GIGAZINE — Magnitude, an AI agent inference engine that automatically optimizes for hardware</a></li>
+  <li><a href="https://x.com/TeksEdge/status/2105711845004988774" target="_blank" rel="noopener">X — Magnitude 벤치마크 수치 확산 스레드</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=48142108" target="_blank" rel="noopener">antirez — A few words on DS4</a> · <a href="https://dwarfstar.sh/" target="_blank" rel="noopener">DwarfStar 4(ds4)</a></li>
+  <li><a href="https://dspace.networks.imdea.org/handle/20.500.12761/2073" target="_blank" rel="noopener">Prompt like a Butterfly, Sting like a Tracker — 대화형 AI 에이전트 프라이버시 분석 (IMDEA Networks)</a> · <a href="https://news.ycombinator.com/item?id=49890226" target="_blank" rel="noopener">HN 토론</a></li>
+  <li><a href="https://www.insurancejournal.com/news/national/2026/10/02/887673.htm" target="_blank" rel="noopener">FTC Probing OpenAI, Anthropic Over Product Safety Concerns (Reuters발)</a> · <a href="https://www.technology.org/2026/10/01/ftc-probe-anthropic-openai-metr-rogue-ai-agents/" target="_blank" rel="noopener">Technology.org 보도</a></li>
+  <li><a href="https://openai.com/index/introducing-dots/" target="_blank" rel="noopener">OpenAI — Introducing dots (상시 가동 에이전트)</a></li>
+  <li><a href="https://github.com/kouweizhu/agents-radar/issues/316" target="_blank" rel="noopener">HN AI Digest 2026-10-03</a> · <a href="https://github.com/kouweizhu/agents-radar/issues/284" target="_blank" rel="noopener">2026-10-01</a> — MicroLLM Lab·ESP32 BitNet 클러스터·모델 라우팅 등 이번 주 로컬 추론 러시 집계</li>
+</ul>

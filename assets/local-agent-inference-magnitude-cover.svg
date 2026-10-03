@@ -1,0 +1,62 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽에는 구독 요금과 프라이버시 걱정이 붙은 클라우드 에이전트가 있고, 오른쪽에는 노트북 안의 칩에 커널 블록들이 퍼즐처럼 꼭 맞게 끼워지는 모습이 있다. 에이전트 추론을 클라우드에서 내 컴퓨터로 가져오되, 커널을 내 칩에 맞춰 튜닝한다는 것을 나타낸 그림.">
+  <defs>
+    <linearGradient id="limbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1a26"/>
+      <stop offset="1" stop-color="#14202e"/>
+    </linearGradient>
+    <marker id="limc-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#limbg)"/>
+
+  <text x="600" y="84" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">에이전트를 내 컴퓨터에서 돌리면 안 되나요?</text>
+  <text x="600" y="130" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24">커널을 내 칩에 맞춰 튜닝하는 로컬 추론 엔진 — Magnitude 해부</text>
+
+  <g font-family="system-ui,sans-serif">
+    <!-- left: cloud agent with worries -->
+    <text x="280" y="196" text-anchor="middle" font-size="20" fill="#94a3b8">클라우드 에이전트</text>
+    <path d="M190 300 a46 46 0 0 1 44 -58 a58 58 0 0 1 110 10 a40 40 0 0 1 16 76 l-150 0 a38 38 0 0 1 -20 -28z" fill="#101c2e" stroke="#64748b" stroke-width="3"/>
+    <text x="280" y="302" text-anchor="middle" font-size="26" fill="#cbd5e1">agent</text>
+    <!-- tags -->
+    <g font-size="18">
+      <rect x="118" y="382" width="148" height="40" rx="10" fill="#1c2436" stroke="#e11d48" stroke-width="2"/>
+      <text x="192" y="408" text-anchor="middle" fill="#fb7185">토큰 요금 $$$</text>
+      <rect x="286" y="382" width="192" height="40" rx="10" fill="#1c2436" stroke="#d97706" stroke-width="2"/>
+      <text x="382" y="408" text-anchor="middle" fill="#fbbf24">프롬프트가 밖으로</text>
+      <rect x="160" y="438" width="250" height="40" rx="10" fill="#1c2436" stroke="#64748b" stroke-width="2"/>
+      <text x="285" y="464" text-anchor="middle" fill="#94a3b8">항상 켜진 채 남의 서버에</text>
+    </g>
+
+    <!-- center arrow -->
+    <line x1="505" y1="350" x2="595" y2="350" stroke="#38bdf8" stroke-width="5" marker-end="url(#limc-arrow)"/>
+
+    <!-- right: laptop with chip and fitting kernels -->
+    <text x="880" y="196" text-anchor="middle" font-size="20" fill="#94a3b8">내 컴퓨터 — 커널이 칩에 맞춰진다</text>
+    <rect x="660" y="214" width="440" height="270" rx="16" fill="#101c2e" stroke="#64748b" stroke-width="3"/>
+    <rect x="620" y="488" width="520" height="26" rx="10" fill="#17233a" stroke="#64748b" stroke-width="3"/>
+    <!-- chip -->
+    <rect x="760" y="258" width="240" height="180" rx="12" fill="#17233a" stroke="#38bdf8" stroke-width="3"/>
+    <text x="880" y="246" text-anchor="middle" font-size="17" fill="#38bdf8">my chip</text>
+    <!-- chip pins -->
+    <g stroke="#38bdf8" stroke-width="3" stroke-linecap="round" opacity="0.7">
+      <line x1="740" y1="286" x2="760" y2="286"/><line x1="740" y1="326" x2="760" y2="326"/>
+      <line x1="740" y1="366" x2="760" y2="366"/><line x1="740" y1="406" x2="760" y2="406"/>
+      <line x1="1000" y1="286" x2="1020" y2="286"/><line x1="1000" y1="326" x2="1020" y2="326"/>
+      <line x1="1000" y1="366" x2="1020" y2="366"/><line x1="1000" y1="406" x2="1020" y2="406"/>
+    </g>
+    <!-- kernel tiles snapped inside -->
+    <g font-size="15">
+      <rect x="778" y="276" width="96" height="64" rx="8" fill="#0d2b22" stroke="#4ade80" stroke-width="2.5"/>
+      <text x="826" y="313" text-anchor="middle" fill="#4ade80">matmul</text>
+      <rect x="886" y="276" width="96" height="64" rx="8" fill="#0d2b22" stroke="#4ade80" stroke-width="2.5"/>
+      <text x="934" y="313" text-anchor="middle" fill="#4ade80">attention</text>
+      <rect x="778" y="352" width="96" height="64" rx="8" fill="#0d2b22" stroke="#4ade80" stroke-width="2.5"/>
+      <text x="826" y="389" text-anchor="middle" fill="#4ade80">norm</text>
+      <!-- one tile sliding in -->
+      <rect x="902" y="364" width="96" height="64" rx="8" fill="#0d2b22" stroke="#4ade80" stroke-width="2.5" transform="rotate(8 950 396)"/>
+      <text x="950" y="401" text-anchor="middle" fill="#4ade80" transform="rotate(8 950 396)">rope</text>
+    </g>
+    <text x="880" y="546" text-anchor="middle" font-size="19" fill="#94a3b8">compile &amp; tune on-device · 토큰 요금 0원 · 데이터는 집 안에</text>
+  </g>
+</svg>

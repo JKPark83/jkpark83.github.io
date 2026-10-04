@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="560" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-05</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">공통 테마: 빼기의 엔지니어링 — 프롬프트도, 실수도, 툴 스키마도 덜어내는 쪽이 이긴다</text>
+
+  <!-- quadrant: 모델/가이드 -->
+  <rect x="40" y="80" width="345" height="190" rx="14" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="60" y="108" font-size="14" font-weight="700" fill="#2d5bb0">🤖 모델 — 릴리즈 대신 가이드</text>
+  <text x="60" y="134" font-size="13" font-weight="700" fill="#1a1a2e">Opus 5.5 공식 프롬프팅 가이드</text>
+  <text x="60" y="154" font-size="12" fill="#1a1a2e">11개 섹션 중 '삭제·재테스트' 5 &gt; '추가' 4</text>
+  <text x="60" y="172" font-size="12" fill="#1a1a2e">effort 재스윕 · OCR 우회 제거 · thinking 상시</text>
+  <text x="60" y="196" font-size="13" font-weight="700" fill="#1a1a2e">OpenAI 안전 리드 사임</text>
+  <text x="60" y="216" font-size="12" fill="#1a1a2e">David Robinson, Atlantic 에세이 (10/3)</text>
+  <text x="60" y="240" font-size="12" fill="#555f77">주말이라 새 모델 출시는 없음 —</text>
+  <text x="60" y="258" font-size="12" fill="#555f77">대신 '쓰는 법'과 '만드는 조직'이 뉴스</text>
+
+  <!-- quadrant: 연구 -->
+  <rect x="415" y="80" width="345" height="190" rx="14" fill="#fdf3ee" stroke="#d4764a" stroke-width="2"/>
+  <text x="435" y="108" font-size="14" font-weight="700" fill="#b0522d">📚 연구 — 실수와 변심 다루기</text>
+  <text x="435" y="134" font-size="13" font-weight="700" fill="#1a1a2e">PivotOPD (2609.40285, NVIDIA)</text>
+  <text x="435" y="154" font-size="12" fill="#1a1a2e">실패 롤아웃 절반이 '초반 결정적 실수'</text>
+  <text x="435" y="172" font-size="12" fill="#1a1a2e">예방 + 복구 이중 증류로 학생 모델 훈련</text>
+  <text x="435" y="196" font-size="13" font-weight="700" fill="#1a1a2e">IntentFlux / StateForge (2609.32520)</text>
+  <text x="435" y="216" font-size="12" fill="#1a1a2e">사용자가 말을 바꾸면 옛 지시가 계속 샘</text>
+  <text x="435" y="234" font-size="12" fill="#1a1a2e">'현재 유효 요구사항' 목록 유지로 완화</text>
+  <text x="435" y="258" font-size="12" fill="#555f77">어제의 belief state와 같은 계보의 처방</text>
+
+  <!-- quadrant: 오픈소스 -->
+  <rect x="40" y="290" width="345" height="190" rx="14" fill="#f0fbf4" stroke="#3fa96b" stroke-width="2"/>
+  <text x="60" y="318" font-size="14" font-weight="700" fill="#27804d">🛠 오픈소스 — 스킬과 샌드박스</text>
+  <text x="60" y="344" font-size="13" font-weight="700" fill="#1a1a2e">mattpocock/skills (MIT)</text>
+  <text x="60" y="362" font-size="12" fill="#1a1a2e">실전 엔지니어링 스킬 모음 · 플러그인 or 포크</text>
+  <text x="60" y="380" font-size="12" fill="#1a1a2e">Claude Code 마켓플레이스 + skills.sh 양쪽 배포</text>
+  <text x="60" y="404" font-size="13" font-weight="700" fill="#1a1a2e">pi-pod/pipod (AGPL-3.0)</text>
+  <text x="60" y="422" font-size="12" fill="#1a1a2e">pi 에이전트를 내 서버 샌드박스에서 실행</text>
+  <text x="60" y="440" font-size="12" fill="#1a1a2e">CLI + iOS/Android로 폰에서 세션 접속</text>
+  <text x="60" y="462" font-size="12" fill="#555f77">프로세스(스킬) · 인프라(pod) 양쪽의 셀프호스팅</text>
+
+  <!-- quadrant: 툴링 -->
+  <rect x="415" y="290" width="345" height="190" rx="14" fill="#f5f0fb" stroke="#8a5fd4" stroke-width="2"/>
+  <text x="435" y="318" font-size="14" font-weight="700" fill="#6a3fb0">🧰 툴링 — 캐시와 권한</text>
+  <text x="435" y="344" font-size="13" font-weight="700" fill="#1a1a2e">Codex: strict Code Mode 실험 플래그</text>
+  <text x="435" y="362" font-size="12" fill="#1a1a2e">서드파티 툴 전부 deferred → 프리픽스 고정</text>
+  <text x="435" y="380" font-size="12" fill="#1a1a2e">MCP 카탈로그가 바뀌어도 캐시 유지</text>
+  <text x="435" y="404" font-size="13" font-weight="700" fill="#1a1a2e">Claude Code 2.1.289</text>
+  <text x="435" y="422" font-size="12" fill="#1a1a2e">deny/ask 규칙 에지케이스 보강 (심링크 등)</text>
+  <text x="435" y="440" font-size="12" fill="#1a1a2e">mods에 agent.spawn · 에이전트 상태 조회</text>
+  <text x="435" y="462" font-size="12" fill="#555f77">업그레이드 후 권한 규칙 재검증 권장</text>
+
+  <!-- bottom takeaway -->
+  <rect x="40" y="498" width="720" height="44" rx="10" fill="#1a1a2e"/>
+  <text x="400" y="525" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">오늘 해볼 것: 새 모델 마이그레이션 때 '추가'보다 '삭제' 체크리스트부터 — 워크어라운드·effort 설정·낡은 지시</text>
+</svg>

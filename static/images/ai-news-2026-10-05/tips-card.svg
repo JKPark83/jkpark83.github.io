@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="400" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">Codex vs Claude Code — 오늘의 실전 포인트</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">둘 다 '안 보이는 레이어' 이야기: 프롬프트 캐시와 권한 규칙</text>
+
+  <!-- Codex card -->
+  <rect x="40" y="80" width="350" height="250" rx="14" fill="#f0fbf4" stroke="#3fa96b" stroke-width="2"/>
+  <text x="60" y="110" font-size="15" font-weight="700" fill="#27804d">🟩 Codex — strict Code Mode (실험)</text>
+  <text x="60" y="138" font-size="12" fill="#1a1a2e">code_mode_only_strict_3p_tools 플래그 (기본 off)</text>
+  <text x="60" y="162" font-size="12" fill="#1a1a2e">· 서드파티 MCP·앱 툴을 전부 deferred 유지</text>
+  <text x="60" y="182" font-size="12" fill="#1a1a2e">· 호출은 exec 경유로 그대로 가능</text>
+  <text x="60" y="202" font-size="12" fill="#1a1a2e">· eager tool prefix가 고정됨</text>
+  <rect x="60" y="220" width="310" height="66" rx="8" fill="#ffffff" stroke="#bfe3cd"/>
+  <text x="75" y="244" font-size="12" font-weight="700" fill="#27804d">왜 중요한가</text>
+  <text x="75" y="264" font-size="11.5" fill="#1a1a2e">MCP 카탈로그가 턴 사이에 바뀌어도 프롬프트</text>
+  <text x="75" y="280" font-size="11.5" fill="#1a1a2e">프리픽스가 안 바뀜 → 캐시 히트 유지, 비용 절감</text>
+  <text x="60" y="314" font-size="11.5" fill="#555f77">⚠ 10/3 머지된 실험 기능 — 동작 변화 주시</text>
+
+  <!-- Claude Code card -->
+  <rect x="410" y="80" width="350" height="250" rx="14" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="430" y="110" font-size="15" font-weight="700" fill="#2d5bb0">🟦 Claude Code — v2.1.289</text>
+  <text x="430" y="138" font-size="12" fill="#1a1a2e">권한 규칙(deny/ask) 에지케이스 보강</text>
+  <text x="430" y="162" font-size="12" fill="#1a1a2e">· 심링크 경유 Read에도 deny 규칙 적용</text>
+  <text x="430" y="182" font-size="12" fill="#1a1a2e">· 환경변수 프리픽스 뒤의 명령도 매칭</text>
+  <text x="430" y="202" font-size="12" fill="#1a1a2e">· 복합 셸 명령의 중첩 부분도 유지</text>
+  <rect x="430" y="220" width="310" height="66" rx="8" fill="#ffffff" stroke="#c3d4f0"/>
+  <text x="445" y="244" font-size="12" font-weight="700" fill="#2d5bb0">왜 중요한가</text>
+  <text x="445" y="264" font-size="11.5" fill="#1a1a2e">deny 규칙으로 비밀 파일·위험 명령을 막고 있다면</text>
+  <text x="445" y="280" font-size="11.5" fill="#1a1a2e">업그레이드 후 우회 경로가 실제로 막혔는지 재검증</text>
+  <text x="430" y="314" font-size="11.5" fill="#555f77">+ mods API에 agent.spawn · 상태 조회 추가</text>
+
+  <!-- bottom -->
+  <rect x="40" y="348" width="720" height="36" rx="10" fill="#1a1a2e"/>
+  <text x="400" y="371" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">공통 교훈: 툴 스키마·권한 규칙은 프롬프트만큼 자주 리뷰할 것 — 캐시도 보안도 거기서 샌다</text>
+</svg>

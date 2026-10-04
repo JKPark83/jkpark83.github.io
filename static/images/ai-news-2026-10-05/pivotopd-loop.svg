@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#555f77"/>
+    </marker>
+  </defs>
+  <rect width="800" height="440" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">PivotOPD — 결정적 실수를 중심에 둔 이중 증류</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#8a90a3">arXiv 2609.40285 (NVIDIA) · 실패 롤아웃의 절반 이상이 초반의 pivotal mistake에서 시작</text>
+
+  <!-- rollout timeline -->
+  <rect x="50" y="90" width="700" height="80" rx="12" fill="#f6f7fb" stroke="#c6cbd9" stroke-width="1.5"/>
+  <text x="70" y="114" font-size="13" font-weight="700" fill="#1a1a2e">멀티턴 롤아웃</text>
+  <circle cx="150" cy="145" r="10" fill="#3fa96b"/>
+  <circle cx="230" cy="145" r="10" fill="#3fa96b"/>
+  <circle cx="310" cy="145" r="12" fill="#d43f3f"/>
+  <text x="310" y="150" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">!</text>
+  <circle cx="390" cy="145" r="10" fill="#e0a13a"/>
+  <circle cx="470" cy="145" r="10" fill="#e0a13a"/>
+  <circle cx="550" cy="145" r="10" fill="#e0a13a"/>
+  <circle cx="630" cy="145" r="10" fill="#e0a13a"/>
+  <line x1="162" y1="145" x2="218" y2="145" stroke="#9aa1b5" stroke-width="2"/>
+  <line x1="242" y1="145" x2="296" y2="145" stroke="#9aa1b5" stroke-width="2"/>
+  <line x1="324" y1="145" x2="378" y2="145" stroke="#9aa1b5" stroke-width="2"/>
+  <line x1="402" y1="145" x2="458" y2="145" stroke="#9aa1b5" stroke-width="2"/>
+  <line x1="482" y1="145" x2="538" y2="145" stroke="#9aa1b5" stroke-width="2"/>
+  <line x1="562" y1="145" x2="618" y2="145" stroke="#9aa1b5" stroke-width="2"/>
+  <text x="310" y="185" text-anchor="middle" font-size="12" font-weight="700" fill="#d43f3f">pivotal mistake (초반)</text>
+  <text x="520" y="185" text-anchor="middle" font-size="12" fill="#b0522d">이후 턴은 오류가 눈덩이처럼 누적</text>
+
+  <!-- two branches -->
+  <line x1="280" y1="200" x2="200" y2="245" stroke="#555f77" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="340" y1="200" x2="560" y2="245" stroke="#555f77" stroke-width="2" marker-end="url(#arr)"/>
+
+  <rect x="60" y="250" width="320" height="110" rx="12" fill="#eef3fc" stroke="#4a7fd4" stroke-width="2"/>
+  <text x="80" y="278" font-size="14" font-weight="700" fill="#2d5bb0">예방 증류 (reverse KL)</text>
+  <text x="80" y="302" font-size="12" fill="#1a1a2e">실수 직전 상태에서 교사의 올바른 행동을</text>
+  <text x="80" y="320" font-size="12" fill="#1a1a2e">집중 학습 — 결정적 실수 자체를 회피</text>
+  <text x="80" y="344" font-size="12" fill="#555f77">"애초에 틀린 길로 안 들어가게"</text>
+
+  <rect x="420" y="250" width="320" height="110" rx="12" fill="#fdf3ee" stroke="#d4764a" stroke-width="2"/>
+  <text x="440" y="278" font-size="14" font-weight="700" fill="#b0522d">복구 증류 (forward KL)</text>
+  <text x="440" y="302" font-size="12" fill="#1a1a2e">실수가 이미 난 뒤의 상태에서 교사의</text>
+  <text x="440" y="320" font-size="12" fill="#1a1a2e">복구 행동을 학습 — 중간에 되살아나기</text>
+  <text x="440" y="344" font-size="12" fill="#555f77">"틀렸어도 거기서 다시 궤도로"</text>
+
+  <!-- result bar -->
+  <rect x="60" y="380" width="680" height="42" rx="10" fill="#1a1a2e"/>
+  <text x="400" y="406" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">결과(논문 보고치): ALFWorld +5.5% (Qwen3-1.7B 학생) · SWE-Bench Verified +3.2% (Nemotron-3.5 학생)</text>
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" rx="12" fill="#1c2333"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f5f7fa" font-size="18" font-weight="700">에이전트 메모리, 반대 방향의 두 설계</text>
+  <text x="400" y="54" text-anchor="middle" fill="#8b96ad" font-size="12">둘 다 "이미 디스크에 쌓인 세션 로그"를 재료로 쓴다</text>
+
+  <!-- deja-vu -->
+  <rect x="24" y="72" width="368" height="300" rx="10" fill="#242e45" stroke="#8be28b"/>
+  <text x="208" y="100" text-anchor="middle" fill="#8be28b" font-size="15" font-weight="700">deja-vu</text>
+  <text x="208" y="118" text-anchor="middle" fill="#aeb8cc" font-size="11">vshulcz/deja-vu · Go · MIT</text>
+  <text x="44" y="146" fill="#f0f3f8" font-size="12" font-weight="600">검색 방식</text>
+  <text x="44" y="164" fill="#aeb8cc" font-size="12">LLM 없음 · 임베딩 없음 · 로컬 인덱스</text>
+  <text x="44" y="190" fill="#f0f3f8" font-size="12" font-weight="600">커버리지</text>
+  <text x="44" y="208" fill="#aeb8cc" font-size="12">Claude Code, Codex, Cursor 등 38개 하니스</text>
+  <text x="44" y="234" fill="#f0f3f8" font-size="12" font-weight="600">동기화 / 이동</text>
+  <text x="44" y="252" fill="#aeb8cc" font-size="12">deja sync ssh (기기 간, 클라우드 없음)</text>
+  <text x="44" y="270" fill="#aeb8cc" font-size="12">deja handoff --to codex (에이전트 간 인계)</text>
+  <text x="44" y="296" fill="#f0f3f8" font-size="12" font-weight="600">자기 보고 수치 (레포 벤치)</text>
+  <text x="44" y="314" fill="#aeb8cc" font-size="12">LongMemEval-S R@5 97.2% · 19,195세션 17.6초 인덱싱</text>
+  <text x="44" y="344" fill="#8be28b" font-size="12" font-weight="600">이런 사람에게: 설치 10초, 의존성 0,</text>
+  <text x="44" y="362" fill="#8be28b" font-size="12" font-weight="600">개인 로컬 메모리가 필요한 사람</text>
+
+  <!-- funes -->
+  <rect x="408" y="72" width="368" height="300" rx="10" fill="#242e45" stroke="#ffb86b"/>
+  <text x="592" y="100" text-anchor="middle" fill="#ffb86b" font-size="15" font-weight="700">funes</text>
+  <text x="592" y="118" text-anchor="middle" fill="#aeb8cc" font-size="11">huggingface/funes · Rust · Apache-2.0</text>
+  <text x="428" y="146" fill="#f0f3f8" font-size="12" font-weight="600">검색 방식</text>
+  <text x="428" y="164" fill="#aeb8cc" font-size="12">고정 로컬 임베딩 + BM25 + 크로스인코더 리랭킹</text>
+  <text x="428" y="190" fill="#f0f3f8" font-size="12" font-weight="600">커버리지</text>
+  <text x="428" y="208" fill="#aeb8cc" font-size="12">Claude Code, Codex, pi, Hermes (+커뮤니티 통합)</text>
+  <text x="428" y="234" fill="#f0f3f8" font-size="12" font-weight="600">동기화 / 이동</text>
+  <text x="428" y="252" fill="#aeb8cc" font-size="12">메모리 자체가 Hugging Face 데이터셋:</text>
+  <text x="428" y="270" fill="#aeb8cc" font-size="12">퍼블리시하면 팀원·다른 기기가 바로 recall</text>
+  <text x="428" y="296" fill="#f0f3f8" font-size="12" font-weight="600">온보딩</text>
+  <text x="428" y="314" fill="#aeb8cc" font-size="12">funes add claude 한 줄: 훅 + recall/get 도구 설치</text>
+  <text x="428" y="344" fill="#ffb86b" font-size="12" font-weight="600">이런 사람에게: 팀 단위 공유 메모리,</text>
+  <text x="428" y="362" fill="#ffb86b" font-size="12" font-weight="600">시맨틱 검색 품질이 중요한 사람</text>
+
+  <rect x="24" y="388" width="752" height="36" rx="8" fill="#2a3142"/>
+  <text x="400" y="411" text-anchor="middle" fill="#d7deeb" font-size="12">공통 교훈: 메모리의 재료는 이미 있다 — 문제는 저장이 아니라 "회수(recall)를 누가, 언제 하느냐"</text>
+</svg>

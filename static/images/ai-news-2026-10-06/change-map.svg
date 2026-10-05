@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="-apple-system, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif">
+  <rect width="800" height="470" rx="12" fill="#1c2333"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f5f7fa" font-size="19" font-weight="700">오늘의 AI 변화 지도 — 2026-10-06</text>
+  <text x="400" y="54" text-anchor="middle" fill="#8b96ad" font-size="12">공통 주제: 에이전트의 '기억'과 '검증'이 인프라가 되는 중</text>
+
+  <!-- quadrant: model -->
+  <rect x="24" y="74" width="368" height="180" rx="10" fill="#242e45"/>
+  <text x="40" y="100" fill="#7fb3ff" font-size="14" font-weight="700">🤖 모델</text>
+  <text x="40" y="126" fill="#f0f3f8" font-size="13" font-weight="600">Reflection Beam (10/5 발표)</text>
+  <text x="40" y="145" fill="#aeb8cc" font-size="12">501B MoE · active 23B · 1M 컨텍스트</text>
+  <text x="40" y="163" fill="#aeb8cc" font-size="12">Apache 2.0 가중치는 이달 중 공개 예정</text>
+  <text x="40" y="192" fill="#f0f3f8" font-size="13" font-weight="600">Pi 1.0 (Earendil)</text>
+  <text x="40" y="211" fill="#aeb8cc" font-size="12">MCP 지원으로 선회 · codemode 샌드박스 중심</text>
+  <text x="40" y="229" fill="#aeb8cc" font-size="12">v1.0.4까지 빠른 패치 중</text>
+
+  <!-- quadrant: research -->
+  <rect x="408" y="74" width="368" height="180" rx="10" fill="#242e45"/>
+  <text x="424" y="100" fill="#ffd27f" font-size="14" font-weight="700">📚 연구</text>
+  <text x="424" y="126" fill="#f0f3f8" font-size="13" font-weight="600">VeriHarness (Google)</text>
+  <text x="424" y="145" fill="#aeb8cc" font-size="12">생성 모델을 '에이전틱 검증자'로 전환</text>
+  <text x="424" y="163" fill="#aeb8cc" font-size="12">단일 롤아웃 대비 +6.2~6.4점</text>
+  <text x="424" y="192" fill="#f0f3f8" font-size="13" font-weight="600">Recursive Self-Rewrite</text>
+  <text x="424" y="211" fill="#aeb8cc" font-size="12">하니스 개입이 섞인 성공 궤적을</text>
+  <text x="424" y="229" fill="#aeb8cc" font-size="12">일반 하니스용 학습 데이터로 재작성</text>
+
+  <!-- quadrant: open source -->
+  <rect x="24" y="266" width="368" height="180" rx="10" fill="#242e45"/>
+  <text x="40" y="292" fill="#8be28b" font-size="14" font-weight="700">🛠 오픈소스 — 에이전트 메모리 2종</text>
+  <text x="40" y="318" fill="#f0f3f8" font-size="13" font-weight="600">deja-vu</text>
+  <text x="40" y="337" fill="#aeb8cc" font-size="12">LLM·임베딩 없이 세션 로그를 그대로 인덱싱</text>
+  <text x="40" y="355" fill="#aeb8cc" font-size="12">SSH 동기화 · 38개 에이전트 공유</text>
+  <text x="40" y="384" fill="#f0f3f8" font-size="13" font-weight="600">funes (Hugging Face)</text>
+  <text x="40" y="403" fill="#aeb8cc" font-size="12">로컬 임베딩 + 하이브리드 검색 파이프라인</text>
+  <text x="40" y="421" fill="#aeb8cc" font-size="12">메모리를 HF 데이터셋으로 공유</text>
+
+  <!-- quadrant: tooling -->
+  <rect x="408" y="266" width="368" height="180" rx="10" fill="#242e45"/>
+  <text x="424" y="292" fill="#e59fe5" font-size="14" font-weight="700">🧑‍💻 툴링</text>
+  <text x="424" y="318" fill="#f0f3f8" font-size="13" font-weight="600">Codex: skills.required (10/5 커밋)</text>
+  <text x="424" y="337" fill="#aeb8cc" font-size="12">환경별 필수 스킬 누락 시 모델 호출 전 차단</text>
+  <text x="424" y="366" fill="#f0f3f8" font-size="13" font-weight="600">Claude Code: $.agent.register / spawn</text>
+  <text x="424" y="385" fill="#aeb8cc" font-size="12">플러그인이 전용 서브에이전트를 정의하고</text>
+  <text x="424" y="403" fill="#aeb8cc" font-size="12">훅에서 직접 스폰 (2.1.289 mods API)</text>
+  <text x="424" y="421" fill="#aeb8cc" font-size="12">idle/waiting 상태도 $.agent.list()로 조회</text>
+</svg>

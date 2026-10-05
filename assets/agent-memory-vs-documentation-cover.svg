@@ -1,0 +1,56 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽에는 점들이 흩어진 벡터 저장소가 물음표와 함께 그려져 있고, 오른쪽에는 AGENTS.md, decisions, PROGRESS.md 같은 이름이 붙은 가지런한 문서 폴더가 체크 표시와 함께 그려져 있다. 가운데 VS 글자가 에이전트 기억을 둘러싼 '메모리 대 문서' 논쟁을 나타낸다.">
+  <defs>
+    <linearGradient id="amdbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101a2b"/>
+      <stop offset="1" stop-color="#1b2232"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#amdbg)"/>
+
+  <text x="600" y="84" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">에이전트에게 필요한 건 기억이 아니라 문서다?</text>
+  <text x="600" y="130" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24">이번 주 Hacker News를 달군 '메모리 vs 문서' 논쟁 해부</text>
+
+  <!-- 왼쪽: 벡터 저장소 -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="100" y="190" width="380" height="330" rx="18" fill="#7c3aed" opacity="0.14"/>
+    <rect x="100" y="190" width="380" height="330" rx="18" fill="none" stroke="#a78bfa" stroke-width="3"/>
+    <text x="290" y="238" text-anchor="middle" fill="#c4b5fd" font-size="26" font-weight="700">메모리 레이어</text>
+    <text x="290" y="268" text-anchor="middle" fill="#94a3b8" font-size="18">옛 대화 → 임베딩 → 유사도 검색</text>
+    <!-- 흩어진 임베딩 점들 -->
+    <g fill="#a78bfa">
+      <circle cx="170" cy="330" r="9" opacity="0.9"/>
+      <circle cx="225" cy="370" r="7" opacity="0.6"/>
+      <circle cx="300" cy="316" r="11" opacity="0.8"/>
+      <circle cx="355" cy="356" r="6" opacity="0.5"/>
+      <circle cx="410" cy="320" r="8" opacity="0.7"/>
+      <circle cx="195" cy="420" r="8" opacity="0.7"/>
+      <circle cx="265" cy="446" r="10" opacity="0.55"/>
+      <circle cx="335" cy="414" r="7" opacity="0.85"/>
+      <circle cx="400" cy="452" r="9" opacity="0.6"/>
+      <circle cx="250" cy="396" r="5" opacity="0.4"/>
+    </g>
+    <text x="290" y="505" text-anchor="middle" fill="#fb7185" font-size="22" font-weight="700">가까운 건 아는데, 맞는 건지는 모른다 ?</text>
+  </g>
+
+  <!-- 가운데 VS -->
+  <text x="600" y="380" text-anchor="middle" fill="#fbbf24" font-family="system-ui,sans-serif" font-size="56" font-weight="800">VS</text>
+
+  <!-- 오른쪽: 문서 폴더 -->
+  <g font-family="system-ui,sans-serif">
+    <rect x="720" y="190" width="380" height="330" rx="18" fill="#16a34a" opacity="0.12"/>
+    <rect x="720" y="190" width="380" height="330" rx="18" fill="none" stroke="#4ade80" stroke-width="3"/>
+    <text x="910" y="238" text-anchor="middle" fill="#86efac" font-size="26" font-weight="700">문서 폴더</text>
+    <text x="910" y="268" text-anchor="middle" fill="#94a3b8" font-size="18">읽고 → 작업하고 → 직접 고친다</text>
+    <g font-size="20" fill="#bbf7d0">
+      <rect x="760" y="296" width="300" height="44" rx="8" fill="none" stroke="#4ade80" stroke-width="2"/>
+      <text x="780" y="325">📄 AGENTS.md</text>
+      <rect x="760" y="352" width="300" height="44" rx="8" fill="none" stroke="#4ade80" stroke-width="2"/>
+      <text x="780" y="381">📁 docs/decisions/</text>
+      <rect x="760" y="408" width="300" height="44" rx="8" fill="none" stroke="#4ade80" stroke-width="2"/>
+      <text x="780" y="437">📄 PROGRESS.md</text>
+    </g>
+    <text x="910" y="505" text-anchor="middle" fill="#4ade80" font-size="22" font-weight="700">git diff로 감사 가능 ✓</text>
+  </g>
+
+  <text x="600" y="590" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="20">HN 350pt 논쟁 · claude-mem · mem0 · Anthropic memory tool</text>
+</svg>

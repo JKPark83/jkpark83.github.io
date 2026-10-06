@@ -1,0 +1,59 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽에는 넓은 입력 파이프가 LLM 상자로 들어가고, 오른쪽 출력 쪽은 좁은 밸브로 그려져 있다. 아래에는 출력 한도가 4K에서 128K를 거쳐 1M까지 넓어져 온 막대 연대표가 있고, 마지막 1M 막대가 강조되어 있다. 입력 컨텍스트는 먼저 1M에 도달했지만 출력 한도는 이제서야 1M을 달았다는 구도.">
+  <defs>
+    <linearGradient id="mtobg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101a2b"/>
+      <stop offset="1" stop-color="#1b2232"/>
+    </linearGradient>
+    <marker id="mtoc-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mtobg)"/>
+
+  <text x="600" y="80" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">입력은 1M인데, 출력은 왜 늘 128K였을까</text>
+  <text x="600" y="126" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24">Gemini 4 Argon의 출력 1M 토큰 — Long Decode Continuation 해부</text>
+
+  <!-- 입력 파이프 → LLM → 좁은 출력 밸브 -->
+  <g font-family="system-ui,sans-serif">
+    <!-- wide input pipe -->
+    <path d="M90 210 H430 V330 H90 Z" fill="#38bdf8" opacity="0.26"/>
+    <text x="260" y="262" text-anchor="middle" fill="#bae6fd" font-size="25" font-weight="700">입력 컨텍스트 1M</text>
+    <text x="260" y="298" text-anchor="middle" fill="#7dd3fc" font-size="19">prefill — 한 번에 병렬 처리</text>
+    <path d="M430 270 H490" stroke="#38bdf8" stroke-width="5" marker-end="url(#mtoc-arrow)"/>
+
+    <!-- LLM box -->
+    <rect x="500" y="195" width="200" height="150" rx="16" fill="none" stroke="#a78bfa" stroke-width="4"/>
+    <text x="600" y="262" text-anchor="middle" fill="#c4b5fd" font-size="30" font-weight="800">LLM</text>
+    <text x="600" y="296" text-anchor="middle" fill="#a78bfa" font-size="17">decode는 한 토큰씩</text>
+
+    <!-- narrow output valve widening -->
+    <path d="M700 258 H760 V282 H700 Z" fill="#fbbf24" opacity="0.85"/>
+    <text x="730" y="240" text-anchor="middle" fill="#fbbf24" font-size="17">좁은 밸브</text>
+    <path d="M760 246 L1110 200 L1110 360 L760 294 Z" fill="#4ade80" opacity="0.22"/>
+    <path d="M760 246 L1110 200 M760 294 L1110 360" stroke="#4ade80" stroke-width="3"/>
+    <text x="950" y="272" text-anchor="middle" fill="#86efac" font-size="26" font-weight="800">출력 1M 토큰</text>
+    <text x="950" y="306" text-anchor="middle" fill="#4ade80" font-size="18">요청당 262K + 서버측 이어 쓰기</text>
+  </g>
+
+  <!-- 하단 연대표 막대 -->
+  <g font-family="system-ui,sans-serif" font-size="18">
+    <text x="90" y="432" fill="#94a3b8" font-size="20" font-weight="700">최대 출력 토큰의 연대기</text>
+    <rect x="90" y="452" width="14" height="40" rx="4" fill="#64748b"/>
+    <text x="97" y="522" text-anchor="middle" fill="#94a3b8">4K</text>
+    <rect x="170" y="452" width="22" height="40" rx="4" fill="#64748b"/>
+    <text x="181" y="522" text-anchor="middle" fill="#94a3b8">8K</text>
+    <rect x="258" y="452" width="32" height="40" rx="4" fill="#64748b"/>
+    <text x="274" y="522" text-anchor="middle" fill="#94a3b8">16K</text>
+    <rect x="356" y="452" width="62" height="40" rx="4" fill="#64748b"/>
+    <text x="387" y="522" text-anchor="middle" fill="#94a3b8">64K</text>
+    <rect x="484" y="452" width="92" height="40" rx="4" fill="#a78bfa"/>
+    <text x="530" y="522" text-anchor="middle" fill="#c4b5fd">128K</text>
+    <rect x="642" y="452" width="130" height="40" rx="4" fill="#fbbf24"/>
+    <text x="707" y="522" text-anchor="middle" fill="#fde68a">262K/요청</text>
+    <rect x="838" y="444" width="272" height="56" rx="6" fill="#4ade80"/>
+    <text x="974" y="480" text-anchor="middle" fill="#052e16" font-size="26" font-weight="800">1,000,000</text>
+    <text x="974" y="528" text-anchor="middle" fill="#86efac">Gemini 4 Argon (2026.9.30)</text>
+  </g>
+
+  <text x="600" y="590" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="19">continue 프롬프트의 서버측 제품화 — 출력 토큰 엔지니어링의 기본기부터 1M 시대의 비용·검증까지</text>
+</svg>

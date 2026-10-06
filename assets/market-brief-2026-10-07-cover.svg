@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="S&P500이 7,818.93으로 사상 처음 7,800선을 넘고 나스닥도 이틀 연속 신고가를 썼지만 주식 심리는 공포 43에 머물러 있으며, 비트코인은 8만7,000달러에서 세 번째로 거부당하고 코인 탐욕은 73까지 반등한 수요일 아침 브리핑 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.10.07 · 나스닥 &amp; 비트코인 5분 요약 · 수요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">지수는 사상 최고, 심리는 아직 공포 — 코인 탐욕은 극단 문턱까지 2포인트</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">이틀 연속 신기록</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#4ade80">7,818.93</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#bbf7d0">S&amp;P500 · 첫 7,800 상회</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">공포 43</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">신고가에도 공포 잔류</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">세 번째 퇴짜 맞은 비트코인</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">$87K 거부</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">ETF -8,980만달러 유출</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#facc15">탐욕 73</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">극단 문턱까지 2pt</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="20" fill="#94a3b8">오늘의 포지션 — 나스닥: 관망 · 암호화폐: 관망 · 오늘 밤 FOMC 의사록</text>
+  <text x="80" y="594" font-family="sans-serif" font-size="15" fill="#64748b">본 콘텐츠는 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

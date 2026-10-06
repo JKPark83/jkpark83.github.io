@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 400" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="820" height="400" fill="#0f172a" rx="12"/>
+  <text x="410" y="40" text-anchor="middle" fill="#f1f5f9" font-size="20" font-weight="700">오늘의 실전 팁: 서브에이전트 effort가 1급 시민이 됐다</text>
+
+  <!-- Codex card -->
+  <rect x="30" y="70" width="370" height="250" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="50" y="102" fill="#34d399" font-size="16" font-weight="700">🟩 Codex — 관찰하기</text>
+  <text x="50" y="132" fill="#f1f5f9" font-size="13.5" font-weight="700">subAgentActivity에 모델·effort 기록</text>
+  <text x="50" y="158" fill="#cbd5e1" font-size="12">· 멀티에이전트 v2 스폰마다 model과</text>
+  <text x="50" y="178" fill="#cbd5e1" font-size="12">  reasoningEffort가 활동 항목에 남음</text>
+  <text x="50" y="198" fill="#cbd5e1" font-size="12">· 라이브 알림 → 영속 활동 → 스레드</text>
+  <text x="50" y="218" fill="#cbd5e1" font-size="12">  히스토리까지 끝까지 전달</text>
+  <text x="50" y="246" fill="#94a3b8" font-size="11.5">용도: 서브에이전트별 비용·행동 귀속,</text>
+  <text x="50" y="264" fill="#94a3b8" font-size="11.5">"어느 스폰이 토큰을 태웠나" 디버깅</text>
+  <text x="50" y="298" fill="#64748b" font-size="11">openai/codex 커밋 b0a6b8d (10/6)</text>
+
+  <!-- Claude Code card -->
+  <rect x="420" y="70" width="370" height="250" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="440" y="102" fill="#38bdf8" font-size="16" font-weight="700">🟦 Claude Code — 지정하기</text>
+  <text x="440" y="132" fill="#f1f5f9" font-size="13.5" font-weight="700">Agent 툴에 effort 파라미터</text>
+  <text x="440" y="158" fill="#cbd5e1" font-size="12">· 서브에이전트를 원하는 effort 레벨로</text>
+  <text x="440" y="178" fill="#cbd5e1" font-size="12">  실행하도록 요청 가능</text>
+  <text x="440" y="198" fill="#cbd5e1" font-size="12">· 탐색·수집형 작업은 낮게, 설계·검증은</text>
+  <text x="440" y="218" fill="#cbd5e1" font-size="12">  높게 — 위임 비용을 계층화</text>
+  <text x="440" y="246" fill="#94a3b8" font-size="11.5">함께 추가: claude plugin install</text>
+  <text x="440" y="264" fill="#94a3b8" font-size="11.5">--marketplace 로 마켓 추가+설치 한 번에</text>
+  <text x="440" y="298" fill="#64748b" font-size="11">anthropics/claude-code v2.1.292</text>
+
+  <text x="410" y="360" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="700">조합: Claude Code로 effort를 "설정"하고, Codex식으로 effort별 결과·비용을 "기록"해 위임 정책을 데이터로 다듬자</text>
+</svg>

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 600" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="820" height="600" fill="#0f172a" rx="12"/>
+  <text x="410" y="40" text-anchor="middle" fill="#f1f5f9" font-size="22" font-weight="700">오늘의 AI 변화 지도 — 2026-10-07</text>
+  <text x="410" y="64" text-anchor="middle" fill="#94a3b8" font-size="13">공통 흐름: 하니스와 서브에이전트의 '비용'이 일급 시민이 되는 중</text>
+
+  <!-- 모델 quadrant -->
+  <rect x="30" y="90" width="370" height="230" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="50" y="120" fill="#f59e0b" font-size="16" font-weight="700">🤖 모델</text>
+  <text x="50" y="150" fill="#f1f5f9" font-size="14" font-weight="700">Mistral Large 4 "Le Chonk"</text>
+  <text x="50" y="174" fill="#cbd5e1" font-size="12.5">· 1T급 MoE, 활성 49B (보도 기준)</text>
+  <text x="50" y="194" fill="#cbd5e1" font-size="12.5">· 1M 토큰 컨텍스트, 멀티모달, 160+ 언어</text>
+  <text x="50" y="214" fill="#cbd5e1" font-size="12.5">· API 퍼블릭 프리뷰 (10/6)</text>
+  <text x="50" y="234" fill="#cbd5e1" font-size="12.5">· $1.36 / $4.18 per 1M tok (입력/출력)</text>
+  <text x="50" y="262" fill="#fbbf24" font-size="12.5" font-weight="700">오픈웨이트는 10월 말 예정</text>
+  <text x="50" y="282" fill="#94a3b8" font-size="11.5">(HF mistralai 조직에는 아직 미등재 — 직접 확인)</text>
+
+  <!-- 연구 quadrant -->
+  <rect x="420" y="90" width="370" height="230" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="440" y="120" fill="#38bdf8" font-size="16" font-weight="700">📚 연구</text>
+  <text x="440" y="150" fill="#f1f5f9" font-size="14" font-weight="700">SHIFT (Google 외)</text>
+  <text x="440" y="172" fill="#cbd5e1" font-size="12.5">쿼리마다 하니스를 '실행 없이' 조립</text>
+  <text x="440" y="192" fill="#cbd5e1" font-size="12.5">17개 베이스라인 대비 +7.2pp</text>
+  <text x="440" y="222" fill="#f1f5f9" font-size="14" font-weight="700">Proactivity-Gym (KAIST·미네소타)</text>
+  <text x="440" y="244" fill="#cbd5e1" font-size="12.5">선제적 에이전트의 3T 원칙:</text>
+  <text x="440" y="264" fill="#cbd5e1" font-size="12.5">능력 · 시점 배분 · 신뢰</text>
+  <text x="440" y="288" fill="#94a3b8" font-size="11.5">잘 해도 '끼어드는 타이밍'이 틀리면 신뢰 급락</text>
+
+  <!-- 오픈소스 quadrant -->
+  <rect x="30" y="340" width="370" height="230" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="50" y="370" fill="#34d399" font-size="16" font-weight="700">🛠 오픈소스</text>
+  <text x="50" y="400" fill="#f1f5f9" font-size="14" font-weight="700">Magnitude</text>
+  <text x="50" y="422" fill="#cbd5e1" font-size="12.5">내 하드웨어에서 커널을 직접 튜닝하는</text>
+  <text x="50" y="442" fill="#cbd5e1" font-size="12.5">로컬 추론 엔진 — llama.cpp 대비 최대 2x 주장</text>
+  <text x="50" y="472" fill="#f1f5f9" font-size="14" font-weight="700">Agent-Reach</text>
+  <text x="50" y="494" fill="#cbd5e1" font-size="12.5">에이전트에게 Reddit·YouTube·GitHub 등</text>
+  <text x="50" y="514" fill="#cbd5e1" font-size="12.5">'인터넷 눈'을 달아주는 CLI (API 비용 0)</text>
+  <text x="50" y="540" fill="#94a3b8" font-size="11.5">둘 다 클론으로 직접 검증</text>
+
+  <!-- 툴링 quadrant -->
+  <rect x="420" y="340" width="370" height="230" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="440" y="370" fill="#a78bfa" font-size="16" font-weight="700">🧑‍💻 툴링</text>
+  <text x="440" y="400" fill="#f1f5f9" font-size="14" font-weight="700">Codex (10/6 커밋)</text>
+  <text x="440" y="422" fill="#cbd5e1" font-size="12.5">서브에이전트 활동에 model ·</text>
+  <text x="440" y="442" fill="#cbd5e1" font-size="12.5">reasoningEffort를 기록 (관찰)</text>
+  <text x="440" y="472" fill="#f1f5f9" font-size="14" font-weight="700">Claude Code 2.1.292</text>
+  <text x="440" y="494" fill="#cbd5e1" font-size="12.5">Agent 툴에 effort 파라미터 추가 (지정)</text>
+  <text x="440" y="514" fill="#cbd5e1" font-size="12.5">+ plugin install --marketplace 플래그</text>
+  <text x="440" y="540" fill="#94a3b8" font-size="11.5">양쪽 모두 서브에이전트 effort가 1급 시민으로</text>
+</svg>

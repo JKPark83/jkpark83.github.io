@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="9월 FOMC 의사록이 연내 추가 인상을 재확인하고 10년물 금리가 장중 5.35%로 2002년 이후 최고치를 찍은 가운데, 비트코인은 8만5,000달러 지지를 내줬지만 화요일분 현물 ETF는 1억1,880만달러 유입으로 돌아선 목요일 아침 브리핑 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.10.08 · 나스닥 &amp; 비트코인 5분 요약 · 목요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">의사록은 매파, 가격은 후퇴, 자금은 복귀 — 엇갈린 신호 세 개</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">연준 의사록 — 연내 추가 인상</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">10Y 5.35%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">장중 24년 최고</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">중립 47</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">공포 구간 탈출</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">비트코인 — 지지 붕괴 vs 자금 복귀</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#fbbf24">$85K 붕괴</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">저점 83,065달러</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#4ade80">ETF +1.2억</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#bbf7d0">달러 · 유입 전환</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="20" fill="#94a3b8">오늘의 포지션 — 나스닥: 관망 · 암호화폐: 관망 · 무효화 선 8만2,500달러 주시</text>
+  <text x="80" y="594" font-family="sans-serif" font-size="15" fill="#64748b">본 콘텐츠는 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

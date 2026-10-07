@@ -1,0 +1,54 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽에서 상황 텍스트와 질문 목록이 가운데 마름모(결정)로 들어가고, 오른쪽으로 probability, choice, score라는 타입이 붙은 값 칩들이 나오는 구도. 아래에는 '문장을 생성하지 않고 값만 돌려준다'는 문구가 있다.">
+  <defs>
+    <linearGradient id="dapibg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101a2b"/>
+      <stop offset="1" stop-color="#1b2232"/>
+    </linearGradient>
+    <marker id="dapic-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#dapibg)"/>
+
+  <text x="600" y="80" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="44" font-weight="800">에이전트의 if문이 API가 됐다</text>
+  <text x="600" y="126" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24">OpenAI Decisions API 공개 베타 — 결정 레이어 해부</text>
+
+  <g font-family="system-ui,sans-serif">
+    <!-- 입력: 상황 + 질문들 -->
+    <rect x="80" y="200" width="300" height="220" rx="14" fill="#38bdf8" opacity="0.14"/>
+    <rect x="80" y="200" width="300" height="220" rx="14" fill="none" stroke="#38bdf8" stroke-width="3"/>
+    <text x="230" y="240" text-anchor="middle" fill="#bae6fd" font-size="24" font-weight="700">input</text>
+    <text x="230" y="272" text-anchor="middle" fill="#7dd3fc" font-size="18">"환불해 주세요. 두 번째예요…"</text>
+    <text x="230" y="316" text-anchor="middle" fill="#bae6fd" font-size="24" font-weight="700">questions[]</text>
+    <text x="230" y="348" text-anchor="middle" fill="#7dd3fc" font-size="18">환불 요청인가? · 어느 팀으로?</text>
+    <text x="230" y="376" text-anchor="middle" fill="#7dd3fc" font-size="18">불만 강도는 몇 단계?</text>
+
+    <path d="M380 310 H470" stroke="#38bdf8" stroke-width="5" marker-end="url(#dapic-arrow)"/>
+
+    <!-- 결정 마름모 -->
+    <path d="M600 210 L720 310 L600 410 L480 310 Z" fill="#7c3aed" opacity="0.22"/>
+    <path d="M600 210 L720 310 L600 410 L480 310 Z" fill="none" stroke="#a78bfa" stroke-width="4"/>
+    <text x="600" y="298" text-anchor="middle" fill="#ddd6fe" font-size="25" font-weight="800">POST</text>
+    <text x="600" y="332" text-anchor="middle" fill="#ddd6fe" font-size="23" font-weight="700">/v1/decisions</text>
+
+    <path d="M720 310 H810" stroke="#38bdf8" stroke-width="5" marker-end="url(#dapic-arrow)"/>
+
+    <!-- 출력 칩들 -->
+    <g font-size="21" font-weight="700">
+      <rect x="820" y="206" width="300" height="56" rx="28" fill="#16a34a" opacity="0.2"/>
+      <rect x="820" y="206" width="300" height="56" rx="28" fill="none" stroke="#4ade80" stroke-width="3"/>
+      <text x="970" y="241" text-anchor="middle" fill="#bbf7d0">probability: 0.94</text>
+
+      <rect x="820" y="282" width="300" height="56" rx="28" fill="#d97706" opacity="0.2"/>
+      <rect x="820" y="282" width="300" height="56" rx="28" fill="none" stroke="#fbbf24" stroke-width="3"/>
+      <text x="970" y="317" text-anchor="middle" fill="#fde68a">choice: "billing"</text>
+
+      <rect x="820" y="358" width="300" height="56" rx="28" fill="#0284c7" opacity="0.2"/>
+      <rect x="820" y="358" width="300" height="56" rx="28" fill="none" stroke="#38bdf8" stroke-width="3"/>
+      <text x="970" y="393" text-anchor="middle" fill="#bae6fd">score: 2.3 / 4</text>
+    </g>
+  </g>
+
+  <text x="600" y="520" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="26" font-weight="700">문장을 생성하지 않습니다 — 타입이 붙은 값만 돌아옵니다</text>
+  <text x="600" y="560" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="20">입력 $0.10/M · 출력 과금 없음 · gpt-6-luna · 2026-10-06 공개 베타</text>
+</svg>

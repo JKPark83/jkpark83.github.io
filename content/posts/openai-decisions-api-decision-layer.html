@@ -1,0 +1,402 @@
+---
+title: "에이전트의 if문이 API가 됐다 — OpenAI Decisions API 공개 베타 해부"
+date: 2026-10-08T07:30:00+09:00
+draft: false
+tags: ["AI", "Decisions API", "OpenAI", "GPT-6 Luna", "결정 전용 모델", "Jev", "분류", "라우팅", "가드레일", "confidence", "calibration", "structured outputs", "에이전트", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "10월 6일 OpenAI가 Decisions API를 공개 베타로 풀었습니다. 문장을 생성하지 않고 '예/아니오 확률, 선택지 하나, 점수'만 돌려주는 엔드포인트입니다. 3주 전 TypeSafe AI의 Jev가 열어젖힌 '결정 전용 모델' 카테고리에 OpenAI가 플랫폼 기능으로 들어온 건데요 — X에서는 'RIP Jev'와 '카테고리 검증'이 동시에 터졌고, HN에서는 'structured outputs로 되는 거 아니냐'는 논쟁이 붙었습니다. 엔드포인트 구조와 세 가지 질문 타입, $0.10/M·150ms라는 숫자의 행간, structured outputs와의 진짜 차이, 그리고 에이전트 루프의 라우팅·가드레일에 붙이는 실전 코드까지 — junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "openai-decisions-api-decision-layer-cover.svg"
+  alt: "상황 텍스트와 질문 목록이 결정 마름모를 거쳐 probability·choice·score 타입이 붙은 값으로 나오는 구조를 그린 표지"
+  caption: "문장을 생성하지 않고 타입이 붙은 값만 돌려주는 결정 레이어 — 이번 주 OpenAI가 이걸 플랫폼 기능으로 만들었습니다."
+  relative: false
+---
+
+<style>
+/* ── Decisions API 포스트 전용 스타일 (dapi- 접두사) ── */
+.dapi-fig{
+  --dapi-green:#16a34a; --dapi-rose:#e11d48; --dapi-amber:#d97706; --dapi-sky:#0284c7;
+  --dapi-violet:#7c3aed; --dapi-slate:#64748b; --dapi-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .dapi-fig{
+  --dapi-green:#4ade80; --dapi-rose:#fb7185; --dapi-amber:#fbbf24; --dapi-sky:#38bdf8;
+  --dapi-violet:#a78bfa; --dapi-slate:#94a3b8; --dapi-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .dapi-fig{
+    --dapi-green:#4ade80; --dapi-rose:#fb7185; --dapi-amber:#fbbf24; --dapi-sky:#38bdf8;
+    --dapi-violet:#a78bfa; --dapi-slate:#94a3b8; --dapi-gray:#64748b;
+  }
+}
+.dapi-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.dapi-fig text{font-family:inherit}
+.dapi-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.dapi-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.dapi-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.dapi-toc ol{margin:0;padding-left:1.25rem}
+.dapi-toc li{margin:.22rem 0;font-size:.95rem}
+.dapi-toc a{text-decoration:none}
+.dapi-toc a:hover{text-decoration:underline}
+.dapi-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.dapi-table th,.dapi-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.dapi-table th{background:var(--entry)}
+.dapi-note{border-left:4px solid var(--dapi-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.dapi-warn{border-left:4px solid var(--dapi-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="dapi-toc">
+  <div class="dapi-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 3주 만에 카테고리가 플랫폼이 됐다</a></li>
+    <li><a href="#sec-2">배경 — 에이전트 루프의 절반은 '문장'이 아니라 '결정'이다</a></li>
+    <li><a href="#sec-3">Decisions API 해부 — 질문 세 타입과 refusal</a></li>
+    <li><a href="#sec-4">숫자 읽기 — $0.10/M와 150ms의 행간, 그리고 Jev</a></li>
+    <li><a href="#sec-5">"structured outputs로 되는 거 아냐?" — 이번 주 논쟁 정리</a></li>
+    <li><a href="#sec-6">실전 — 에이전트 가드레일·라우팅에 붙이기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 3주 만에 카테고리가 플랫폼이 됐다</h2>
+
+<p>3주 전 이 블로그에서 <a href="/posts/system-one-models-jev/">"말하지 않는 모델" Jev</a>를 다뤘습니다. 텍스트를 한 글자도 생성하지 않고, 타입이 정해진 결정 값만 돌려주는 결정 전용 모델(System One Model)이라는 새 카테고리였죠. 그때 글 말미에 "이 설계가 맞다면 큰 회사들이 따라올 것"이라고 썼는데 — 생각보다 훨씬 빨랐습니다.</p>
+
+<p>9월 29일 OpenAI DevDay 2026에서 <strong>Decisions API</strong>가 선공개됐고, 10월 6일 모든 개발자에게 공개 베타로 풀렸습니다. <code>POST /v1/decisions</code>로 상황 텍스트와 질문 목록을 보내면, 문장 대신 <strong>예/아니오 확률, 선택지 하나, 점수</strong>가 돌아옵니다. 입력 토큰당 $0.10/M, 출력 과금은 아예 없고, OpenAI 발표 기준으로 일반 호출보다 약 10배 빠릅니다.</p>
+
+<p>반응은 두 갈래로 갈렸습니다. X에서는 "이미지 입력까지 받네, RIP Jev"라는 조롱이 돌았고, Hacker News의 <a href="https://news.ycombinator.com/item?id=49896600" target="_blank" rel="noopener">DevDay 정리 스레드</a>에서는 반대로 "Jev가 개척한 접근의 검증"이라는 평이 나왔습니다. 그리고 <a href="https://news.ycombinator.com/item?id=49984025" target="_blank" rel="noopener">공개 베타 스레드</a>에서는 더 근본적인 질문이 붙었습니다 — <em>"structured outputs랑 grammar로 이미 되는 거 아닌가?"</em></p>
+
+<p>이 글은 그 질문에 답하는 글입니다. 엔드포인트가 정확히 뭘 받고 뭘 돌려주는지, 가격·속도 숫자를 어떻게 걸러 읽어야 하는지, 기존 방법(structured outputs, LLM-as-a-judge)과 뭐가 본질적으로 다른지, 그리고 여러분의 에이전트 루프 어디에 끼우면 되는지까지 — 순서대로 갑니다.</p>
+
+<h2 id="sec-2">배경 — 에이전트 루프의 절반은 '문장'이 아니라 '결정'이다</h2>
+
+<p>에이전트 코드를 짜 본 분이라면 공감할 겁니다. LLM 호출 중 상당수가 사실 문장을 원하지 않습니다. 원하는 건 이런 것들입니다.</p>
+
+<ul>
+  <li><strong>라우팅</strong> — 이 요청, 싼 모델로 보낼까 비싼 모델로 보낼까? 어느 팀 큐로 넘길까?</li>
+  <li><strong>가드레일</strong> — 이 도구 호출, 위험한가? 사용자 승인 없이 실행해도 되나?</li>
+  <li><strong>다음 행동 선택</strong> — 검색을 더 할까, 이제 답을 쓸까, 사람에게 넘길까?</li>
+  <li><strong>판정</strong> — 이 출력, 기준을 통과했나? 재시도가 필요한가?</li>
+</ul>
+
+<p>전부 보기가 정해진 객관식입니다. 그런데 지금까지는 이걸 주관식 모델로 풀었습니다. 생성 모델에게 "다음 중 하나로만 답해: billing, tech, general"이라고 부탁하고, 돌아온 문장을 파싱하고, 엉뚱한 답이면 재시도하는 식이죠. <a href="/posts/structured-outputs-constrained-decoding/">구조화 출력(structured outputs)</a>이 "형식이 깨지는" 문제는 해결해 줬지만, 두 가지는 남았습니다. 여전히 출력 토큰을 하나씩 생성하니 느리고 비싸다는 것, 그리고 모델이 그 답을 <em>얼마나 확신하는지</em>를 알 수 없다는 것.</p>
+
+<p>결정 전용 모델은 이 지점을 파고듭니다. 어차피 답이 K개 중 하나라면, 토큰을 순차 생성할 필요 없이 선택지별 확률만 계산해서 돌려주면 됩니다. 생성을 포기하는 대신 속도·가격·확률 분포를 얻는 거래죠. 9월 15일 TypeSafe AI의 Jev가 이 카테고리를 열었고, 이번 주 OpenAI가 같은 설계를 플랫폼 기능으로 내놨습니다.</p>
+
+<figure class="dapi-fig">
+<svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="에이전트 루프를 그린 다이어그램. 사용자 요청이 루프로 들어오고, 루프 안에 모델 선택 라우팅, 도구 호출 가드레일, 다음 행동 선택, 출력 판정이라는 네 개의 결정 지점이 마름모로 표시되어 있다. 각 마름모 옆에 '객관식'이라는 라벨이 붙어 있고, 생성 LLM 호출은 사각형으로 구분되어 있다.">
+  <defs>
+    <marker id="dapi-f1-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--dapi-sky)"/>
+    </marker>
+  </defs>
+  <text x="450" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">에이전트 루프 한 바퀴 — 생성(사각형)보다 결정(마름모)이 많다</text>
+
+  <!-- 입구 -->
+  <rect x="30" y="80" width="150" height="54" rx="10" fill="var(--dapi-slate)" opacity="0.18"/>
+  <rect x="30" y="80" width="150" height="54" rx="10" fill="none" stroke="var(--dapi-slate)" stroke-width="2"/>
+  <text x="105" y="112" text-anchor="middle" font-size="15" fill="currentColor">사용자 요청</text>
+  <path d="M180 107 H230" stroke="var(--dapi-sky)" stroke-width="2.5" marker-end="url(#dapi-f1-arrow)"/>
+
+  <!-- 결정 1: 라우팅 -->
+  <path d="M310 70 L390 107 L310 144 L230 107 Z" fill="var(--dapi-amber)" opacity="0.16"/>
+  <path d="M310 70 L390 107 L310 144 L230 107 Z" fill="none" stroke="var(--dapi-amber)" stroke-width="2.5"/>
+  <text x="310" y="103" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">어느 모델로?</text>
+  <text x="310" y="122" text-anchor="middle" font-size="12" fill="var(--dapi-amber)">라우팅 · 객관식</text>
+  <path d="M390 107 H440" stroke="var(--dapi-sky)" stroke-width="2.5" marker-end="url(#dapi-f1-arrow)"/>
+
+  <!-- 생성 호출 -->
+  <rect x="440" y="78" width="180" height="58" rx="10" fill="var(--dapi-violet)" opacity="0.16"/>
+  <rect x="440" y="78" width="180" height="58" rx="10" fill="none" stroke="var(--dapi-violet)" stroke-width="2.5"/>
+  <text x="530" y="104" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">생성 LLM 호출</text>
+  <text x="530" y="124" text-anchor="middle" font-size="12" fill="var(--dapi-violet)">계획 · 답변 작성 · 주관식</text>
+  <path d="M620 107 H670" stroke="var(--dapi-sky)" stroke-width="2.5" marker-end="url(#dapi-f1-arrow)"/>
+
+  <!-- 결정 2: 가드레일 -->
+  <path d="M750 70 L830 107 L750 144 L670 107 Z" fill="var(--dapi-rose)" opacity="0.16"/>
+  <path d="M750 70 L830 107 L750 144 L670 107 Z" fill="none" stroke="var(--dapi-rose)" stroke-width="2.5"/>
+  <text x="750" y="103" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">실행해도 되나?</text>
+  <text x="750" y="122" text-anchor="middle" font-size="12" fill="var(--dapi-rose)">가드레일 · 객관식</text>
+  <path d="M750 144 V200" stroke="var(--dapi-sky)" stroke-width="2.5" marker-end="url(#dapi-f1-arrow)"/>
+
+  <!-- 도구 실행 -->
+  <rect x="660" y="200" width="180" height="54" rx="10" fill="var(--dapi-slate)" opacity="0.18"/>
+  <rect x="660" y="200" width="180" height="54" rx="10" fill="none" stroke="var(--dapi-slate)" stroke-width="2"/>
+  <text x="750" y="232" text-anchor="middle" font-size="14" fill="currentColor">도구 실행 (검색·코드·API)</text>
+  <path d="M660 227 H560" stroke="var(--dapi-sky)" stroke-width="2.5" marker-end="url(#dapi-f1-arrow)"/>
+
+  <!-- 결정 3: 다음 행동 -->
+  <path d="M470 190 L560 227 L470 264 L380 227 Z" fill="var(--dapi-green)" opacity="0.16"/>
+  <path d="M470 190 L560 227 L470 264 L380 227 Z" fill="none" stroke="var(--dapi-green)" stroke-width="2.5"/>
+  <text x="470" y="223" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">계속? 종료? 에스컬레이션?</text>
+  <text x="470" y="242" text-anchor="middle" font-size="12" fill="var(--dapi-green)">다음 행동 · 객관식</text>
+  <path d="M380 227 H280" stroke="var(--dapi-sky)" stroke-width="2.5" marker-end="url(#dapi-f1-arrow)"/>
+
+  <!-- 결정 4: 판정 -->
+  <path d="M190 190 L280 227 L190 264 L100 227 Z" fill="var(--dapi-sky)" opacity="0.16"/>
+  <path d="M190 190 L280 227 L190 264 L100 227 Z" fill="none" stroke="var(--dapi-sky)" stroke-width="2.5"/>
+  <text x="190" y="223" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">기준 통과?</text>
+  <text x="190" y="242" text-anchor="middle" font-size="12" fill="var(--dapi-sky)">판정 · 객관식</text>
+  <path d="M190 264 V320" stroke="var(--dapi-sky)" stroke-width="2.5" marker-end="url(#dapi-f1-arrow)"/>
+
+  <!-- 루프백 / 출구 -->
+  <rect x="100" y="320" width="180" height="54" rx="10" fill="var(--dapi-slate)" opacity="0.18"/>
+  <rect x="100" y="320" width="180" height="54" rx="10" fill="none" stroke="var(--dapi-slate)" stroke-width="2"/>
+  <text x="190" y="345" text-anchor="middle" font-size="14" fill="currentColor">통과 → 응답 반환</text>
+  <text x="190" y="364" text-anchor="middle" font-size="12" fill="var(--dapi-gray)">실패 → 루프 처음으로 재시도</text>
+
+  <text x="450" y="412" text-anchor="middle" font-size="13.5" fill="var(--dapi-gray)">마름모 4개가 전부 "보기가 정해진 객관식" — 결정 전용 엔드포인트가 노리는 자리입니다</text>
+</svg>
+<figcaption>에이전트 루프 한 바퀴에서 실제로 문장 생성이 필요한 곳은 한두 군데뿐입니다. 나머지는 전부 객관식 결정이고, 지금까지는 이것도 생성 모델로 풀어 왔습니다.</figcaption>
+</figure>
+
+<h2 id="sec-3">Decisions API 해부 — 질문 세 타입과 refusal</h2>
+
+<p>엔드포인트는 하나입니다. <code>POST https://api.openai.com/v1/decisions</code>. 베타 기준 지원 모델은 <code>gpt-6-luna</code> 하나뿐입니다. 요청에는 세 가지를 담습니다.</p>
+
+<ul>
+  <li><code>model</code> — 현재는 <code>gpt-6-luna</code> 고정</li>
+  <li><code>input</code> — 판단할 상황. 텍스트 또는 이미지(베타 기준 inline base64 데이터 URL)</li>
+  <li><code>questions</code> — 질문 배열. 각 질문은 <code>type</code>, <code>name</code>, <code>instructions</code>를 갖습니다</li>
+</ul>
+
+<p>질문 타입은 세 가지입니다. 이 세 가지가 API의 전부라고 해도 과언이 아니니, 하나씩 뜯어 봅시다.</p>
+
+<table class="dapi-table">
+  <tr><th>타입</th><th>묻는 것</th><th>돌아오는 것</th><th>예시</th></tr>
+  <tr><td><code>predicate</code></td><td>이 조건이 참인가?</td><td><code>probability</code> — 참일 확률 0~1</td><td>"파손 신고인가?" → 0.94</td></tr>
+  <tr><td><code>choice</code></td><td>보기 중 어느 것인가?</td><td><code>choice</code> + 보기별 확률 분포 + <code>confidence</code>(선택지의 확률)</td><td>"어느 팀으로?" → "billing", 0.87</td></tr>
+  <tr><td><code>score</code></td><td>몇 단계인가?</td><td>순서 있는 레벨 인덱스의 확률 가중 평균(소수 가능)</td><td>"불만 강도 0~4?" → 2.3</td></tr>
+</table>
+
+<p>핵심은 <strong>답이 "문장"이 아니라 "분포"</strong>라는 점입니다. <code>choice</code> 질문이면 선택한 값 하나만 오는 게 아니라 보기별 확률이 같이 옵니다. "billing 0.87, tech 0.09, general 0.04"처럼요. 1등과 2등의 격차가 좁으면 사람에게 넘기는, 확률 기반 에스컬레이션을 바로 짤 수 있습니다.</p>
+
+<p>그리고 네 번째 응답 타입이 하나 숨어 있습니다 — <code>refusal</code>. 모델이 판단을 거부하면 해당 질문의 답이 refusal 타입으로 옵니다. 같은 요청의 다른 질문들은 정상적으로 답이 오고요. 그래서 응답 처리 코드는 <strong>항상 타입 분기부터</strong> 해야 합니다. 이건 뒤의 실전 코드에서 다시 봅니다.</p>
+
+<p>요청 하나에 질문 여러 개를 실을 수 있다는 점도 중요합니다. "환불 요청인가?"(predicate), "어느 팀인가?"(choice), "불만 강도는?"(score)를 한 호출에 묶으면, 분류 파이프라인에서 LLM을 세 번 부르던 걸 한 번으로 줄일 수 있습니다. 질문 개수의 공식 상한은 아직 문서에 공개되지 않았습니다.</p>
+
+{{< highlight bash >}}
+# 공개 베타 기준 최소 예제 — 상황 하나에 질문 세 개를 한 번에 묻는다
+curl https://api.openai.com/v1/decisions \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-6-luna",
+    "input": "지난주에 환불 요청했는데 아직도 답이 없네요. 이번이 두 번째 문의입니다.",
+    "questions": [
+      { "type": "predicate", "name": "is_refund",
+        "instructions": "고객이 환불을 요청하고 있는가?" },
+      { "type": "choice", "name": "route",
+        "instructions": "이 문의를 처리할 팀을 골라라.",
+        "choices": [
+          { "value": "billing", "description": "결제·환불 담당" },
+          { "value": "tech",    "description": "기술 문제 담당" },
+          { "value": "general", "description": "일반 문의" } ] },
+      { "type": "score", "name": "urgency",
+        "instructions": "불만의 심각도를 평가하라.",
+        "levels": ["없음", "낮음", "보통", "높음", "매우 높음"] }
+    ]
+  }'
+{{< /highlight >}}
+
+<p>응답에는 <code>answers</code>가 질문 <code>name</code>과 함께 돌아옵니다. 위 요청이면 <code>is_refund</code>에 확률 하나, <code>route</code>에 선택 값과 보기별 분포, <code>urgency</code>에 가중 평균 점수가 옵니다. 출력 토큰을 "생성"한 게 아니라 각 질문의 선택지 공간 위에서 확률을 계산해 돌려준 것이므로, 과금도 입력 토큰에만 붙습니다.</p>
+
+<div class="dapi-note">
+<strong>베타 주의.</strong> 이 글의 필드명과 스키마는 2026년 10월 공개 베타 기준입니다. OpenAI는 수 주 내 정식 출시(GA)를 예고했고, 베타 기간에는 스키마가 바뀔 수 있습니다. 코드에 넣기 전에 <a href="https://developers.openai.com/api/docs/guides/decisions" target="_blank" rel="noopener">공식 가이드</a>와 <a href="https://developers.openai.com/api/reference/resources/decisions/methods/create" target="_blank" rel="noopener">API 레퍼런스</a>를 꼭 확인하세요.
+</div>
+
+<h2 id="sec-4">숫자 읽기 — $0.10/M와 150ms의 행간, 그리고 Jev</h2>
+
+<p>발표에 붙은 숫자는 화려합니다. 하지만 <a href="/posts/system-one-models-jev/">Jev 때</a>와 마찬가지로, 벤더가 내민 숫자는 행간을 읽어야 합니다.</p>
+
+<p><strong>가격 — $0.10/M 입력, 출력·캐시 과금 없음.</strong> 이건 공식 문서와 OpenRouter 목록에서 교차 확인되는 숫자입니다. 지역 처리 프리미엄과 긴 컨텍스트 입력 배수는 별도로 붙습니다. 감을 잡자면: 500토큰짜리 고객 문의를 분류하는 데 0.005센트, 문의 100만 건에 약 $50입니다. 생성 모델로 같은 분류를 하면 입력 단가가 더 비싼 모델에, 출력 토큰 과금과 생성 레이턴시가 더해집니다.</p>
+
+<p><strong>속도 — "150ms, 일반 호출의 10배".</strong> 이 숫자는 DevDay 데모 슬라이드에서 나왔습니다. 비교 대상이 자사 모델(gpt-6-luna)의 일반 API 호출(~1.6초)이라는 점에 주의하세요. 경쟁 결정 모델과의 비교도, 독립 벤치마크도 아닙니다. 공개 베타 이후 한 개발자의 실측에서는 중앙값 230ms, 구조화 분류 재현 과제에서 78문항 중 76문항 정답이 보고됐습니다. 150ms든 230ms든 생성 호출 대비 확실히 빠르지만, <strong>여러분의 워크로드에서 직접 재는 것</strong>이 정답입니다.</p>
+
+<p>그래서 Jev와는 어떻게 다를까요? 큰 그림은 같고, 디테일이 갈립니다.</p>
+
+<table class="dapi-table">
+  <tr><th></th><th>OpenAI Decisions API</th><th>TypeSafe Jev</th></tr>
+  <tr><td>공개</td><td>9/29 DevDay 선공개 → 10/6 공개 베타</td><td>9/15 스텔스 해제와 함께 출시</td></tr>
+  <tr><td>모델</td><td><code>gpt-6-luna</code> (범용 생성 모델 기반)</td><td>결정 전용으로 학습한 전용 모델 (RLCD)</td></tr>
+  <tr><td>입력</td><td>텍스트 + 이미지(베타, inline base64)</td><td>텍스트 상태(state)만</td></tr>
+  <tr><td>질문 타입</td><td>predicate / choice / score (+refusal 응답)</td><td>boolean(noul) / choice / score</td></tr>
+  <tr><td>가격</td><td>입력 $0.10/M, 출력·캐시 무과금</td><td>입력 $0.042/M, 출력 무과금</td></tr>
+  <tr><td>레이턴시</td><td>데모 ~150ms, 독립 실측 중앙값 ~230ms</td><td>공식 70–500ms</td></tr>
+  <tr><td>보정(calibration)</td><td>문서화된 측정치 미공개</td><td>보정을 핵심 셀링 포인트로 내세움 (자사 벤치마크)</td></tr>
+</table>
+
+<p>흥미로운 건 생태계 쪽 움직임입니다. HN 공개 베타 스레드에서 한 댓글이 정확히 짚었듯, <strong>OpenAI가 정의한 엔드포인트는 사실상 업계 표준이 되는 경향</strong>이 있습니다(chat completions가 그랬듯이). 실제로 OpenRouter는 자체 Decisions 엔드포인트로 <code>typesafe/jev-1.13</code>을 서빙하기 시작했고, Perplexity 문서에도 decisions 퀵스타트가 올라왔습니다. "결정 전용 엔드포인트"라는 인터페이스 자체가 <code>/v1/decisions</code>라는 모양으로 수렴하는 중입니다. 쓰는 입장에서는 희소식입니다 — 한 벤더에 락인되지 않고 같은 호출 모양으로 갈아탈 여지가 생기니까요.</p>
+
+<h2 id="sec-5">"structured outputs로 되는 거 아냐?" — 이번 주 논쟁 정리</h2>
+
+<p>HN에서 가장 많이 나온 반론은 이겁니다. "grammar 제약 걸면 아무 LLM이나 보기 중 하나만 뱉게 할 수 있다. 새로울 게 뭐냐." 반은 맞고 반은 틀린 말이라, 여기를 정확히 이해하면 이 API를 어디에 써야 할지가 선명해집니다.</p>
+
+<p>맞는 부분: <strong>형식 보장은 새롭지 않습니다.</strong> <a href="/posts/structured-outputs-constrained-decoding/">제약 디코딩(constrained decoding)</a>으로 출력을 enum 하나로 강제하는 건 오래된 기술이고, 어느 모델에서든 됩니다.</p>
+
+<p>틀린 부분: structured outputs는 <strong>"형식이 올바른 답"을 보장할 뿐 "좋은 결정"을 보장하지 않으며, 결정에 필요한 부가 정보를 주지 않습니다.</strong> 차이는 세 가지입니다.</p>
+
+<ol>
+  <li><strong>확률 분포.</strong> 생성 모델이 "billing"이라고 뱉으면 그게 전부입니다. 몇 % 확신인지, 2등은 뭐였는지 모릅니다. logprobs를 켜고 토큰 확률을 후처리하면 비슷한 걸 만들 수야 있지만, 선택지가 멀티 토큰이면 집계가 꽤 번거로운 수작업이 됩니다. 결정 엔드포인트는 이걸 질문 단위의 분포로 정리해서 돌려줍니다.</li>
+  <li><strong>과금·속도 구조.</strong> 제약 디코딩도 결국 출력 토큰을 순차 생성합니다. 결정 엔드포인트는 생성 자체를 건너뛰므로 출력 과금이 0이고, 그만큼 빠릅니다.</li>
+  <li><strong>질문 묶음.</strong> 상황 하나에 질문 N개를 한 패스로 평가합니다. 생성 방식으로 같은 걸 하려면 N개 필드를 가진 JSON을 생성시키게 되는데, 각 필드의 확신도는 역시 알 수 없습니다.</li>
+</ol>
+
+<p>다만 스레드의 또 다른 비판은 새겨들을 만합니다. "저 confidence가 결국 보정 안 된 softmax 점수의 재포장 아니냐"는 지적입니다. 실제로 OpenAI는 Decisions API의 보정 측정치를 공개하지 않았습니다. 문서 스스로도 "라벨 붙은 예시로 임계값을 정하라"고 안내합니다. 즉 <strong>confidence 0.9가 '10번 중 9번 맞는다'는 뜻이라고 아무도 보증하지 않습니다.</strong> 이 간극은 7장의 '흔한 실수'에서 다시 다룹니다.</p>
+
+<figure class="dapi-fig">
+<svg viewBox="0 0 900 460" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="세 가지 방식을 세로 3열로 비교한 다이어그램. 1열 일반 생성 호출은 문장이 나오고 파싱 실패 위험과 출력 과금이 표시된다. 2열 structured outputs는 형식이 보장된 JSON이 나오지만 확신도 없음과 출력 과금이 표시된다. 3열 Decisions API는 선택 값과 확률 분포가 나오고 출력 과금 없음이 표시된다.">
+  <text x="450" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">같은 질문, 세 가지 호출 방식 — "어느 팀으로 보낼까?"</text>
+
+  <!-- 열 1: 일반 생성 -->
+  <rect x="30" y="60" width="260" height="330" rx="14" fill="var(--dapi-slate)" opacity="0.10"/>
+  <rect x="30" y="60" width="260" height="330" rx="14" fill="none" stroke="var(--dapi-slate)" stroke-width="2"/>
+  <text x="160" y="92" text-anchor="middle" font-size="16" font-weight="700" fill="currentColor">① 일반 생성 호출</text>
+  <rect x="55" y="112" width="210" height="64" rx="10" fill="var(--dapi-rose)" opacity="0.14"/>
+  <text x="160" y="138" text-anchor="middle" font-size="13" fill="currentColor">"billing 팀이 맞을 것 같아요.</text>
+  <text x="160" y="158" text-anchor="middle" font-size="13" fill="currentColor">왜냐하면…" (자유 문장)</text>
+  <text x="160" y="210" text-anchor="middle" font-size="13.5" fill="var(--dapi-rose)">✗ 파싱 실패 위험</text>
+  <text x="160" y="236" text-anchor="middle" font-size="13.5" fill="var(--dapi-rose)">✗ 확신도 없음</text>
+  <text x="160" y="262" text-anchor="middle" font-size="13.5" fill="var(--dapi-rose)">✗ 출력 토큰 과금 + 생성 지연</text>
+  <text x="160" y="330" text-anchor="middle" font-size="12.5" fill="var(--dapi-gray)">프롬프트로 "한 단어로만"을</text>
+  <text x="160" y="350" text-anchor="middle" font-size="12.5" fill="var(--dapi-gray)">빌어야 하는 방식</text>
+
+  <!-- 열 2: structured outputs -->
+  <rect x="320" y="60" width="260" height="330" rx="14" fill="var(--dapi-amber)" opacity="0.08"/>
+  <rect x="320" y="60" width="260" height="330" rx="14" fill="none" stroke="var(--dapi-amber)" stroke-width="2"/>
+  <text x="450" y="92" text-anchor="middle" font-size="16" font-weight="700" fill="currentColor">② structured outputs</text>
+  <rect x="345" y="112" width="210" height="64" rx="10" fill="var(--dapi-amber)" opacity="0.14"/>
+  <text x="450" y="138" text-anchor="middle" font-size="13" fill="currentColor">{"team": "billing"}</text>
+  <text x="450" y="158" text-anchor="middle" font-size="13" fill="currentColor">(스키마 보장 JSON)</text>
+  <text x="450" y="210" text-anchor="middle" font-size="13.5" fill="var(--dapi-green)">✓ 형식 보장 (enum 강제)</text>
+  <text x="450" y="236" text-anchor="middle" font-size="13.5" fill="var(--dapi-rose)">✗ 확신도 없음 (logprobs 수작업)</text>
+  <text x="450" y="262" text-anchor="middle" font-size="13.5" fill="var(--dapi-rose)">✗ 출력 토큰 과금 + 생성 지연</text>
+  <text x="450" y="330" text-anchor="middle" font-size="12.5" fill="var(--dapi-gray)">제약 디코딩으로 형식은 잡지만</text>
+  <text x="450" y="350" text-anchor="middle" font-size="12.5" fill="var(--dapi-gray)">결정의 '품질 신호'는 없음</text>
+
+  <!-- 열 3: Decisions API -->
+  <rect x="610" y="60" width="260" height="330" rx="14" fill="var(--dapi-green)" opacity="0.08"/>
+  <rect x="610" y="60" width="260" height="330" rx="14" fill="none" stroke="var(--dapi-green)" stroke-width="2.5"/>
+  <text x="740" y="92" text-anchor="middle" font-size="16" font-weight="700" fill="currentColor">③ Decisions API</text>
+  <rect x="635" y="112" width="210" height="64" rx="10" fill="var(--dapi-green)" opacity="0.14"/>
+  <text x="740" y="138" text-anchor="middle" font-size="13" fill="currentColor">choice: "billing"</text>
+  <text x="740" y="158" text-anchor="middle" font-size="13" fill="currentColor">billing .87 · tech .09 · general .04</text>
+  <text x="740" y="210" text-anchor="middle" font-size="13.5" fill="var(--dapi-green)">✓ 형식 보장 (타입 자체)</text>
+  <text x="740" y="236" text-anchor="middle" font-size="13.5" fill="var(--dapi-green)">✓ 보기별 확률 분포 반환</text>
+  <text x="740" y="262" text-anchor="middle" font-size="13.5" fill="var(--dapi-green)">✓ 출력 과금 없음 · 생성 생략</text>
+  <text x="740" y="316" text-anchor="middle" font-size="12.5" fill="var(--dapi-rose)">단, confidence의 보정 여부는</text>
+  <text x="740" y="336" text-anchor="middle" font-size="12.5" fill="var(--dapi-rose)">미검증 — 직접 측정 필요</text>
+  <text x="740" y="362" text-anchor="middle" font-size="12.5" fill="var(--dapi-gray)">추론·산술 질문에는 부적합</text>
+
+  <text x="450" y="432" text-anchor="middle" font-size="13.5" fill="var(--dapi-gray)">"grammar로 되잖아"는 ②까지의 이야기 — ③이 더 주는 건 분포·과금 구조·질문 묶음입니다</text>
+</svg>
+<figcaption>같은 라우팅 질문을 세 방식으로 호출했을 때의 차이. structured outputs는 형식을, 결정 엔드포인트는 형식에 더해 확률 분포와 다른 과금 구조를 줍니다.</figcaption>
+</figure>
+
+<h2 id="sec-6">실전 — 에이전트 가드레일·라우팅에 붙이기</h2>
+
+<p>이제 실제 에이전트 루프에 끼워 봅시다. 시나리오: 고객 지원 에이전트가 도구(환불 처리, 계정 조회 등)를 호출하기 전에, 결정 레이어로 ① 위험 여부와 ② 처리 경로를 판단하고, 애매하면 사람에게 넘깁니다.</p>
+
+{{< highlight python >}}
+import os, requests
+
+DECISIONS_URL = "https://api.openai.com/v1/decisions"
+HEADERS = {"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}"}
+
+# 임계값은 '감'이 아니라 라벨 데이터로 정한다 (7장 참고).
+# 운영 전에 과거 티켓 몇백 건으로 정답률-임계값 곡선을 그려 보고 고른 값이어야 한다.
+RISK_MAX = 0.20      # 위험 확률이 이보다 높으면 자동 실행 금지
+ROUTE_MIN = 0.80     # 라우팅 확신이 이보다 낮으면 사람에게
+
+def decide(user_msg: str, tool_call: str) -> dict:
+    payload = {
+        "model": "gpt-6-luna",
+        "input": f"고객 메시지: {user_msg}\n에이전트가 실행하려는 도구 호출: {tool_call}",
+        "questions": [
+            {"type": "predicate", "name": "risky",
+             "instructions": "이 도구 호출이 되돌리기 어려운 작업(환불 지급, 계정 삭제 등)을 포함하는가?"},
+            {"type": "choice", "name": "route",
+             "instructions": "이 문의를 처리할 경로를 골라라.",
+             "choices": [{"value": "auto"},        # 에이전트가 자동 처리
+                         {"value": "billing_team"},
+                         {"value": "human_review"}]},
+        ],
+    }
+    resp = requests.post(DECISIONS_URL, headers=HEADERS, json=payload, timeout=10)
+    resp.raise_for_status()
+
+    # name으로 찾아 두면 answers가 배열이든 객체든 코드가 덜 깨진다
+    answers = {a["name"]: a for a in resp.json()["answers"]}
+
+    # 1) 타입 분기 먼저 — refusal이면 다른 필드를 읽지 말 것
+    for name, ans in answers.items():
+        if ans["type"] == "refusal":
+            return {"action": "escalate", "reason": f"{name} 판단 거부"}
+
+    # 2) 가드레일: 위험 확률이 임계값을 넘으면 무조건 사람 승인
+    if answers["risky"]["probability"] > RISK_MAX:
+        return {"action": "escalate", "reason": "고위험 도구 호출"}
+
+    # 3) 라우팅: 확신이 낮으면(1등-2등 격차가 좁으면) 역시 사람에게
+    route = answers["route"]
+    if route["confidence"] < ROUTE_MIN:
+        return {"action": "escalate", "reason": f"라우팅 불확실 {route['confidence']:.2f}"}
+
+    return {"action": route["choice"]}
+{{< /highlight >}}
+
+<p>포인트는 세 가지입니다. 첫째, <strong>refusal 분기가 가장 먼저</strong>입니다. refusal 답에는 <code>probability</code>나 <code>choice</code>가 없으니, 타입 확인 없이 필드를 읽으면 <code>KeyError</code>로 터집니다. 둘째, 판단 불가는 에러가 아니라 <strong>에스컬레이션 사유</strong>입니다. 셋째, 임계값(0.20, 0.80)은 코드에 박는 상수가 아니라 <strong>라벨 데이터로 측정해서 정하는 운영 파라미터</strong>입니다.</p>
+
+<p>그리고 운영에 들어가면 꼭 한 가지를 추가하세요 — <strong>원본 응답과 최종 결과(사람이 뒤집었는지)를 로그로 남기는 것</strong>입니다. "confidence 0.9 이상이었던 결정 중 실제로 몇 %가 맞았나"를 주기적으로 세어 보면, 이 API의 보정 상태를 여러분 데이터 기준으로 직접 검증할 수 있습니다. 이 숫자가 쌓여야 임계값을 근거 있게 조정할 수 있습니다.</p>
+
+<div class="dapi-note">
+<strong>어디까지 맡길까?</strong> 결정 레이어는 "빠른 판단"에 특화된 부품이지 심판 전부의 대체재가 아닙니다. 근거 문장이 필요한 평가(예: 코드 리뷰 코멘트)는 여전히 <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-judge</a>의 영역이고, 권한 검증·감사 로그·실행 책임은 여러분의 애플리케이션 코드가 가져야 합니다. 확률은 참고 신호이지 면죄부가 아닙니다.
+</div>
+
+<h2 id="sec-7">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>confidence를 보정된 확률로 믿지 마세요.</strong> 가장 중요한 함정입니다. OpenAI는 보정 측정치를 공개하지 않았고, 문서도 "라벨 예시로 임계값을 정하라"고 안내합니다. "0.9 = 90% 정답"이 아닐 수 있습니다 — 0.99가 실제로는 70%짜리라면, 잘못된 결정이 리뷰어를 그냥 통과합니다. 반드시 자기 데이터로 정답률을 재고 임계값을 잡으세요.</li>
+  <li><strong>추론이 필요한 질문에 쓰지 마세요.</strong> 공개 직후 한 실무자가 논리 퍼즐(리들)을 predicate로 던져 보고 "확률이 엉망"이라고 비판한 글이 HN에서 논쟁이 됐는데, 댓글의 중론은 "그건 용도 오용"이었습니다. 결정 모델은 패턴 판단을 한 번의 패스로 하는 부품입니다. 여러 단계를 따져야 맞는 문제는 추론 모델로 풀고, 그 결과의 분류·판정에 결정 레이어를 쓰세요. 산술 비교도 마찬가지로 코드로 하는 게 맞습니다.</li>
+  <li><strong>refusal 분기를 빼먹지 마세요.</strong> 질문 하나만 거부되고 나머지는 정상 응답인 경우가 있습니다. 타입 분기 없이 <code>probability</code>부터 읽는 코드는 운영에서 반드시 터집니다.</li>
+  <li><strong>질문을 묶어 호출 수를 줄이세요.</strong> 같은 상황에 대한 판단 N개는 한 요청의 questions 배열로 합치는 게 쌉니다. 단, 공식 질문 수 상한이 아직 미공개이니 배치 설계를 상한 가정 위에 짓지 마세요.</li>
+  <li><strong>베타 스키마 변동에 대비하세요.</strong> 응답 파싱을 한 모듈에 모으고, 알 수 없는 필드는 무시하는 관대한 파서를 쓰세요. GA 때 필드명이 바뀌어도 수정 범위가 한 파일로 끝납니다.</li>
+  <li><strong>락인은 인터페이스 추상화로 낮추세요.</strong> <code>/v1/decisions</code> 모양이 OpenRouter(Jev 서빙), Perplexity 등으로 번지고 있습니다. 호출부를 <code>decide(input, questions)</code> 한 함수 뒤로 숨겨 두면, 가격·보정 성능에 따라 백엔드(OpenAI ↔ Jev)를 갈아타기 쉽습니다. 비용에 민감하면 Jev($0.042/M)와 A/B 해 볼 가치가 있습니다.</li>
+  <li><strong>이미지 입력은 아직 제약이 있습니다.</strong> 베타 기준 inline base64 데이터 URL만 받고 호스팅된 URL·파일 ID는 거부된다는 보고가 있습니다. 스크린샷 분류 같은 용도라면 전처리 단계에서 base64 인코딩을 넣으세요.</li>
+</ul>
+
+<h2 id="sec-8">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>10월 6일 OpenAI Decisions API가 공개 베타로 출시 — <code>POST /v1/decisions</code>에 상황과 질문을 보내면 문장 대신 <strong>predicate(확률)·choice(선택+분포)·score(가중 평균)</strong>가 돌아옵니다. 3주 전 Jev가 연 '결정 전용 모델' 카테고리의 플랫폼 버전입니다.</li>
+  <li>가격은 입력 $0.10/M에 출력·캐시 무과금, 속도는 데모 기준 ~150ms(일반 호출 대비 10배 주장). 단 비교 기준은 자사 모델이고 보정 측정치는 미공개 — <strong>자기 워크로드에서 직접 재는 게 전제</strong>입니다.</li>
+  <li>"structured outputs로 된다"는 반론은 반만 맞습니다. 형식 보장은 같지만, 결정 엔드포인트는 <strong>보기별 확률 분포, 출력 과금 제로, 질문 묶음</strong>을 더 줍니다.</li>
+  <li>에이전트 루프의 라우팅·가드레일·판정처럼 보기가 정해진 객관식 지점에 끼우고, <strong>refusal 분기 → 임계값 비교 → 에스컬레이션</strong> 순서로 처리하세요. 임계값은 라벨 데이터로 정하고, 로그로 보정을 계속 검증하세요.</li>
+  <li>confidence는 보정이 보증되지 않은 숫자입니다. 추론·산술 질문에는 쓰지 말고, 권한·감사·실행 책임은 애플리케이션 코드에 남기세요.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://developers.openai.com/api/docs/guides/decisions" target="_blank" rel="noopener">OpenAI — Decisions 가이드 (공식 문서)</a></li>
+  <li><a href="https://developers.openai.com/api/reference/resources/decisions/methods/create" target="_blank" rel="noopener">OpenAI — Create a decision API 레퍼런스</a></li>
+  <li><a href="https://openai.com/index/devday-2026-recap/" target="_blank" rel="noopener">OpenAI — DevDay 2026 Recap</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49984025" target="_blank" rel="noopener">Hacker News — "Decisions API is in public beta" 스레드</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49904454" target="_blank" rel="noopener">Hacker News — "OpenAI Launches Decisions API for Fast AI Choices" 스레드</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49927854" target="_blank" rel="noopener">Hacker News — "The OpenAI Decisions API needs a confidence you can trust" 스레드</a></li>
+  <li><a href="https://anth.us/articles/openai-decisions-api-preview/" target="_blank" rel="noopener">Anthus — The OpenAI Decisions API Needs a Confidence You Can Trust</a></li>
+  <li><a href="https://vercel.com/i/what-is-openai-decisions-api" target="_blank" rel="noopener">Vercel — What is OpenAI's Decisions API?</a></li>
+  <li><a href="https://openrouter.ai/openai/gpt-6-luna-decisions" target="_blank" rel="noopener">OpenRouter — GPT-6 Luna Decisions 가격 정보</a></li>
+  <li><a href="https://openrouter.ai/docs/guides/community/jev-tutorial" target="_blank" rel="noopener">OpenRouter — Jev Decisions 엔드포인트 튜토리얼</a></li>
+  <li><a href="https://docs.perplexity.ai/docs/decisions/quickstart" target="_blank" rel="noopener">Perplexity — Decisions API Quickstart</a></li>
+  <li><a href="https://www.firecrawl.dev/blog/openai-decisions-api-vs-jev" target="_blank" rel="noopener">Firecrawl — OpenAI Decisions API vs Jev: 아키텍처 비교</a></li>
+  <li><a href="https://wavect.io/blog/openai-decisions-api-model-routing/" target="_blank" rel="noopener">Wavect — Confidence, Refusals and Routing</a></li>
+  <li><a href="https://dev.to/bobbyhalljr/openais-decisions-api-is-in-public-beta-build-a-typed-router-in-typescript-ob7" target="_blank" rel="noopener">DEV Community — 공개 베타로 타입 라우터 만들기 (TypeScript)</a></li>
+  <li><a href="https://dev.classmethod.jp/en/articles/openai-decisions-overview/" target="_blank" rel="noopener">Classmethod — Decisions API와 Jev 차이 정리</a></li>
+  <li><a href="https://byteiota.com/openai-decisions-api-150ms-classification-agents/" target="_blank" rel="noopener">byteiota — 150ms Classification for Agents</a></li>
+  <li><a href="https://typesafe.ai/blog/introducing-system-one-models-and-jev" target="_blank" rel="noopener">TypeSafe AI — Introducing System One Models and Jev</a></li>
+  <li>관련 포스트(내부): <a href="/posts/system-one-models-jev/">결정 전용 모델 Jev와 System One Models</a> · <a href="/posts/structured-outputs-constrained-decoding/">구조화 출력과 제약 디코딩</a> · <a href="/posts/llm-model-routing/">LLM 모델 라우팅</a> · <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-judge 평가</a></li>
+</ul>

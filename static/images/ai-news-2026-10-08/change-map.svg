@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="440" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-08</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="55" width="360" height="160" rx="12" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="50" y="82" font-size="15" font-weight="700" fill="#1d4ed8">🤖 모델</text>
+  <text x="50" y="108" font-size="13.5" font-weight="700" fill="#111">Claude Haiku 5.5 (10/7 출시)</text>
+  <text x="50" y="130" font-size="12.5" fill="#333">입력 $0.10 / 출력 $0.50 (100K 토큰 이하)</text>
+  <text x="50" y="150" font-size="12.5" fill="#333">1M 컨텍스트 · 출력 최대 128K</text>
+  <text x="50" y="170" font-size="12.5" fill="#333">OSWorld 2.1: 72.4% (전작 15.7%)</text>
+  <text x="50" y="195" font-size="12" fill="#666">→ "저렴한 서브에이전트"의 체급이 바뀜</text>
+
+  <!-- 연구 -->
+  <rect x="410" y="55" width="360" height="160" rx="12" fill="#f3efff" stroke="#7c5cd4" stroke-width="1.5"/>
+  <text x="430" y="82" font-size="15" font-weight="700" fill="#6d28d9">📚 연구</text>
+  <text x="430" y="108" font-size="13.5" font-weight="700" fill="#111">SafeActBench (2610.07753)</text>
+  <text x="430" y="128" font-size="12.5" fill="#333">도구 사용 에이전트의 '증거→행동' 사슬 붕괴 분석</text>
+  <text x="430" y="152" font-size="13.5" font-weight="700" fill="#111">EVISKILL (2610.05030)</text>
+  <text x="430" y="172" font-size="12.5" fill="#333">스킬 진화를 재생 가능한 증거 카드에 접지</text>
+  <text x="430" y="195" font-size="12" fill="#666">→ 키워드는 둘 다 "증거(evidence)"</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="235" width="360" height="160" rx="12" fill="#eefbf2" stroke="#34a765" stroke-width="1.5"/>
+  <text x="50" y="262" font-size="15" font-weight="700" fill="#15803d">🛠 오픈소스</text>
+  <text x="50" y="288" font-size="13.5" font-weight="700" fill="#111">agency-agents + 네이티브 앱</text>
+  <text x="50" y="308" font-size="12.5" fill="#333">에이전트 로스터를 CC·Codex·Cursor에 클릭 설치</text>
+  <text x="50" y="332" font-size="13.5" font-weight="700" fill="#111">superpowers v6.4.2</text>
+  <text x="50" y="352" font-size="12.5" fill="#333">16+ 코딩 에이전트용 개발 방법론 스킬 세트</text>
+  <text x="50" y="375" font-size="12" fill="#666">→ '스킬 배포'가 앱스토어화되는 중</text>
+
+  <!-- 툴링 -->
+  <rect x="410" y="235" width="360" height="160" rx="12" fill="#fff4ec" stroke="#d97742" stroke-width="1.5"/>
+  <text x="430" y="262" font-size="15" font-weight="700" fill="#c2410c">🧑‍💻 툴링</text>
+  <text x="430" y="288" font-size="13.5" font-weight="700" fill="#111">Codex: instant interrupt 기본화</text>
+  <text x="430" y="308" font-size="12.5" fill="#333">입력이 턴을 선점, code mode 셀 즉시 중단</text>
+  <text x="430" y="332" font-size="13.5" font-weight="700" fill="#111">Claude Code 2.1.293</text>
+  <text x="430" y="352" font-size="12.5" fill="#333">Haiku 5.5가 기본 Haiku로 — model+effort 조합</text>
+  <text x="430" y="375" font-size="12" fill="#666">→ 위임 비용·조종 지연이 동시에 내려감</text>
+
+  <text x="400" y="425" text-anchor="middle" font-size="12" fill="#888">공통 흐름: 싸진 소형 모델 × 증거 기반 행동 검증 × 스킬 유통 인프라</text>
+</svg>

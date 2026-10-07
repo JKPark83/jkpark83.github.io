@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="420" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">Claude Haiku 5.5 — 벤치마크 점프와 가격 구조 (보도 기준)</text>
+
+  <!-- 왼쪽: 벤치마크 그룹 바 -->
+  <text x="60" y="64" font-size="14" font-weight="700" fill="#333">벤치마크 (%)</text>
+  <!-- 축 -->
+  <line x1="60" y1="330" x2="430" y2="330" stroke="#bbb" stroke-width="1"/>
+
+  <!-- OSWorld 2.1: 72.4 / 15.7 / 48.9  (scale: 3px per %) -->
+  <text x="60" y="95" font-size="12.5" font-weight="700" fill="#333">OSWorld 2.1 (컴퓨터 사용)</text>
+  <rect x="60" y="102" width="217" height="16" fill="#d97706" rx="3"/>
+  <text x="283" y="115" font-size="12" font-weight="700" fill="#92400e">72.4 — Haiku 5.5</text>
+  <rect x="60" y="121" width="47" height="16" fill="#e7cfa8" rx="3"/>
+  <text x="113" y="134" font-size="11.5" fill="#777">15.7 — Haiku 4.5</text>
+  <rect x="60" y="140" width="147" height="16" fill="#9ca3af" rx="3"/>
+  <text x="213" y="153" font-size="11.5" fill="#555">48.9 — GPT-6 Luna</text>
+
+  <!-- HLE no tools: 45.9 / 10.2 -->
+  <text x="60" y="185" font-size="12.5" font-weight="700" fill="#333">Humanity's Last Exam (도구 없이)</text>
+  <rect x="60" y="192" width="138" height="16" fill="#d97706" rx="3"/>
+  <text x="204" y="205" font-size="12" font-weight="700" fill="#92400e">45.9 — Haiku 5.5</text>
+  <rect x="60" y="211" width="31" height="16" fill="#e7cfa8" rx="3"/>
+  <text x="97" y="224" font-size="11.5" fill="#777">10.2 — Haiku 4.5</text>
+
+  <!-- Terminal-Bench 4.0: 39.2 / 0 -->
+  <text x="60" y="256" font-size="12.5" font-weight="700" fill="#333">Terminal-Bench 4.0</text>
+  <rect x="60" y="263" width="118" height="16" fill="#d97706" rx="3"/>
+  <text x="184" y="276" font-size="12" font-weight="700" fill="#92400e">39.2 — Haiku 5.5</text>
+  <rect x="60" y="282" width="2" height="16" fill="#e7cfa8" rx="1"/>
+  <text x="68" y="295" font-size="11.5" fill="#777">0 — Haiku 4.5</text>
+
+  <text x="60" y="352" font-size="11.5" fill="#888">GDPval-AA v2.1 Elo: 1,620 (Haiku 4.5: 735 · GPT-6 Luna: 1,437 · Sonnet 5.5: 1,840)</text>
+
+  <!-- 오른쪽: 가격 구조 -->
+  <text x="490" y="64" font-size="14" font-weight="700" fill="#333">API 가격 ($/1M 토큰)</text>
+  <rect x="490" y="78" width="260" height="110" rx="10" fill="#fff7ed" stroke="#d97706" stroke-width="1.5"/>
+  <text x="510" y="103" font-size="13" font-weight="700" fill="#92400e">프롬프트 ≤ 100K 토큰</text>
+  <text x="510" y="127" font-size="13" fill="#333">입력 $0.10 · 출력 $0.50</text>
+  <text x="510" y="149" font-size="12" fill="#666">캐시 읽기 $0.01</text>
+  <text x="510" y="172" font-size="11.5" fill="#92400e">전작 대비 약 -90% (요청의 ~90%가 해당)</text>
+
+  <rect x="490" y="202" width="260" height="88" rx="10" fill="#f4f4f5" stroke="#a1a1aa" stroke-width="1.2"/>
+  <text x="510" y="227" font-size="13" font-weight="700" fill="#52525b">프롬프트 &gt; 100K 토큰</text>
+  <text x="510" y="251" font-size="13" fill="#333">입력 $0.50 · 출력 $2.50</text>
+  <text x="510" y="273" font-size="12" fill="#666">캐시 읽기 $0.05</text>
+
+  <text x="490" y="318" font-size="12" fill="#555">컨텍스트 1M · 출력 최대 128K 토큰</text>
+  <text x="490" y="338" font-size="11.5" fill="#888">새 토크나이저가 토큰을 ~30% 더 세므로</text>
+  <text x="490" y="355" font-size="11.5" fill="#888">같은 텍스트 기준 실효 절감은 ~87% (외부 분석)</text>
+
+  <text x="400" y="400" text-anchor="middle" font-size="11.5" fill="#999">출처: Anthropic 발표에 대한 다수 보도 종합 (벤치마크는 회사 보고치)</text>
+</svg>

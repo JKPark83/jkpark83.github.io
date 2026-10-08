@@ -1,0 +1,434 @@
+---
+title: "검색의 바탕이 폰 안으로 들어왔다 — EmbeddingGemma 2로 배우는 온디바이스 멀티모달 임베딩"
+date: 2026-10-09T07:30:00+09:00
+draft: false
+tags: ["AI", "EmbeddingGemma 2", "임베딩", "embedding", "멀티모달", "온디바이스", "on-device", "RAG", "검색", "MRL", "Matryoshka", "sentence-transformers", "Gemma", "벡터 검색", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "10월 6일 Google이 EmbeddingGemma 2를 Apache 2.0으로 공개했습니다. 텍스트·코드·이미지·영상·오디오를 하나의 768차원 공간에 넣는 740M 임베딩 모델인데, 양자화하면 폰에서 0.5GB 남짓의 RAM으로 돌아갑니다. HN에서는 '드디어 쓸 만한 중간 크기 임베딩 모델'이라는 반응과 함께 로컬 멀티모달 검색 도구들이 같은 주에 나란히 트렌딩됐는데요 — 임베딩 모델이 뭘 하는 물건인지부터, 모듈러 아키텍처와 공유 벡터 공간, 마트료시카 표현 학습(MRL), 벤치마크 숫자의 행간, sentence-transformers로 직접 돌리는 코드까지 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "on-device-multimodal-embeddings-cover.svg"
+  alt: "텍스트, 코드, 이미지, 영상, 오디오가 폰 안의 EmbeddingGemma 2를 거쳐 하나의 768차원 공유 벡터 공간으로 모이는 구조를 그린 표지"
+  caption: "말·글·사진·소리를 한 벡터 공간에 — 이번 주 Google이 이걸 폰에서 돌아가는 크기로 공개했습니다."
+  relative: false
+---
+
+<style>
+/* ── EmbeddingGemma 2 포스트 전용 스타일 (eg2- 접두사) ── */
+.eg2-fig{
+  --eg2-green:#16a34a; --eg2-rose:#e11d48; --eg2-amber:#d97706; --eg2-sky:#0284c7;
+  --eg2-violet:#7c3aed; --eg2-slate:#64748b; --eg2-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .eg2-fig{
+  --eg2-green:#4ade80; --eg2-rose:#fb7185; --eg2-amber:#fbbf24; --eg2-sky:#38bdf8;
+  --eg2-violet:#a78bfa; --eg2-slate:#94a3b8; --eg2-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .eg2-fig{
+    --eg2-green:#4ade80; --eg2-rose:#fb7185; --eg2-amber:#fbbf24; --eg2-sky:#38bdf8;
+    --eg2-violet:#a78bfa; --eg2-slate:#94a3b8; --eg2-gray:#64748b;
+  }
+}
+.eg2-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.eg2-fig text{font-family:inherit}
+.eg2-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.eg2-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.eg2-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.eg2-toc ol{margin:0;padding-left:1.25rem}
+.eg2-toc li{margin:.22rem 0;font-size:.95rem}
+.eg2-toc a{text-decoration:none}
+.eg2-toc a:hover{text-decoration:underline}
+.eg2-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.eg2-table th,.eg2-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.eg2-table th{background:var(--entry)}
+.eg2-note{border-left:4px solid var(--eg2-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.eg2-warn{border-left:4px solid var(--eg2-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="eg2-toc">
+  <div class="eg2-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 이번 주 임베딩이 다시 화제가 된 이유</a></li>
+    <li><a href="#sec-2">배경 — 임베딩 모델은 뭘 하는 물건인가</a></li>
+    <li><a href="#sec-3">해부 — 모듈러 아키텍처와 공유 벡터 공간</a></li>
+    <li><a href="#sec-4">MRL — 벡터를 마트료시카처럼 잘라 쓰기</a></li>
+    <li><a href="#sec-5">숫자 읽기 — 벤치마크와 메모리의 행간</a></li>
+    <li><a href="#sec-6">실전 — sentence-transformers로 돌려보기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 이번 주 임베딩이 다시 화제가 된 이유</h2>
+
+<p>10월 6일 Google DeepMind가 <a href="https://blog.google/innovation-and-ai/technology/developers-tools/embeddinggemma-2/" target="_blank" rel="noopener">EmbeddingGemma 2</a>를 공개했습니다. 텍스트·코드·이미지·영상·오디오 — 다섯 가지 입력을 전부 <strong>하나의 768차원 벡터 공간</strong>에 넣는 740M 파라미터 임베딩 모델입니다. 라이선스는 Apache 2.0, 가중치는 Hugging Face와 Kaggle에서 바로 받을 수 있고, 양자화하면 Pixel급 폰에서 0.5GB 남짓의 RAM으로 돌아갑니다.</p>
+
+<p>이번 주 LLM 쪽에는 Gemini 4 Argon, Mistral Large 4, Claude Haiku 5.5 같은 굵직한 릴리스가 몰렸는데, 그 틈에서 임베딩 모델 하나가 <a href="https://news.ycombinator.com/item?id=49980487" target="_blank" rel="noopener">HN 프런트페이지</a>에 오른 건 이유가 있습니다. 댓글 분위기를 요약하면 두 가지였습니다. 하나는 <em>"쓸 만한 중간 크기 임베딩 모델이 드디어 나왔다"</em>는 실무자들의 반가움이고(Apache 2.0이라는 점을 콕 짚은 Simon Willison의 댓글이 최상단이었습니다), 다른 하나는 <em>"이걸로 로컬 멀티모달 검색을 만들면 되겠다"</em>는 기대였습니다. 실제로 같은 주에 macOS의 모든 사진·영상 프레임을 로컬에서 AI 검색하는 도구(<a href="https://github.com/allenv0/SCM" target="_blank" rel="noopener">SCM</a>)가 나란히 트렌딩됐으니, 수요가 모여 있던 자리에 부품이 도착한 셈입니다.</p>
+
+<p>이 글은 EmbeddingGemma 2를 소재로 <strong>온디바이스 멀티모달 임베딩 엔지니어링</strong>을 처음부터 정리하는 글입니다. 임베딩 모델이 뭘 하는 물건인지부터 시작해서, "모달리티별 인코더를 떼었다 붙였다 하는" 모듈러 아키텍처, 벡터를 잘라 쓰는 마트료시카 표현 학습(MRL, Matryoshka Representation Learning), 벤치마크 숫자를 어디까지 믿어야 하는지, 그리고 여러분 노트북에서 바로 돌려보는 코드까지 순서대로 갑니다.</p>
+
+<h2 id="sec-2">배경 — 임베딩 모델은 뭘 하는 물건인가</h2>
+
+<p>임베딩(embedding)은 데이터를 <strong>의미를 보존하는 숫자 벡터</strong>로 바꾼 것입니다. 임베딩 모델에 "고양이가 소파에서 잔다"를 넣으면 768개의 실수가 나오고, "낮잠 자는 반려묘"를 넣으면 또 다른 768개가 나옵니다. 포인트는 <strong>의미가 비슷한 입력일수록 벡터가 가깝다</strong>는 것입니다. 두 벡터의 코사인 유사도를 계산하면 "이 두 문장이 얼마나 비슷한 얘기인가"를 숫자 하나로 얻습니다.</p>
+
+<p>이 성질 하나로 검색이 만들어집니다. 문서(사진, 음성 메모, 코드 조각...)를 미리 전부 임베딩해 벡터 DB에 넣어 두고, 질문이 들어오면 질문도 임베딩한 뒤 가장 가까운 벡터를 찾으면 끝입니다. RAG의 retrieval이 바로 이것이고, 추천·중복 제거·분류·클러스터링도 같은 부품 위에 올라갑니다. 생성 모델이 "말하는 쪽"이라면 임베딩 모델은 "찾는 쪽"의 바탕입니다. 청킹 전략이나 2단계 검색 같은 윗단 설계는 예전 글(<a href="/posts/rag-chunking-contextual-late-chunking/">RAG 청킹</a>, <a href="/posts/reranking-two-stage-retrieval/">리랭킹과 2단계 검색</a>)에서 다뤘으니, 이 글은 그 아래층 — 임베딩 모델 자체에 집중합니다.</p>
+
+<p>그럼 왜 "온디바이스"가 중요할까요? 지금까지 좋은 임베딩은 대부분 API 호출이었습니다(OpenAI text-embedding, Gemini Embedding, Cohere embed...). API 방식에는 엔지니어링 관점의 비용이 셋 붙습니다.</p>
+
+<ul>
+  <li><strong>데이터가 밖으로 나갑니다.</strong> 사용자의 사진·일기·사내 문서를 전부 서버로 보내야 인덱싱이 됩니다. 프라이버시가 중요한 제품에서는 이 지점에서 설계가 막힙니다.</li>
+  <li><strong>벡터가 벤더에 묶입니다.</strong> 임베딩은 모델이 다르면 서로 호환되지 않습니다. 벤더가 모델을 내리면(deprecate) 쌓아 둔 벡터 전체를 새 모델로 재임베딩해야 합니다. Willison이 HN에서 "독점·호스티드 전용 임베딩 모델은 나쁜 선택"이라고 쓴 이유가 이것입니다 — 가중치가 공개돼 있으면 최악의 경우 직접 서빙하면 되니까요.</li>
+  <li><strong>건당 비용과 왕복 지연이 쌓입니다.</strong> 검색은 타이핑할 때마다, 인덱싱은 파일마다 호출이 나갑니다. 로컬 모델이면 둘 다 0원이고 오프라인에서도 동작합니다.</li>
+</ul>
+
+<p>문제는 지금까지 "로컬에서 돌아갈 만큼 작으면서 쓸 만한" 임베딩 모델이 드물었다는 점입니다. 작년 9월의 1세대 EmbeddingGemma(308M, 텍스트 전용)가 그 틈을 처음 제대로 메웠고, 이번 2세대는 같은 자리에 <strong>멀티모달</strong>을 얹었습니다. 이제 "지난달에 찍은 영수증 사진"이라는 <em>텍스트 질문</em>으로 <em>사진</em>을 찾는 검색이 폰 안에서 완결됩니다.</p>
+
+<h2 id="sec-3">해부 — 모듈러 아키텍처와 공유 벡터 공간</h2>
+
+<p>EmbeddingGemma 2의 740M이라는 숫자는 한 덩어리가 아닙니다. 구조는 레고에 가깝습니다.</p>
+
+<ul>
+  <li><strong>텍스트 코어 270M</strong> — Gemma 4 기반 백본. 텍스트와 코드를 처리하는 본체로, 이것만 로드하면 270M짜리 텍스트 임베딩 모델입니다.</li>
+  <li><strong>비전 인코더 +170M</strong> — 이미지·영상 프레임을 받아 코어에 연결합니다. 텍스트+비전으로 440M.</li>
+  <li><strong>오디오 인코더 +300M</strong> — 음성·소리를 받아 코어에 연결합니다. 텍스트+오디오로 570M, 전부 합치면 740M.</li>
+</ul>
+
+<p>핵심은 어떤 조합으로 로드하든 출력이 <strong>같은 768차원 공간</strong>에 떨어진다는 점입니다. 사진을 넣은 벡터와 문장을 넣은 벡터를 바로 코사인 유사도로 비교할 수 있습니다. 교차 모달(cross-modal) 검색 — 글로 사진 찾기, 글로 음성 메모 찾기 — 이 별도 변환 없이 되는 이유입니다.</p>
+
+<figure class="eg2-fig">
+<svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="EmbeddingGemma 2의 모듈러 아키텍처 다이어그램. 왼쪽에 텍스트·코드, 이미지·영상, 오디오 세 입력이 있고, 텍스트는 270M 텍스트 코어로 직접, 이미지는 170M 비전 인코더를 거쳐, 오디오는 300M 오디오 인코더를 거쳐 코어에 연결된다. 코어의 출력은 오른쪽의 공유 768차원 벡터 공간 원으로 모이고, 아래에 270M, 440M, 570M, 740M 네 가지 로드 조합이 표시되어 있다.">
+  <defs>
+    <marker id="eg2-f1-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--eg2-sky)"/>
+    </marker>
+  </defs>
+  <text x="450" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">레고처럼 조립하는 임베딩 모델 — 필요한 인코더만 로드한다</text>
+
+  <!-- 입력들 -->
+  <rect x="30" y="70" width="160" height="52" rx="10" fill="var(--eg2-sky)" opacity="0.14"/>
+  <rect x="30" y="70" width="160" height="52" rx="10" fill="none" stroke="var(--eg2-sky)" stroke-width="2"/>
+  <text x="110" y="102" text-anchor="middle" font-size="14" fill="currentColor">텍스트 · 코드</text>
+
+  <rect x="30" y="160" width="160" height="52" rx="10" fill="var(--eg2-green)" opacity="0.14"/>
+  <rect x="30" y="160" width="160" height="52" rx="10" fill="none" stroke="var(--eg2-green)" stroke-width="2"/>
+  <text x="110" y="192" text-anchor="middle" font-size="14" fill="currentColor">이미지 · 영상</text>
+
+  <rect x="30" y="250" width="160" height="52" rx="10" fill="var(--eg2-amber)" opacity="0.14"/>
+  <rect x="30" y="250" width="160" height="52" rx="10" fill="none" stroke="var(--eg2-amber)" stroke-width="2"/>
+  <text x="110" y="282" text-anchor="middle" font-size="14" fill="currentColor">오디오</text>
+
+  <!-- 인코더들 -->
+  <rect x="260" y="160" width="180" height="52" rx="10" fill="var(--eg2-green)" opacity="0.10"/>
+  <rect x="260" y="160" width="180" height="52" rx="10" fill="none" stroke="var(--eg2-green)" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="350" y="182" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">비전 인코더</text>
+  <text x="350" y="201" text-anchor="middle" font-size="12" fill="var(--eg2-green)">+170M · 선택</text>
+
+  <rect x="260" y="250" width="180" height="52" rx="10" fill="var(--eg2-amber)" opacity="0.10"/>
+  <rect x="260" y="250" width="180" height="52" rx="10" fill="none" stroke="var(--eg2-amber)" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="350" y="272" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">오디오 인코더</text>
+  <text x="350" y="291" text-anchor="middle" font-size="12" fill="var(--eg2-amber)">+300M · 선택</text>
+
+  <!-- 코어 -->
+  <rect x="510" y="110" width="190" height="160" rx="14" fill="var(--eg2-sky)" opacity="0.12"/>
+  <rect x="510" y="110" width="190" height="160" rx="14" fill="none" stroke="var(--eg2-sky)" stroke-width="2.5"/>
+  <text x="605" y="175" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor">텍스트 코어</text>
+  <text x="605" y="198" text-anchor="middle" font-size="13" fill="var(--eg2-sky)">270M · Gemma 4 기반</text>
+  <text x="605" y="221" text-anchor="middle" font-size="12" fill="var(--eg2-gray)">컨텍스트 8K 토큰</text>
+
+  <!-- 화살표 -->
+  <path d="M190 96 C320 96 400 140 510 165" stroke="var(--eg2-sky)" stroke-width="2.5" fill="none" marker-end="url(#eg2-f1-arrow)"/>
+  <path d="M190 186 H260" stroke="var(--eg2-green)" stroke-width="2.5" fill="none" marker-end="url(#eg2-f1-arrow)"/>
+  <path d="M440 186 H510" stroke="var(--eg2-green)" stroke-width="2.5" fill="none" marker-end="url(#eg2-f1-arrow)"/>
+  <path d="M190 276 H260" stroke="var(--eg2-amber)" stroke-width="2.5" fill="none" marker-end="url(#eg2-f1-arrow)"/>
+  <path d="M440 276 C470 276 480 240 510 225" stroke="var(--eg2-amber)" stroke-width="2.5" fill="none" marker-end="url(#eg2-f1-arrow)"/>
+
+  <!-- 출력 공간 -->
+  <path d="M700 190 H740" stroke="var(--eg2-sky)" stroke-width="2.5" fill="none" marker-end="url(#eg2-f1-arrow)"/>
+  <circle cx="815" cy="190" r="68" fill="var(--eg2-violet)" opacity="0.10"/>
+  <circle cx="815" cy="190" r="68" fill="none" stroke="var(--eg2-violet)" stroke-width="2" stroke-dasharray="6 5"/>
+  <circle cx="795" cy="168" r="5" fill="var(--eg2-sky)"/>
+  <circle cx="838" cy="160" r="5" fill="var(--eg2-green)"/>
+  <circle cx="845" cy="215" r="5" fill="var(--eg2-amber)"/>
+  <circle cx="800" cy="215" r="5" fill="var(--eg2-rose)"/>
+  <text x="815" y="285" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">공유 768차원 공간</text>
+
+  <!-- 조합 -->
+  <text x="450" y="345" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">로드 조합별 크기 — 전부 같은 벡터 공간으로 출력</text>
+  <g font-size="13">
+    <rect x="80" y="365" width="170" height="44" rx="9" fill="var(--eg2-sky)" opacity="0.12"/>
+    <text x="165" y="384" text-anchor="middle" font-weight="700" fill="currentColor">270M</text>
+    <text x="165" y="401" text-anchor="middle" fill="var(--eg2-gray)">텍스트 · 코드</text>
+    <rect x="270" y="365" width="170" height="44" rx="9" fill="var(--eg2-green)" opacity="0.12"/>
+    <text x="355" y="384" text-anchor="middle" font-weight="700" fill="currentColor">440M</text>
+    <text x="355" y="401" text-anchor="middle" fill="var(--eg2-gray)">+ 비전</text>
+    <rect x="460" y="365" width="170" height="44" rx="9" fill="var(--eg2-amber)" opacity="0.12"/>
+    <text x="545" y="384" text-anchor="middle" font-weight="700" fill="currentColor">570M</text>
+    <text x="545" y="401" text-anchor="middle" fill="var(--eg2-gray)">+ 오디오</text>
+    <rect x="650" y="365" width="170" height="44" rx="9" fill="var(--eg2-violet)" opacity="0.12"/>
+    <text x="735" y="384" text-anchor="middle" font-weight="700" fill="currentColor">740M</text>
+    <text x="735" y="401" text-anchor="middle" fill="var(--eg2-gray)">풀 멀티모달</text>
+  </g>
+</svg>
+<figcaption>EmbeddingGemma 2의 모듈러 아키텍처. 270M 텍스트 코어에 비전(+170M)·오디오(+300M) 인코더를 필요한 만큼만 붙이고, 어떤 조합이든 같은 768차원 공간으로 출력합니다. 출처: Google 발표 및 모델 카드 기준.</figcaption>
+</figure>
+
+<p>이 설계가 엔지니어링 관점에서 반가운 이유는 <strong>메모리를 쓰는 만큼만 낸다</strong>는 점입니다. 텍스트 검색만 필요한 앱이 오디오 인코더 300M까지 로드할 이유가 없죠. 뒤의 실전 섹션에서 보겠지만, <code>config_kwargs</code>로 안 쓰는 인코더를 끄면 같은 모델 이름으로 270M만 올라갑니다.</p>
+
+<p>컨텍스트 윈도우는 8,192토큰으로, 1세대(2K)의 4배입니다. Google 발표 기준으로 이미지 약 29장, 영상 프레임 58장, 오디오 약 5.5분 분량을 한 번에 넣을 수 있는 길이입니다. 지원 언어는 100개 이상이고(언어별 품질 편차는 있습니다 — 뒤에서 다시), 영상은 별도 인코더가 아니라 프레임을 비전 인코더로 처리하는 방식입니다.</p>
+
+<div class="eg2-note">
+<strong>이름 주의:</strong> 비슷한 시기에 나온 <a href="https://arxiv.org/abs/2605.27295" target="_blank" rel="noopener">Gemini Embedding 2</a>는 다른 물건입니다. 그쪽은 Gemini 기반의 <em>호스티드 API</em> 멀티모달 임베딩이고, EmbeddingGemma 2는 <em>가중치를 받아 직접 돌리는</em> 오픈 모델입니다. 품질 상한은 호스티드 쪽이 높지만, 이 글에서 다루는 온디바이스의 장점(프라이버시·비용·오프라인·벤더 독립)은 오픈 쪽에만 있습니다.
+</div>
+
+<h2 id="sec-4">MRL — 벡터를 마트료시카처럼 잘라 쓰기</h2>
+
+<p>온디바이스 검색의 숨은 비용은 모델이 아니라 <strong>벡터 저장소</strong>입니다. 사진 10만 장을 768차원 float32로 임베딩하면 10만 × 768 × 4바이트 ≈ 300MB. 폰에서는 부담스러운 크기이고, 검색 시 거리 계산량도 차원에 비례해 늘어납니다.</p>
+
+<p>마트료시카 표현 학습(MRL)은 이 문제를 학습 단계에서 풉니다. 훈련할 때 "768차원 전체로도, 앞 512개만으로도, 앞 256개만으로도, 앞 128개만으로도 좋은 임베딩이 되도록" 손실을 동시에 겁니다. 그 결과 벡터의 <strong>앞쪽 차원에 중요한 의미가 농축</strong>되고, 러시아 인형처럼 뒤를 잘라내도 작동하는 벡터가 나옵니다. 잘라낸 뒤 다시 정규화(normalize)만 해 주면 됩니다.</p>
+
+<figure class="eg2-fig">
+<svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MRL 트렁케이션 다이어그램. 위에 768차원 전체 벡터 막대가 있고, 아래로 512, 256, 128차원으로 앞부분만 남기고 잘린 막대가 이어진다. 각 막대 옆에 저장 공간 배수와 품질 유지 수준이 적혀 있다. 128차원에서는 멀티모달 품질이 급락한다는 경고가 붙어 있다.">
+  <text x="450" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">MRL — 뒤를 잘라도 작동하는 벡터</text>
+  <text x="450" y="56" text-anchor="middle" font-size="13" fill="var(--eg2-gray)">앞쪽 차원에 의미가 농축되도록 학습 → 저장소·연산을 차원 수에 비례해 절약</text>
+
+  <!-- 768 -->
+  <rect x="100" y="85" width="640" height="40" rx="8" fill="var(--eg2-sky)" opacity="0.55"/>
+  <text x="120" y="110" font-size="13.5" font-weight="700" fill="#0b1322">768차원 (전체)</text>
+  <text x="770" y="103" font-size="12.5" fill="currentColor">저장 1×</text>
+  <text x="770" y="120" font-size="12" fill="var(--eg2-gray)">기준 품질</text>
+
+  <!-- 512 -->
+  <rect x="100" y="150" width="427" height="40" rx="8" fill="var(--eg2-sky)" opacity="0.42"/>
+  <rect x="527" y="150" width="213" height="40" rx="8" fill="none" stroke="var(--eg2-gray)" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.6"/>
+  <text x="120" y="175" font-size="13.5" font-weight="700" fill="currentColor">512차원</text>
+  <text x="770" y="168" font-size="12.5" fill="currentColor">저장 ⅔×</text>
+  <text x="770" y="185" font-size="12" fill="var(--eg2-gray)">품질 거의 유지</text>
+
+  <!-- 256 -->
+  <rect x="100" y="215" width="213" height="40" rx="8" fill="var(--eg2-sky)" opacity="0.32"/>
+  <rect x="313" y="215" width="427" height="40" rx="8" fill="none" stroke="var(--eg2-gray)" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.6"/>
+  <text x="120" y="240" font-size="13.5" font-weight="700" fill="currentColor">256차원</text>
+  <text x="770" y="233" font-size="12.5" fill="currentColor">저장 ⅓×</text>
+  <text x="770" y="250" font-size="12" fill="var(--eg2-gray)">텍스트 대부분 · 멀티모달 ~95%</text>
+
+  <!-- 128 -->
+  <rect x="100" y="280" width="107" height="40" rx="8" fill="var(--eg2-sky)" opacity="0.25"/>
+  <rect x="207" y="280" width="533" height="40" rx="8" fill="none" stroke="var(--eg2-gray)" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.6"/>
+  <text x="120" y="305" font-size="13.5" font-weight="700" fill="currentColor">128차원</text>
+  <text x="770" y="298" font-size="12.5" fill="currentColor">저장 ⅙×</text>
+  <text x="770" y="315" font-size="12" fill="var(--eg2-rose)">멀티모달 품질 급락 주의</text>
+
+  <text x="450" y="368" text-anchor="middle" font-size="12.5" fill="var(--eg2-gray)">잘라낸 뒤에는 반드시 다시 정규화 — 그리고 인덱스 전체가 같은 차원을 써야 합니다</text>
+</svg>
+<figcaption>MRL 트렁케이션. 768차원 벡터의 앞부분만 남기고 잘라 저장 공간을 최대 6배 아낄 수 있습니다. 256차원까지는 품질이 대부분 유지되지만(이미지·영상·음성 검색 약 95%), 128차원에서는 멀티모달 품질이 크게 떨어집니다. 출처: Google 개발자 가이드.</figcaption>
+</figure>
+
+<p>Google 가이드 기준으로 256차원에서 텍스트·코드 품질은 대부분, 이미지·영상·음성 검색 품질은 약 95%가 유지됩니다. 저장소는 3분의 1로 줄죠. 예전에 다룬 <a href="/posts/embedding-quantization-vector-search/">임베딩 양자화</a>와는 직교하는 기법이라 겹쳐 쓸 수 있습니다 — 차원을 256으로 줄이고 int8로 양자화하면 float32 768차원 대비 저장소가 12분의 1이 됩니다. 온디바이스에서는 이 둘의 조합이 사실상 기본기입니다.</p>
+
+<h2 id="sec-5">숫자 읽기 — 벤치마크와 메모리의 행간</h2>
+
+<p>모델 카드의 주요 숫자를 1세대와 비교하면 이렇습니다(768차원, full precision 기준).</p>
+
+<table class="eg2-table">
+  <thead>
+    <tr><th>항목</th><th>EmbeddingGemma (2025.09)</th><th>EmbeddingGemma 2 (2026.10)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>파라미터</td><td>308M (텍스트 전용)</td><td>270M~740M (모듈러)</td></tr>
+    <tr><td>모달리티</td><td>텍스트</td><td>텍스트·코드·이미지·영상·오디오</td></tr>
+    <tr><td>컨텍스트</td><td>2K 토큰</td><td>8K 토큰</td></tr>
+    <tr><td>MTEB Multilingual v2 (텍스트)</td><td>61.15</td><td>61.36</td></tr>
+    <tr><td>MTEB Code</td><td>68.76</td><td><strong>78.68</strong></td></tr>
+    <tr><td>MIEB lite (이미지)</td><td>—</td><td>64.64</td></tr>
+    <tr><td>MMEB v2 이미지 검색 / 영상 검색</td><td>—</td><td>57.28 / 50.67</td></tr>
+    <tr><td>MSEB 소리 검색 / MAEB 오디오</td><td>—</td><td>69.54 / 49.39</td></tr>
+    <tr><td>RAM (양자화, Pixel 11 Pro 기준)</td><td>&lt;200MB</td><td>~191MB (텍스트만) / ~567MB (풀)</td></tr>
+  </tbody>
+</table>
+
+<p>이 표에서 읽을 행간이 세 가지 있습니다.</p>
+
+<p><strong>첫째, 텍스트 품질은 제자리걸음입니다.</strong> 61.15 → 61.36은 오차 수준입니다. Hugging Face 토론에서도 "V2 = V1 + 멀티모달"이라는 정리가 나왔죠. 이미 1세대로 텍스트 검색을 잘 쓰고 있다면, 멀티모달이나 8K 컨텍스트가 필요하지 않은 한 전량 재임베딩을 감수하며 갈아탈 이유는 약합니다.</p>
+
+<p><strong>둘째, 진짜 상승은 코드와 멀티모달입니다.</strong> 코드 검색은 68.76 → 78.68로 10점 가까이 뛰었습니다. 로컬 코드베이스 검색(<a href="/posts/code-search-coding-agents/">코딩 에이전트의 코드 검색</a>에서 다룬 그 문제)에 쓸 만한 오픈 모델이 생긴 셈입니다. 멀티모달 점수들은 비교 대상인 1세대가 없는 신설 항목이고, Google은 "10억 파라미터 미만 멀티모달 임베더 중 최고, 두 배 큰 전문 모델도 일부 능가"라고 주장합니다 — 다만 발표문과 모델 카드 어디에도 <em>어떤 모델과 비교했는지</em>가 없습니다. 벤더 주장은 자기 워크로드로 검증하기 전까지는 참고 숫자로 두세요. 실제로 HN에는 Google 문서의 분류 예제를 로컬에서 돌렸더니 결과가 좋지 않았다는 보고도 올라왔습니다.</p>
+
+<p><strong>셋째, 메모리 숫자에는 조건이 붙어 있습니다.</strong> 191MB/567MB는 "양자화된 가중치, Pixel 11 Pro" 기준입니다. float32로 풀 모델을 로드하면 가중치만 ~3GB입니다. 노트북에서 bfloat16으로 돌리면 그 절반 수준이고요. "0.5GB로 돌아간다"는 헤드라인은 양자화 빌드(GGUF, LiteRT) 기준이라는 걸 기억하세요. 배포 경로는 1세대처럼 넓습니다 — sentence-transformers, llama.cpp GGUF, Ollama, LiteRT가 출시일부터 지원됩니다.</p>
+
+<h2 id="sec-6">실전 — sentence-transformers로 돌려보기</h2>
+
+<p>노트북에서 바로 해 볼 수 있는 코드입니다. 멀티모달 입력을 쓰려면 sentence-transformers 6.1.0 이상이 필요합니다.</p>
+
+{{< highlight bash >}}
+# 멀티모달 extras 포함 설치 (텍스트만 쓸 거면 extras 생략 가능)
+pip install "sentence-transformers[image,audio,video]>=6.1.0"
+{{< /highlight >}}
+
+<p>먼저 기본인 텍스트 검색입니다. 한 가지 주의 — 임베딩 모델은 <strong>질문과 문서에 서로 다른 프롬프트</strong>를 붙여 학습됩니다. EmbeddingGemma 2에서는 <code>prompt_name</code>으로 지정합니다.</p>
+
+{{< highlight python >}}
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("google/embeddinggemma-2")
+
+query = "지난달 카페에서 쓴 돈 영수증"
+docs = [
+    "2026-09-14 스타벅스 역삼점 아메리카노 외 2건 13,500원",
+    "9월 전기요금 고지서 — 납부 기한 10월 5일",
+    "회의록: 4분기 검색 기능 개선 킥오프",
+]
+
+# 질문은 SearchQuery, 문서는 Document 프롬프트 — 바꿔 끼우면 품질이 떨어집니다
+q_emb = model.encode(query, prompt_name="SearchQuery")
+d_emb = model.encode(docs, prompt_name="Document")
+
+scores = model.similarity(q_emb, d_emb)   # 코사인 유사도
+print(scores)   # 첫 번째 문서가 가장 높게 나와야 정상
+{{< /highlight >}}
+
+<p>다음은 이 모델의 본론인 교차 모달 검색입니다. 이미지를 임베딩해 두면 텍스트 질문으로 바로 찾을 수 있습니다.</p>
+
+{{< highlight python >}}
+from PIL import Image
+
+# 인덱싱 타임: 사진을 임베딩해 로컬 벡터 DB에 저장
+photos = [Image.open(p) for p in ["receipt_0914.jpg", "cat.jpg", "whiteboard.jpg"]]
+photo_embs = model.encode(photos)          # 이미지는 비전 인코더를 거쳐 같은 공간으로
+
+# 쿼리 타임: 텍스트 질문 → 같은 768차원 공간에서 최근접 탐색
+q = model.encode("카페 영수증 사진", prompt_name="SearchQuery")
+print(model.similarity(q, photo_embs))     # 모달리티가 달라도 그냥 비교하면 됩니다
+{{< /highlight >}}
+
+<p>마지막으로 메모리와 저장소를 조이는 운영 설정입니다.</p>
+
+{{< highlight python >}}
+# 1) 텍스트 검색만 필요하면 안 쓰는 인코더를 끄고 로드 — 740M 대신 270M만 올라감
+model = SentenceTransformer(
+    "google/embeddinggemma-2",
+    config_kwargs={"vision_config": None, "audio_config": None},
+)
+
+# 2) MRL: 256차원으로 잘라 저장소 1/3 — 인덱스 전체가 같은 차원을 써야 합니다
+model = SentenceTransformer("google/embeddinggemma-2", truncate_dim=256)
+
+# 3) GPU가 있으면 bfloat16으로 가중치 메모리 절반
+model = SentenceTransformer(
+    "google/embeddinggemma-2",
+    model_kwargs={"torch_dtype": "bfloat16"},
+)
+{{< /highlight >}}
+
+<p>이 부품으로 만들 수 있는 로컬 검색 파이프라인의 전체 모양은 이렇습니다.</p>
+
+<figure class="eg2-fig">
+<svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="온디바이스 검색 파이프라인 다이어그램. 위쪽 인덱싱 타임에는 사진, 음성 메모, 문서, 코드가 EmbeddingGemma 2를 거쳐 256차원으로 잘린 뒤 로컬 벡터 DB에 저장된다. 아래쪽 쿼리 타임에는 텍스트 질문이 같은 모델을 거쳐 벡터 DB에서 최근접 탐색으로 결과를 얻는다. 모든 단계가 기기 안이라는 점선 경계가 전체를 감싸고 있다.">
+  <defs>
+    <marker id="eg2-f3-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--eg2-sky)"/>
+    </marker>
+  </defs>
+  <text x="450" y="30" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">전 구간이 기기 안 — 온디바이스 검색 파이프라인</text>
+
+  <!-- 기기 경계 -->
+  <rect x="25" y="50" width="850" height="350" rx="18" fill="none" stroke="var(--eg2-gray)" stroke-width="2" stroke-dasharray="8 6" opacity="0.6"/>
+  <text x="60" y="78" font-size="12.5" fill="var(--eg2-gray)">📱 기기 경계 — 네트워크로 나가는 데이터 없음</text>
+
+  <!-- 인덱싱 타임 -->
+  <text x="70" y="115" font-size="14" font-weight="700" fill="var(--eg2-green)">인덱싱 타임 (백그라운드)</text>
+  <rect x="60" y="130" width="150" height="80" rx="10" fill="var(--eg2-green)" opacity="0.12"/>
+  <rect x="60" y="130" width="150" height="80" rx="10" fill="none" stroke="var(--eg2-green)" stroke-width="2"/>
+  <text x="135" y="158" text-anchor="middle" font-size="12.5" fill="currentColor">사진 · 음성 메모</text>
+  <text x="135" y="176" text-anchor="middle" font-size="12.5" fill="currentColor">문서 · 코드</text>
+  <text x="135" y="196" text-anchor="middle" font-size="11.5" fill="var(--eg2-gray)">새 파일마다</text>
+
+  <path d="M210 170 H260" stroke="var(--eg2-sky)" stroke-width="2.5" marker-end="url(#eg2-f3-arrow)"/>
+
+  <rect x="260" y="130" width="200" height="80" rx="10" fill="var(--eg2-sky)" opacity="0.12"/>
+  <rect x="260" y="130" width="200" height="80" rx="10" fill="none" stroke="var(--eg2-sky)" stroke-width="2.5"/>
+  <text x="360" y="163" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">EmbeddingGemma 2</text>
+  <text x="360" y="184" text-anchor="middle" font-size="11.5" fill="var(--eg2-gray)">Document 프롬프트</text>
+
+  <path d="M460 170 H510" stroke="var(--eg2-sky)" stroke-width="2.5" marker-end="url(#eg2-f3-arrow)"/>
+
+  <rect x="510" y="130" width="130" height="80" rx="10" fill="var(--eg2-violet)" opacity="0.12"/>
+  <rect x="510" y="130" width="130" height="80" rx="10" fill="none" stroke="var(--eg2-violet)" stroke-width="2"/>
+  <text x="575" y="163" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">MRL 256차원</text>
+  <text x="575" y="184" text-anchor="middle" font-size="11.5" fill="var(--eg2-gray)">+ int8 양자화</text>
+
+  <path d="M640 170 H690" stroke="var(--eg2-sky)" stroke-width="2.5" marker-end="url(#eg2-f3-arrow)"/>
+
+  <rect x="690" y="130" width="150" height="80" rx="10" fill="var(--eg2-amber)" opacity="0.12"/>
+  <rect x="690" y="130" width="150" height="80" rx="10" fill="none" stroke="var(--eg2-amber)" stroke-width="2"/>
+  <text x="765" y="163" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">로컬 벡터 DB</text>
+  <text x="765" y="184" text-anchor="middle" font-size="11.5" fill="var(--eg2-gray)">sqlite-vec 등</text>
+
+  <!-- 쿼리 타임 -->
+  <text x="70" y="265" font-size="14" font-weight="700" fill="var(--eg2-sky)">쿼리 타임 (사용자 입력)</text>
+  <rect x="60" y="280" width="150" height="70" rx="10" fill="var(--eg2-sky)" opacity="0.12"/>
+  <rect x="60" y="280" width="150" height="70" rx="10" fill="none" stroke="var(--eg2-sky)" stroke-width="2"/>
+  <text x="135" y="308" text-anchor="middle" font-size="12.5" fill="currentColor">"카페 영수증"</text>
+  <text x="135" y="328" text-anchor="middle" font-size="11.5" fill="var(--eg2-gray)">텍스트 질문</text>
+
+  <path d="M210 315 H260" stroke="var(--eg2-sky)" stroke-width="2.5" marker-end="url(#eg2-f3-arrow)"/>
+
+  <rect x="260" y="280" width="200" height="70" rx="10" fill="var(--eg2-sky)" opacity="0.12"/>
+  <rect x="260" y="280" width="200" height="70" rx="10" fill="none" stroke="var(--eg2-sky)" stroke-width="2.5"/>
+  <text x="360" y="308" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">같은 모델</text>
+  <text x="360" y="329" text-anchor="middle" font-size="11.5" fill="var(--eg2-gray)">SearchQuery 프롬프트 · 같은 차원</text>
+
+  <path d="M460 315 H565 C600 315 610 240 660 215" stroke="var(--eg2-sky)" stroke-width="2.5" fill="none" marker-end="url(#eg2-f3-arrow)"/>
+  <text x="560" y="340" font-size="11.5" fill="var(--eg2-gray)">최근접 탐색 (kNN/ANN)</text>
+
+  <path d="M765 210 C765 250 700 370 560 375 L300 378" stroke="var(--eg2-green)" stroke-width="2.5" fill="none" marker-end="url(#eg2-f3-arrow)"/>
+  <text x="640" y="392" font-size="12" fill="var(--eg2-green)">결과: 사진·메모·문서 (모달리티 무관)</text>
+</svg>
+<figcaption>온디바이스 검색 파이프라인. 인덱싱과 쿼리가 모두 기기 안에서 끝나므로 데이터가 네트워크로 나가지 않습니다. 양쪽이 같은 모델·같은 차원·올바른 프롬프트를 쓰는 것이 품질의 전제입니다.</figcaption>
+</figure>
+
+<p>인덱스를 RAG로 확장하는 것도 어렵지 않습니다. 검색 결과를 로컬 LLM(<a href="/posts/local-agent-inference-magnitude/">로컬 에이전트 추론</a>에서 다룬 Ollama·Magnitude 같은 스택)에 컨텍스트로 넣으면 완전 오프라인 RAG가 됩니다. 임베딩 모델은 "찾기"까지만 책임진다는 것, 답을 생성하는 건 별도 모델의 일이라는 역할 분담만 기억하세요.</p>
+
+<h2 id="sec-7">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>쿼리/문서 프롬프트를 빼먹지 마세요.</strong> 가장 흔한 품질 사고입니다. <code>prompt_name="SearchQuery"</code>와 <code>"Document"</code>는 장식이 아니라 모델이 그렇게 학습된 입력 형식입니다. 둘 다 생략하거나 바꿔 끼우면 검색 품질이 조용히 떨어집니다 — 에러가 안 나니 더 위험합니다.</li>
+  <li><strong>인덱스의 차원과 모델 설정을 하나로 고정하세요.</strong> MRL로 256차원 인덱스를 만들었다면 쿼리도 256차원으로 잘라야 합니다. 768차원 쿼리 벡터로 256차원 인덱스를 검색하면 차원 불일치로 터지거나(운이 좋은 경우), 코드가 앞 256개만 쓰면서 조용히 잘못된 결과를 줍니다. 모델 이름·차원·프롬프트를 인덱스 메타데이터로 함께 저장해 두는 게 기본기입니다.</li>
+  <li><strong>1세대 벡터와 섞지 마세요.</strong> EmbeddingGemma 1로 만든 벡터와 2로 만든 벡터는 호환되지 않습니다. 같은 768차원이어도 공간이 다릅니다. 갈아탈 거면 전량 재임베딩이고, 그래서 인덱스에 버전을 달아 두는 습관이 중요합니다. 이 비용 때문에 "텍스트 품질이 제자리면 굳이 안 갈아탄다"는 판단도 합리적입니다.</li>
+  <li><strong>128차원은 텍스트 전용이라고 생각하세요.</strong> 256까지는 멀티모달 품질이 약 95% 유지되지만 128에서는 급락합니다. 사진·오디오 검색이 섞인 인덱스라면 256을 하한으로 잡는 게 안전합니다.</li>
+  <li><strong>벤더 벤치마크는 자기 데이터로 재검증하세요.</strong> "두 배 큰 모델도 능가"는 비교 대상이 공개되지 않은 주장이고, 실제로 공식 예제가 로컬에서 재현되지 않았다는 보고도 있었습니다. 여러분의 문서·사진 몇백 개로 작은 검색 평가셋을 만들어 recall@k를 직접 재는 것이 반나절 투자로 가장 확실합니다.</li>
+  <li><strong>한국어 품질은 별도로 확인하세요.</strong> 100개 이상 언어를 지원하지만 Google 스스로 언어별 편차가 있다고 밝혔습니다. 한국어 중심 서비스라면 다국어 평균 점수(61.36)가 아니라 한국어 샘플로 직접 확인한 뒤 결정하세요.</li>
+  <li><strong>용도가 텍스트뿐이면 270M 구성으로 시작하세요.</strong> <code>config_kwargs</code>로 비전·오디오 인코더를 끄면 로드 시간과 메모리가 크게 줄어듭니다. 멀티모달이 필요해지는 시점에 설정만 바꾸면 되고, 텍스트 벡터 공간은 동일하므로 기존 인덱스를 버릴 필요가 없습니다.</li>
+  <li><strong>안전성 튜닝이 없는 모델임을 감안하세요.</strong> 임베딩 모델이라 생성형 리스크는 작지만, 검색 결과의 필터링·권한 처리는 애플리케이션 몫입니다.</li>
+</ul>
+
+<h2 id="sec-8">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>10월 6일 Google이 <strong>EmbeddingGemma 2</strong>를 Apache 2.0으로 공개 — 텍스트·코드·이미지·영상·오디오를 <strong>하나의 768차원 공간</strong>에 넣는 오픈 멀티모달 임베딩 모델입니다. 양자화 기준 폰에서 ~191MB(텍스트만)/~567MB(풀)로 돌아갑니다.</li>
+  <li>구조는 <strong>모듈러</strong>입니다. 270M 텍스트 코어에 비전(+170M)·오디오(+300M) 인코더를 필요한 만큼만 붙이고, 어떤 조합이든 같은 공간으로 출력하므로 <strong>텍스트 질문으로 사진·음성을 찾는 교차 모달 검색</strong>이 그냥 됩니다.</li>
+  <li><strong>MRL</strong>로 벡터를 768→512/256/128차원으로 잘라 저장소를 최대 6배 아낄 수 있습니다. 256이 스위트 스팟이고, 멀티모달 인덱스에서 128은 피하세요. 임베딩 양자화와 겹쳐 쓸 수 있습니다.</li>
+  <li>숫자의 행간: 텍스트 품질은 1세대와 사실상 동일(61.15→61.36), 진짜 상승은 <strong>코드(68.76→78.68)와 멀티모달 신설</strong>입니다. "두 배 큰 모델 능가"는 비교 대상 미공개의 벤더 주장이니 자기 데이터로 recall@k를 재고 결정하세요.</li>
+  <li>실전 수칙: 쿼리/문서 <strong>프롬프트 구분</strong>, 인덱스와 쿼리의 <strong>차원·모델 버전 고정</strong>, 1세대 벡터와 혼용 금지, 한국어 품질 별도 검증. 텍스트만 쓰면 <code>config_kwargs</code>로 270M 구성이 기본값입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://blog.google/innovation-and-ai/technology/developers-tools/embeddinggemma-2/" target="_blank" rel="noopener">Google — EmbeddingGemma 2 공식 발표</a></li>
+  <li><a href="https://developers.googleblog.com/embeddinggemma-2-the-developer-guide/" target="_blank" rel="noopener">Google Developers Blog — EmbeddingGemma 2: The Developer Guide</a></li>
+  <li><a href="https://huggingface.co/google/embeddinggemma-2" target="_blank" rel="noopener">Hugging Face — google/embeddinggemma-2 모델 카드</a></li>
+  <li><a href="https://huggingface.co/google/embeddinggemma-2/discussions/5" target="_blank" rel="noopener">Hugging Face 토론 — "V2 = V1 + multimodal"</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49980487" target="_blank" rel="noopener">Hacker News — EmbeddingGemma 2 스레드</a></li>
+  <li><a href="https://simonwillison.net/2026/Oct/6/hn-49983751/" target="_blank" rel="noopener">Simon Willison — 호스티드 전용 임베딩 모델을 피해야 하는 이유</a></li>
+  <li><a href="https://www.marktechpost.com/2026/10/06/google-deepmind-releases-embeddinggemma-2-a-740m-open-multimodal-embedding-model-built-on-gemma-4/" target="_blank" rel="noopener">MarkTechPost — 740M 멀티모달 임베딩 모델 분석</a></li>
+  <li><a href="https://siliconangle.com/2026/10/06/google-expands-embeddinggemma-beyond-text-to-images-audio-and-video/" target="_blank" rel="noopener">SiliconANGLE — EmbeddingGemma의 멀티모달 확장</a></li>
+  <li><a href="https://the-decoder.com/google-claims-embeddinggemma-2-outperforms-rival-embedding-models-twice-its-size/" target="_blank" rel="noopener">The Decoder — "두 배 큰 모델 능가" 주장 검토</a></li>
+  <li><a href="https://www.heise.de/en/news/EmbeddingGemma-2-Multimodal-search-for-end-devices-11479877.html" target="_blank" rel="noopener">heise — 엔드 디바이스를 위한 멀티모달 검색</a></li>
+  <li><a href="https://cellcog.ai/blog/embeddinggemma-2/" target="_blank" rel="noopener">CellCog — 벤치마크·스펙·실행 가이드 (차원별 점수표)</a></li>
+  <li><a href="https://dev.to/sdx_development/embeddinggemma-2-building-local-multimodal-rag-with-python-3l4k" target="_blank" rel="noopener">DEV Community — Python으로 로컬 멀티모달 RAG 만들기</a></li>
+  <li><a href="https://arxiv.org/abs/2509.20354" target="_blank" rel="noopener">arXiv:2509.20354 — EmbeddingGemma (1세대) 논문</a></li>
+  <li><a href="https://arxiv.org/abs/2605.27295" target="_blank" rel="noopener">arXiv:2605.27295 — Gemini Embedding 2 (호스티드 쪽, 혼동 주의)</a></li>
+  <li><a href="https://github.com/allenv0/SCM" target="_blank" rel="noopener">GitHub — SCM: macOS 로컬 사진·영상 AI 검색 (같은 주 HN 트렌딩)</a></li>
+  <li>관련 포스트(내부): <a href="/posts/embedding-quantization-vector-search/">임베딩 양자화와 벡터 검색</a> · <a href="/posts/rag-chunking-contextual-late-chunking/">RAG 청킹</a> · <a href="/posts/reranking-two-stage-retrieval/">리랭킹과 2단계 검색</a> · <a href="/posts/late-interaction-retrieval-colbert/">레이트 인터랙션 검색</a> · <a href="/posts/local-agent-inference-magnitude/">로컬 에이전트 추론</a></li>
+</ul>

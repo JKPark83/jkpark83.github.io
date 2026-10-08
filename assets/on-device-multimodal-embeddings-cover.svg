@@ -1,0 +1,62 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽에 텍스트, 코드, 이미지, 영상, 오디오 다섯 입력 칩이 있고, 가운데 폰 모양 안의 EmbeddingGemma 2를 거쳐 오른쪽 하나의 768차원 공유 벡터 공간으로 모이는 구도의 표지. 아래에 '폰 한 대 RAM 0.5GB로 돌아가는 멀티모달 임베딩'이라는 문구가 있다.">
+  <defs>
+    <linearGradient id="eg2bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1a2b"/>
+      <stop offset="1" stop-color="#1c2135"/>
+    </linearGradient>
+    <marker id="eg2c-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#eg2bg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">검색의 바탕이 폰 안으로 들어왔다</text>
+  <text x="600" y="124" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24">EmbeddingGemma 2로 배우는 온디바이스 멀티모달 임베딩</text>
+
+  <g font-family="system-ui,sans-serif">
+    <!-- 입력 모달리티 칩 -->
+    <g font-size="22" font-weight="700">
+      <rect x="80" y="190" width="170" height="54" rx="12" fill="#38bdf8" opacity="0.15"/>
+      <rect x="80" y="190" width="170" height="54" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+      <text x="165" y="224" text-anchor="middle" fill="#bae6fd">텍스트</text>
+
+      <rect x="80" y="258" width="170" height="54" rx="12" fill="#a78bfa" opacity="0.15"/>
+      <rect x="80" y="258" width="170" height="54" rx="12" fill="none" stroke="#a78bfa" stroke-width="2.5"/>
+      <text x="165" y="292" text-anchor="middle" fill="#ddd6fe">코드</text>
+
+      <rect x="80" y="326" width="170" height="54" rx="12" fill="#4ade80" opacity="0.15"/>
+      <rect x="80" y="326" width="170" height="54" rx="12" fill="none" stroke="#4ade80" stroke-width="2.5"/>
+      <text x="165" y="360" text-anchor="middle" fill="#bbf7d0">이미지 · 영상</text>
+
+      <rect x="80" y="394" width="170" height="54" rx="12" fill="#fbbf24" opacity="0.15"/>
+      <rect x="80" y="394" width="170" height="54" rx="12" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+      <text x="165" y="428" text-anchor="middle" fill="#fde68a">오디오</text>
+    </g>
+
+    <path d="M250 217 C340 217 340 320 420 320" stroke="#38bdf8" stroke-width="2.5" fill="none" marker-end="url(#eg2c-arrow)"/>
+    <path d="M250 285 C330 285 330 320 420 320" stroke="#a78bfa" stroke-width="2.5" fill="none" marker-end="url(#eg2c-arrow)"/>
+    <path d="M250 353 C330 353 330 325 420 325" stroke="#4ade80" stroke-width="2.5" fill="none" marker-end="url(#eg2c-arrow)"/>
+    <path d="M250 421 C340 421 340 330 420 330" stroke="#fbbf24" stroke-width="2.5" fill="none" marker-end="url(#eg2c-arrow)"/>
+
+    <!-- 폰 + 모델 -->
+    <rect x="440" y="180" width="300" height="300" rx="28" fill="#0b1322" stroke="#64748b" stroke-width="3"/>
+    <rect x="560" y="196" width="60" height="8" rx="4" fill="#334155"/>
+    <text x="590" y="300" text-anchor="middle" fill="#e2e8f0" font-size="27" font-weight="800">EmbeddingGemma 2</text>
+    <text x="590" y="338" text-anchor="middle" fill="#94a3b8" font-size="21">740M · Apache 2.0</text>
+    <text x="590" y="372" text-anchor="middle" fill="#94a3b8" font-size="21">RAM ~0.5GB · 오프라인</text>
+
+    <path d="M740 330 H830" stroke="#38bdf8" stroke-width="3" marker-end="url(#eg2c-arrow)"/>
+
+    <!-- 공유 벡터 공간 -->
+    <circle cx="975" cy="330" r="118" fill="#38bdf8" opacity="0.10"/>
+    <circle cx="975" cy="330" r="118" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-dasharray="7 6"/>
+    <circle cx="935" cy="295" r="8" fill="#38bdf8"/>
+    <circle cx="1010" cy="283" r="8" fill="#a78bfa"/>
+    <circle cx="1022" cy="356" r="8" fill="#4ade80"/>
+    <circle cx="940" cy="372" r="8" fill="#fbbf24"/>
+    <circle cx="978" cy="330" r="8" fill="#fb7185"/>
+    <text x="975" y="482" text-anchor="middle" fill="#bae6fd" font-size="22" font-weight="700">공유 768차원 벡터 공간</text>
+  </g>
+
+  <text x="600" y="580" text-anchor="middle" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="25">말 · 글 · 사진 · 소리를 한 공간에 — 폰 한 대 RAM 0.5GB로</text>
+</svg>

@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OpenAI 연환산 매출이 알려진 것보다 200억달러 적다는 FT 보도에 나스닥이 1.25% 하락하고, 비트코인은 무효화 선 8만2,500달러를 종가로 내주며 이 브리핑의 암호화폐 판단이 매도로 전환된 금요일 아침 브리핑 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.10.09 · 나스닥 &amp; 비트코인 5분 요약 · 금요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">AI 매출 서사에 금이 가고, 무효화 선이 깨졌습니다 — 암호화폐 매도 전환</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">나스닥 — AI 서사 흔들림</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">-1.25%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">OpenAI 매출 보도</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">공포 38~41</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">중립 사흘 만에 반납</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">비트코인 — 무효화 선 붕괴</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#f59e0b" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#fbbf24">$82.5K 붕괴</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">저점 80,496달러</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">ETF -4.9억</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">달러 · 6월 이후 최대</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="20" fill="#94a3b8">오늘의 포지션 — 나스닥: 관망 · 암호화폐: 매도 전환 · 8만5,000달러 회복이 복귀 조건</text>
+  <text x="80" y="594" font-family="sans-serif" font-size="15" fill="#64748b">본 콘텐츠는 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

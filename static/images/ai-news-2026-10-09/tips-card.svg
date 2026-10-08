@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">오늘의 실전 팁 — 하니스 신뢰성 두 가지</text>
+
+  <!-- Codex 카드 -->
+  <rect x="30" y="55" width="360" height="300" rx="12" fill="#eefbf2" stroke="#34a765" stroke-width="1.5"/>
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#15803d">🟩 Codex — 읽기 전용 도구 병렬화</text>
+
+  <text x="50" y="112" font-size="12.5" font-weight="700" fill="#555">이전</text>
+  <rect x="50" y="122" width="320" height="56" rx="8" fill="#ffffff" stroke="#ccc"/>
+  <text x="66" y="145" font-size="12" fill="#333">스킬 읽기 → 메모리 검색 → 히스토리 검색</text>
+  <text x="66" y="165" font-size="12" fill="#c2410c">독립적인 읽기도 스케줄러 락으로 직렬 실행</text>
+
+  <text x="50" y="206" font-size="12.5" font-weight="700" fill="#555">10/8 커밋 이후</text>
+  <rect x="50" y="216" width="320" height="76" rx="8" fill="#ffffff" stroke="#34a765"/>
+  <text x="66" y="239" font-size="12" fill="#333">스킬·메모리·히스토리·플러그인·에이전트 목록</text>
+  <text x="66" y="258" font-size="12" fill="#333">읽기가 모두 동시 실행</text>
+  <text x="66" y="280" font-size="12" fill="#15803d">goal 생성·수정은 여전히 직렬 (안전)</text>
+
+  <text x="50" y="325" font-size="12" fill="#666">→ 스킬·메모리 무거운 세션의 턴 지연 감소</text>
+  <text x="50" y="344" font-size="11.5" fill="#888">출처: openai/codex #52245 (클론 확인)</text>
+
+  <!-- Claude Code 카드 -->
+  <rect x="410" y="55" width="360" height="300" rx="12" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1d4ed8">🟦 Claude Code — 훅 fail-closed</text>
+
+  <text x="430" y="112" font-size="12.5" font-weight="700" fill="#555">이전 (fail-open)</text>
+  <rect x="430" y="122" width="320" height="56" rx="8" fill="#ffffff" stroke="#ccc"/>
+  <text x="446" y="145" font-size="12" fill="#333">가드 훅이 시작 실패·타임아웃으로 죽으면</text>
+  <text x="446" y="165" font-size="12" fill="#c2410c">검사 없이 액션이 그대로 통과</text>
+
+  <text x="430" y="206" font-size="12.5" font-weight="700" fill="#555">2.1.295 — onFailure: "block"</text>
+  <rect x="430" y="216" width="320" height="76" rx="8" fill="#ffffff" stroke="#3b6fd4"/>
+  <text x="446" y="239" font-size="12" fill="#333">훅이 실행 불가·타임아웃·예상 외 종료코드면</text>
+  <text x="446" y="258" font-size="12" fill="#333">해당 액션 자체를 차단</text>
+  <text x="446" y="280" font-size="12" fill="#1d4ed8">보안 가드 훅은 이제 fail-closed로 설계 가능</text>
+
+  <text x="430" y="325" font-size="12" fill="#666">→ "훅이 죽으면 뚫린다" 구멍이 옵션으로 닫힘</text>
+  <text x="430" y="344" font-size="11.5" fill="#888">출처: claude-code v2.1.295 CHANGELOG (클론 확인)</text>
+</svg>

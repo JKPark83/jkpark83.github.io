@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="440" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-09</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="55" width="360" height="160" rx="12" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="50" y="82" font-size="15" font-weight="700" fill="#1d4ed8">🤖 모델</text>
+  <text x="50" y="108" font-size="13.5" font-weight="700" fill="#111">GPT-6, ChatGPT 전면 배치 (10/7~8)</text>
+  <text x="50" y="130" font-size="12.5" fill="#333">유료 → Sol · 무료/Go → Luna · Pro effort → Astra</text>
+  <text x="50" y="150" font-size="12.5" fill="#333">Intelligent UI: 모델이 응답 형식을 선택</text>
+  <text x="50" y="170" font-size="12.5" fill="#333">GPT-5.5는 10/14 중단 예고 (보도)</text>
+  <text x="50" y="195" font-size="12" fill="#666">→ "텍스트 답변"에서 "생성형 인터페이스"로</text>
+
+  <!-- 연구 -->
+  <rect x="410" y="55" width="360" height="160" rx="12" fill="#f3efff" stroke="#7c5cd4" stroke-width="1.5"/>
+  <text x="430" y="82" font-size="15" font-weight="700" fill="#6d28d9">📚 연구</text>
+  <text x="430" y="108" font-size="13.5" font-weight="700" fill="#111">DecepEval (2610.07967)</text>
+  <text x="430" y="128" font-size="12.5" fill="#333">압박·인센티브가 에이전트 기만을 유발하는 조건 측정</text>
+  <text x="430" y="152" font-size="13.5" font-weight="700" fill="#111">Agentic RAG 평가 예산 (2610.05034)</text>
+  <text x="430" y="172" font-size="12.5" fill="#333">반복 실행보다 질문 커버리지가 통계적으로 이득</text>
+  <text x="430" y="195" font-size="12" fill="#666">→ 평가 설계 자체가 엔지니어링 대상</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="235" width="360" height="160" rx="12" fill="#eefbf2" stroke="#34a765" stroke-width="1.5"/>
+  <text x="50" y="262" font-size="15" font-weight="700" fill="#15803d">🛠 오픈소스</text>
+  <text x="50" y="288" font-size="13.5" font-weight="700" fill="#111">nanoMuse</text>
+  <text x="50" y="308" font-size="12.5" fill="#333">Meta Muse의 오픈 카운터파트 · 기기마다 한 에이전트</text>
+  <text x="50" y="332" font-size="13.5" font-weight="700" fill="#111">NVIDIA OpenShell 0.1.x</text>
+  <text x="50" y="352" font-size="12.5" fill="#333">에이전트 플릿용 커널 레벨 정책 집행 런타임</text>
+  <text x="50" y="375" font-size="12" fill="#666">→ 개인 에이전트와 그 감옥이 같은 날 트렌딩</text>
+
+  <!-- 툴링 -->
+  <rect x="410" y="235" width="360" height="160" rx="12" fill="#fff4ec" stroke="#d97742" stroke-width="1.5"/>
+  <text x="430" y="262" font-size="15" font-weight="700" fill="#c2410c">🧑‍💻 툴링</text>
+  <text x="430" y="288" font-size="13.5" font-weight="700" fill="#111">Claude Code 2.1.295</text>
+  <text x="430" y="308" font-size="12.5" fill="#333">훅 onFailure: "block" — 가드 훅이 fail-closed로</text>
+  <text x="430" y="332" font-size="13.5" font-weight="700" fill="#111">Codex: 읽기 전용 도구 병렬화</text>
+  <text x="430" y="352" font-size="12.5" fill="#333">스킬·메모리·히스토리 읽기가 락 없이 동시 실행</text>
+  <text x="430" y="375" font-size="12" fill="#666">→ 양쪽 다 "하니스 신뢰성" 업데이트</text>
+</svg>

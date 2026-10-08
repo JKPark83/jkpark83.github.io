@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="470" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">GPT-6의 ChatGPT 배치 구조 — 어느 플랜에 어떤 모델이 가나</text>
+
+  <!-- 플랜 열 -->
+  <text x="140" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="#666">ChatGPT 플랜</text>
+  <rect x="40" y="80" width="200" height="52" rx="10" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="140" y="102" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">Plus · Pro · Business · Ent</text>
+  <text x="140" y="121" text-anchor="middle" font-size="12" fill="#555">10/7부터</text>
+
+  <rect x="40" y="146" width="200" height="52" rx="10" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="140" y="168" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">Free · Go</text>
+  <text x="140" y="187" text-anchor="middle" font-size="12" fill="#555">10/8부터</text>
+
+  <rect x="40" y="212" width="200" height="52" rx="10" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.5"/>
+  <text x="140" y="234" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">Pro effort 설정</text>
+  <text x="140" y="253" text-anchor="middle" font-size="12" fill="#555">최고 성능 모드</text>
+
+  <!-- 화살표 -->
+  <line x1="240" y1="106" x2="320" y2="106" stroke="#999" stroke-width="1.5"/>
+  <line x1="240" y1="172" x2="320" y2="172" stroke="#999" stroke-width="1.5"/>
+  <line x1="240" y1="238" x2="320" y2="238" stroke="#999" stroke-width="1.5"/>
+  <polygon points="320,106 312,102 312,110" fill="#999"/>
+  <polygon points="320,172 312,168 312,176" fill="#999"/>
+  <polygon points="320,238 312,234 312,242" fill="#999"/>
+
+  <!-- 모델 열 -->
+  <text x="430" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="#666">모델 (API 단가, 1M 토큰)</text>
+  <rect x="330" y="80" width="200" height="52" rx="10" fill="#eefbf2" stroke="#34a765" stroke-width="1.5"/>
+  <text x="430" y="102" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">GPT-6 Sol</text>
+  <text x="430" y="121" text-anchor="middle" font-size="12" fill="#555">$2 / $10</text>
+
+  <rect x="330" y="146" width="200" height="52" rx="10" fill="#eefbf2" stroke="#34a765" stroke-width="1.5"/>
+  <text x="430" y="168" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">GPT-6 Luna</text>
+  <text x="430" y="187" text-anchor="middle" font-size="12" fill="#555">$0.10 / $0.50</text>
+
+  <rect x="330" y="212" width="200" height="52" rx="10" fill="#fff4ec" stroke="#d97742" stroke-width="1.5"/>
+  <text x="430" y="234" text-anchor="middle" font-size="13.5" font-weight="700" fill="#111">GPT-6 Astra</text>
+  <text x="430" y="253" text-anchor="middle" font-size="12" fill="#555">$10 / $50 · Intelligent UI 미지원</text>
+
+  <!-- Intelligent UI 박스 -->
+  <rect x="560" y="80" width="210" height="184" rx="10" fill="#f3efff" stroke="#7c5cd4" stroke-width="1.5"/>
+  <text x="665" y="104" text-anchor="middle" font-size="13.5" font-weight="700" fill="#6d28d9">Intelligent UI</text>
+  <text x="575" y="128" font-size="12" fill="#333">· 모델이 응답 형식을 선택:</text>
+  <text x="585" y="146" font-size="12" fill="#333">다이어그램·차트·폼·버튼</text>
+  <text x="575" y="168" font-size="12" fill="#333">· 네이티브 컴포넌트 + 컴파일러</text>
+  <text x="575" y="190" font-size="12" fill="#333">· 현재 웹앱 한정</text>
+  <text x="585" y="208" font-size="12" fill="#333">(구 데스크톱 앱 미지원)</text>
+  <text x="575" y="230" font-size="12" fill="#333">· 별도 사용 쿼터 없음</text>
+  <text x="575" y="252" font-size="12" fill="#666">Sol · Luna에서 동작</text>
+
+  <!-- 타임라인 -->
+  <line x1="60" y1="360" x2="740" y2="360" stroke="#bbb" stroke-width="2"/>
+  <circle cx="150" cy="360" r="6" fill="#3b6fd4"/>
+  <text x="150" y="340" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d4ed8">10/7</text>
+  <text x="150" y="385" text-anchor="middle" font-size="12" fill="#333">유료 플랜에 GPT-6</text>
+  <circle cx="400" cy="360" r="6" fill="#34a765"/>
+  <text x="400" y="340" text-anchor="middle" font-size="12.5" font-weight="700" fill="#15803d">10/8</text>
+  <text x="400" y="385" text-anchor="middle" font-size="12" fill="#333">Free·Go까지 확대</text>
+  <circle cx="650" cy="360" r="6" fill="#d97742"/>
+  <text x="650" y="340" text-anchor="middle" font-size="12.5" font-weight="700" fill="#c2410c">10/14</text>
+  <text x="650" y="385" text-anchor="middle" font-size="12" fill="#333">GPT-5.5 중단 예고 (보도)</text>
+  <text x="650" y="403" text-anchor="middle" font-size="11.5" fill="#666">ChatGPT · Work · Codex</text>
+
+  <text x="400" y="445" text-anchor="middle" font-size="11.5" fill="#888">출처: OpenAI 발표에 대한 다수 보도 교차 확인 (2026-10-08) · API 단가는 9월 출시 시점 공개치</text>
+</svg>

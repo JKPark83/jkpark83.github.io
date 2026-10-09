@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="금요일 미 증시가 저가 매수 반등으로 한 주를 상승 마감했지만 엔비디아는 반등에서 소외됐고, 비트코인은 8만2,500달러 안팎에서 멈춰 선 가운데 ETF 유출이 이어져 이 브리핑의 암호화폐 매도 판단이 유지된 토요일 아침 브리핑 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.10.10 · 나스닥 &amp; 비트코인 5분 요약 · 토요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">저가 매수는 돌아왔는데, 엔비디아는 빠졌습니다 — 매도 유지</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">나스닥 — 하루 만의 반등</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#4ade80">+0.64%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#bbf7d0">3대 지수 주간 상승</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.14"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">NVDA -0.4%</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">반등에서 소외</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">비트코인 — 멈춰 선 하락</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.18"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">$82.5K</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">83K 저항 공방</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">ETF -2.4억</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">달러 · 이틀째 유출</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="20" fill="#94a3b8">오늘의 포지션 — 나스닥: 관망 · 암호화폐: 매도 유지 · 해제 조건은 8만5,000달러 회복 + 자금 유입 전환</text>
+  <text x="80" y="594" font-family="sans-serif" font-size="15" fill="#64748b">본 콘텐츠는 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

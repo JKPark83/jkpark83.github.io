@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="430" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-10</text>
+
+  <!-- 중앙 허브 -->
+  <circle cx="400" cy="230" r="46" fill="#1a1a2e"/>
+  <text x="400" y="224" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">에이전트</text>
+  <text x="400" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">빌더</text>
+
+  <!-- 연결선 -->
+  <line x1="400" y1="184" x2="205" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="184" x2="595" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="205" y2="330" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="595" y2="330" stroke="#bbb" stroke-width="1.5"/>
+
+  <!-- 모델/사이언스 -->
+  <rect x="30" y="60" width="350" height="115" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="50" y="86" font-size="14" font-weight="700" fill="#b5431a">🔬 에이전틱 사이언스 논란</text>
+  <text x="50" y="110" font-size="12" fill="#333">Anthropic "Claude 주도" CRISPR 유사 시스템 발견</text>
+  <text x="50" y="129" font-size="12" fill="#333">에이전트 ~950개 × 21시간, 단백질 클러스터 19억 개 탐색</text>
+  <text x="50" y="151" font-size="12" fill="#b5431a">과학계: "검증 전까지는 브레이크스루 아님"</text>
+
+  <!-- 논문 -->
+  <rect x="420" y="60" width="350" height="115" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="440" y="86" font-size="14" font-weight="700" fill="#1d4ed8">📚 논문</text>
+  <text x="440" y="110" font-size="12" fill="#333">Skill Constellations: SKILL.md 복사 공급망 219만 건</text>
+  <text x="440" y="129" font-size="12" fill="#333">Learn2Play: 경험 학습, 요약보다 원본 기록이 유리</text>
+  <text x="440" y="151" font-size="12" fill="#1d4ed8">스타 수로는 감사 대상을 못 찾는다</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="350" height="115" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="311" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="50" y="335" font-size="12" fill="#333">REA 6.2: 리버스 엔지니어링 MCP, 브레이킹 릴리즈</text>
+  <text x="50" y="354" font-size="12" fill="#333">Webcmd: 사이트를 '학습'하는 브라우저 인프라</text>
+  <text x="50" y="376" font-size="12" fill="#047857">둘 다 CC·Codex용 스킬 동봉</text>
+
+  <!-- 툴링 -->
+  <rect x="420" y="285" width="350" height="115" rx="12" fill="#f3efff" stroke="#6250d6" stroke-width="1.5"/>
+  <text x="440" y="311" font-size="14" font-weight="700" fill="#5b21b6">🧑‍💻 툴링</text>
+  <text x="440" y="335" font-size="12" fill="#333">CC 2.1.296: 서브에이전트 autoCompactWindow</text>
+  <text x="440" y="354" font-size="12" fill="#333">Codex: subagent_default_context_limits 플래그</text>
+  <text x="440" y="376" font-size="12" fill="#5b21b6">양쪽 모두 '서브에이전트 컨텍스트'를 분리 제어</text>
+</svg>

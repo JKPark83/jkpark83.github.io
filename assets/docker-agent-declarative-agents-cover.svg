@@ -1,0 +1,63 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽에 agent.yaml 파일 카드가 있고, 가운데 docker agent run 명령을 거쳐 오른쪽 OCI 레지스트리로 push·pull 화살표가 오가는 구도의 표지. 아래에 '에이전트를 이미지처럼 push하고 pull한다'는 문구가 있다.">
+  <defs>
+    <linearGradient id="dabg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1a2b"/>
+      <stop offset="1" stop-color="#1c2135"/>
+    </linearGradient>
+    <marker id="dac-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="dac-arrow-g" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#4ade80"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="630" fill="url(#dabg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="42" font-weight="800">에이전트를 docker run 하는 시대</text>
+  <text x="600" y="124" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="24">Docker Agent로 배우는 선언적 에이전트 엔지니어링</text>
+
+  <g font-family="system-ui,sans-serif">
+    <!-- agent.yaml 카드 -->
+    <rect x="90" y="200" width="300" height="250" rx="16" fill="#38bdf8" opacity="0.10"/>
+    <rect x="90" y="200" width="300" height="250" rx="16" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+    <rect x="90" y="200" width="300" height="46" rx="16" fill="#38bdf8" opacity="0.18"/>
+    <text x="240" y="231" text-anchor="middle" fill="#bae6fd" font-size="22" font-weight="700">agent.yaml</text>
+    <g font-family="ui-monospace,monospace" font-size="17" fill="#cbd5e1">
+      <text x="115" y="285">agents:</text>
+      <text x="115" y="313">&#160;&#160;root:</text>
+      <text x="115" y="341">&#160;&#160;&#160;&#160;model: ...</text>
+      <text x="115" y="369">&#160;&#160;&#160;&#160;instruction: ...</text>
+      <text x="115" y="397">&#160;&#160;&#160;&#160;toolsets: [mcp]</text>
+      <text x="115" y="425">&#160;&#160;&#160;&#160;sub_agents: [...]</text>
+    </g>
+
+    <!-- 가운데 run 박스 -->
+    <path d="M400 325 H470" stroke="#38bdf8" stroke-width="3" fill="none" marker-end="url(#dac-arrow)"/>
+    <rect x="482" y="280" width="246" height="90" rx="14" fill="#a78bfa" opacity="0.13"/>
+    <rect x="482" y="280" width="246" height="90" rx="14" fill="none" stroke="#a78bfa" stroke-width="2.5"/>
+    <text x="605" y="318" text-anchor="middle" fill="#ddd6fe" font-size="21" font-weight="700" font-family="ui-monospace,monospace">docker agent run</text>
+    <text x="605" y="348" text-anchor="middle" fill="#94a3b8" font-size="16">멀티에이전트 런타임</text>
+
+    <!-- 레지스트리 -->
+    <path d="M738 305 H810" stroke="#4ade80" stroke-width="3" fill="none" marker-end="url(#dac-arrow-g)"/>
+    <text x="774" y="292" text-anchor="middle" fill="#4ade80" font-size="15" font-family="ui-monospace,monospace">push</text>
+    <path d="M810 345 H738" stroke="#4ade80" stroke-width="3" fill="none" marker-end="url(#dac-arrow-g)"/>
+    <text x="774" y="374" text-anchor="middle" fill="#4ade80" font-size="15" font-family="ui-monospace,monospace">pull</text>
+
+    <g>
+      <rect x="822" y="208" width="290" height="70" rx="12" fill="#4ade80" opacity="0.10"/>
+      <rect x="822" y="208" width="290" height="70" rx="12" fill="none" stroke="#4ade80" stroke-width="2"/>
+      <text x="967" y="251" text-anchor="middle" fill="#bbf7d0" font-size="19" font-weight="700">OCI 레지스트리</text>
+      <rect x="822" y="292" width="290" height="60" rx="12" fill="#4ade80" opacity="0.07"/>
+      <rect x="822" y="292" width="290" height="60" rx="12" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="967" y="329" text-anchor="middle" fill="#86efac" font-size="16" font-family="ui-monospace,monospace">myorg/agent:v1</text>
+      <rect x="822" y="366" width="290" height="60" rx="12" fill="#4ade80" opacity="0.07"/>
+      <rect x="822" y="366" width="290" height="60" rx="12" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="967" y="403" text-anchor="middle" fill="#86efac" font-size="16" font-family="ui-monospace,monospace">myorg/agent@sha256:…</text>
+    </g>
+
+    <!-- 하단 문구 -->
+    <text x="600" y="530" text-anchor="middle" fill="#e2e8f0" font-size="26" font-weight="700">에이전트를 이미지처럼 push하고 pull한다</text>
+    <text x="600" y="566" text-anchor="middle" fill="#94a3b8" font-size="19">YAML 한 장 = 모델 + instruction + 도구 + 팀 구조</text>
+  </g>
+</svg>

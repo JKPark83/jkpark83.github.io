@@ -1,0 +1,457 @@
+---
+title: "에이전트를 docker run 하는 시대 — Docker Agent로 배우는 선언적 에이전트 엔지니어링"
+date: 2026-10-10T07:30:00+09:00
+draft: false
+tags: ["AI", "Docker Agent", "docker-agent", "cagent", "에이전트", "agent", "멀티에이전트", "multi-agent", "MCP", "OCI", "YAML", "선언적 설정", "handoff", "sub-agents", "에이전트 배포", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 Docker Engineering의 오픈소스 에이전트 런타임 docker-agent가 HN 프런트페이지에 이틀 연속 올랐습니다. 에이전트를 Python 코드가 아니라 YAML 한 장으로 정의하고, docker agent run으로 돌리고, 컨테이너 이미지처럼 OCI 레지스트리에 push·pull하는 물건인데요 — '에이전트 = 코드'라는 전제를 '에이전트 = 아티팩트'로 뒤집으면 뭐가 달라지는지, 선언적 정의·멀티에이전트 두 가지 패턴(delegation vs handoffs)·OCI 배포와 digest 고정까지 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "docker-agent-declarative-agents-cover.svg"
+  alt: "agent.yaml 파일이 docker agent run 런타임을 거쳐 OCI 레지스트리로 push·pull되는 구조를 그린 표지"
+  caption: "에이전트를 이미지처럼 push하고 pull한다 — Docker가 에이전트 배포 문제를 자기 방식으로 풀었습니다."
+  relative: false
+---
+
+<style>
+/* ── Docker Agent 포스트 전용 스타일 (da- 접두사) ── */
+.da-fig{
+  --da-green:#16a34a; --da-rose:#e11d48; --da-amber:#d97706; --da-sky:#0284c7;
+  --da-violet:#7c3aed; --da-slate:#64748b; --da-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .da-fig{
+  --da-green:#4ade80; --da-rose:#fb7185; --da-amber:#fbbf24; --da-sky:#38bdf8;
+  --da-violet:#a78bfa; --da-slate:#94a3b8; --da-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .da-fig{
+    --da-green:#4ade80; --da-rose:#fb7185; --da-amber:#fbbf24; --da-sky:#38bdf8;
+    --da-violet:#a78bfa; --da-slate:#94a3b8; --da-gray:#64748b;
+  }
+}
+.da-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.da-fig text{font-family:inherit}
+.da-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.da-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.da-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.da-toc ol{margin:0;padding-left:1.25rem}
+.da-toc li{margin:.22rem 0;font-size:.95rem}
+.da-toc a{text-decoration:none}
+.da-toc a:hover{text-decoration:underline}
+.da-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.da-table th,.da-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.da-table th{background:var(--entry)}
+.da-note{border-left:4px solid var(--da-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.da-warn{border-left:4px solid var(--da-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="da-toc">
+  <div class="da-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 에이전트는 잘 만드는데, 왜 전달이 안 될까</a></li>
+    <li><a href="#sec-2">배경 — 에이전트의 최소 해부도와 cagent 계보</a></li>
+    <li><a href="#sec-3">선언적 정의 — YAML 한 장이 에이전트가 되기까지</a></li>
+    <li><a href="#sec-4">멀티에이전트 — delegation과 handoff, 두 가지 배선</a></li>
+    <li><a href="#sec-5">배포 — 에이전트를 OCI 아티팩트로 push·pull하기</a></li>
+    <li><a href="#sec-6">실전 — 코드 리뷰 미니팀을 직접 만들어 보기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 에이전트는 잘 만드는데, 왜 전달이 안 될까</h2>
+
+<p>팀 동료가 쓸 만한 에이전트를 하나 만들었다고 해 봅시다. GitHub 이슈를 정리해 주는 에이전트인데, 옆자리 동료에게 건네주려는 순간 익숙한 체크리스트가 시작됩니다. "저장소 clone 받고, Python 3.11 이상 맞추고, <code>venv</code> 만들고, 의존성 설치하고, <code>.env</code> 만들고…" 에이전트의 본질은 시스템 프롬프트 몇 줄과 도구 목록인데, 전달되는 건 프레임워크와 의존성 더미입니다. 받아 가는 쪽 입장에서는 앱 하나 쓰려고 빌드 환경을 통째로 복제하는 셈이죠.</p>
+
+<p>어디서 많이 본 문제 아닌가요? 10여 년 전 "제 컴퓨터에서는 되는데요"를 끝낸 해법이 컨테이너였습니다. 그리고 이번 주, Docker가 같은 해법을 에이전트에 적용한 <a href="https://github.com/docker/docker-agent" target="_blank" rel="noopener">docker-agent</a>로 Hacker News 프런트페이지에 이틀 연속 올랐습니다(10월 7일 등판 후 집계 기준 약 300포인트, 댓글 130개 이상). Docker Engineering이 만든 오픈소스(Apache 2.0) 에이전트 빌더 겸 런타임으로, <code>docker</code> CLI 플러그인이라 <code>docker agent run</code>으로 실행합니다. Docker Desktop 4.63 이상에는 아예 기본 탑재돼 있어서, Docker를 쓰는 개발자라면 설치 과정조차 없습니다.</p>
+
+<p>핵심 아이디어는 한 문장입니다. <strong>에이전트를 코드가 아니라 아티팩트(artifact)로 취급한다.</strong> YAML 한 장으로 정의하고, 컨테이너 이미지처럼 OCI 레지스트리에 push하고, 다른 머신에서 pull해서 그대로 돌립니다. 이 글에서는 이 관점 전환이 에이전트 엔지니어링에서 무엇을 바꾸는지 — 선언적 정의, 멀티에이전트 배선 두 가지 패턴, 그리고 배포 — 를 하나씩 뜯어봅니다.</p>
+
+<h2 id="sec-2">배경 — 에이전트의 최소 해부도와 cagent 계보</h2>
+
+<p>따라오는 데 필요한 최소 지식부터 정리합니다. 에이전트(agent)는 결국 루프입니다. 모델이 응답을 생성하다가 도구 호출(tool call)을 내놓으면, 런타임이 그 도구를 실행해 결과를 돌려주고, 모델이 결과를 반영해 다음 응답을 만듭니다. 이 반복이 끝날 때까지 도는 루프가 에이전트의 전부입니다.</p>
+
+<p>그래서 에이전트 하나를 규정하는 요소는 생각보다 적습니다. <strong>어떤 모델</strong>을 쓰는지, <strong>어떤 지시(instruction)</strong>를 받았는지, <strong>어떤 도구</strong>를 쥐고 있는지. 이 세 가지면 끝입니다. 도구 쪽은 MCP(Model Context Protocol)라는 표준이 자리 잡으면서 "도구 서버를 연결한다"는 한 줄로 수렴했고요. 그런데도 많은 프레임워크가 이 세 가지를 Python 코드 안에 흩어 놓습니다. 설정에 가까운 정보가 코드에 묶여 있으니, 공유하려면 코드 실행 환경이 통째로 따라가야 하는 겁니다.</p>
+
+<p>Docker는 이 지점을 2025년 9월 <a href="https://www.docker.com/blog/cagent-build-and-distribute-ai-agents-and-workflows/" target="_blank" rel="noopener">cagent</a>라는 실험 프로젝트로 건드렸습니다. "에이전트 = 모델 + instruction + 도구라면, 그건 코드가 아니라 선언적 설정이어야 한다"는 주장이었죠. 그 cagent가 다듬어져 지금의 docker-agent가 됐습니다. 현재 버전 기준으로 OpenAI, Anthropic, Gemini, AWS Bedrock, Mistral, xAI 등 주요 프로바이더를 지원하고, Docker Model Runner를 통하면 로컬 모델도 돌릴 수 있습니다. 릴리스 주기도 빨라서 글 쓰는 시점의 최신 버전은 v1.150.0(2026-10-09)입니다.</p>
+
+<h2 id="sec-3">선언적 정의 — YAML 한 장이 에이전트가 되기까지</h2>
+
+<p>가장 작은 에이전트는 이렇게 생겼습니다. 파일 하나, 네 줄이 전부입니다.</p>
+
+{{< highlight yaml >}}
+# agent.yaml — 최소 구성
+agents:
+  root:            # 진입점 에이전트는 root라는 이름을 씁니다
+    model: openai/gpt-5
+    description: A helpful assistant
+    instruction: You are a helpful assistant.
+{{< /highlight >}}
+
+{{< highlight bash >}}
+docker agent run agent.yaml
+{{< /highlight >}}
+
+<p>여기에 도구를 붙이고 싶으면 <code>toolsets</code>를 추가합니다. 내장 도구는 <code>type</code> 한 줄로 켜고(<code>filesystem</code>, <code>shell</code>, <code>think</code>, <code>todo</code>, <code>memory</code> 등), 외부 도구는 MCP 서버를 연결합니다. MCP는 세 가지 방식 — Docker 컨테이너로 돌리는 <code>docker:</code> 참조(MCP Gateway 경유), 로컬 프로세스(stdio), 원격 서버(Streamable HTTP/SSE) — 를 모두 지원합니다.</p>
+
+{{< highlight yaml >}}
+agents:
+  root:
+    model: anthropic/claude-sonnet-4-5
+    description: 웹 검색이 되는 리서치 조수
+    instruction: |
+      질문을 받으면 웹을 검색해 근거를 모은 뒤 답하세요.
+    toolsets:
+      - type: think                # 내장 도구: 생각 정리용
+      - type: mcp
+        ref: docker:duckduckgo     # MCP 서버를 컨테이너로 실행
+{{< /highlight >}}
+
+<p>설정 파일의 전체 뼈대는 10개 안팎의 섹션으로 구성됩니다. <code>models</code>에 이름 붙은 모델 정의(온도, 최대 토큰 등 파라미터 포함), <code>agents</code>에 에이전트들, <code>mcps</code>에 재사용할 MCP 서버 정의, <code>permissions</code>에 도구 허용·차단 규칙, <code>rag</code>에 검색 소스를 적는 식입니다. 모델은 <code>openai/gpt-5</code>처럼 인라인으로 쓸 수도 있고, <code>models</code> 섹션에 정의해 두고 이름으로 참조할 수도 있습니다.</p>
+
+<figure class="da-fig">
+<svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="docker-agent의 실행 구조 다이어그램. 왼쪽에 agent.yaml 파일이 있고, 가운데 docker-agent 런타임 상자 안에 에이전트 루프, 도구 실행과 승인, 세션 관리가 들어 있다. 런타임에서 오른쪽 위 모델 프로바이더들(OpenAI, Anthropic, Gemini, Bedrock, 로컬 dmr)과 오른쪽 아래 도구들(내장 도구, MCP 컨테이너·stdio·원격)로 화살표가 이어진다.">
+  <defs>
+    <marker id="da-f1-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--da-sky)"/>
+    </marker>
+  </defs>
+  <text x="450" y="30" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">에이전트 = 설정 — 코드는 런타임이 다 들고 있다</text>
+
+  <!-- YAML -->
+  <rect x="30" y="110" width="200" height="190" rx="12" fill="var(--da-sky)" opacity="0.10"/>
+  <rect x="30" y="110" width="200" height="190" rx="12" fill="none" stroke="var(--da-sky)" stroke-width="2"/>
+  <text x="130" y="140" text-anchor="middle" font-size="14.5" font-weight="700" fill="currentColor">agent.yaml</text>
+  <g font-size="12" fill="var(--da-gray)">
+    <text x="50" y="170">models: 모델·파라미터</text>
+    <text x="50" y="192">agents: 역할·instruction</text>
+    <text x="50" y="214">toolsets: 도구 목록</text>
+    <text x="50" y="236">mcps: MCP 서버 정의</text>
+    <text x="50" y="258">permissions: 허용 규칙</text>
+    <text x="50" y="280">sub_agents / handoffs</text>
+  </g>
+
+  <path d="M230 205 H295" stroke="var(--da-sky)" stroke-width="2.5" fill="none" marker-end="url(#da-f1-arrow)"/>
+
+  <!-- 런타임 -->
+  <rect x="305" y="95" width="250" height="220" rx="14" fill="var(--da-violet)" opacity="0.10"/>
+  <rect x="305" y="95" width="250" height="220" rx="14" fill="none" stroke="var(--da-violet)" stroke-width="2.5"/>
+  <text x="430" y="125" text-anchor="middle" font-size="14.5" font-weight="700" fill="currentColor">docker-agent 런타임</text>
+  <g font-size="12.5">
+    <rect x="325" y="142" width="210" height="40" rx="8" fill="var(--da-violet)" opacity="0.12"/>
+    <text x="430" y="167" text-anchor="middle" fill="currentColor">에이전트 루프 (생성→도구→생성)</text>
+    <rect x="325" y="192" width="210" height="40" rx="8" fill="var(--da-violet)" opacity="0.12"/>
+    <text x="430" y="217" text-anchor="middle" fill="currentColor">도구 실행 + 사용자 승인</text>
+    <rect x="325" y="242" width="210" height="40" rx="8" fill="var(--da-violet)" opacity="0.12"/>
+    <text x="430" y="267" text-anchor="middle" fill="currentColor">세션·멀티에이전트 라우팅</text>
+  </g>
+  <text x="430" y="305" text-anchor="middle" font-size="11.5" fill="var(--da-gray)">docker agent run agent.yaml</text>
+
+  <!-- 프로바이더 -->
+  <path d="M555 160 C600 150 620 130 655 120" stroke="var(--da-green)" stroke-width="2.5" fill="none" marker-end="url(#da-f1-arrow)"/>
+  <rect x="665" y="75" width="205" height="115" rx="12" fill="var(--da-green)" opacity="0.10"/>
+  <rect x="665" y="75" width="205" height="115" rx="12" fill="none" stroke="var(--da-green)" stroke-width="2"/>
+  <text x="767" y="101" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">모델 프로바이더</text>
+  <g font-size="11.5" fill="var(--da-gray)">
+    <text x="767" y="124" text-anchor="middle">OpenAI · Anthropic · Gemini</text>
+    <text x="767" y="144" text-anchor="middle">Bedrock · Mistral · xAI</text>
+    <text x="767" y="164" text-anchor="middle">dmr (Docker Model Runner, 로컬)</text>
+  </g>
+
+  <!-- 도구 -->
+  <path d="M555 250 C600 260 620 280 655 290" stroke="var(--da-amber)" stroke-width="2.5" fill="none" marker-end="url(#da-f1-arrow)"/>
+  <rect x="665" y="235" width="205" height="115" rx="12" fill="var(--da-amber)" opacity="0.10"/>
+  <rect x="665" y="235" width="205" height="115" rx="12" fill="none" stroke="var(--da-amber)" stroke-width="2"/>
+  <text x="767" y="261" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">도구</text>
+  <g font-size="11.5" fill="var(--da-gray)">
+    <text x="767" y="284" text-anchor="middle">내장: filesystem · shell · think</text>
+    <text x="767" y="304" text-anchor="middle">todo · memory · RAG</text>
+    <text x="767" y="324" text-anchor="middle">MCP: 컨테이너 · stdio · 원격</text>
+  </g>
+
+  <text x="450" y="405" text-anchor="middle" font-size="12.5" fill="var(--da-gray)">YAML에는 "무엇을"만 남고, "어떻게"는 전부 런타임 몫 — 그래서 YAML만 옮기면 에이전트가 옮겨집니다</text>
+</svg>
+<figcaption>docker-agent의 실행 구조. 에이전트 루프, 도구 실행, 승인, 세션 관리 같은 "어떻게"는 런타임이 전담하고, YAML에는 "무엇을"에 해당하는 선언만 남습니다. 출처: docker/docker-agent 공식 문서 기준.</figcaption>
+</figure>
+
+<p>이 구조의 효과는 Dockerfile을 떠올리면 이해가 빠릅니다. Dockerfile이 "이 이미지가 무엇으로 구성되는지"만 선언하고 빌드·실행은 Docker 엔진에 맡기듯, agent.yaml은 "이 에이전트가 무엇인지"만 선언하고 루프·도구 실행·승인 처리 같은 공통 로직은 런타임에 맡깁니다. 버전 관리는 git diff로 되고, 코드 리뷰도 설정 리뷰가 됩니다. 참고로 부작용이 있는 도구(shell 명령, 파일 쓰기)는 기본값으로 실행 전에 사용자 승인을 요구합니다. <code>--yolo</code> 플래그로 전부 자동 승인할 수 있지만, 이름이 경고하는 그대로의 플래그입니다.</p>
+
+<div class="da-note">
+<strong>로컬 모델도 같은 문법:</strong> <code>provider: dmr</code>로 Docker Model Runner를 지정하면 <code>ai/qwen3</code> 같은 로컬 모델을 API 비용 없이 쓸 수 있습니다. "간단한 역할은 로컬 모델, 핵심 추론은 클라우드 모델"처럼 역할별로 섞는 구성이 YAML 수준에서 됩니다.
+</div>
+
+<h2 id="sec-4">멀티에이전트 — delegation과 handoff, 두 가지 배선</h2>
+
+<p>docker-agent가 단순 래퍼(wrapper)와 갈라지는 지점이 멀티에이전트 지원입니다. 복잡한 작업은 만능 에이전트 하나보다 역할이 좁은 에이전트 여럿이 낫다는 건 이제 업계의 상식에 가까운데, 문제는 "여럿을 어떻게 배선하느냐"입니다. docker-agent는 두 가지 패턴을 제공하고, 이 구분이 다른 프레임워크를 쓸 때도 그대로 통하는 일반 개념이라 자세히 볼 가치가 있습니다.</p>
+
+<p><strong>패턴 1: delegation(위임)</strong> — 부모 에이전트가 <code>sub_agents</code>에 등록된 자식에게 작업을 떼어 줍니다. 부모는 <code>transfer_task</code>라는 내장 도구로 "이 작업을 이런 결과물로 해 와라"를 전달하고, 자식은 <strong>별도의 서브세션</strong>에서 깨끗한 작업 설명만 받아 자기 루프를 돈 뒤 결과만 돌려줍니다. 부모는 그동안 기다렸다가 결과를 받아 종합하죠. 계층형(부모→자식→부모) 구조라서 "코디네이터가 전문가에게 일을 시키고 결과를 모은다"는 그림에 맞습니다.</p>
+
+<p><strong>패턴 2: handoffs(인계)</strong> — 에이전트가 <code>handoff</code> 도구로 <strong>대화 자체를 통째로</strong> 다음 에이전트에게 넘깁니다. 서브세션이 생기지 않고, 넘겨받은 에이전트가 전체 대화 히스토리를 그대로 보면서 활성 에이전트가 됩니다. A→B→C→A처럼 순환하는 그래프도 만들 수 있어서, 파이프라인 처리나 상담원 라우팅(접수→전문가→접수) 같은 흐름에 맞습니다.</p>
+
+<figure class="da-fig">
+<svg viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="delegation과 handoffs 두 패턴을 좌우로 비교한 다이어그램. 왼쪽 delegation 패널에서는 root 에이전트가 transfer_task로 developer 에이전트에게 작업을 내려보내고 결과가 다시 root로 돌아온다. developer는 서브세션 점선 상자 안에 있다. 오른쪽 handoffs 패널에서는 root, researcher, summarizer 세 에이전트가 handoff 화살표로 고리를 이루며 같은 세션 상자 안에 함께 있다.">
+  <defs>
+    <marker id="da-f2-sky" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--da-sky)"/>
+    </marker>
+    <marker id="da-f2-green" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--da-green)"/>
+    </marker>
+  </defs>
+  <text x="450" y="30" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">일을 떼어 줄 것인가, 대화를 넘길 것인가</text>
+
+  <!-- 왼쪽: delegation -->
+  <text x="235" y="68" text-anchor="middle" font-size="15" font-weight="700" fill="var(--da-sky)">delegation (sub_agents)</text>
+  <rect x="150" y="90" width="170" height="56" rx="10" fill="var(--da-sky)" opacity="0.14"/>
+  <rect x="150" y="90" width="170" height="56" rx="10" fill="none" stroke="var(--da-sky)" stroke-width="2"/>
+  <text x="235" y="118" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">root (부모)</text>
+  <text x="235" y="136" text-anchor="middle" font-size="11.5" fill="var(--da-gray)">작업을 쪼개 위임</text>
+
+  <rect x="90" y="215" width="290" height="130" rx="12" fill="none" stroke="var(--da-gray)" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="235" y="238" text-anchor="middle" font-size="11.5" fill="var(--da-gray)">서브세션 — 깨끗한 작업 설명만 전달</text>
+  <rect x="150" y="252" width="170" height="56" rx="10" fill="var(--da-sky)" opacity="0.10"/>
+  <rect x="150" y="252" width="170" height="56" rx="10" fill="none" stroke="var(--da-sky)" stroke-width="2"/>
+  <text x="235" y="280" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">developer (자식)</text>
+  <text x="235" y="298" text-anchor="middle" font-size="11.5" fill="var(--da-gray)">자기 도구로 루프 수행</text>
+
+  <path d="M205 146 V252" stroke="var(--da-sky)" stroke-width="2.5" fill="none" marker-end="url(#da-f2-sky)"/>
+  <text x="130" y="200" text-anchor="middle" font-size="11.5" fill="var(--da-sky)" font-weight="700">transfer_task</text>
+  <path d="M265 252 V146" stroke="var(--da-sky)" stroke-width="2.5" fill="none" stroke-dasharray="5 4" marker-end="url(#da-f2-sky)"/>
+  <text x="312" y="200" text-anchor="middle" font-size="11.5" fill="var(--da-gray)">결과 반환</text>
+
+  <text x="235" y="385" text-anchor="middle" font-size="12" fill="var(--da-gray)">부모가 결과를 기다렸다 종합</text>
+  <text x="235" y="405" text-anchor="middle" font-size="12" fill="var(--da-gray)">계층형 · 전문가 팀에 적합</text>
+
+  <!-- 세로 구분선 -->
+  <line x1="450" y1="60" x2="450" y2="415" stroke="var(--da-gray)" stroke-width="1" opacity="0.35"/>
+
+  <!-- 오른쪽: handoffs -->
+  <text x="675" y="68" text-anchor="middle" font-size="15" font-weight="700" fill="var(--da-green)">handoffs</text>
+  <rect x="490" y="90" width="370" height="265" rx="12" fill="var(--da-green)" opacity="0.05"/>
+  <rect x="490" y="90" width="370" height="265" rx="12" fill="none" stroke="var(--da-green)" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="675" y="113" text-anchor="middle" font-size="11.5" fill="var(--da-gray)">같은 세션 — 전체 대화 히스토리 공유</text>
+
+  <rect x="590" y="130" width="170" height="52" rx="10" fill="var(--da-green)" opacity="0.14"/>
+  <rect x="590" y="130" width="170" height="52" rx="10" fill="none" stroke="var(--da-green)" stroke-width="2"/>
+  <text x="675" y="162" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">root</text>
+
+  <rect x="510" y="255" width="160" height="52" rx="10" fill="var(--da-green)" opacity="0.14"/>
+  <rect x="510" y="255" width="160" height="52" rx="10" fill="none" stroke="var(--da-green)" stroke-width="2"/>
+  <text x="590" y="287" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">researcher</text>
+
+  <rect x="690" y="255" width="160" height="52" rx="10" fill="var(--da-green)" opacity="0.14"/>
+  <rect x="690" y="255" width="160" height="52" rx="10" fill="none" stroke="var(--da-green)" stroke-width="2"/>
+  <text x="770" y="287" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">summarizer</text>
+
+  <path d="M630 182 C610 210 600 230 592 255" stroke="var(--da-green)" stroke-width="2.5" fill="none" marker-end="url(#da-f2-green)"/>
+  <path d="M670 281 H690" stroke="var(--da-green)" stroke-width="2.5" fill="none" marker-end="url(#da-f2-green)"/>
+  <path d="M775 255 C760 225 740 205 722 182" stroke="var(--da-green)" stroke-width="2.5" fill="none" marker-end="url(#da-f2-green)"/>
+  <text x="560" y="218" text-anchor="middle" font-size="11.5" fill="var(--da-green)" font-weight="700">handoff</text>
+  <text x="680" y="332" text-anchor="middle" font-size="11.5" fill="var(--da-green)" font-weight="700">handoff</text>
+  <text x="790" y="218" text-anchor="middle" font-size="11.5" fill="var(--da-green)" font-weight="700">handoff</text>
+
+  <text x="675" y="385" text-anchor="middle" font-size="12" fill="var(--da-gray)">활성 에이전트가 교대 — 이전 에이전트는 루프에서 빠짐</text>
+  <text x="675" y="405" text-anchor="middle" font-size="12" fill="var(--da-gray)">피어 그래프 · 파이프라인과 라우팅에 적합</text>
+</svg>
+<figcaption>delegation은 부모가 자식에게 작업을 떼어 주고 결과를 회수하는 계층 구조, handoffs는 대화 전체를 넘겨 가며 활성 에이전트가 교대하는 피어 구조입니다. 한 설정 안에서 둘을 섞어 쓸 수도 있습니다. 출처: docker/docker-agent Multi-Agent 문서 기준.</figcaption>
+</figure>
+
+<p>두 패턴의 결정적 차이는 <strong>컨텍스트가 어떻게 흐르느냐</strong>입니다. delegation은 자식에게 깨끗한 작업 설명만 주니까 자식의 컨텍스트가 가볍고, 부모가 결과를 통제합니다. handoff는 다음 에이전트가 대화 전체를 보니까 맥락 손실이 없는 대신, 넘길수록 컨텍스트가 무거워집니다. "전문가에게 시킬 일"이면 delegation, "같은 대화를 이어받아 처리할 일"이면 handoff — 이 감각만 있어도 멀티에이전트 설계 논의를 따라갈 수 있습니다.</p>
+
+<p>실무에서 바로 쓸 만한 디테일도 몇 가지 있습니다.</p>
+
+<ul>
+  <li><strong>force_handoff</strong> — handoff는 모델이 도구를 호출해야 일어나는데, 모델이 깜빡하면 파이프라인이 끊깁니다. <code>force_handoff: summarizer</code>를 선언하면 모델의 선택과 무관하게 런타임이 응답 완료 시점에 강제로 다음 에이전트로 라우팅합니다. 순환(A→B→A)은 설정 로드 시점에 거부됩니다.</li>
+  <li><strong>background_agents</strong> — <code>transfer_task</code>는 순차 실행이라 부모가 기다립니다. 독립적인 작업 여러 개를 동시에 돌리려면 <code>background_agents</code> 도구로 작업을 비동기 디스패치하고, 작업 ID로 조회·대기·취소합니다.</li>
+  <li><strong>harness 서브에이전트</strong> — 자식 자리에 모델 대신 외부 코딩 CLI(Claude Code, Codex 등)를 꽂을 수 있습니다. <code>model:</code> 대신 <code>harness: {type: claude-code}</code>를 쓰면, 오케스트레이션은 docker-agent가 하고 코딩 루프는 해당 CLI가 돕니다.</li>
+</ul>
+
+<h2 id="sec-5">배포 — 에이전트를 OCI 아티팩트로 push·pull하기</h2>
+
+<p>여기가 docker-agent의 가장 Docker다운 부분입니다. 만든 에이전트를 OCI(Open Container Initiative) 아티팩트로 패키징해서, 컨테이너 이미지가 다니는 길(Docker Hub, GitHub Container Registry 등 아무 OCI 호환 레지스트리)로 유통합니다.</p>
+
+{{< highlight bash >}}
+# 에이전트를 레지스트리에 올리기
+docker agent share push ./agent.yaml docker.io/myorg/review-agent:v1
+
+# 다른 머신에서 — pull 없이 바로 실행도 됩니다
+docker agent run myorg/review-agent:v1
+{{< /highlight >}}
+
+<p>받는 쪽에 필요한 건 docker-agent(Docker Desktop이면 이미 설치됨)와 API 키뿐입니다. 저장소 clone도, 의존성 설치도 없습니다. 도입부의 "에이전트 전달 체크리스트"가 명령 한 줄로 줄어드는 거죠.</p>
+
+<p>더 재미있는 건 레지스트리의 에이전트를 <strong>남의 팀 구성원으로 바로 참조</strong>할 수 있다는 점입니다. <code>sub_agents</code> 목록에 로컬 에이전트 이름 대신 레지스트리 참조를 적으면, 실행 시 자동으로 받아와 자식 에이전트로 씁니다.</p>
+
+{{< highlight yaml >}}
+agents:
+  root:
+    model: openai/gpt-5
+    description: 로컬·외부 에이전트를 섞어 쓰는 코디네이터
+    instruction: 작업에 맞는 서브에이전트에게 위임하세요.
+    sub_agents:
+      - local_helper                    # 같은 파일에 정의된 로컬 에이전트
+      - myorg/agent:tag                 # 레지스트리에서 자동 pull, 이름은 "agent"
+      - reviewer:docker.io/myorg/review-agent@sha256:44117e…  # digest 고정
+{{< /highlight >}}
+
+<p>라이브러리를 패키지 매니저로 가져오듯 에이전트를 조립하는 그림입니다. 다만 세 번째 줄의 <code>@sha256:…</code>에 주목하세요. 태그 참조(<code>myorg/agent:tag</code>)는 <strong>매 실행마다 레지스트리에 digest를 조회</strong>합니다. 호출되지 않는 서브에이전트라도 시작 시점에 참조당 네트워크 왕복이 한 번씩 붙고, 레지스트리가 느리면 시작이 함께 느려집니다. digest로 고정(pinning)하면 로컬 캐시에서 바로 읽어 시작이 빠르고, 어느 머신에서든 완전히 같은 팀이 재현됩니다 — 컨테이너에서 <code>latest</code> 태그 대신 digest를 고정하라는 조언과 정확히 같은 이유입니다.</p>
+
+<figure class="da-fig">
+<svg viewBox="0 0 900 390" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OCI 레지스트리를 통한 에이전트 배포 흐름 다이어그램. 왼쪽 개발자 머신에서 share push --key로 서명해 가운데 OCI 레지스트리로 올리고, 레지스트리 카드에는 태그 참조와 digest 참조 두 줄이 있다. 오른쪽에는 동료 머신이 run으로 바로 실행하는 경로와, 다른 팀 YAML의 sub_agents가 레지스트리 에이전트를 참조하는 경로가 그려져 있다. 태그는 매 실행 시 조회, digest는 캐시에서 바로 로드된다는 주석이 붙어 있다.">
+  <defs>
+    <marker id="da-f3-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--da-green)"/>
+    </marker>
+    <marker id="da-f3-sky" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--da-sky)"/>
+    </marker>
+  </defs>
+  <text x="450" y="30" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">에이전트 유통망 — 이미지가 다니는 길을 그대로 쓴다</text>
+
+  <!-- 개발자 -->
+  <rect x="40" y="130" width="190" height="110" rx="12" fill="var(--da-sky)" opacity="0.10"/>
+  <rect x="40" y="130" width="190" height="110" rx="12" fill="none" stroke="var(--da-sky)" stroke-width="2"/>
+  <text x="135" y="160" text-anchor="middle" font-size="13.5" font-weight="700" fill="currentColor">개발자 머신</text>
+  <text x="135" y="184" text-anchor="middle" font-size="12" fill="var(--da-gray)">agent.yaml 작성</text>
+  <text x="135" y="206" text-anchor="middle" font-size="12" fill="var(--da-gray)">(선택) --key로 서명</text>
+
+  <path d="M230 185 H320" stroke="var(--da-green)" stroke-width="2.5" fill="none" marker-end="url(#da-f3-arrow)"/>
+  <text x="275" y="172" text-anchor="middle" font-size="12" fill="var(--da-green)" font-weight="700">share push</text>
+
+  <!-- 레지스트리 -->
+  <rect x="330" y="105" width="240" height="165" rx="14" fill="var(--da-green)" opacity="0.10"/>
+  <rect x="330" y="105" width="240" height="165" rx="14" fill="none" stroke="var(--da-green)" stroke-width="2.5"/>
+  <text x="450" y="135" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">OCI 레지스트리</text>
+  <text x="450" y="154" text-anchor="middle" font-size="11.5" fill="var(--da-gray)">Docker Hub · GHCR · 사내 레지스트리</text>
+  <rect x="350" y="168" width="200" height="38" rx="8" fill="var(--da-green)" opacity="0.12"/>
+  <text x="450" y="192" text-anchor="middle" font-size="12" fill="currentColor" font-family="ui-monospace,monospace">myorg/agent:v1</text>
+  <rect x="350" y="216" width="200" height="38" rx="8" fill="var(--da-green)" opacity="0.12"/>
+  <text x="450" y="240" text-anchor="middle" font-size="12" fill="currentColor" font-family="ui-monospace,monospace">myorg/agent@sha256:…</text>
+
+  <!-- 동료 실행 -->
+  <path d="M570 160 C620 150 640 135 680 125" stroke="var(--da-green)" stroke-width="2.5" fill="none" marker-end="url(#da-f3-arrow)"/>
+  <text x="640" y="125" text-anchor="middle" font-size="12" fill="var(--da-green)" font-weight="700">run / pull</text>
+  <rect x="690" y="85" width="180" height="90" rx="12" fill="var(--da-amber)" opacity="0.10"/>
+  <rect x="690" y="85" width="180" height="90" rx="12" fill="none" stroke="var(--da-amber)" stroke-width="2"/>
+  <text x="780" y="113" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">동료 머신</text>
+  <text x="780" y="136" text-anchor="middle" font-size="11.5" fill="var(--da-gray)" font-family="ui-monospace,monospace">docker agent run</text>
+  <text x="780" y="156" text-anchor="middle" font-size="11.5" fill="var(--da-gray)" font-family="ui-monospace,monospace">myorg/agent:v1</text>
+
+  <!-- 다른 팀 구성 -->
+  <path d="M570 235 C620 245 640 260 680 270" stroke="var(--da-sky)" stroke-width="2.5" fill="none" marker-end="url(#da-f3-sky)"/>
+  <text x="640" y="276" text-anchor="middle" font-size="12" fill="var(--da-sky)" font-weight="700">sub_agents 참조</text>
+  <rect x="690" y="225" width="180" height="100" rx="12" fill="var(--da-sky)" opacity="0.10"/>
+  <rect x="690" y="225" width="180" height="100" rx="12" fill="none" stroke="var(--da-sky)" stroke-width="2"/>
+  <text x="780" y="253" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">다른 팀의 YAML</text>
+  <text x="780" y="276" text-anchor="middle" font-size="11.5" fill="var(--da-gray)">sub_agents:</text>
+  <text x="780" y="296" text-anchor="middle" font-size="11.5" fill="var(--da-gray)" font-family="ui-monospace,monospace">- myorg/agent@sha256:…</text>
+
+  <text x="450" y="340" text-anchor="middle" font-size="12.5" fill="var(--da-gray)">태그 참조는 매 실행마다 레지스트리 조회(느림·가변) · digest 고정은 캐시에서 즉시 로드(빠름·재현 가능)</text>
+  <text x="450" y="362" text-anchor="middle" font-size="12.5" fill="var(--da-gray)">서명하면 pull 쪽에서 "누가 올렸고 변조되지 않았는지"를 검증한 뒤에만 받습니다</text>
+</svg>
+<figcaption>OCI 레지스트리를 통한 에이전트 유통. push된 에이전트는 동료가 바로 실행할 수도, 다른 팀 YAML의 sub_agents로 조립될 수도 있습니다. 출처: docker/docker-agent Distribution 문서 기준.</figcaption>
+</figure>
+
+<p>공급망 걱정도 챙겨 뒀습니다. <code>share push --key</code>로 서명하면 서명·메타데이터가 DSSE 봉투에 담긴 in-toto Statement로 매니페스트 주석에 기록되고, <code>share pull --key</code>가 "이 YAML이 그 키 주인이 그 주소로 올린 그대로인지"를 검증한 뒤에만 받아들입니다. cosign 등 기존 공급망 도구가 쓰는 포맷 그대로라 docker-agent 없이도 읽을 수 있습니다. 단, 서명이 덮는 범위는 에이전트 YAML과 발행 주소까지입니다 — 매니페스트의 나머지 주석(작성자, 라이선스 표기 등)은 인증 대상이 아니니 거기에 정책을 걸면 안 됩니다.</p>
+
+<h2 id="sec-6">실전 — 코드 리뷰 미니팀을 직접 만들어 보기</h2>
+
+<p>배운 걸 전부 모아 "리뷰어 + 테스터를 거느린 개발팀"을 만들어 봅시다. 역할마다 모델과 도구를 다르게 주는 게 포인트입니다.</p>
+
+{{< highlight yaml >}}
+# dev-team.yaml
+models:
+  smart:
+    provider: anthropic
+    model: claude-sonnet-4-5
+    max_tokens: 64000
+  cheap:
+    provider: openai
+    model: gpt-5-mini
+    temperature: 0.2        # 분석 역할이라 낮게
+
+agents:
+  root:
+    model: smart
+    description: 개발을 지휘하는 테크 리드
+    instruction: |
+      요청을 분석해 알맞은 전문가에게 위임하세요.
+      결과를 검토한 뒤 사용자에게 종합해 답하세요.
+    sub_agents: [developer, reviewer]
+    toolsets:
+      - type: think          # 위임 판단을 정리할 생각 도구
+
+  developer:
+    model: smart
+    description: 코드를 작성하는 개발자
+    instruction: 클린 코드를 작성하고 모범 사례를 따르세요.
+    toolsets:
+      - type: filesystem
+      - type: shell
+      - type: todo
+        shared: true         # 팀 전체가 같은 todo를 공유
+
+  reviewer:
+    model: cheap             # 리뷰는 저렴한 모델로 충분
+    description: 코드 품질·보안 리뷰어
+    instruction: 품질, 보안, 유지보수성 관점에서 실행 가능한 피드백을 주세요.
+    toolsets:
+      - type: filesystem     # 읽기만 — shell은 주지 않습니다
+      - type: todo
+        shared: true
+{{< /highlight >}}
+
+{{< highlight bash >}}
+# 실행 — 부작용 있는 도구는 승인 프롬프트가 뜹니다
+docker agent run dev-team.yaml
+
+# 다중 에이전트 설정에서 특정 에이전트만 골라 실행
+docker agent run dev-team.yaml -a reviewer
+
+# 완성됐으면 팀에 공유
+docker agent share push ./dev-team.yaml docker.io/myorg/dev-team:v1
+{{< /highlight >}}
+
+<p>동료는 <code>docker agent run myorg/dev-team:v1</code> 한 줄로 같은 팀을 띄웁니다. 코디네이터의 위임 판단은 각 에이전트의 <code>description</code>을 보고 이뤄지므로, description을 "무슨 일을 맡길 수 있는지"가 드러나게 쓰는 것이 멀티에이전트 품질에 직접적인 영향을 줍니다.</p>
+
+<h2 id="sec-7">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>외부 서브에이전트를 태그로 참조한 채 방치</strong> — 매 실행마다 참조당 레지스트리 왕복이 생기고, 태그가 가리키는 내용이 바뀌면 팀 동작도 조용히 바뀝니다. 런타임도 태그 참조에 시작 경고를 띄웁니다. <code>@sha256:…</code>으로 고정하세요. digest는 Docker Hub 태그 옆이나 <code>docker buildx imagetools inspect</code>로 확인합니다.</li>
+  <li><strong>습관성 <code>--yolo</code></strong> — 승인 프롬프트가 귀찮다고 전부 자동 승인하면, shell 도구를 쥔 에이전트의 모든 명령이 무확인으로 나갑니다. 특히 <code>transfer_task</code>는 원래부터 자동 승인(위임이 막히지 않도록)이라, 부모에게만 승인을 걸어도 자식이 위험한 도구를 쥐고 있으면 소용없습니다. 애초에 자식에게 필요한 최소 도구만 주는 게 정답입니다. 위 예제에서 reviewer에게 shell을 주지 않은 이유입니다.</li>
+  <li><strong>모든 에이전트에 think·memory 도구 끼워 넣기</strong> — think 도구는 네이티브 추론이 없는 모델의 코디네이터용 보조입니다. 추론 내장 모델에는 군더더기 컨텍스트만 늘립니다. 도구 하나하나가 시스템 프롬프트에 설명으로 추가된다는 걸 기억하세요.</li>
+  <li><strong>handoff 파이프라인이 가끔 끊기는 문제</strong> — 모델이 <code>handoff</code> 호출을 "깜빡"하는 건 드물지 않습니다. 순서가 고정된 파이프라인이라면 모델의 선의에 기대지 말고 <code>force_handoff</code>로 런타임에 강제하세요.</li>
+  <li><strong>서명 검증 없이 외부 에이전트 실행</strong> — 레지스트리의 에이전트 YAML에는 instruction과 도구 구성이 그대로 들어 있습니다. 출처가 불분명한 에이전트를 받아 실행하는 건 모르는 스크립트를 <code>curl | sh</code> 하는 것과 같은 급의 행동입니다. 팀 내 유통에는 서명을 걸고, 처음 보는 에이전트는 YAML을 열어 도구 목록부터 확인하세요.</li>
+  <li><strong>설정 크기 한도</strong> — HTTP(S)나 OCI로 불러오는 설정은 압축 해제 기준 32MiB로 제한됩니다. instruction에 문서를 통째로 붙여 넣는 식의 설계라면(그 자체로 재고할 신호이기도 합니다) RAG 섹션으로 옮기는 편이 낫습니다.</li>
+</ul>
+
+<div class="da-warn">
+<strong>프레임워크 선택 관점의 한마디:</strong> docker-agent의 선언적 접근은 "에이전트 = 모델 + instruction + 도구 + 팀 배선"으로 환원되는 에이전트에 강합니다. 반대로 루프 자체를 커스텀해야 하는 경우 — 특수한 종료 조건, 자체 검증 단계, 비표준 상태 관리 — 라면 코드 기반 프레임워크(또는 직접 구현)가 여전히 맞는 도구입니다. YAML은 "무엇을"의 언어이지 "어떻게"의 언어가 아니니까요.
+</div>
+
+<h2 id="sec-8">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Docker Engineering의 오픈소스 에이전트 런타임 <strong>docker-agent</strong>가 이번 주 HN 프런트페이지에 이틀 연속 올랐습니다. <code>docker</code> CLI 플러그인이고, Docker Desktop 4.63+에 기본 탑재돼 있습니다.</li>
+  <li>핵심은 관점 전환: <strong>에이전트 = 코드가 아니라 아티팩트</strong>. 모델·instruction·도구·팀 구조를 YAML 한 장에 선언하고, 루프·도구 실행·승인은 런타임이 전담합니다.</li>
+  <li>멀티에이전트 배선은 두 패턴 — <strong>delegation</strong>(<code>sub_agents</code> + <code>transfer_task</code>, 서브세션에 깨끗한 작업만 위임)과 <strong>handoffs</strong>(대화 전체를 넘기며 활성 에이전트 교대). 순서 고정이 필요하면 <code>force_handoff</code>, 병렬은 <code>background_agents</code>.</li>
+  <li><strong>OCI 레지스트리로 push·pull</strong>합니다. 레지스트리 에이전트를 <code>sub_agents</code>로 바로 조립할 수 있고, 태그 대신 <strong>digest 고정</strong>이 시작 속도와 재현성을 모두 가져갑니다. 서명(DSSE/in-toto)으로 변조·출처 검증도 됩니다.</li>
+  <li>안전 수칙: 자식 에이전트에 최소 도구만, <code>--yolo</code>는 신중히, 출처 불명 에이전트는 YAML부터 열어 볼 것.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://github.com/docker/docker-agent" target="_blank" rel="noopener">docker/docker-agent — GitHub 저장소 (Apache 2.0)</a></li>
+  <li><a href="https://docker.github.io/docker-agent/" target="_blank" rel="noopener">Docker Agent 공식 문서</a></li>
+  <li><a href="https://docs.docker.com/ai/docker-agent/concepts/multi-agent/" target="_blank" rel="noopener">Multi-Agent Systems — delegation·handoffs·background agents 문서</a></li>
+  <li><a href="https://docs.docker.com/ai/docker-agent/concepts/distribution/" target="_blank" rel="noopener">Agent Distribution — OCI push/pull·서명 문서</a></li>
+  <li><a href="https://docs.docker.com/ai/docker-agent/configuration/overview/" target="_blank" rel="noopener">Configuration Overview — YAML 설정 레퍼런스</a></li>
+  <li><a href="https://github.com/docker/docker-agent/blob/main/CHANGELOG.md" target="_blank" rel="noopener">docker-agent CHANGELOG (v1.150.0, 2026-10-09)</a></li>
+  <li><a href="https://www.docker.com/blog/cagent-build-and-distribute-ai-agents-and-workflows/" target="_blank" rel="noopener">Build and Distribute AI Agents and Workflows with cagent — Docker 블로그 (2025-09, 전신 프로젝트)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49996259" target="_blank" rel="noopener">Hacker News 토론 스레드 — Docker Agent</a></li>
+  <li><a href="https://github.com/docker/mcp-gateway" target="_blank" rel="noopener">Docker MCP Gateway — 컨테이너형 MCP 서버 실행</a></li>
+  <li>🇰🇷 <a href="https://github.com/roomedia/ax-trend/issues/3122" target="_blank" rel="noopener">docker-agent 공개 — HN 화제 정리 (한국어)</a></li>
+</ul>

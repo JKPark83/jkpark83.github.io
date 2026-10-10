@@ -1,0 +1,484 @@
+---
+title: "40배 싼 모델은 언제 믿어도 될까 — Claude Haiku 5.5로 배우는 모델 라우팅·캐스케이드 엔지니어링"
+date: 2026-10-11T07:30:00+09:00
+draft: false
+tags: ["AI", "모델 라우팅", "model routing", "캐스케이드", "cascade", "Claude Haiku 5.5", "FrugalGPT", "RouteLLM", "서브에이전트", "subagent", "멀티에이전트", "비용 최적화", "effort", "LLM 비용", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 Anthropic이 Claude Haiku 5.5를 내놨습니다. 입력 100만 토큰에 $0.10 — 같은 집안의 Opus 5.5보다 40배 쌉니다. 같은 주에 Mistral Large 4 같은 거대 모델도 쏟아졌으니, 가격표의 양극화가 한 주 만에 벌어진 셈인데요. 이럴 때 필요한 건 '제일 좋은 모델 하나'가 아니라 요청마다 알맞은 모델로 보내는 라우팅 설계입니다. 정적 라우팅, 캐스케이드(FrugalGPT), 학습 라우터(RouteLLM), 오케스트레이터-워커까지 네 가지 패턴과 '모델을 바꾸기 전에 effort부터'라는 순서, 그리고 캐시·장문 단가 같은 함정을 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "model-routing-small-models-cover.svg"
+  alt: "라우터 노드가 분류·요약·설계 요청을 Haiku, Sonnet, Opus 세 모델 레인으로 나눠 보내는 구조를 그린 표지"
+  caption: "모든 요청이 같은 모델을 쓸 이유는 없다 — 요청의 난이도에 맞는 모델로 보내는 것이 라우팅입니다."
+  relative: false
+---
+
+<style>
+/* ── 모델 라우팅 포스트 전용 스타일 (mr- 접두사) ── */
+.mr-fig{
+  --mr-green:#16a34a; --mr-rose:#e11d48; --mr-amber:#d97706; --mr-sky:#0284c7;
+  --mr-violet:#7c3aed; --mr-slate:#64748b; --mr-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .mr-fig{
+  --mr-green:#4ade80; --mr-rose:#fb7185; --mr-amber:#fbbf24; --mr-sky:#38bdf8;
+  --mr-violet:#a78bfa; --mr-slate:#94a3b8; --mr-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .mr-fig{
+    --mr-green:#4ade80; --mr-rose:#fb7185; --mr-amber:#fbbf24; --mr-sky:#38bdf8;
+    --mr-violet:#a78bfa; --mr-slate:#94a3b8; --mr-gray:#64748b;
+  }
+}
+.mr-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.mr-fig text{font-family:inherit}
+.mr-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.mr-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.mr-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.mr-toc ol{margin:0;padding-left:1.25rem}
+.mr-toc li{margin:.22rem 0;font-size:.95rem}
+.mr-toc a{text-decoration:none}
+.mr-toc a:hover{text-decoration:underline}
+.mr-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.mr-table th,.mr-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.mr-table th{background:var(--entry)}
+.mr-note{border-left:4px solid var(--mr-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.mr-warn{border-left:4px solid var(--mr-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="mr-toc">
+  <div class="mr-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 한 주 만에 벌어진 가격표의 양극화</a></li>
+    <li><a href="#sec-2">배경 — 토큰 과금과 에이전트의 토큰 식성</a></li>
+    <li><a href="#sec-3">계산 한 번 해 봅시다 — 왜 라우팅인가</a></li>
+    <li><a href="#sec-4">패턴 ① 정적 태스크 라우팅 — 가장 쉽고, 대개 충분한</a></li>
+    <li><a href="#sec-5">패턴 ② 캐스케이드와 패턴 ③ 학습 라우터</a></li>
+    <li><a href="#sec-6">패턴 ④ 오케스트레이터-워커 — 서브에이전트 오프로딩</a></li>
+    <li><a href="#sec-7">실전 — 비용을 찍어 보는 미니 라우터 만들기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 한 주 만에 벌어진 가격표의 양극화</h2>
+
+<p>이번 주 LLM 가격표에 재미있는 일이 벌어졌습니다. 한쪽 끝에서는 <a href="https://mistral.ai/news/mistral-large-4/" target="_blank" rel="noopener">Mistral Large 4</a> 같은 대형 모델 발표가 Hacker News를 도배했고(약 2,000포인트), 반대쪽 끝에서는 Anthropic이 10월 7일 <a href="https://www.anthropic.com/claude-haiku-5-5" target="_blank" rel="noopener">Claude Haiku 5.5</a>를 내놨습니다. 입력 100만 토큰당 <strong>$0.10</strong>. 같은 집안 상위 모델인 Opus 5.5($4.00)의 1/40, Sonnet 5.5($2.00)의 1/20 가격입니다. HN에서도 약 690포인트, 댓글 340개가 넘게 달리며 "작은 모델을 어디까지 믿고 쓸 수 있나"가 한 주 내내 실무자들의 화제였습니다.</p>
+
+<p>흥미로운 건 가격이 아니라 성능의 바닥이 올라왔다는 점입니다. Anthropic 공식 발표 기준으로 Haiku 5.5는 터미널 작업 벤치마크인 Terminal-Bench 4.0에서 39.2%를 기록했는데, 전작 Haiku 4.5는 0.0%였습니다. 컴퓨터 사용 벤치마크 OSWorld 2.1(offline subset)에서는 15.7% → 72.4%로 뛰었고요. 1년 전의 "작은 모델"은 분류나 간단한 요약 정도가 한계였다면, 지금의 작은 모델은 웬만한 에이전트 작업의 하위 단계를 통째로 맡길 수 있는 수준이 됐다는 뜻입니다.</p>
+
+<p>그래서 오늘의 주제는 Haiku 5.5 자체가 아니라, 이 가격 양극화 시대에 필요한 설계 기술입니다. <strong>모델 라우팅(model routing)</strong> — 들어오는 요청마다 난이도에 맞는 모델로 보내서, 품질은 지키고 비용과 지연 시간은 깎는 엔지니어링이죠. "제일 좋은 모델 하나로 전부 처리"가 왜 금방 한계에 부딪히는지, 그리고 현장에서 검증된 네 가지 패턴을 코드와 함께 하나씩 살펴보겠습니다.</p>
+
+<h2 id="sec-2">배경 — 토큰 과금과 에이전트의 토큰 식성</h2>
+
+<p>따라오는 데 필요한 최소 지식부터 정리합니다. LLM API는 토큰(token) 단위로 과금합니다. 모델이 읽는 입력 토큰과 모델이 생성하는 출력 토큰의 단가가 다르고, 보통 출력이 5배쯤 비쌉니다. 그리고 거의 모든 프로바이더가 모델을 2~3개 체급(tier)으로 나눠 팝니다. Anthropic이라면 Haiku(소형·고속) → Sonnet(중형) → Opus(대형) 순이죠.</p>
+
+<table class="mr-table">
+  <thead>
+    <tr><th>모델</th><th>입력 $/1M 토큰</th><th>출력 $/1M 토큰</th><th>Opus 5.5 대비 입력 단가</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>claude-haiku-5-5</code></td><td>$0.10</td><td>$0.50</td><td>1/40</td></tr>
+    <tr><td><code>claude-sonnet-5-5</code></td><td>$2.00</td><td>$10.00</td><td>1/2</td></tr>
+    <tr><td><code>claude-opus-5-5</code></td><td>$4.00</td><td>$20.00</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<p class="mr-note"><strong>단서 하나:</strong> Haiku 5.5의 위 단가는 프롬프트 10만 토큰 이하 기준입니다. 프롬프트가 10만 토큰을 넘는 요청은 입력 $0.50 / 출력 $2.50으로 <strong>5배</strong>가 적용됩니다. 뒤의 "흔한 실수"에서 다시 다룹니다.</p>
+
+<p>왜 이 단가 차이가 갑자기 중요해졌을까요? 에이전트 때문입니다. 챗봇은 한 번 묻고 한 번 답하면 끝이지만, 에이전트(agent)는 도구를 부르고 결과를 읽고 다시 생각하는 루프를 돕니다. Anthropic이 자사 멀티에이전트 시스템을 해부한 <a href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener">엔지니어링 블로그</a>에 따르면, 에이전트는 일반 채팅 대비 약 <strong>4배</strong>, 멀티에이전트 시스템은 약 <strong>15배</strong>의 토큰을 씁니다. 토큰 소비가 15배면, 모델 선택 한 번의 단가 차이가 그대로 15배로 증폭된다는 얘기입니다. 챗봇 시절에는 모델 선택이 취향이었다면, 에이전트 시대에는 아키텍처 결정입니다.</p>
+
+<h2 id="sec-3">계산 한 번 해 봅시다 — 왜 라우팅인가</h2>
+
+<p>감이 아니라 숫자로 봅시다. 고객 문의를 카테고리로 분류하는 작업이 있다고 하죠. 요청당 입력 2,000토큰(문의 + 지시문), 출력 100토큰, 월 100만 건입니다.</p>
+
+{{< highlight text >}}
+Opus 5.5로 전부 처리:
+  입력  2,000 tok × 1,000,000건 = 20억 tok × $4.00/1M = $8,000
+  출력    100 tok × 1,000,000건 =  1억 tok × $20.00/1M = $2,000
+  → 월 $10,000
+
+Haiku 5.5로 전부 처리:
+  입력  20억 tok × $0.10/1M = $200
+  출력   1억 tok × $0.50/1M = $50
+  → 월 $250
+{{< /highlight >}}
+
+<p>같은 작업이 월 1,000만 원 대 30만 원 수준으로 갈라집니다. 분류처럼 정형화된 작업에서 두 모델의 정확도 차이는 보통 몇 퍼센트포인트 이내라서, 이 차이를 40배 비용으로 사는 건 수지가 안 맞습니다. 반대로 아키텍처 설계 리뷰처럼 추론이 깊은 작업을 Haiku에 맡기면 틀린 결과를 싸게 사는 꼴이 되고요. 결국 질문은 "어느 모델이 좋은가"가 아니라 <strong>"이 요청은 어느 모델감인가"</strong>가 됩니다. 이 판단을 코드로 옮긴 것이 라우팅입니다.</p>
+
+<figure class="mr-fig">
+<svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="왼쪽 패널은 세 모델의 입력 토큰 단가를 가로 막대로 비교한다. Opus 5.5가 4달러로 가장 길고 Sonnet 5.5가 2달러, Haiku 5.5는 0.10달러로 눈에 띄게 짧으며 40배 차이라는 주석이 있다. 오른쪽 패널은 Terminal-Bench 4.0과 OSWorld 2.1 두 벤치마크에서 Haiku 4.5, Haiku 5.5, Sonnet 5.5의 점수를 세로 막대로 비교한다. Haiku 4.5는 0.0과 15.7로 낮고 Haiku 5.5는 39.2와 72.4로 크게 올랐으며 Sonnet 5.5는 70.6과 83.9로 가장 높다.">
+  <text x="450" y="30" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">가격은 40배 벌어지고, 작은 모델의 바닥은 올라왔다</text>
+
+  <!-- 왼쪽: 입력 단가 -->
+  <text x="215" y="66" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">입력 단가 ($ / 1M 토큰)</text>
+  <g font-size="12.5">
+    <text x="30" y="110" fill="currentColor">Opus 5.5</text>
+    <rect x="120" y="96" width="280" height="22" rx="5" fill="var(--mr-rose)" opacity="0.75"/>
+    <text x="408" y="112" fill="var(--mr-gray)">$4.00</text>
+
+    <text x="30" y="160" fill="currentColor">Sonnet 5.5</text>
+    <rect x="120" y="146" width="140" height="22" rx="5" fill="var(--mr-amber)" opacity="0.8"/>
+    <text x="268" y="162" fill="var(--mr-gray)">$2.00</text>
+
+    <text x="30" y="210" fill="currentColor">Haiku 5.5</text>
+    <rect x="120" y="196" width="8" height="22" rx="2" fill="var(--mr-green)"/>
+    <text x="136" y="212" fill="var(--mr-gray)">$0.10</text>
+  </g>
+  <path d="M128 228 C180 260 330 260 396 128" stroke="var(--mr-slate)" stroke-width="1.3" fill="none" stroke-dasharray="4 4"/>
+  <text x="250" y="282" text-anchor="middle" font-size="13" font-weight="700" fill="var(--mr-green)">입력 기준 40배 차이</text>
+  <text x="215" y="320" text-anchor="middle" font-size="11.5" fill="var(--mr-gray)">출력 단가도 같은 비율: $20 / $10 / $0.50</text>
+  <text x="215" y="340" text-anchor="middle" font-size="11.5" fill="var(--mr-gray)">(Haiku 5.5는 프롬프트 100K 토큰 이하 기준)</text>
+
+  <!-- 세로 구분선 -->
+  <line x1="460" y1="55" x2="460" y2="400" stroke="var(--mr-gray)" stroke-width="1" opacity="0.35"/>
+
+  <!-- 오른쪽: 벤치마크 -->
+  <text x="690" y="66" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">벤치마크 점수 (%)</text>
+  <!-- y축 기준선 -->
+  <line x1="505" y1="330" x2="880" y2="330" stroke="var(--mr-gray)" stroke-width="1" opacity="0.5"/>
+
+  <!-- Terminal-Bench 그룹: 0.0 / 39.2 / 70.6 (1% = 2.6px) -->
+  <g font-size="11">
+    <rect x="530" y="328" width="34" height="2" fill="var(--mr-slate)" opacity="0.7"/>
+    <text x="547" y="320" text-anchor="middle" fill="var(--mr-gray)">0.0</text>
+    <rect x="572" y="228" width="34" height="102" rx="3" fill="var(--mr-green)" opacity="0.85"/>
+    <text x="589" y="220" text-anchor="middle" fill="var(--mr-gray)">39.2</text>
+    <rect x="614" y="146" width="34" height="184" rx="3" fill="var(--mr-amber)" opacity="0.8"/>
+    <text x="631" y="138" text-anchor="middle" fill="var(--mr-gray)">70.6</text>
+    <text x="589" y="352" text-anchor="middle" fill="currentColor" font-weight="700">Terminal-Bench 4.0</text>
+  </g>
+
+  <!-- OSWorld 그룹: 15.7 / 72.4 / 83.9 -->
+  <g font-size="11">
+    <rect x="712" y="289" width="34" height="41" rx="3" fill="var(--mr-slate)" opacity="0.7"/>
+    <text x="729" y="281" text-anchor="middle" fill="var(--mr-gray)">15.7</text>
+    <rect x="754" y="142" width="34" height="188" rx="3" fill="var(--mr-green)" opacity="0.85"/>
+    <text x="771" y="134" text-anchor="middle" fill="var(--mr-gray)">72.4</text>
+    <rect x="796" y="112" width="34" height="218" rx="3" fill="var(--mr-amber)" opacity="0.8"/>
+    <text x="813" y="104" text-anchor="middle" fill="var(--mr-gray)">83.9</text>
+    <text x="771" y="352" text-anchor="middle" fill="currentColor" font-weight="700">OSWorld 2.1</text>
+  </g>
+
+  <!-- 범례 -->
+  <g font-size="11.5">
+    <rect x="540" y="378" width="12" height="12" rx="2" fill="var(--mr-slate)" opacity="0.7"/>
+    <text x="558" y="388" fill="var(--mr-gray)">Haiku 4.5</text>
+    <rect x="650" y="378" width="12" height="12" rx="2" fill="var(--mr-green)" opacity="0.85"/>
+    <text x="668" y="388" fill="var(--mr-gray)">Haiku 5.5</text>
+    <rect x="760" y="378" width="12" height="12" rx="2" fill="var(--mr-amber)" opacity="0.8"/>
+    <text x="778" y="388" fill="var(--mr-gray)">Sonnet 5.5</text>
+  </g>
+
+  <text x="450" y="420" text-anchor="middle" font-size="12" fill="var(--mr-gray)">왼쪽: 2026-10 공식 단가 · 오른쪽: Anthropic 공식 발표 벤치마크 (OSWorld는 offline subset 기준)</text>
+</svg>
+<figcaption>왼쪽: 입력 토큰 단가는 Haiku와 Opus 사이에 40배 차이가 납니다. 오른쪽: 그런데 Haiku 5.5의 에이전트 작업 성능은 전작과 비교가 안 되게 올라왔습니다. 이 조합이 라우팅의 수익성을 만듭니다. 출처: Anthropic Claude Haiku 5.5 발표.</figcaption>
+</figure>
+
+<p>라우팅이 새 아이디어는 아닙니다. 2023년 Stanford의 <a href="https://arxiv.org/abs/2305.05176" target="_blank" rel="noopener">FrugalGPT</a>(Chen, Zaharia, Zou)가 "싼 모델부터 시도하고 필요할 때만 승격하는 캐스케이드로, 최고 모델과 같은 성능을 최대 98% 싸게 얻을 수 있다"는 걸 보였고, 2024년 UC Berkeley의 <a href="https://arxiv.org/abs/2406.18665" target="_blank" rel="noopener">RouteLLM</a>(ICLR 2025)이 선호도 데이터로 라우터를 학습시켜 품질 저하 없이 비용을 2배 이상 줄였습니다. 달라진 건 환경입니다. 작은 모델의 성능 바닥이 올라오고 단가 격차는 더 벌어지면서, 논문 속 기법이 "이번 분기 인프라 비용" 문제가 된 거죠.</p>
+
+<h2 id="sec-4">패턴 ① 정적 태스크 라우팅 — 가장 쉽고, 대개 충분한</h2>
+
+<p>가장 단순한 라우팅은 <strong>작업 유형별로 모델을 고정</strong>하는 겁니다. 요청의 난이도를 실시간으로 판단하는 게 아니라, 시스템을 설계할 때 "이 경로의 작업은 이 모델"이라고 미리 정해 두는 방식이죠. 파이프라인이 여러 단계로 나뉘어 있고 단계마다 성격이 다르다면 — 대부분의 실서비스가 그렇습니다 — 이것만으로 비용의 절반 이상이 깎입니다.</p>
+
+{{< highlight python >}}
+import anthropic
+
+client = anthropic.Anthropic()
+
+# 작업 유형 → 모델. 코드 리뷰에서 변경 이력이 보이도록 테이블로 관리합니다.
+MODEL_TABLE = {
+    "classify":  "claude-haiku-5-5",   # 분류: 짧고 반복적 → 소형
+    "summarize": "claude-haiku-5-5",   # 요약·압축: 소형으로 충분
+    "codegen":   "claude-sonnet-5-5",  # 코드 생성: 중형
+    "review":    "claude-opus-5-5",    # 설계 리뷰: 깊은 추론 → 대형
+}
+
+def run(task_type: str, prompt: str) -> str:
+    response = client.messages.create(
+        model=MODEL_TABLE[task_type],
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return "".join(b.text for b in response.content if b.type == "text")
+{{< /highlight >}}
+
+<p>어떤 작업을 소형 모델로 내릴지 감이 안 올 때는 Anthropic이 발표문에서 직접 꼽은 Haiku 5.5의 용도가 좋은 출발점입니다: 요약, 컨텍스트 압축(compaction), 분류, 데이터베이스 질의 같은 <strong>대량 반복 작업</strong>, 그리고 실시간 고객 지원이나 브라우저 조작처럼 <strong>지연 시간에 민감한 작업</strong>. 실제로 초기 도입사인 Asana는 에이전트 턴당 추론이 최대 2.5배 빨라졌다고 보고했습니다. 소형 모델의 매력이 비용만이 아니라 속도이기도 하다는 점은 기억해 둘 만합니다.</p>
+
+<div class="mr-note">
+<strong>모델을 바꾸기 전에 돌려볼 다이얼이 하나 더 있습니다.</strong> 최신 Claude 모델에는 <code>effort</code>라는 추론 강도 설정이 있습니다(<code>output_config: {"effort": "low"}</code>처럼 지정). 같은 모델을 낮은 effort로 돌리면 토큰 소비가 줄어드는데, 최신 세대 모델의 낮은 effort가 이전 세대의 높은 effort 성능과 맞먹는 경우가 많습니다. 모델이 하나면 프롬프트도 캐시도 하나로 관리되니, <strong>멀티 모델 라우팅을 짜기 전에 "큰 모델 + 낮은 effort"라는 더 단순한 대안부터 측정</strong>해 보세요. 이번 Haiku 5.5는 Haiku 계열 처음으로 이 effort 다이얼이 달린 모델이기도 합니다.
+</div>
+
+<h2 id="sec-5">패턴 ② 캐스케이드와 패턴 ③ 학습 라우터</h2>
+
+<p>정적 라우팅의 한계는 같은 유형 안의 난이도 편차입니다. "고객 문의 답변"이라는 한 경로에도 영수증 재발송 같은 쉬운 건과 환불 분쟁 같은 어려운 건이 섞여 들어오죠. 이때 쓰는 두 패턴이 캐스케이드와 학습 라우터인데, 갈림길은 <strong>난이도 판단을 언제 하느냐</strong>입니다.</p>
+
+<p><strong>패턴 ② 캐스케이드(cascade)</strong>는 사후 판단입니다. 일단 싼 모델이 답하게 하고, 그 답이 충분한지 검사한 뒤 부족할 때만 비싼 모델로 승격(escalate)합니다. FrugalGPT가 정립한 구조로, 쉬운 요청이 다수라면 대부분의 트래픽이 소형 모델 선에서 끝납니다. 대신 요청이 어려울수록 "싼 모델 호출 + 판정 + 비싼 모델 호출"로 호출이 늘어나 지연 시간이 길어지는 게 비용입니다.</p>
+
+<p><strong>패턴 ③ 학습 라우터(learned router)</strong>는 사전 판단입니다. 요청을 모델에 보내기 전에, 가볍고 작은 판별기가 난이도를 예측해서 처음부터 알맞은 모델로 보냅니다. RouteLLM이 대표적인데, Chatbot Arena의 사람 선호 데이터로 라우터를 학습시켜 "강한 모델 성능의 95%를 유지하면서 호출의 대부분을 약한 모델로" 보내는 식의 운영점을 고를 수 있게 했습니다. 벤치마크에 따라 30~70%의 비용 절감을 같은 품질에서 달성했고, 라우터를 다른 모델 쌍에 갈아 끼워도 작동하는 전이성도 보였습니다. 호출이 한 번이라 지연 시간은 유리하지만, 라우터를 만들고 평가할 데이터가 필요하다는 진입 장벽이 있습니다.</p>
+
+<figure class="mr-fig">
+<svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="네 가지 라우팅 패턴을 2행 2열로 비교한 다이어그램. 왼쪽 위 정적 라우팅은 분기 테이블이 작업 유형에 따라 소형 또는 대형 모델로 보낸다. 오른쪽 위 캐스케이드는 소형 모델이 먼저 답하고 판정을 거쳐 통과하면 끝, 부족하면 대형 모델로 승격한다. 왼쪽 아래 학습 라우터는 판별기가 요청 난이도를 예측해 처음부터 소형 또는 대형 모델로 보낸다. 오른쪽 아래 오케스트레이터-워커는 대형 오케스트레이터가 소형 워커 여럿에게 하위 작업을 나눠 주고 결과를 종합한다.">
+  <defs>
+    <marker id="mr-f2-sky" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--mr-sky)"/>
+    </marker>
+    <marker id="mr-f2-green" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--mr-green)"/>
+    </marker>
+    <marker id="mr-f2-rose" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--mr-rose)"/>
+    </marker>
+  </defs>
+  <text x="450" y="28" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">난이도 판단을 언제, 누가 하느냐 — 패턴 네 가지</text>
+
+  <!-- 1사분면: 정적 라우팅 -->
+  <text x="225" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="var(--mr-sky)">① 정적 태스크 라우팅 — 설계 때 결정</text>
+  <rect x="55" y="118" width="110" height="44" rx="9" fill="var(--mr-sky)" opacity="0.13"/>
+  <rect x="55" y="118" width="110" height="44" rx="9" fill="none" stroke="var(--mr-sky)" stroke-width="2"/>
+  <text x="110" y="145" text-anchor="middle" font-size="12" fill="currentColor">작업 유형</text>
+  <path d="M165 132 C200 120 220 108 255 102" stroke="var(--mr-sky)" stroke-width="2" fill="none" marker-end="url(#mr-f2-sky)"/>
+  <path d="M165 148 C200 160 220 172 255 178" stroke="var(--mr-sky)" stroke-width="2" fill="none" marker-end="url(#mr-f2-sky)"/>
+  <rect x="265" y="82" width="120" height="38" rx="8" fill="var(--mr-green)" opacity="0.15"/>
+  <text x="325" y="106" text-anchor="middle" font-size="12" fill="currentColor">소형 (분류·요약)</text>
+  <rect x="265" y="162" width="120" height="38" rx="8" fill="var(--mr-rose)" opacity="0.15"/>
+  <text x="325" y="186" text-anchor="middle" font-size="12" fill="currentColor">대형 (설계·리뷰)</text>
+  <text x="225" y="232" text-anchor="middle" font-size="11.5" fill="var(--mr-gray)">코드 한 줄짜리 테이블 · 운영 단순 · 유형 안 편차엔 무력</text>
+
+  <!-- 2사분면: 캐스케이드 -->
+  <text x="675" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="var(--mr-green)">② 캐스케이드 — 답을 보고 사후 판단</text>
+  <rect x="505" y="96" width="100" height="42" rx="9" fill="var(--mr-green)" opacity="0.15"/>
+  <rect x="505" y="96" width="100" height="42" rx="9" fill="none" stroke="var(--mr-green)" stroke-width="2"/>
+  <text x="555" y="122" text-anchor="middle" font-size="12" fill="currentColor">소형 시도</text>
+  <path d="M605 117 H648" stroke="var(--mr-green)" stroke-width="2" fill="none" marker-end="url(#mr-f2-green)"/>
+  <rect x="658" y="96" width="76" height="42" rx="9" fill="var(--mr-amber)" opacity="0.18"/>
+  <text x="696" y="122" text-anchor="middle" font-size="12" fill="currentColor">판정</text>
+  <path d="M734 110 C760 104 775 100 800 98" stroke="var(--mr-green)" stroke-width="2" fill="none" marker-end="url(#mr-f2-green)"/>
+  <text x="836" y="100" text-anchor="middle" font-size="12" fill="var(--mr-green)" font-weight="700">통과 → 끝</text>
+  <path d="M696 138 C696 168 640 180 610 184" stroke="var(--mr-rose)" stroke-width="2" fill="none" marker-end="url(#mr-f2-rose)"/>
+  <rect x="505" y="164" width="100" height="42" rx="9" fill="var(--mr-rose)" opacity="0.15"/>
+  <rect x="505" y="164" width="100" height="42" rx="9" fill="none" stroke="var(--mr-rose)" stroke-width="2"/>
+  <text x="555" y="190" text-anchor="middle" font-size="12" fill="currentColor">대형 재시도</text>
+  <text x="675" y="232" text-anchor="middle" font-size="11.5" fill="var(--mr-gray)">쉬운 트래픽 많을수록 유리 · 어려운 요청은 지연 ↑</text>
+
+  <!-- 가운데 구분선 -->
+  <line x1="60" y1="256" x2="840" y2="256" stroke="var(--mr-gray)" stroke-width="1" opacity="0.3"/>
+  <line x1="450" y1="48" x2="450" y2="520" stroke="var(--mr-gray)" stroke-width="1" opacity="0.3"/>
+
+  <!-- 3사분면: 학습 라우터 -->
+  <text x="225" y="292" text-anchor="middle" font-size="14" font-weight="700" fill="var(--mr-violet)">③ 학습 라우터 — 보내기 전에 사전 예측</text>
+  <rect x="55" y="348" width="110" height="44" rx="9" fill="var(--mr-violet)" opacity="0.13"/>
+  <rect x="55" y="348" width="110" height="44" rx="9" fill="none" stroke="var(--mr-violet)" stroke-width="2"/>
+  <text x="110" y="370" text-anchor="middle" font-size="12" fill="currentColor">판별기</text>
+  <text x="110" y="386" text-anchor="middle" font-size="10.5" fill="var(--mr-gray)">난이도 예측</text>
+  <path d="M165 362 C200 350 220 338 255 332" stroke="var(--mr-sky)" stroke-width="2" fill="none" marker-end="url(#mr-f2-sky)"/>
+  <path d="M165 378 C200 390 220 402 255 408" stroke="var(--mr-sky)" stroke-width="2" fill="none" marker-end="url(#mr-f2-sky)"/>
+  <rect x="265" y="312" width="120" height="38" rx="8" fill="var(--mr-green)" opacity="0.15"/>
+  <text x="325" y="336" text-anchor="middle" font-size="12" fill="currentColor">소형 (쉬움 예측)</text>
+  <rect x="265" y="392" width="120" height="38" rx="8" fill="var(--mr-rose)" opacity="0.15"/>
+  <text x="325" y="416" text-anchor="middle" font-size="12" fill="currentColor">대형 (어려움 예측)</text>
+  <text x="225" y="462" text-anchor="middle" font-size="11.5" fill="var(--mr-gray)">호출 1번이라 지연 유리 · 학습 데이터와 평가가 필요</text>
+  <text x="225" y="482" text-anchor="middle" font-size="11.5" fill="var(--mr-gray)">예: RouteLLM (선호 데이터로 학습)</text>
+
+  <!-- 4사분면: 오케스트레이터-워커 -->
+  <text x="675" y="292" text-anchor="middle" font-size="14" font-weight="700" fill="var(--mr-amber)">④ 오케스트레이터-워커 — 역할로 분담</text>
+  <rect x="610" y="316" width="130" height="46" rx="9" fill="var(--mr-rose)" opacity="0.15"/>
+  <rect x="610" y="316" width="130" height="46" rx="9" fill="none" stroke="var(--mr-rose)" stroke-width="2"/>
+  <text x="675" y="338" text-anchor="middle" font-size="12" fill="currentColor">대형 오케스트레이터</text>
+  <text x="675" y="354" text-anchor="middle" font-size="10.5" fill="var(--mr-gray)">계획 · 분해 · 종합</text>
+  <path d="M625 362 C600 384 580 396 560 404" stroke="var(--mr-green)" stroke-width="2" fill="none" marker-end="url(#mr-f2-green)"/>
+  <path d="M675 362 V404" stroke="var(--mr-green)" stroke-width="2" fill="none" marker-end="url(#mr-f2-green)"/>
+  <path d="M725 362 C750 384 770 396 790 404" stroke="var(--mr-green)" stroke-width="2" fill="none" marker-end="url(#mr-f2-green)"/>
+  <rect x="505" y="412" width="100" height="40" rx="8" fill="var(--mr-green)" opacity="0.15"/>
+  <text x="555" y="437" text-anchor="middle" font-size="11.5" fill="currentColor">소형 워커 A</text>
+  <rect x="625" y="412" width="100" height="40" rx="8" fill="var(--mr-green)" opacity="0.15"/>
+  <text x="675" y="437" text-anchor="middle" font-size="11.5" fill="currentColor">소형 워커 B</text>
+  <rect x="745" y="412" width="100" height="40" rx="8" fill="var(--mr-green)" opacity="0.15"/>
+  <text x="795" y="437" text-anchor="middle" font-size="11.5" fill="currentColor">소형 워커 C</text>
+  <text x="675" y="482" text-anchor="middle" font-size="11.5" fill="var(--mr-gray)">판단은 비싼 모델, 읽기·탐색 등 물량은 싼 모델</text>
+  <text x="675" y="502" text-anchor="middle" font-size="11.5" fill="var(--mr-gray)">예: Anthropic 멀티에이전트 리서치 시스템</text>
+
+  <text x="450" y="542" text-anchor="middle" font-size="12.5" fill="var(--mr-gray)">①은 설계 때, ③은 요청 직전, ②는 답을 본 뒤, ④는 작업을 쪼갠 뒤 — "누가 언제 판단하나"로 구분하면 헷갈리지 않습니다</text>
+</svg>
+<figcaption>네 가지 라우팅 패턴. 난이도 판단의 시점(설계 시 / 요청 전 / 응답 후 / 분해 후)과 주체(사람 / 판별기 / 판정기 / 오케스트레이터)가 각 패턴의 본질입니다.</figcaption>
+</figure>
+
+<p>캐스케이드에서 품질을 좌우하는 건 사실 모델이 아니라 <strong>판정기(judge)</strong>입니다. 판정이 너무 후하면 품질 사고가 나고, 너무 짜면 전부 승격돼 비용 절감이 사라집니다. 실무에서 자주 쓰는 판정 방법은 세 가지입니다. 형식 검증(JSON 스키마, 테스트 통과처럼 기계적으로 확인 가능한 것 — 가장 싸고 확실), 모델 자기 평가(답과 함께 확신도를 출력하게 하기 — 싸지만 과신 경향 주의), 별도 판정 모델(작은 모델에게 채점시키기 — FrugalGPT의 방식). 기계적 검증이 가능한 작업이라면 무조건 그걸 먼저 쓰세요.</p>
+
+<h2 id="sec-6">패턴 ④ 오케스트레이터-워커 — 서브에이전트 오프로딩</h2>
+
+<p>마지막 패턴은 요청 단위가 아니라 <strong>역할 단위</strong>의 라우팅입니다. 에이전트 시스템에서 토큰을 가장 많이 먹는 건 보통 판단이 아니라 물량입니다 — 파일 수십 개 읽기, 검색 결과 훑기, 로그 뒤지기. 이런 "많이 읽고 조금 판단하는" 하위 작업을 소형 모델 워커(worker)에게 떼어 주고, 비싼 모델은 계획·분해·종합이라는 판단 역할에만 쓰는 구조가 오케스트레이터-워커입니다.</p>
+
+<p>Anthropic의 멀티에이전트 리서치 시스템이 이 구조의 공개된 사례입니다. 대형 모델(Opus 4)이 리드 에이전트로 조사를 지휘하고, 중형 모델(Sonnet 4) 서브에이전트들이 병렬로 자료를 뒤졌는데, 단일 대형 모델 에이전트보다 내부 리서치 평가에서 90.2% 더 좋은 성과를 냈습니다. 단, 같은 글에서 Anthropic은 멀티에이전트가 채팅 대비 약 15배의 토큰을 쓴다고 경고합니다. 토큰 소비 자체가 커지는 구조라서, <strong>워커를 얼마나 싼 모델로 내릴 수 있느냐가 이 패턴의 채산성을 결정</strong>합니다. 서브에이전트 하나하나는 "주어진 소스를 읽고 요약해 와라" 수준의 좁은 작업을 받기 때문에, 이번 세대 소형 모델이 가장 먼저 투입될 자리이기도 합니다. Anthropic이 Haiku 5.5 용도로 "코딩 작업에서 Opus 5.5·Sonnet 5.5와 나란히 쓰는 서브에이전트"를 명시한 것도 같은 맥락입니다.</p>
+
+<div class="mr-warn">
+<strong>이 패턴을 비용 절감 수단으로 먼저 집지는 마세요.</strong> 오케스트레이터-워커의 본래 동기는 품질(병렬 탐색, 깨끗한 컨텍스트 분리)이고, 총 토큰은 오히려 늘어납니다. "단일 에이전트로는 컨텍스트가 넘치거나 품질이 안 나오는 작업"이라는 전제가 성립할 때, 그 안에서 워커 모델을 싸게 고르는 것이 올바른 순서입니다.
+</div>
+
+<h2 id="sec-7">실전 — 비용을 찍어 보는 미니 라우터 만들기</h2>
+
+<p>정적 라우팅 + 캐스케이드를 합친 최소 구현을 만들어 봅시다. 포인트는 두 가지입니다. 모든 호출의 비용을 로그로 남겨서 라우팅의 효과를 숫자로 보는 것, 그리고 판정을 기계 검증 → 모델 판정 순서로 거는 것.</p>
+
+{{< highlight python >}}
+import anthropic
+
+client = anthropic.Anthropic()
+
+PRICE = {  # $/1M 토큰 (입력, 출력) — 2026-10 공식 단가, Haiku는 100K 이하 프롬프트 기준
+    "claude-haiku-5-5":  (0.10, 0.50),
+    "claude-sonnet-5-5": (2.00, 10.00),
+}
+
+def ask(model: str, prompt: str, max_tokens: int = 1024) -> str:
+    r = client.messages.create(
+        model=model, max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    pin, pout = PRICE[model]
+    cost = (r.usage.input_tokens * pin + r.usage.output_tokens * pout) / 1e6
+    print(f"[{model}] in={r.usage.input_tokens} out={r.usage.output_tokens} ${cost:.6f}")
+    return "".join(b.text for b in r.content if b.type == "text")
+{{< /highlight >}}
+
+{{< highlight python >}}
+import json
+
+def answer_inquiry(inquiry: str) -> dict:
+    """고객 문의를 소형 모델로 먼저 처리하고, 판정에 걸리면 승격하는 캐스케이드."""
+    task = (
+        "고객 문의에 대한 답변 초안을 JSON으로 작성하세요. "
+        '형식: {"category": "...", "reply": "...", "needs_human": true/false}\n'
+        f"문의: {inquiry}"
+    )
+
+    draft = ask("claude-haiku-5-5", task)
+
+    # 1차 판정: 기계 검증 — 형식이 깨졌으면 모델 판정까지 갈 것도 없이 승격
+    try:
+        parsed = json.loads(draft)
+        assert {"category", "reply", "needs_human"} <= parsed.keys()
+    except (json.JSONDecodeError, AssertionError):
+        return json.loads(ask("claude-sonnet-5-5", task))
+
+    # 2차 판정: 소형 모델에게 채점시키기 — OK / ESCALATE 한 단어만 받습니다
+    verdict = ask(
+        "claude-haiku-5-5",
+        "아래 답변이 문의를 정확히 해결하면 OK, 사실관계가 불확실하거나 "
+        "분쟁 소지가 있으면 ESCALATE — 한 단어로만 답하세요.\n"
+        f"문의: {inquiry}\n답변: {parsed['reply']}",
+        max_tokens=16,
+    )
+    if "ESCALATE" in verdict.upper():
+        return json.loads(ask("claude-sonnet-5-5", task))  # 승격: 중형 모델이 재작성
+    return parsed
+{{< /highlight >}}
+
+<p>이 코드를 실제 트래픽 샘플 100건에 돌려 보면 <code>print</code> 로그만으로도 "몇 %가 승격됐고, 평균 비용이 얼마인지"가 나옵니다. 승격률이 10%라면 요청당 평균 비용은 소형 모델 단독의 1.3~1.5배 선에서 끝나면서 품질은 중형 모델에 수렴합니다. 반대로 승격률이 50%를 넘으면 이 작업은 캐스케이드감이 아니라 처음부터 중형 모델감이라는 신호입니다. <strong>승격률이야말로 캐스케이드의 핵심 운영 지표</strong>입니다.</p>
+
+<figure class="mr-fig">
+<svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="라우팅 도입 순서를 그린 의사결정 트리. 시작은 평가셋 만들기이고, 첫 질문은 같은 모델의 낮은 effort로 충분한가이다. 예라면 라우팅 불필요로 끝난다. 아니오라면 작업 유형이 갈리는가를 묻고, 예라면 정적 라우팅을 적용한다. 그 다음 같은 유형 안 난이도 편차가 큰가를 묻고, 기계 검증이 가능하면 캐스케이드, 트래픽이 크고 데이터가 있으면 학습 라우터로 간다. 마지막으로 단일 에이전트 품질이 한계면 오케스트레이터-워커를 검토한다.">
+  <defs>
+    <marker id="mr-f3-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--mr-slate)"/>
+    </marker>
+  </defs>
+  <text x="450" y="28" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">라우팅 도입 순서 — 단순한 것부터, 측정하면서</text>
+
+  <rect x="330" y="52" width="240" height="44" rx="10" fill="var(--mr-violet)" opacity="0.14"/>
+  <rect x="330" y="52" width="240" height="44" rx="10" fill="none" stroke="var(--mr-violet)" stroke-width="2"/>
+  <text x="450" y="79" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">0. 작업별 평가셋부터 만들기</text>
+
+  <path d="M450 96 V124" stroke="var(--mr-slate)" stroke-width="2" fill="none" marker-end="url(#mr-f3-arrow)"/>
+
+  <rect x="300" y="132" width="300" height="44" rx="10" fill="var(--mr-sky)" opacity="0.12"/>
+  <rect x="300" y="132" width="300" height="44" rx="10" fill="none" stroke="var(--mr-sky)" stroke-width="2"/>
+  <text x="450" y="159" text-anchor="middle" font-size="13" fill="currentColor">1. 같은 모델 + 낮은 effort로 품질이 유지되나?</text>
+
+  <path d="M600 154 C660 154 690 154 720 154" stroke="var(--mr-green)" stroke-width="2" fill="none" marker-end="url(#mr-f3-arrow)"/>
+  <text x="660" y="144" text-anchor="middle" font-size="11.5" fill="var(--mr-green)" font-weight="700">예</text>
+  <rect x="728" y="132" width="150" height="44" rx="10" fill="var(--mr-green)" opacity="0.15"/>
+  <text x="803" y="152" text-anchor="middle" font-size="12" fill="currentColor">라우팅 불필요</text>
+  <text x="803" y="168" text-anchor="middle" font-size="10.5" fill="var(--mr-gray)">캐시도 하나로 유지</text>
+
+  <path d="M450 176 V204" stroke="var(--mr-slate)" stroke-width="2" fill="none" marker-end="url(#mr-f3-arrow)"/>
+  <text x="470" y="196" font-size="11.5" fill="var(--mr-gray)">아니오</text>
+
+  <rect x="300" y="212" width="300" height="44" rx="10" fill="var(--mr-sky)" opacity="0.12"/>
+  <rect x="300" y="212" width="300" height="44" rx="10" fill="none" stroke="var(--mr-sky)" stroke-width="2"/>
+  <text x="450" y="239" text-anchor="middle" font-size="13" fill="currentColor">2. 파이프라인이 성격 다른 단계로 나뉘나?</text>
+
+  <path d="M600 234 H720" stroke="var(--mr-green)" stroke-width="2" fill="none" marker-end="url(#mr-f3-arrow)"/>
+  <text x="660" y="224" text-anchor="middle" font-size="11.5" fill="var(--mr-green)" font-weight="700">예</text>
+  <rect x="728" y="212" width="150" height="44" rx="10" fill="var(--mr-green)" opacity="0.15"/>
+  <rect x="728" y="212" width="150" height="44" rx="10" fill="none" stroke="var(--mr-green)" stroke-width="2"/>
+  <text x="803" y="232" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">① 정적 라우팅</text>
+  <text x="803" y="248" text-anchor="middle" font-size="10.5" fill="var(--mr-gray)">단계별 모델 고정</text>
+
+  <path d="M450 256 V284" stroke="var(--mr-slate)" stroke-width="2" fill="none" marker-end="url(#mr-f3-arrow)"/>
+  <text x="508" y="276" font-size="11.5" fill="var(--mr-gray)">그래도 편차가 남으면</text>
+
+  <rect x="300" y="292" width="300" height="44" rx="10" fill="var(--mr-sky)" opacity="0.12"/>
+  <rect x="300" y="292" width="300" height="44" rx="10" fill="none" stroke="var(--mr-sky)" stroke-width="2"/>
+  <text x="450" y="319" text-anchor="middle" font-size="13" fill="currentColor">3. 같은 경로 안에서 난이도 편차가 큰가?</text>
+
+  <path d="M330 336 C280 360 240 372 210 380" stroke="var(--mr-slate)" stroke-width="2" fill="none" marker-end="url(#mr-f3-arrow)"/>
+  <text x="235" y="352" text-anchor="middle" font-size="11" fill="var(--mr-gray)">판정을 걸 수 있다</text>
+  <rect x="60" y="388" width="230" height="52" rx="10" fill="var(--mr-green)" opacity="0.15"/>
+  <rect x="60" y="388" width="230" height="52" rx="10" fill="none" stroke="var(--mr-green)" stroke-width="2"/>
+  <text x="175" y="410" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">② 캐스케이드</text>
+  <text x="175" y="428" text-anchor="middle" font-size="10.5" fill="var(--mr-gray)">기계 검증 우선 · 승격률 측정</text>
+
+  <path d="M570 336 C620 360 660 372 690 380" stroke="var(--mr-slate)" stroke-width="2" fill="none" marker-end="url(#mr-f3-arrow)"/>
+  <text x="665" y="352" text-anchor="middle" font-size="11" fill="var(--mr-gray)">트래픽·데이터가 크다</text>
+  <rect x="610" y="388" width="230" height="52" rx="10" fill="var(--mr-violet)" opacity="0.14"/>
+  <rect x="610" y="388" width="230" height="52" rx="10" fill="none" stroke="var(--mr-violet)" stroke-width="2"/>
+  <text x="725" y="410" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">③ 학습 라우터</text>
+  <text x="725" y="428" text-anchor="middle" font-size="10.5" fill="var(--mr-gray)">사전 분기로 지연까지 절약</text>
+
+  <rect x="335" y="388" width="230" height="52" rx="10" fill="var(--mr-amber)" opacity="0.14"/>
+  <rect x="335" y="388" width="230" height="52" rx="10" fill="none" stroke="var(--mr-amber)" stroke-width="2"/>
+  <text x="450" y="410" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">④ 오케스트레이터-워커</text>
+  <text x="450" y="428" text-anchor="middle" font-size="10.5" fill="var(--mr-gray)">전제: 단일 에이전트 품질 한계</text>
+
+  <text x="450" y="462" text-anchor="middle" font-size="12" fill="var(--mr-gray)">모든 화살표의 공통 조건: 평가셋으로 전후를 측정할 수 있을 것 — 측정 없는 라우팅은 품질 사고의 지름길입니다</text>
+</svg>
+<figcaption>라우팅 도입 의사결정 트리. 0번(평가셋)과 1번(같은 모델 + 낮은 effort)을 건너뛰고 멀티 모델부터 짜는 것이 가장 흔한 시행착오입니다.</figcaption>
+</figure>
+
+<h2 id="sec-8">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>요청당 비용이 아니라 "완료된 작업당 비용"으로 측정하세요</strong> — 소형 모델이 요청당 40배 싸도, 재시도와 승격이 잦아 작업 하나를 끝내는 데 호출이 3배 들면 실제 절감은 확 줄어듭니다. 라우팅 전후 비교는 반드시 작업 단위 완료 비용과 품질 지표를 같이 봐야 합니다.</li>
+  <li><strong>평가셋 없이 라우팅 조정 금지</strong> — "Haiku로 내렸는데 티가 안 나는 것 같다"는 느낌은 측정이 아닙니다. 작업별로 수십 건이라도 좋으니 채점 가능한 평가셋을 먼저 만들고, 모델을 내릴 때마다 돌려 보세요. 평가셋이 없으면 라우팅은 비용 절감이 아니라 품질 러시안룰렛이 됩니다.</li>
+  <li><strong>프롬프트 캐시는 모델 단위라는 것</strong> — prompt caching의 캐시는 모델별로 분리됩니다. 요청을 여러 모델로 흩뿌리면 각 모델이 캐시를 따로 쌓아야 해서, 캐시 적중률이 떨어지는 만큼 라우팅 절감분을 되돌려주게 됩니다. 시스템 프롬프트가 길고 캐시 의존이 큰 경로라면 "모델 하나 + effort 조절"이 더 쌀 수 있습니다.</li>
+  <li><strong>Haiku 5.5의 장문 단가 점프</strong> — 프롬프트가 10만 토큰을 넘는 순간 입력 $0.50 / 출력 $2.50으로 5배가 됩니다. "싸니까 컨텍스트를 아낌없이"는 이 모델에서 자충수입니다. 소형 모델에는 좁은 작업과 좁은 컨텍스트를 주는 게 설계 의도에 맞습니다.</li>
+  <li><strong>판정기 비용과 지연을 잊지 말 것</strong> — 캐스케이드의 판정 호출도 돈과 시간입니다. 판정기는 가장 싼 모델로, 출력은 한 단어로 제한하고, JSON 파싱·테스트 실행처럼 모델 없이 되는 검증이 있으면 그걸 1차로 거세요.</li>
+  <li><strong>모델을 바꾸면 프롬프트도 다시 조율해야 합니다</strong> — 같은 프롬프트가 모델마다 다르게 작동합니다. 라우팅으로 모델을 내릴 때는 해당 경로의 프롬프트를 소형 모델에 맞게 손보는 작업까지가 한 세트입니다. 이 블로그의 <a href="/posts/prompt-migration-model-upgrades/">프롬프트 마이그레이션 엔지니어링</a> 편에서 자세히 다뤘습니다.</li>
+  <li><strong>라우팅 테이블을 코드 리뷰 대상으로</strong> — "이 경로는 왜 Sonnet인가"가 커밋 메시지와 리뷰에 남아 있어야, 모델 세대가 바뀔 때(그리고 요즘은 분기마다 바뀝니다) 어떤 경로를 재평가할지 알 수 있습니다. 새 소형 모델이 나올 때마다 평가셋을 돌려 "한 단계 내릴 수 있는 경로"를 찾는 것이 이 시대의 정기 점검입니다.</li>
+</ul>
+
+<h2 id="sec-9">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>이번 주 공개된 <strong>Claude Haiku 5.5</strong>는 입력 $0.10/1M 토큰으로 Opus 5.5의 1/40 가격인데, Terminal-Bench 0.0→39.2%, OSWorld 15.7→72.4%로 전작 대비 성능 바닥이 크게 올라왔습니다. 가격 양극화 + 소형 모델의 상향 = <strong>모델 라우팅의 수익성</strong>이 커진 한 주였습니다.</li>
+  <li>패턴은 네 가지 — <strong>① 정적 태스크 라우팅</strong>(설계 때 작업 유형별 모델 고정, 가장 쉽고 대개 충분), <strong>② 캐스케이드</strong>(싼 모델 먼저 + 판정 + 승격, FrugalGPT 최대 98% 절감), <strong>③ 학습 라우터</strong>(사전 난이도 예측, RouteLLM 30~70% 절감), <strong>④ 오케스트레이터-워커</strong>(판단은 대형, 물량은 소형 워커).</li>
+  <li>순서가 중요합니다: <strong>평가셋 → 같은 모델 + 낮은 effort → 정적 라우팅 → 캐스케이드/라우터</strong>. 멀티 모델은 캐시 분리라는 숨은 비용이 있어서, 더 단순한 대안을 측정으로 제낀 뒤에 도입해야 합니다.</li>
+  <li>운영 지표는 <strong>승격률</strong>과 <strong>완료 작업당 비용</strong>. 승격률 50% 넘는 경로는 캐스케이드감이 아니고, 요청당 비용만 보는 비교는 착시입니다.</li>
+  <li>함정: Haiku 5.5는 프롬프트 100K 토큰 초과 시 단가 5배, 캐시는 모델 단위, 모델 교체는 프롬프트 재조율과 한 세트.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.anthropic.com/claude-haiku-5-5" target="_blank" rel="noopener">Claude Haiku 5.5 — Anthropic 공식 발표 (2026-10-07, 가격·벤치마크 출처)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=49996437" target="_blank" rel="noopener">Hacker News 토론 스레드 — Claude Haiku 5.5</a></li>
+  <li><a href="https://arxiv.org/abs/2305.05176" target="_blank" rel="noopener">FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance — Chen, Zaharia, Zou (Stanford, arXiv:2305.05176)</a></li>
+  <li><a href="https://arxiv.org/abs/2406.18665" target="_blank" rel="noopener">RouteLLM: Learning to Route LLMs with Preference Data — Ong et al. (UC Berkeley, arXiv:2406.18665, ICLR 2025)</a></li>
+  <li><a href="https://anyscale.com/blog/building-an-llm-router-for-high-quality-and-cost-effective-responses" target="_blank" rel="noopener">Building an LLM Router for High-Quality and Cost-Effective Responses — Anyscale (RouteLLM 벤치마크별 절감 수치)</a></li>
+  <li><a href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener">How we built our multi-agent research system — Anthropic Engineering (90.2% 개선, 토큰 4×/15× 수치 출처)</a></li>
+  <li><a href="https://docs.claude.com/en/docs/about-claude/pricing" target="_blank" rel="noopener">Claude API 공식 가격표 — Anthropic Docs</a></li>
+  <li><a href="https://mistral.ai/news/mistral-large-4/" target="_blank" rel="noopener">Mistral Large 4 발표 — Mistral AI (같은 주 대형 모델 릴리스)</a></li>
+  <li><a href="https://blog.portkey.ai/blog/frugalgpt-how-to-use-large-language-models-while-reducing-cost-and-improving-performance-summary" target="_blank" rel="noopener">FrugalGPT 요약 — Portkey (2차 해설)</a></li>
+  <li>🇰🇷 <a href="https://tilnote.io/pages/6ac76808d842417873d85b0f" target="_blank" rel="noopener">Claude Haiku 5.5 출시 정리 (한국어)</a></li>
+</ul>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="430" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-12</text>
+
+  <!-- 중앙 허브 -->
+  <circle cx="400" cy="230" r="46" fill="#1a1a2e"/>
+  <text x="400" y="224" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">에이전트</text>
+  <text x="400" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">격리</text>
+
+  <!-- 연결선 -->
+  <line x1="400" y1="184" x2="205" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="184" x2="595" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="205" y2="330" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="595" y2="330" stroke="#bbb" stroke-width="1.5"/>
+
+  <!-- 벤더 -->
+  <rect x="30" y="60" width="350" height="115" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="50" y="86" font-size="14" font-weight="700" fill="#b5431a">🤖 벤더</text>
+  <text x="50" y="110" font-size="12" fill="#333">Anthropic 보고서: 평가 중 에이전트가 실제 정부</text>
+  <text x="50" y="129" font-size="12" fill="#333">사이트 접촉 → fetch 가드레일 강화·평가망 인터넷 차단</text>
+  <text x="50" y="151" font-size="12" fill="#b5431a">"샌드박스 경계는 가정이 아니라 검증 대상"</text>
+
+  <!-- 논문 -->
+  <rect x="420" y="60" width="350" height="115" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="440" y="86" font-size="14" font-weight="700" fill="#1d4ed8">📚 논문</text>
+  <text x="440" y="110" font-size="12" fill="#333">Caught in the Act: 프로브로 기만 탐지, AUC 98.8%</text>
+  <text x="440" y="129" font-size="12" fill="#333">PASAC: 3사 격리 실패 사례 → 5계층 경계 보증 스택</text>
+  <text x="440" y="151" font-size="12" fill="#1d4ed8">감시는 텍스트 모니터보다 깊은 층에서</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="350" height="115" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="311" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="50" y="335" font-size="12" fill="#333">security-audit-skill: 에이전트를 보안 감사자로 (Cloudflare)</text>
+  <text x="50" y="354" font-size="12" fill="#333">orca: Codex·CC 병렬 실행 데스크톱 오케스트레이터</text>
+  <text x="50" y="376" font-size="12" fill="#047857">공격측 자동화 vs 운영측 오케스트레이션</text>
+
+  <!-- 툴링 -->
+  <rect x="420" y="285" width="350" height="115" rx="12" fill="#f3efff" stroke="#6250d6" stroke-width="1.5"/>
+  <text x="440" y="311" font-size="14" font-weight="700" fill="#5b21b6">🧑‍💻 툴링</text>
+  <text x="440" y="335" font-size="12" fill="#333">CC: sec-default mod 업데이트 — 고정 환경변수 방어</text>
+  <text x="440" y="354" font-size="12" fill="#333">Codex: /daemon에서 백그라운드 서버 재시작</text>
+  <text x="440" y="376" font-size="12" fill="#5b21b6">둘 다 '에이전트 런타임 하드닝' 방향</text>
+</svg>

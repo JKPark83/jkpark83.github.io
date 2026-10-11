@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="300" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1a2e">오늘의 오픈소스 비교 — 공격측 자동화 vs 운영측 오케스트레이션</text>
+
+  <!-- security-audit-skill -->
+  <rect x="30" y="50" width="360" height="210" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="80" font-size="14" font-weight="700" fill="#047857">cloudflare/security-audit-skill</text>
+  <text x="50" y="102" font-size="11.5" fill="#555">Markdown 스킬 + JS 검증기 · MIT</text>
+  <text x="50" y="130" font-size="12" fill="#333">코딩 에이전트를 보안 감사자로 전환</text>
+  <text x="50" y="152" font-size="12" fill="#333">정찰 → 커버리지 기반 헌팅 → 반증 검증</text>
+  <text x="50" y="174" font-size="12" fill="#333">→ 구조화 기록 → 독립 재검증 → 리포트</text>
+  <text x="50" y="200" font-size="12" fill="#333">같은 레포 반복 실행 시 커버리지 누적</text>
+  <text x="50" y="230" font-size="12" font-weight="700" fill="#047857">용도: 내 레포 정기 보안 감사 파이프라인</text>
+
+  <!-- orca -->
+  <rect x="410" y="50" width="360" height="210" rx="12" fill="#f3efff" stroke="#6250d6" stroke-width="1.5"/>
+  <text x="430" y="80" font-size="14" font-weight="700" fill="#5b21b6">stablyai/orca</text>
+  <text x="430" y="102" font-size="11.5" fill="#555">TypeScript/Electron · MIT · 10/11 당일 커밋</text>
+  <text x="430" y="130" font-size="12" fill="#333">Codex·Claude Code·OpenCode·Pi를</text>
+  <text x="430" y="152" font-size="12" fill="#333">각자 git worktree에서 나란히 실행</text>
+  <text x="430" y="174" font-size="12" fill="#333">모바일 컴패니언으로 밖에서 모니터·지시</text>
+  <text x="430" y="200" font-size="12" fill="#333">macOS · Windows · Linux, 한국어 README</text>
+  <text x="430" y="230" font-size="12" font-weight="700" fill="#5b21b6">용도: 멀티 에이전트 병렬 작업 관제탑</text>
+
+  <text x="400" y="285" text-anchor="middle" font-size="11.5" fill="#555">스타 수는 세션 API 제한으로 미검증 · 두 레포 모두 클론으로 실존·최근 커밋 확인</text>
+</svg>

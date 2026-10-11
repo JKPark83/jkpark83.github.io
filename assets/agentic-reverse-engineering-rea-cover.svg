@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트가 MCP를 통해 REA에 질문하고, REA가 바이너리·Electron 앱·웹을 분석해 증거가 붙은 결과를 돌려주는 흐름을 그린 표지">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- subtle hex dump backdrop -->
+  <g font-family="monospace" font-size="15" fill="#334155" opacity="0.55">
+    <text x="40" y="560">55 48 89 e5 48 83 ec 20 e8 a1 00 00 00 48 8b 45</text>
+    <text x="40" y="585">f8 bf 3f 00 00 00 e8 10 fe ff ff c9 c3 0f 1f 40</text>
+    <text x="640" y="560">push rbp / mov rbp,rsp / call sub_401a20</text>
+    <text x="640" y="585">mov edi, 0x3f / call _play_sound / leave / ret</text>
+  </g>
+
+  <!-- title -->
+  <text x="600" y="95" text-anchor="middle" font-family="sans-serif" font-size="46" font-weight="800" fill="#f1f5f9">에이전트가 바이너리를 읽는다</text>
+  <text x="600" y="140" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#94a3b8">별 10만 개 REA로 배우는 리버스 엔지니어링 MCP 설계</text>
+
+  <!-- agent box -->
+  <rect x="80" y="230" width="250" height="150" rx="16" fill="#1d4ed8" opacity="0.28" stroke="#60a5fa" stroke-width="2"/>
+  <text x="205" y="290" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#bfdbfe">AI 에이전트</text>
+  <text x="205" y="325" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#93c5fd">Claude Code · Codex · Cursor</text>
+
+  <!-- REA box -->
+  <rect x="470" y="210" width="260" height="190" rx="16" fill="#047857" opacity="0.3" stroke="#34d399" stroke-width="2"/>
+  <text x="600" y="265" text-anchor="middle" font-family="sans-serif" font-size="29" font-weight="800" fill="#a7f3d0">REA</text>
+  <text x="600" y="300" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#6ee7b7">MCP 서버 하나로</text>
+  <text x="600" y="326" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#6ee7b7">Hopper · Ghidra · IDA · JADX</text>
+  <text x="600" y="352" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#6ee7b7">브라우저 · 프로세스 캡처</text>
+
+  <!-- targets box -->
+  <rect x="870" y="210" width="250" height="190" rx="16" fill="#7c2d12" opacity="0.35" stroke="#fb923c" stroke-width="2"/>
+  <text x="995" y="262" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#fed7aa">분석 대상</text>
+  <text x="995" y="297" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fdba74">네이티브 바이너리 · WASM</text>
+  <text x="995" y="323" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fdba74">Electron · .NET · APK</text>
+  <text x="995" y="349" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fdba74">웹사이트 · 네트워크 캡처</text>
+
+  <!-- arrows -->
+  <g stroke="#64748b" stroke-width="3" fill="none" marker-end="none">
+    <path d="M335 285 L462 285"/>
+    <path d="M462 335 L335 335"/>
+    <path d="M735 285 L862 285"/>
+    <path d="M862 335 L735 335"/>
+  </g>
+  <g fill="#64748b">
+    <polygon points="462,285 448,278 448,292"/>
+    <polygon points="335,335 349,328 349,342"/>
+    <polygon points="862,285 848,278 848,292"/>
+    <polygon points="735,335 749,328 749,342"/>
+  </g>
+  <g font-family="sans-serif" font-size="15" fill="#94a3b8">
+    <text x="398" y="272" text-anchor="middle">질문 (MCP)</text>
+    <text x="398" y="362" text-anchor="middle">증거 붙은 답</text>
+    <text x="798" y="272" text-anchor="middle">분석·추적</text>
+    <text x="798" y="362" text-anchor="middle">pseudocode·IPC·호출 그래프</text>
+  </g>
+
+  <!-- evidence card -->
+  <g>
+    <rect x="430" y="440" width="340" height="80" rx="12" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+    <text x="450" y="472" font-family="monospace" font-size="16" fill="#34d399">"evidence_id": "ev_01…"</text>
+    <text x="450" y="500" font-family="monospace" font-size="16" fill="#94a3b8">주장마다 증거와 한계를 함께</text>
+  </g>
+</svg>

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="밀폐된 에이전트 평가 환경을 표현한 그림. 왼쪽에는 라이브 인터넷을 뜻하는 지구본이 있고, 에이전트 평가 상자와 연결되던 케이블이 가운데에서 끊어져 있다. 오른쪽에는 밀봉된 평가 샌드박스 안에 에이전트와 녹화된 웹 응답 카세트가 들어 있다. 아래에는 '평가 트래픽도 프로덕션 트래픽이다'라는 문구가 있다.">
+  <defs>
+    <linearGradient id="hae-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <radialGradient id="hae-globe" cx="0.35" cy="0.35" r="0.9">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#0369a1"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#hae-bg)"/>
+
+  <g font-family="'Segoe UI',system-ui,sans-serif">
+    <!-- 왼쪽: 라이브 인터넷 지구본 -->
+    <circle cx="210" cy="280" r="110" fill="url(#hae-globe)" opacity="0.9"/>
+    <g stroke="#bae6fd" stroke-width="2" fill="none" opacity="0.7">
+      <ellipse cx="210" cy="280" rx="110" ry="42"/>
+      <ellipse cx="210" cy="280" rx="55" ry="108"/>
+      <path d="M100 280h220"/>
+    </g>
+    <text x="210" y="440" fill="#7dd3fc" font-size="24" font-weight="700" text-anchor="middle">라이브 인터넷</text>
+    <text x="210" y="472" fill="#64748b" font-size="16" text-anchor="middle">실제 서버 · 실제 폼 · 실제 사람</text>
+
+    <!-- 가운데: 끊어진 케이블 -->
+    <path d="M320 280 C 400 280 430 280 490 280" stroke="#475569" stroke-width="14" fill="none" stroke-linecap="round"/>
+    <path d="M585 280 C 640 280 660 280 700 280" stroke="#475569" stroke-width="14" fill="none" stroke-linecap="round"/>
+    <!-- 플러그 모양 단선부 -->
+    <rect x="490" y="262" width="34" height="36" rx="6" fill="#64748b"/>
+    <line x1="524" y1="270" x2="544" y2="270" stroke="#94a3b8" stroke-width="5"/>
+    <line x1="524" y1="290" x2="544" y2="290" stroke="#94a3b8" stroke-width="5"/>
+    <rect x="562" y="262" width="24" height="36" rx="6" fill="#64748b"/>
+    <!-- 단선 스파크 -->
+    <g stroke="#fb7185" stroke-width="3" stroke-linecap="round">
+      <path d="M548 246l6 10"/>
+      <path d="M560 242l-2 12"/>
+      <path d="M552 318l6 -10"/>
+    </g>
+    <text x="553" y="218" fill="#fb7185" font-size="21" font-weight="700" text-anchor="middle">2026-10-09</text>
+    <text x="553" y="356" fill="#fda4af" font-size="17" text-anchor="middle">모든 내부 평가에서 차단</text>
+
+    <!-- 오른쪽: 밀봉된 평가 샌드박스 -->
+    <rect x="700" y="130" width="420" height="310" rx="20" fill="#111c33" stroke="#4ade80" stroke-width="3"/>
+    <rect x="700" y="130" width="420" height="310" rx="20" fill="none" stroke="#4ade80" stroke-width="1" stroke-dasharray="6 7" transform="translate(10,10)" opacity="0.4"/>
+    <text x="910" y="172" fill="#4ade80" font-size="23" font-weight="700" text-anchor="middle">hermetic eval 환경</text>
+
+    <!-- 에이전트 칩 -->
+    <rect x="740" y="210" width="150" height="150" rx="14" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+    <circle cx="790" cy="268" r="9" fill="#a78bfa"/>
+    <circle cx="840" cy="268" r="9" fill="#a78bfa"/>
+    <path d="M784 310q31 22 62 0" stroke="#a78bfa" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="815" y="390" fill="#c4b5fd" font-size="17" text-anchor="middle">agent</text>
+
+    <!-- 카세트(녹화된 웹) -->
+    <rect x="930" y="228" width="160" height="104" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+    <circle cx="975" cy="280" r="18" fill="none" stroke="#fbbf24" stroke-width="4"/>
+    <circle cx="1045" cy="280" r="18" fill="none" stroke="#fbbf24" stroke-width="4"/>
+    <line x1="993" y1="280" x2="1027" y2="280" stroke="#fbbf24" stroke-width="4"/>
+    <text x="1010" y="390" fill="#fde68a" font-size="17" text-anchor="middle">녹화된 웹 응답</text>
+
+    <!-- 연결선: 에이전트 -> 카세트 -->
+    <path d="M890 280h40" stroke="#4ade80" stroke-width="4" marker-end="none"/>
+
+    <!-- 하단 문구 -->
+    <text x="600" y="545" fill="#e2e8f0" font-size="34" font-weight="800" text-anchor="middle">평가 트래픽도 프로덕션 트래픽이다</text>
+    <text x="600" y="585" fill="#94a3b8" font-size="19" text-anchor="middle">Anthropic 사건 보고서로 배우는 에이전트 평가 환경 밀폐 설계</text>
+  </g>
+</svg>

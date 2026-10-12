@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TeslaSync</title>
+<script>
+  // 테슬라가 붙여 준 ?code=...&state=... 를 그대로 앱 스킴으로 넘긴다.
+  // ASWebAuthenticationSession이 이 스킴을 가로채 앱에 돌려준다.
+  location.replace("teslasync://oauth/callback" + location.search);
+</script>
+<p>TeslaSync로 돌아가는 중입니다.</p>
+</html>

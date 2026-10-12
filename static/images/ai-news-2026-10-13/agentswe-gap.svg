@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1a2e">AgentSWE — '의뢰(commission)' 방식 평가와 납품 격차</text>
+
+  <!-- 왼쪽: 파이프라인 -->
+  <text x="190" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="#555">평가 파이프라인</text>
+  <rect x="60" y="76" width="260" height="46" rx="8" fill="#eef4ff" stroke="#2a78d6"/>
+  <text x="190" y="95" text-anchor="middle" font-size="12" fill="#1d4ed8" font-weight="700">① 자연어 요구사항 + 예시 케이스 몇 개</text>
+  <text x="190" y="113" text-anchor="middle" font-size="11" fill="#555">빌더(코딩 에이전트)가 보고 반복 개선</text>
+  <line x1="190" y1="122" x2="190" y2="140" stroke="#999" stroke-width="1.5" marker-end="none"/>
+  <rect x="60" y="140" width="260" height="46" rx="8" fill="#eef4ff" stroke="#2a78d6"/>
+  <text x="190" y="159" text-anchor="middle" font-size="12" fill="#1d4ed8" font-weight="700">② 제출본 동결 (frozen submission)</text>
+  <text x="190" y="177" text-anchor="middle" font-size="11" fill="#555">더 이상 수정 불가</text>
+  <line x1="190" y1="186" x2="190" y2="204" stroke="#999" stroke-width="1.5"/>
+  <rect x="60" y="204" width="260" height="46" rx="8" fill="#fdf0e8" stroke="#eb6834"/>
+  <text x="190" y="223" text-anchor="middle" font-size="12" fill="#b5431a" font-weight="700">③ 숨겨둔 held-out 케이스로 검수</text>
+  <text x="190" y="241" text-anchor="middle" font-size="11" fill="#555">요구사항 기반 루브릭 + pass/fail 게이트</text>
+  <line x1="190" y1="250" x2="190" y2="268" stroke="#999" stroke-width="1.5"/>
+  <rect x="60" y="268" width="260" height="46" rx="8" fill="#f3efff" stroke="#6250d6"/>
+  <text x="190" y="287" text-anchor="middle" font-size="12" fill="#5b21b6" font-weight="700">Creation 10 · Editing 10 · Optimization 5</text>
+  <text x="190" y="305" text-anchor="middle" font-size="11" fill="#555">생성 → 프로덕션 코드 수정 → 지표 개선</text>
+
+  <!-- 오른쪽: 결과 바 -->
+  <text x="590" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="#555">Creation 50회 실행 결과 (논문·레포 수치)</text>
+  <!-- bar 1: 만점 기준 -->
+  <text x="420" y="105" font-size="12" fill="#333">만점</text>
+  <rect x="470" y="90" width="280" height="22" rx="4" fill="#e5e7eb"/>
+  <text x="745" y="106" text-anchor="end" font-size="11" fill="#555">100</text>
+  <!-- bar 2: 평균 -->
+  <text x="420" y="150" font-size="12" fill="#333">평균</text>
+  <rect x="470" y="135" width="280" height="22" rx="4" fill="#f1f3f5"/>
+  <rect x="470" y="135" width="31" height="22" rx="4" fill="#eb6834"/>
+  <text x="510" y="151" font-size="12" font-weight="700" fill="#b5431a">11.2점</text>
+  <!-- bar 3: 0점 비율 -->
+  <text x="420" y="195" font-size="12" fill="#333">0점 실행</text>
+  <rect x="470" y="180" width="280" height="22" rx="4" fill="#f1f3f5"/>
+  <rect x="470" y="180" width="112" height="22" rx="4" fill="#b5431a"/>
+  <text x="590" y="196" font-size="12" font-weight="700" fill="#b5431a">50회 중 20회 (40%)</text>
+
+  <!-- 실패 모드 -->
+  <rect x="420" y="228" width="340" height="120" rx="10" fill="#fff" stroke="#ddd"/>
+  <text x="440" y="252" font-size="13" font-weight="700" fill="#1a1a2e">반복되는 실패 모드 3가지</text>
+  <text x="440" y="276" font-size="12" fill="#333">· 보이는 예시 케이스에만 과적합</text>
+  <text x="440" y="298" font-size="12" fill="#333">· 겉은 완성, 속은 빈 '할로우 런타임'</text>
+  <text x="440" y="320" font-size="12" fill="#333">· 근거 없는 "완료했습니다" 보고</text>
+  <text x="440" y="341" font-size="11" fill="#888">출처: arXiv 2610.13361 (수치는 논문·공식 레포 보고 기준)</text>
+</svg>

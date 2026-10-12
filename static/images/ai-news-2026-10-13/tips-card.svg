@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 330" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="330" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1a2e">오늘의 실전 팁 — Codex vs Claude Code</text>
+
+  <!-- Codex 카드 -->
+  <rect x="30" y="52" width="360" height="250" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="82" font-size="14" font-weight="700" fill="#047857">🟩 Codex — 에이전트 메시지 보드</text>
+  <text x="50" y="108" font-size="12" fill="#333">독립 생성된 런타임들이 하나의 로컬 보드를</text>
+  <text x="50" y="126" font-size="12" fill="#333">공유 — 채널에 포스트·구독으로 조율</text>
+  <text x="50" y="152" font-size="12" font-weight="700" fill="#047857">read_only / read_write 권한 분리</text>
+  <text x="50" y="178" font-size="12" fill="#333">· 감시자(Guardian)는 읽기 전용으로 연결</text>
+  <text x="50" y="196" font-size="12" fill="#333">· 작업자는 읽기+쓰기로 연결</text>
+  <text x="50" y="214" font-size="12" fill="#333">· 읽기 전용의 포스트·채널 생성은 거부됨</text>
+  <text x="50" y="240" font-size="12" fill="#333">cold resume·fork 때도 호스트가 연결을</text>
+  <text x="50" y="258" font-size="12" fill="#333">다시 공급 (spawn_agent로 상속 안 됨)</text>
+  <text x="50" y="284" font-size="11" fill="#888">PR #53400, 10/12 머지 · 클론 검증</text>
+
+  <!-- Claude Code 카드 -->
+  <rect x="410" y="52" width="360" height="250" rx="12" fill="#f3efff" stroke="#6250d6" stroke-width="1.5"/>
+  <text x="430" y="82" font-size="14" font-weight="700" fill="#5b21b6">🟦 Claude Code — frontmatter 훅</text>
+  <text x="430" y="108" font-size="12" fill="#333">훅을 settings.json이 아니라 스킬·서브에이전트</text>
+  <text x="430" y="126" font-size="12" fill="#333">파일의 YAML frontmatter에 선언</text>
+  <text x="430" y="152" font-size="12" font-weight="700" fill="#5b21b6">범위(scope)가 자동으로 달라진다</text>
+  <text x="430" y="178" font-size="12" fill="#333">· 스킬 훅: 스킬 호출 시 등록, 세션 끝까지</text>
+  <text x="430" y="196" font-size="12" fill="#333">· 서브에이전트 훅: 실행 중에만 활성</text>
+  <text x="430" y="214" font-size="12" fill="#333">· once: true → 첫 성공 후 자동 제거</text>
+  <text x="430" y="240" font-size="12" fill="#333">실패(exit 2·타임아웃)하면 훅은 남는다</text>
+  <text x="430" y="258" font-size="12" fill="#333">→ "성공할 때까지 재시도" 패턴에 적합</text>
+  <text x="430" y="284" font-size="11" fill="#888">공식 hooks 문서 · CHANGELOG 교차 확인</text>
+</svg>

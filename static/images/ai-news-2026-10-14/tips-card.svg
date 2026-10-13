@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="300" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">오늘의 실전 팁 — 컨텍스트는 미리, 환경변수는 잠그고</text>
+
+  <!-- Codex 카드 -->
+  <rect x="30" y="56" width="360" height="220" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="84" font-size="14" font-weight="700" fill="#047857">🟩 Codex — async_compaction</text>
+  <text x="50" y="110" font-size="12" fill="#333">컨텍스트 65% 도달 시 백그라운드에서</text>
+  <text x="50" y="128" font-size="12" fill="#333">미리 압축 시작 (작업 중단 없음)</text>
+  <rect x="50" y="144" width="320" height="76" rx="8" fill="#0f2e22"/>
+  <text x="64" y="168" font-size="11.5" fill="#8ef0c0" font-family="monospace">[features.async_compaction]</text>
+  <text x="64" y="188" font-size="11.5" fill="#8ef0c0" font-family="monospace">enabled = true</text>
+  <text x="64" y="208" font-size="11.5" fill="#8ef0c0" font-family="monospace">model_async_compact_threshold_percent = 65</text>
+  <text x="50" y="244" font-size="11.5" fill="#047857">기본 꺼짐 · 10/13 머지 · 아직 실험 단계</text>
+  <text x="50" y="263" font-size="11.5" fill="#555">압축 직전 "잠깐 멈춤"이 사라지는 효과</text>
+
+  <!-- CC 카드 -->
+  <rect x="410" y="56" width="360" height="220" rx="12" fill="#f3efff" stroke="#6250d6" stroke-width="1.5"/>
+  <text x="430" y="84" font-size="14" font-weight="700" fill="#5b21b6">🟦 Claude Code — sec-default 고정 변수</text>
+  <text x="430" y="110" font-size="12" fill="#333">자식 프로세스에 코드를 심을 수 있는</text>
+  <text x="430" y="128" font-size="12" fill="#333">환경변수 10종을 user 티어에서 차단</text>
+  <rect x="430" y="144" width="320" height="76" rx="8" fill="#231a3d"/>
+  <text x="444" y="168" font-size="11.5" fill="#cbb6ff" font-family="monospace">LD_PRELOAD  LD_LIBRARY_PATH  LD_AUDIT</text>
+  <text x="444" y="188" font-size="11.5" fill="#cbb6ff" font-family="monospace">DYLD_INSERT_LIBRARIES  DYLD_*_PATH</text>
+  <text x="444" y="208" font-size="11.5" fill="#cbb6ff" font-family="monospace">BASH_ENV  ENV  ZDOTDIR  NODE_OPTIONS</text>
+  <text x="430" y="244" font-size="11.5" fill="#5b21b6">플러그인이 훅·툴 실행을 바꿔치기 못 하게</text>
+  <text x="430" y="263" font-size="11.5" fill="#555">10/13 mods/ 업데이트 — 경계가 아닌 가드레일</text>
+</svg>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="AI 모델이 쏟아낸 수백 편의 논문 더미가 검증 게이트를 통과하는 그림. 게이트를 통과한 결과물에는 녹색 체크가, 게이트 옆으로 떨어진 세 장의 논문에는 붉은 X와 부호 오류를 뜻하는 플러스마이너스 기호가 붙어 있다. 아래에는 '그럴듯함은 정확함이 아니다'라는 문구가 있다.">
+  <defs>
+    <linearGradient id="veb-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="veb-gate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#veb-bg)"/>
+  <g font-family="'Segoe UI',system-ui,sans-serif">
+    <!-- 왼쪽: 모델이 쏟아내는 논문 더미 -->
+    <g>
+      <rect x="80" y="180" width="150" height="190" rx="14" fill="#312e81" stroke="#818cf8" stroke-width="3"/>
+      <circle cx="130" cy="240" r="10" fill="#a5b4fc"/>
+      <circle cx="180" cy="240" r="10" fill="#a5b4fc"/>
+      <rect x="115" y="280" width="80" height="12" rx="6" fill="#a5b4fc"/>
+      <text x="155" y="410" fill="#a5b4fc" font-size="22" font-weight="700" text-anchor="middle">미공개 모델</text>
+      <text x="155" y="440" fill="#64748b" font-size="15" text-anchor="middle">원고 722편, 하루 만에</text>
+    </g>
+    <!-- 종이 더미 (흘러가는) -->
+    <g fill="#e2e8f0" stroke="#94a3b8" stroke-width="2">
+      <rect x="275" y="235" width="62" height="80" rx="5" transform="rotate(-8 306 275)"/>
+      <rect x="350" y="250" width="62" height="80" rx="5" transform="rotate(5 381 290)"/>
+      <rect x="425" y="238" width="62" height="80" rx="5" transform="rotate(-4 456 278)"/>
+    </g>
+    <g stroke="#64748b" stroke-width="2.5">
+      <path d="M288 260h36M288 275h36M288 290h24" transform="rotate(-8 306 275)"/>
+      <path d="M363 275h36M363 290h36M363 305h24" transform="rotate(5 381 290)"/>
+      <path d="M438 263h36M438 278h36M438 293h24" transform="rotate(-4 456 278)"/>
+    </g>
+    <!-- 가운데: 검증 게이트 -->
+    <rect x="540" y="130" width="34" height="330" rx="10" fill="url(#veb-gate)"/>
+    <rect x="540" y="130" width="34" height="330" rx="10" fill="none" stroke="#6ee7b7" stroke-width="3"/>
+    <text x="557" y="110" fill="#6ee7b7" font-size="24" font-weight="700" text-anchor="middle">검증기</text>
+    <!-- 통과한 결과물: 녹색 체크 -->
+    <g>
+      <rect x="660" y="200" width="150" height="110" rx="10" fill="#064e3b" stroke="#34d399" stroke-width="3"/>
+      <path d="M700 255 l22 22 40 -44" stroke="#34d399" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="735" y="345" fill="#6ee7b7" font-size="20" font-weight="700" text-anchor="middle">기계가 체크한 결과</text>
+    </g>
+    <!-- 떨어지는 3장: 빨간 X + 부호 -->
+    <g>
+      <g transform="rotate(14 950 300)">
+        <rect x="905" y="190" width="90" height="118" rx="8" fill="#450a0a" stroke="#f87171" stroke-width="3"/>
+        <path d="M928 225 l44 48 M972 225 l-44 48" stroke="#f87171" stroke-width="10" stroke-linecap="round"/>
+      </g>
+      <g transform="rotate(-10 1060 360)">
+        <rect x="1020" y="265" width="84" height="110" rx="8" fill="#450a0a" stroke="#f87171" stroke-width="3"/>
+        <path d="M1042 298 l40 44 M1082 298 l-40 44" stroke="#f87171" stroke-width="9" stroke-linecap="round"/>
+      </g>
+      <g transform="rotate(24 930 460)">
+        <rect x="890" y="400" width="80" height="104" rx="8" fill="#450a0a" stroke="#f87171" stroke-width="3"/>
+        <path d="M910 430 l38 42 M948 430 l-38 42" stroke="#f87171" stroke-width="9" stroke-linecap="round"/>
+      </g>
+      <text x="1000" y="160" fill="#fda4af" font-size="46" font-weight="800" text-anchor="middle">+1 → −1</text>
+      <text x="1000" y="580" fill="#fda4af" font-size="20" font-weight="700" text-anchor="middle">부호 하나, 논문 세 편</text>
+    </g>
+    <!-- 하단 문구 -->
+    <text x="380" y="560" fill="#e2e8f0" font-size="34" font-weight="800" text-anchor="middle">그럴듯함은 정확함이 아니다</text>
+    <text x="380" y="598" fill="#94a3b8" font-size="19" text-anchor="middle">AI 출력은 기계가 검증할 수 있는 형태로 — verifier engineering</text>
+  </g>
+</svg>

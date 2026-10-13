@@ -1,0 +1,412 @@
+---
+title: "부호 하나가 논문 세 편을 무너뜨렸다 — AI 출력 '검증기 엔지니어링' 입문"
+date: 2026-10-14T07:30:00+09:00
+draft: false
+tags: ["AI", "검증기", "verifier", "verifier engineering", "검증 비대칭", "verifier's law", "Lean", "형식 검증", "formal verification", "property-based testing", "Hypothesis", "LLM-as-judge", "OpenAI", "에이전트 신뢰성", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "지난주 OpenAI가 미공개 모델이 쓴 수학 원고 722편을 하루에 공개했고, 바로 다음 날 부호 오류 하나로 세 편을 철회했습니다. 절반 넘는 결과가 기계 검증 없이 나갔고, 필즈상 수상자 테렌스 타오의 블로그에는 'Lean 검증기는 얼마나 믿을 수 있나'를 따지는 글이 올라왔습니다. 생성은 폭발하는데 검증이 사람 손에 남아 있으면 무슨 일이 생기는지, 그리고 내 에이전트 파이프라인에 '기계가 체크하는 검증 게이트'를 어떻게 넣는지 — 검증기 사다리, Lean 커널 버그 사건, verify-repair 루프 코드까지 junior 개발자 눈높이에서 쉽고 자세하게 정리합니다."
+ShowToc: false
+cover:
+  image: "verifier-engineering-ai-output-cover.svg"
+  alt: "AI 모델이 쏟아낸 논문 더미가 검증 게이트를 지나는 그림. 통과한 결과물에는 녹색 체크, 게이트 밖으로 떨어진 세 장에는 붉은 X와 부호 오류 기호가 붙어 있다"
+  caption: "생성이 공장이 되는 순간, 병목은 검증으로 이동합니다. 그럴듯함은 정확함이 아닙니다."
+  relative: false
+---
+
+<style>
+/* ── verifier engineering 포스트 전용 스타일 (ve- 접두사) ── */
+.ve-fig{
+  --ve-green:#16a34a; --ve-rose:#e11d48; --ve-amber:#d97706; --ve-sky:#0284c7;
+  --ve-violet:#7c3aed; --ve-slate:#64748b; --ve-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .ve-fig{
+  --ve-green:#4ade80; --ve-rose:#fb7185; --ve-amber:#fbbf24; --ve-sky:#38bdf8;
+  --ve-violet:#a78bfa; --ve-slate:#94a3b8; --ve-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .ve-fig{
+    --ve-green:#4ade80; --ve-rose:#fb7185; --ve-amber:#fbbf24; --ve-sky:#38bdf8;
+    --ve-violet:#a78bfa; --ve-slate:#94a3b8; --ve-gray:#64748b;
+  }
+}
+.ve-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.ve-fig text{font-family:inherit}
+.ve-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.ve-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.ve-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.ve-toc ol{margin:0;padding-left:1.25rem}
+.ve-toc li{margin:.22rem 0;font-size:.95rem}
+.ve-toc a{text-decoration:none}
+.ve-toc a:hover{text-decoration:underline}
+.ve-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.ve-table th,.ve-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.ve-table th{background:var(--entry)}
+.ve-note{border-left:4px solid var(--ve-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.ve-warn{border-left:4px solid var(--ve-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="ve-toc">
+  <div class="ve-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 722편, 그리고 하루 만의 철회</a></li>
+    <li><a href="#sec-2">배경 — 검증 비대칭과 verifier's law</a></li>
+    <li><a href="#sec-3">사건 해부 — 무엇이 어떻게 무너졌나</a></li>
+    <li><a href="#sec-4">검증기의 사다리 — 무엇으로 체크할 것인가</a></li>
+    <li><a href="#sec-5">검증기도 소프트웨어다 — Lean 커널 버그의 교훈</a></li>
+    <li><a href="#sec-6">실전 — 에이전트 루프에 검증 게이트 넣기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 722편, 그리고 하루 만의 철회</h2>
+
+<p>10월 6일, OpenAI가 미공개 내부 모델이 작성한 수학 연구 원고 <strong>722편</strong>을 GitHub 저장소에 한꺼번에 공개했습니다. 372개의 결과 묶음으로 정리된, 미해결 문제들에 대한 진전 주장이었습니다. 그리고 바로 다음 날인 10월 7일, 세 편을 철회했습니다. 이유는 거창한 반례가 아니었습니다. 한 증명에서 <code>+1</code>이어야 할 자리에 <code>−1</code>이 쓰인, <strong>부호 오류 하나</strong>였습니다. 이 오류가 첫 논문의 논증을 무너뜨렸고, 그 논문의 구성을 가져다 쓴 두 편이 연쇄적으로 같이 무너졌습니다. 다른 14편도 증명 수리나 명제 수정을 받았습니다.</p>
+
+<p>이 소식은 <a href="https://retractionwatch.com/2026/10/08/openai-withdraws-preprints-722-manuscripts-unsolved-math-problems/" target="_blank" rel="noopener">Retraction Watch</a>가 10월 8일 보도하고, <a href="https://theconversation.com/is-this-the-mathocalypse-why-openais-latest-results-dump-has-left-mathematicians-in-shock-293837" target="_blank" rel="noopener">The Conversation</a>이 "mathocalypse(수학 종말?)"라는 제목으로 다루면서 한 주 내내 화제였습니다. Hacker News에서는 철회 소식 스레드에 600개 넘는 댓글이 달렸고, 10월 9일에는 필즈상 수상자 테렌스 타오(Terence Tao)의 블로그에 <a href="https://terrytao.wordpress.com/2026/10/09/what-mathematicians-should-know-about-the-lean-theorem-proverquestions-of-reliability-and-ai/" target="_blank" rel="noopener">"수학자가 Lean 정리 증명기에 대해 알아야 할 것 — 신뢰성과 AI"</a>라는 글(형식 증명 분야의 대가 Thomas Hales의 기고)이 올라와 <a href="https://news.ycombinator.com/item?id=50024090" target="_blank" rel="noopener">다시 HN 프런트페이지</a>에 올랐습니다.</p>
+
+<p>"수학 얘기잖아, 나랑 무슨 상관이지?"라고 생각할 수 있습니다. 그런데 이 사건의 구조를 한 꺼풀 벗기면, 에이전트를 운영하는 모든 AI 엔지니어가 매일 마주치는 문제가 그대로 나옵니다. <strong>모델은 이제 사람이 검토할 수 있는 속도보다 훨씬 빠르게 그럴듯한 산출물을 쏟아낸다. 그렇다면 무엇을 근거로 그 산출물을 믿을 것인가?</strong> 722편의 수학 원고를 코드 리뷰 대기열에 쌓인 에이전트 PR 722개로 바꿔 읽어 보세요. 부호 오류를 off-by-one 버그로 바꿔 읽어 보세요. 완전히 같은 문제입니다.</p>
+
+<p>오늘은 이 사건을 교재 삼아 <strong>검증기 엔지니어링(verifier engineering)</strong>을 다룹니다. 검증기(verifier)란 산출물이 기준을 만족하는지 판정하는 장치를 통칭하는 말입니다. 어떤 검증기가 어디까지 믿을 만한지(검증기의 사다리), 가장 강력한 검증기조차 어떻게 뚫렸는지(7월의 Lean 커널 버그 사건), 그리고 내 에이전트 루프에 검증 게이트를 넣는 코드까지 차례로 살펴보겠습니다.</p>
+
+<h2 id="sec-2">배경 — 검증 비대칭과 verifier's law</h2>
+
+<p>먼저 이 글 전체를 떠받치는 개념 하나를 잡고 갑니다. <strong>검증 비대칭(asymmetry of verification)</strong> — 많은 과제에서 푸는 것과 검사하는 것의 난이도가 크게 다르다는 관찰입니다. OpenAI 연구자 Jason Wei가 2025년 <a href="https://www.jasonwei.net/blog/asymmetry-of-verification-and-verifiers-law" target="_blank" rel="noopener">블로그 글</a>로 정리해 널리 퍼졌습니다. 스도쿠를 푸는 데는 오래 걸리지만 완성된 답이 맞는지는 몇 초면 확인합니다. 반대 방향 비대칭도 있습니다. 에세이는 쓰는 것보다 팩트체크가 더 오래 걸릴 수 있습니다.</p>
+
+<p>Wei는 여기서 <strong>verifier's law</strong>라는 경험칙을 끌어냅니다. <em>검증이 쉬운(객관적이고 빠르게 채점되는) 과제일수록 AI를 학습시키기 쉽다.</em> 강화학습이 통하려면 보상 신호, 즉 검증기가 필요하기 때문입니다. 코딩 에이전트가 이렇게 빨리 발전한 이유 중 하나도 코드에는 컴파일러와 테스트라는 자연 검증기가 있어서입니다.</p>
+
+<p>그런데 이 법칙에는 운영 관점의 뒷면이 있습니다. <strong>생성이 폭발적으로 싸지면, 시스템의 병목과 리스크는 전부 검증 쪽으로 이동합니다.</strong> 722편 사건이 정확히 이 모습입니다. 원고를 쓰는 비용은 GPU 시간으로 떨어졌는데, 원고를 믿을 수 있게 만드는 비용은 여전히 수학자의 눈과 Lean 형식화 작업에 묶여 있었습니다. OpenAI 스스로도 결과의 절반가량을 "확인되지 않은 상태"로, 자문 그룹의 조언에 따라 공개했다고 밝혔습니다. 코넬대의 한 수학자는 "오류가 더 나올 것"이라고 전망했고요.</p>
+
+<p class="ve-note">LLM의 산출물에서 <strong>그럴듯함(plausibility)과 정확함(correctness)은 별개의 축</strong>입니다. 모델은 '정답처럼 보이는 것'을 만드는 데 최적화되어 있어서, 사람 눈의 어림 검토는 바로 그 지점에서 가장 잘 속습니다. 그래서 검증은 인상이 아니라 장치로 해야 합니다. 이 블로그에서 다룬 <a href="/posts/agent-observability-tracing/">'성공처럼 보이는 실패'</a> 문제의 또 다른 얼굴입니다.</p>
+
+<h2 id="sec-3">사건 해부 — 무엇이 어떻게 무너졌나</h2>
+
+<p>타임라인을 그려 놓고 보면, 사건에서 배울 점이 세 개의 층으로 나뉩니다.</p>
+
+<figure class="ve-fig">
+<svg viewBox="0 0 900 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OpenAI 수학 원고 사건의 타임라인과 오류 전파 구조. 10월 6일 722편 공개, 10월 7일 부호 오류로 3편 철회와 14편 수리, 10월 8일 Retraction Watch 보도, 10월 9일 타오 블로그의 Lean 신뢰성 기고가 시간순으로 놓여 있다. 아래쪽에는 상류 논문 한 편의 부호 오류가 그 구성을 가져다 쓴 하류 논문 두 편으로 전파되어 세 편이 함께 철회되는 의존성 그래프가 그려져 있다.">
+  <text x="450" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">한 주의 타임라인, 그리고 오류의 전파 경로</text>
+
+  <!-- 타임라인 축 -->
+  <line x1="60" y1="120" x2="840" y2="120" stroke="var(--ve-slate)" stroke-width="2"/>
+  <g>
+    <circle cx="130" cy="120" r="7" fill="var(--ve-sky)"/>
+    <text x="130" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ve-sky)">10/6</text>
+    <text x="130" y="150" text-anchor="middle" font-size="11.5" fill="currentColor">원고 722편 공개</text>
+    <text x="130" y="167" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">결과 묶음 372개</text>
+  </g>
+  <g>
+    <circle cx="340" cy="120" r="7" fill="var(--ve-rose)"/>
+    <text x="340" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ve-rose)">10/7</text>
+    <text x="340" y="150" text-anchor="middle" font-size="11.5" fill="currentColor">부호 오류 → 3편 철회</text>
+    <text x="340" y="167" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">14편은 증명 수리·명제 수정</text>
+  </g>
+  <g>
+    <circle cx="560" cy="120" r="7" fill="var(--ve-amber)"/>
+    <text x="560" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ve-amber)">10/8</text>
+    <text x="560" y="150" text-anchor="middle" font-size="11.5" fill="currentColor">Retraction Watch 보도</text>
+    <text x="560" y="167" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">"mathocalypse" 논쟁 확산</text>
+  </g>
+  <g>
+    <circle cx="760" cy="120" r="7" fill="var(--ve-violet)"/>
+    <text x="760" y="95" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ve-violet)">10/9</text>
+    <text x="760" y="150" text-anchor="middle" font-size="11.5" fill="currentColor">타오 블로그 — Lean 신뢰성</text>
+    <text x="760" y="167" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">"검증기는 얼마나 믿을 수 있나"</text>
+  </g>
+
+  <!-- 의존성 그래프 -->
+  <text x="450" y="230" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">왜 한 번에 세 편이었나 — 오류의 의존성 전파</text>
+
+  <rect x="80" y="270" width="250" height="110" rx="12" fill="var(--ve-rose)" opacity="0.10"/>
+  <rect x="80" y="270" width="250" height="110" rx="12" fill="none" stroke="var(--ve-rose)" stroke-width="2.5"/>
+  <text x="205" y="300" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ve-rose)">상류 논문 ①</text>
+  <text x="205" y="322" text-anchor="middle" font-size="11.5" fill="currentColor">Weil 클래스 증명</text>
+  <text x="205" y="344" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ve-rose)">+1이어야 할 자리에 −1</text>
+  <text x="205" y="366" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">논증 전체 무효</text>
+
+  <rect x="540" y="250" width="280" height="70" rx="10" fill="var(--ve-rose)" opacity="0.07"/>
+  <rect x="540" y="250" width="280" height="70" rx="10" fill="none" stroke="var(--ve-rose)" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="680" y="278" text-anchor="middle" font-size="11.5" font-weight="600" fill="currentColor">하류 논문 ② — K3 곡면 대응</text>
+  <text x="680" y="300" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">①의 구성을 가져다 씀 → 같이 철회</text>
+
+  <rect x="540" y="340" width="280" height="70" rx="10" fill="var(--ve-rose)" opacity="0.07"/>
+  <rect x="540" y="340" width="280" height="70" rx="10" fill="none" stroke="var(--ve-rose)" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="680" y="368" text-anchor="middle" font-size="11.5" font-weight="600" fill="currentColor">하류 논문 ③ — K3 곱의 호지 추측</text>
+  <text x="680" y="390" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">①의 구성을 가져다 씀 → 같이 철회</text>
+
+  <path d="M330 310 C 430 290 460 285 538 285" stroke="var(--ve-rose)" stroke-width="2.2" fill="none" marker-end="url(#ve-f1-arr)"/>
+  <path d="M330 345 C 430 360 460 370 538 374" stroke="var(--ve-rose)" stroke-width="2.2" fill="none" marker-end="url(#ve-f1-arr)"/>
+
+  <rect x="140" y="440" width="620" height="66" rx="10" fill="var(--ve-amber)" opacity="0.10"/>
+  <rect x="140" y="440" width="620" height="66" rx="10" fill="none" stroke="var(--ve-amber)" stroke-width="2"/>
+  <text x="450" y="467" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">AI 산출물은 서로를 인용한다 — 상류의 오류 하나가 하류 전체를 오염시킨다</text>
+  <text x="450" y="489" text-anchor="middle" font-size="11" fill="var(--ve-gray)">산출물 간 의존 관계(provenance)를 기록해 두지 않으면, 철회할 때 무엇을 함께 철회해야 하는지도 모른다</text>
+
+  <defs>
+    <marker id="ve-f1-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--ve-rose)"/>
+    </marker>
+  </defs>
+</svg>
+<figcaption>철회된 세 편은 호지(Hodge) 추측 관련 연작이었습니다. OpenAI는 "주장 자체가 반증된 건 아니고 증명을 철회한 것"이라고 밝혔지만, 증명 없는 주장은 엔지니어링 관점에서 검증 안 된 출력일 뿐입니다.</figcaption>
+</figure>
+
+<p><strong>첫째 층: 기계 검증의 커버리지가 절반이 안 됐습니다.</strong> 이 공개에서 흥미로운 부분은 OpenAI가 일부 결과를 <strong>Lean</strong>으로 형식화해 함께 올렸다는 점입니다. Lean은 증명을 컴퓨터가 한 줄 한 줄 기계적으로 검사할 수 있게 쓰는 정리 증명기(theorem prover)입니다. 문제는 범위였습니다. 공개 시점 집계로는 주 결과가 형식화된 원고가 <a href="https://braindetox.kr/posts/openai_722_math_research_manuscripts_2026.html" target="_blank" rel="noopener">162편</a>이었고, 이후 추가 형식화를 반영한 보도로는 상위 결과의 약 42%(719편 중 약 300편) 수준입니다. 어느 쪽 분모로 세든 <strong>절반 이상이 기계 검증 없이, 자연어 증명만으로 공개</strong>됐습니다. OpenAI도 "형식화되지 않은 결과에는 문제가 있을 수 있다"고 함께 적었습니다. 부호 오류는 바로 그 틈에서 살아남아 공개까지 갔습니다.</p>
+
+<p><strong>둘째 층: 오류는 홀로 죽지 않았습니다.</strong> 철회가 세 편인 이유는 위 그림 그대로입니다. 한 편의 구성을 두 편이 가져다 썼고, 상류가 무너지자 하류가 같이 무너졌습니다. 에이전트 파이프라인에서도 똑같은 일이 생깁니다. 리서치 에이전트의 요약 하나가 틀리면, 그 요약을 입력으로 받은 분석·보고서·의사결정이 연쇄로 오염됩니다. <a href="/posts/agent-handoff-constraint-weakening/">멀티에이전트 핸드오프</a> 편에서 다룬 문제의 신뢰성 버전입니다. 산출물마다 "무엇에 의존했는지"를 기록해 두지 않으면, 오류를 발견해도 영향 범위를 되짚을 수 없습니다.</p>
+
+<p><strong>셋째 층: 사람 검토는 처음부터 스케일이 안 맞았습니다.</strong> 722편을 하루에 공개하면, 전 세계 해당 분야 수학자를 다 모아도 제때 다 읽을 수 없습니다. 이건 수학계가 게을러서가 아니라 산수의 문제입니다. 생성 속도가 사람 검증 속도를 넘어서는 순간, "사람이 다 본다"는 전제 위에 세운 품질 관리는 구조적으로 무너집니다. <a href="/posts/parallel-agents-verification-bottleneck/">검증 병목</a> 편에서 다룬 그 곡선이 수학에서 실연된 셈입니다.</p>
+
+<h2 id="sec-4">검증기의 사다리 — 무엇으로 체크할 것인가</h2>
+
+<p>그러면 사람 대신 무엇으로 검증할까요? 검증기는 종류마다 신뢰도·비용·커버리지가 크게 다릅니다. 사다리처럼 층을 나눠 놓고, <strong>아래층(결정론적 체커)부터 채우고 위층은 아래층이 못 재는 것만 맡기는 것</strong>이 기본 설계입니다.</p>
+
+<figure class="ve-fig">
+<svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="검증기의 사다리 다이어그램. 아래에서 위로 네 단계가 쌓여 있다. 1단은 결정론적 기계 체커로 타입체커, 컴파일러, 테스트, JSON 스키마, Lean 커널이 속하고 신뢰도가 가장 높다. 2단은 속성 기반 검사로 불변식을 무작위 입력으로 검사한다. 3단은 LLM-as-judge로 확률적 판정이며 검증기가 아니라 심사위원이라고 적혀 있다. 4단은 사람 검토로 신뢰도는 높지만 스케일이 되지 않는다. 오른쪽 화살표는 위로 갈수록 유연하지만 비싸고 재현이 어렵다고 표시한다.">
+  <text x="450" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">검증기의 사다리 — 아래층부터 채워라</text>
+
+  <!-- 4단: 사람 -->
+  <rect x="120" y="70" width="560" height="92" rx="12" fill="var(--ve-violet)" opacity="0.10"/>
+  <rect x="120" y="70" width="560" height="92" rx="12" fill="none" stroke="var(--ve-violet)" stroke-width="2"/>
+  <text x="145" y="100" font-size="14" font-weight="700" fill="var(--ve-violet)">④ 사람 검토</text>
+  <text x="145" y="124" font-size="11.5" fill="currentColor">맥락·의도·가치 판단 — 기계가 못 재는 것의 최종심</text>
+  <text x="145" y="146" font-size="11" fill="var(--ve-gray)">느리고 비싸고 스케일 불가 — 가장 아껴 써야 할 자원</text>
+
+  <!-- 3단: judge -->
+  <rect x="100" y="182" width="600" height="92" rx="12" fill="var(--ve-amber)" opacity="0.10"/>
+  <rect x="100" y="182" width="600" height="92" rx="12" fill="none" stroke="var(--ve-amber)" stroke-width="2"/>
+  <text x="125" y="212" font-size="14" font-weight="700" fill="var(--ve-amber)">③ LLM-as-judge</text>
+  <text x="125" y="236" font-size="11.5" fill="currentColor">톤·가독성·요약 충실도처럼 규칙으로 못 적는 품질의 채점</text>
+  <text x="125" y="258" font-size="11" fill="var(--ve-gray)">확률적 · 편향 있음 — '검증기'가 아니라 '심사위원'. 정확성의 최종 근거로 쓰면 안 됨</text>
+
+  <!-- 2단: property -->
+  <rect x="80" y="294" width="640" height="92" rx="12" fill="var(--ve-sky)" opacity="0.10"/>
+  <rect x="80" y="294" width="640" height="92" rx="12" fill="none" stroke="var(--ve-sky)" stroke-width="2"/>
+  <text x="105" y="324" font-size="14" font-weight="700" fill="var(--ve-sky)">② 속성 기반 검사 (property-based testing)</text>
+  <text x="105" y="348" font-size="11.5" fill="currentColor">"어떤 입력에서도 성립해야 할 불변식"을 무작위 입력 수백 개로 두드림</text>
+  <text x="105" y="370" font-size="11" fill="var(--ve-gray)">예제 몇 개보다 훨씬 넓은 커버리지 — LLM이 생성한 코드에 특히 잘 맞음 (Hypothesis 등)</text>
+
+  <!-- 1단: deterministic -->
+  <rect x="60" y="406" width="680" height="104" rx="12" fill="var(--ve-green)" opacity="0.12"/>
+  <rect x="60" y="406" width="680" height="104" rx="12" fill="none" stroke="var(--ve-green)" stroke-width="2.5"/>
+  <text x="85" y="436" font-size="14" font-weight="700" fill="var(--ve-green)">① 결정론적 기계 체커</text>
+  <text x="85" y="460" font-size="11.5" fill="currentColor">타입체커 · 컴파일러 · 테스트 스위트 · linter · JSON Schema · Lean 커널</text>
+  <text x="85" y="482" font-size="11" fill="var(--ve-gray)">같은 입력 → 항상 같은 판정. 싸고 빠르고 피드백이 구체적 — 모든 검증의 1차 관문</text>
+  <text x="85" y="501" font-size="11" font-weight="600" fill="var(--ve-slate)">여기서 떨어진 출력은 위층에 올려 보낼 필요도 없다</text>
+
+  <!-- 오른쪽 축 -->
+  <path d="M790 500 L790 90" stroke="var(--ve-slate)" stroke-width="2" marker-end="url(#ve-f2-arr)"/>
+  <text x="812" y="300" font-size="11" fill="var(--ve-gray)" transform="rotate(90 812 300)" text-anchor="middle">위로 갈수록 유연 · 비쌈 · 재현 어려움</text>
+
+  <text x="450" y="543" text-anchor="middle" font-size="12" fill="var(--ve-gray)">OpenAI 사건에 대입하면: Lean 형식화가 ①, 수학자의 눈이 ④ — 절반 이상이 ① 없이 ④로 직행했다</text>
+
+  <defs>
+    <marker id="ve-f2-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--ve-slate)"/>
+    </marker>
+  </defs>
+</svg>
+<figcaption>사다리의 핵심은 순서입니다. 결정론적 체커가 먼저 거르고, 속성 검사가 넓히고, judge는 기계로 못 재는 것만, 사람은 마지막에 가장 아껴서.</figcaption>
+</figure>
+
+<p>각 층을 표로 비교하면 이렇습니다.</p>
+
+<table class="ve-table">
+  <thead>
+    <tr><th>층</th><th>판정 방식</th><th>잘 잡는 것</th><th>못 잡는 것</th><th>비용</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>① 결정론적 체커</td><td>규칙 — 같은 입력이면 항상 같은 결과</td><td>형식 위반, 타입 오류, 명세된 동작 불일치</td><td>명세 밖의 모든 것 — 테스트에 없는 버그</td><td>매우 낮음</td></tr>
+    <tr><td>② 속성 기반 검사</td><td>불변식 + 무작위 입력 샘플링</td><td>예제 테스트가 놓치는 경계 조건, 엣지 케이스</td><td>불변식으로 못 적는 성질</td><td>낮음</td></tr>
+    <tr><td>③ LLM-as-judge</td><td>확률적 — 모델의 판단</td><td>톤, 충실도, 유용성 등 '말로만 적을 수 있는' 기준</td><td>교묘한 사실 오류 — 그럴듯하면 속음, 편향 존재</td><td>중간 (토큰 비용)</td></tr>
+    <tr><td>④ 사람 검토</td><td>전문가의 판단</td><td>맥락·의도·가치 판단</td><td>물량 — 722편은 못 읽음</td><td>매우 높음</td></tr>
+  </tbody>
+</table>
+
+<p>여기서 검증기 엔지니어링의 제1 원칙이 나옵니다. <strong>출력을 '검증하기 쉬운 형태'로 먼저 설계하라.</strong> 자유 텍스트로 받으면 judge나 사람밖에 못 씁니다. 같은 내용을 JSON Schema가 있는 구조화된 출력으로 받으면 ①층이 생깁니다. "이 함수는 빠릅니다"라는 주장 대신 벤치마크 스크립트를 받으면 실행이 곧 검증입니다. 수학에서 자연어 증명 대신 Lean 증명을 요구하는 것이 정확히 이 수(move)입니다. verifier's law를 뒤집어 쓰는 것이죠 — <em>검증이 쉬운 과제일수록 AI가 잘하니까, 과제를 검증이 쉬운 형태로 바꿔라.</em></p>
+
+<p class="ve-note">③층에 대해서는 <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-judge</a> 편에서 채점 방식과 편향(위치·장황함 등)을 자세히 다뤘습니다. 오늘 글의 요지는 judge를 버리라는 게 아니라, <strong>judge가 사다리의 몇 층인지 알고 쓰라</strong>는 것입니다. judge는 '정확한가'의 최종 근거가 아니라 '기계 체커가 못 재는 품질'의 근사치입니다.</p>
+
+<h2 id="sec-5">검증기도 소프트웨어다 — Lean 커널 버그의 교훈</h2>
+
+<p>"그럼 Lean 같은 결정론적 검증기만 통과하면 100% 믿어도 되나요?" 좋은 질문이고, 답은 "거의, 그러나 아니오"입니다. 공교롭게도 올여름에 이 '아니오'가 실제로 터졌습니다. 타오 블로그의 신뢰성 기고가 나온 배경이기도 합니다.</p>
+
+<p>7월 25일, DeepMind 연구자 Ramana Kumar가 AI 보조로 만든 <strong>콜라츠(Collatz) 추측 반증</strong>을 공개했습니다. 콜라츠 추측은 수십 년간 안 풀린 난제라서 "Lean을 통과한 반증"이라는 말 자체가 폭탄이었는데요. 이 증명은 <code>sorry</code>(증명 생략 표시) 하나 없이 Lean 커널을 통과했고, 심지어 독립 구현 체커인 nanoda까지 통과했습니다. 그러나 증명은 틀린 것이었습니다. 사흘 뒤 Kiran Gopinathan이 이 증명을 <strong><code>False</code>를 증명하는 작은 코드</strong>로 축소해 Lean 저장소에 이슈 #14576을 올렸고, Lean 수석 개발자 Leonardo de Moura가 <a href="https://leodemoura.github.io/blog/2026-8-1-postmortem-for-kernel-soundness-bug-14576/" target="_blank" rel="noopener">포스트모템</a>을 공개했습니다. 원인은 커널이 중첩 귀납 타입(nested inductive type)을 처리할 때 보조 타입의 파라미터에 대한 타입 검사를 빠뜨린 버그였고, <a href="https://github.com/leanprover/lean4/pull/14577" target="_blank" rel="noopener">PR #14577</a>로 수정됐습니다. v4.31.0까지의 모든 릴리스가 영향권이었습니다. nanoda가 같이 뚫린 건 별개의 버그(projection 노드의 타입 이름 미검증) 때문이었습니다.</p>
+
+<p>이 사건이 주는 교훈은 "Lean도 못 믿겠다"가 아닙니다. 버그는 나흘 만에 잡혔고, 커널 버그로 가짜 증명이 통과한 사례는 극히 드뭅니다. 진짜 교훈은 세 가지입니다.</p>
+
+<p><strong>첫째, 모든 검증기에는 TCB(trusted computing base), 즉 "검증 없이 믿어야 하는 최소한의 코드"가 있습니다.</strong> Lean이 신뢰받는 이유는 그 TCB가 작기 때문입니다. 증명 탐색이나 전술(tactic) 코드가 아무리 복잡해도, 최종 판정은 작고 단순한 커널만 통과하면 됩니다. 작을수록 감사(audit)가 쉽고 버그가 숨을 곳이 적습니다. 에이전트 파이프라인의 검증 게이트를 설계할 때도 같은 원칙이 적용됩니다. <strong>검증기는 생성기보다 훨씬 단순해야 합니다.</strong> 검증 로직이 LLM 호출 열두 번짜리 복잡한 체인이라면, 그건 검증기가 아니라 또 하나의 검증 대상입니다.</p>
+
+<p><strong>둘째, 독립 검증기를 겹치면 신뢰가 곱으로 올라갑니다 — 단, '독립'이 진짜여야 합니다.</strong> Lean 생태계에는 커널 외에 독립 구현된 외부 체커가 여럿 있고, 이번처럼 둘 다 뚫리는 건 서로 다른 버그 두 개가 겹친 희귀 사례였습니다. 구글 DeepMind의 AlphaProof 논문(<a href="https://www.nature.com/articles/s41586-025-09833-y" target="_blank" rel="noopener">Nature, 2025</a>)은 한 단계 더 나아가, 증명이 Lean에 내장된 표준 공리 세 개만 사용하는지 별도 명령으로 검사합니다. 커널은 "공리에서 결론이 따라 나오는가"만 보므로, 수상한 공리를 슬쩍 추가하는 경로를 따로 막는 것입니다. 체커를 겹칠 때는 같은 코드베이스를 공유하지 않는지, 같은 가정을 공유하지 않는지 확인하세요.</p>
+
+<p><strong>셋째, 녹색 체크는 '형식화된 명제'에 대한 보증이지 '당신이 의도한 주장'에 대한 보증이 아닙니다.</strong> 이걸 <strong>명세 간극(spec gap)</strong>이라고 부르겠습니다. Lean이 검증하는 건 "이 Lean 명제가 증명된다"까지입니다. 그 Lean 명제가 원래의 수학적 주장을 올바르게 옮긴 것인지는 여전히 사람이 읽고 판단해야 합니다. 타오 블로그 기고의 문제의식도, OpenAI 공개를 다룬 보도들이 "Lean 통과가 모든 주장의 정확성을 확정하지는 않는다"고 짚은 지점도 여기입니다. 테스트 통과가 "테스트가 검사하는 것"만 보증하는 것과 같습니다. 생성이 자동화될수록 <strong>명세(spec)를 읽는 일이 사람의 새 병목</strong>이 됩니다.</p>
+
+<p class="ve-warn"><strong>spec gap은 리워드 해킹의 입구이기도 합니다.</strong> 검증기가 곧 보상이 되는 순간, 모델은 "과제를 푸는" 대신 "검증기를 통과하는" 방향으로 최적화될 수 있습니다. 보이는 테스트에 하드코딩으로 맞추는 고전 수법이 대표적입니다. 검증기를 통과 기준으로 쓸 거라면 홀드아웃 테스트, 명세와 구현의 분리 같은 방어가 같이 필요합니다. <a href="/posts/agent-reward-hacking-evals/">리워드 해킹 평가</a> 편에서 자세히 다뤘습니다.</p>
+
+<h2 id="sec-6">실전 — 에이전트 루프에 검증 게이트 넣기</h2>
+
+<p>이제 내 파이프라인으로 가져옵시다. 가장 기본이 되는 패턴은 <strong>generate → verify → repair 루프</strong>입니다. 생성 결과를 사다리 아래층부터 통과시키고, 실패하면 실패 이유를 피드백으로 되돌려 재시도하고, 횟수를 다 쓰면 사람에게 넘깁니다.</p>
+
+<figure class="ve-fig">
+<svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="generate-verify-repair 루프 다이어그램. 왼쪽에서 과제가 LLM 생성 단계로 들어가고, 산출물이 검증 게이트 체인을 지난다. 게이트는 스키마와 타입 검사, 테스트와 속성 검사, LLM judge 순서로 배치되어 있다. 모든 게이트를 통과하면 오른쪽의 통과 상자로 가고, 어느 게이트든 실패하면 실패 이유가 피드백으로 생성 단계에 되돌아간다. 재시도 한도를 넘으면 사람 에스컬레이션 상자로 간다.">
+  <text x="450" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">generate → verify → repair 루프</text>
+
+  <rect x="30" y="150" width="150" height="80" rx="12" fill="var(--ve-violet)" opacity="0.12"/>
+  <rect x="30" y="150" width="150" height="80" rx="12" fill="none" stroke="var(--ve-violet)" stroke-width="2"/>
+  <text x="105" y="185" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ve-violet)">LLM 생성</text>
+  <text x="105" y="207" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">과제 + 이전 실패 피드백</text>
+
+  <!-- 게이트 체인 -->
+  <rect x="235" y="140" width="130" height="100" rx="10" fill="var(--ve-green)" opacity="0.12"/>
+  <rect x="235" y="140" width="130" height="100" rx="10" fill="none" stroke="var(--ve-green)" stroke-width="2"/>
+  <text x="300" y="172" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ve-green)">① 스키마·타입</text>
+  <text x="300" y="192" text-anchor="middle" font-size="10.5" fill="currentColor">JSON Schema</text>
+  <text x="300" y="208" text-anchor="middle" font-size="10.5" fill="currentColor">mypy · 컴파일</text>
+  <text x="300" y="228" text-anchor="middle" font-size="10" fill="var(--ve-gray)">수 밀리초</text>
+
+  <rect x="400" y="140" width="130" height="100" rx="10" fill="var(--ve-sky)" opacity="0.12"/>
+  <rect x="400" y="140" width="130" height="100" rx="10" fill="none" stroke="var(--ve-sky)" stroke-width="2"/>
+  <text x="465" y="172" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ve-sky)">② 테스트·속성</text>
+  <text x="465" y="192" text-anchor="middle" font-size="10.5" fill="currentColor">pytest</text>
+  <text x="465" y="208" text-anchor="middle" font-size="10.5" fill="currentColor">Hypothesis 불변식</text>
+  <text x="465" y="228" text-anchor="middle" font-size="10" fill="var(--ve-gray)">수 초</text>
+
+  <rect x="565" y="140" width="130" height="100" rx="10" fill="var(--ve-amber)" opacity="0.12"/>
+  <rect x="565" y="140" width="130" height="100" rx="10" fill="none" stroke="var(--ve-amber)" stroke-width="2"/>
+  <text x="630" y="172" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ve-amber)">③ LLM judge</text>
+  <text x="630" y="192" text-anchor="middle" font-size="10.5" fill="currentColor">기계로 못 재는</text>
+  <text x="630" y="208" text-anchor="middle" font-size="10.5" fill="currentColor">품질만 담당</text>
+  <text x="630" y="228" text-anchor="middle" font-size="10" fill="var(--ve-gray)">토큰 비용</text>
+
+  <rect x="740" y="150" width="130" height="80" rx="12" fill="var(--ve-green)" opacity="0.16"/>
+  <rect x="740" y="150" width="130" height="80" rx="12" fill="none" stroke="var(--ve-green)" stroke-width="2.5"/>
+  <text x="805" y="185" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ve-green)">통과 ✓</text>
+  <text x="805" y="207" text-anchor="middle" font-size="10.5" fill="var(--ve-gray)">다음 단계로</text>
+
+  <path d="M180 190h52" stroke="var(--ve-slate)" stroke-width="2" marker-end="url(#ve-f3-arr)"/>
+  <path d="M365 190h32" stroke="var(--ve-slate)" stroke-width="2" marker-end="url(#ve-f3-arr)"/>
+  <path d="M530 190h32" stroke="var(--ve-slate)" stroke-width="2" marker-end="url(#ve-f3-arr)"/>
+  <path d="M695 190h42" stroke="var(--ve-slate)" stroke-width="2" marker-end="url(#ve-f3-arr)"/>
+
+  <!-- 실패 피드백 루프 -->
+  <path d="M300 243 C 300 300 180 310 120 300 C 100 296 95 270 98 233" stroke="var(--ve-rose)" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#ve-f3-arr-r)"/>
+  <path d="M465 243 C 465 320 220 330 118 308" stroke="var(--ve-rose)" stroke-width="2" fill="none" stroke-dasharray="6 4"/>
+  <path d="M630 243 C 630 345 240 352 118 315" stroke="var(--ve-rose)" stroke-width="2" fill="none" stroke-dasharray="6 4"/>
+  <text x="430" y="372" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--ve-rose)">실패 → "무엇이 왜 떨어졌는지"를 피드백으로 재주입 (최대 N회)</text>
+
+  <rect x="700" y="320" width="170" height="64" rx="10" fill="var(--ve-rose)" opacity="0.10"/>
+  <rect x="700" y="320" width="170" height="64" rx="10" fill="none" stroke="var(--ve-rose)" stroke-width="2"/>
+  <text x="785" y="347" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ve-rose)">N회 초과?</text>
+  <text x="785" y="368" text-anchor="middle" font-size="10.5" fill="currentColor">사람 에스컬레이션</text>
+
+  <defs>
+    <marker id="ve-f3-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--ve-slate)"/>
+    </marker>
+    <marker id="ve-f3-arr-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--ve-rose)"/>
+    </marker>
+  </defs>
+</svg>
+<figcaption>싼 게이트가 앞, 비싼 게이트가 뒤. 스키마에서 떨어질 출력에 judge 토큰을 쓸 이유가 없습니다. 실패는 버리지 말고 피드백으로 되돌려야 루프가 '수리(repair)'가 됩니다.</figcaption>
+</figure>
+
+<p>코드로 옮기면 뼈대는 이 정도입니다.</p>
+
+{{< highlight python >}}
+from dataclasses import dataclass, field
+
+@dataclass
+class CheckResult:
+    ok: bool
+    feedback: str = ""   # 실패 시 모델에게 되돌려줄 '왜 떨어졌는지'
+
+def run_gates(artifact: str) -> CheckResult:
+    # ① 결정론적 체커 먼저 — 싸고, 재현 가능하고, 피드백이 구체적
+    for gate in (check_json_schema, check_types, check_unit_tests):
+        r = gate(artifact)
+        if not r.ok:
+            return r          # 뒤의 비싼 게이트는 돌릴 필요 없음
+    # ② 속성 기반 검사 — 불변식을 무작위 입력으로 두드림
+    r = check_properties(artifact)
+    if not r.ok:
+        return r
+    # ③ LLM judge는 마지막 — 기계로 못 재는 품질(요약 충실도 등)만
+    return llm_judge(artifact)
+
+def generate_verified(task: str, max_attempts: int = 3) -> str:
+    feedback = ""
+    for _ in range(max_attempts):
+        artifact = llm_generate(task, feedback)   # 생성 (+이전 실패 이유)
+        result = run_gates(artifact)              # 검증
+        if result.ok:
+            return artifact
+        feedback = result.feedback                # 실패 이유를 다음 시도에 주입
+    # 횟수를 다 썼으면 조용히 통과시키지 말고 반드시 올린다
+    raise NeedsHumanReview(task, feedback)
+{{< /highlight >}}
+
+<p>핵심은 세 가지입니다. 게이트에 <strong>순서</strong>가 있다는 것(싼 것부터), 실패가 <strong>피드백</strong>으로 되돌아간다는 것(그냥 재시도가 아니라 수리), 그리고 한도를 넘으면 <strong>사람에게 간다</strong>는 것(무한 루프도, 조용한 통과도 금지).</p>
+
+<p>②층이 낯설다면 이 예제로 감을 잡아 보세요. LLM이 생성한 <code>slugify</code> 함수를 검증한다고 합시다. 예제 테스트 세 개를 쓰는 대신, <strong>어떤 입력에서도 성립해야 할 성질</strong>을 적고 <a href="https://hypothesis.readthedocs.io/" target="_blank" rel="noopener">Hypothesis</a>에게 수백 개의 입력을 생성시킵니다.</p>
+
+{{< highlight python >}}
+# LLM이 생성한 함수를 '예제'가 아니라 '속성'으로 검증한다
+from hypothesis import given, strategies as st
+from llm_generated import slugify   # 모델이 써 준 코드
+
+@given(st.text())                   # 임의의 유니코드 문자열 수백 개로 실행
+def test_slug_invariants(s):
+    slug = slugify(s)
+    assert slug == slug.lower()           # 불변식 1: 항상 소문자
+    assert " " not in slug                # 불변식 2: 공백 없음
+    assert slugify(slug) == slug          # 불변식 3: 멱등 — 두 번 돌려도 같다
+{{< /highlight >}}
+
+<p>예제 테스트는 모델이 본 적 있을 법한 "정상 입력"만 확인하지만, 속성 검사는 빈 문자열, 이모지, 제어 문자처럼 LLM 생성 코드가 가장 자주 무너지는 입력을 자동으로 찾아 들어갑니다. 떨어지면 Hypothesis가 실패를 재현하는 <strong>최소 입력</strong>까지 줄여 주는데, 이게 그대로 repair 루프의 피드백이 됩니다.</p>
+
+<p>마지막 조각은 <strong>의존성 기록</strong>입니다. 3절에서 본 연쇄 철회를 내 파이프라인에서 감당하려면, 산출물마다 "어떤 입력·어떤 상류 산출물로 만들었는지"를 메타데이터로 남기세요. 거창한 시스템이 아니어도 됩니다. 산출물 옆에 <code>{"inputs": [...], "checks_passed": [...], "created_at": ...}</code> 한 줄이면, 상류 하나가 틀렸다고 판명됐을 때 재검증할 하류 목록을 기계적으로 뽑을 수 있습니다. OpenAI가 철회를 "세 편"으로 특정할 수 있던 것도 결과 묶음 간 의존 관계가 정리되어 있었기 때문입니다.</p>
+
+<h2 id="sec-7">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>LLM judge를 '검증기'라고 부르는 순간 설계가 무너집니다</strong> — judge는 확률적 심사위원입니다. 정확성의 최종 근거는 ①·②층에서 나와야 하고, judge는 기계로 못 재는 품질의 근사치로만 쓰세요. judge 점수 하나로 배포 게이트를 만들면 '그럴듯한 오답'이 그대로 통과합니다.</li>
+  <li><strong>테스트 통과 = 정답이 아닙니다</strong> — 검증기가 보상이 되면 모델은 검증기에 맞춰 최적화합니다(리워드 해킹). 생성 모델이 볼 수 없는 홀드아웃 체크를 남겨 두고, "통과시키는 코드"가 아니라 "명세를 만족하는 코드"인지 가끔 사람이 표본 검사하세요.</li>
+  <li><strong>명세를 생성 모델에게 쓰게 하면 순환입니다</strong> — 코드와 테스트를 같은 모델이 같은 맥락에서 쓰면, 같은 오해가 양쪽에 복제되어 서로를 통과시킵니다. 명세·테스트는 별도 맥락(또는 사람)에서 고정하고, 생성은 그 명세를 받아서만 하게 분리하세요. spec gap은 Lean에서도 남는 문제였다는 걸 기억하세요 — 녹색 체크는 형식화된 명제까지만 보증합니다.</li>
+  <li><strong>검증기 자체를 복잡하게 만들지 마세요</strong> — 검증기의 신뢰는 TCB가 작은 데서 나옵니다. 검증 로직이 생성 로직만큼 복잡하면 검증기가 아니라 검증 대상입니다. 단순한 체커 여러 개 &gt; 영리한 체커 하나.</li>
+  <li><strong>'독립' 이중화는 진짜 독립일 때만 효과가 있습니다</strong> — 7월 Lean 사건에서는 커널과 독립 체커가 서로 다른 버그 두 개로 동시에 뚫렸습니다. 그래도 독립 구현 두 개가 같이 뚫릴 확률은 하나보다 훨씬 낮습니다. 같은 라이브러리, 같은 파서, 같은 가정을 공유하는 "독립" 체커는 하나로 세세요.</li>
+  <li><strong>검증 비용을 과제 설계에 포함하세요</strong> — verifier's law의 실무 버전입니다. "보고서를 써 줘"는 검증이 비쌉니다. "스키마 X를 따르는 JSON으로, 주장마다 출처 URL을 달아서"는 ①층 검증이 생기고, 출처 존재 여부는 기계로 확인할 수 있습니다. 과제를 시킬 때부터 "이 출력을 나는 무엇으로 체크하지?"를 먼저 물으세요.</li>
+  <li><strong>실패 한도를 넘긴 출력을 조용히 내보내지 마세요</strong> — repair 루프가 N번 돌고도 실패하면, 그 과제는 모델이 못 푸는 과제거나 명세가 모호한 과제입니다. 둘 다 사람이 봐야 할 신호입니다. "마지막 시도를 그냥 채택"은 검증 게이트를 장식으로 만듭니다.</li>
+</ul>
+
+<h2 id="sec-8">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>10/6 OpenAI가 미공개 모델의 수학 원고 <strong>722편</strong>을 공개했고, 10/7 <strong>부호 오류 하나</strong>로 세 편을 철회했습니다(의존 논문 연쇄 포함, 14편 추가 수리). 절반 넘는 결과가 Lean 형식화 없이 자연어 증명만으로 나갔습니다.</li>
+  <li>교훈은 수학 밖에서도 같습니다 — <strong>생성이 싸지면 병목과 리스크는 검증으로 이동</strong>합니다. 그럴듯함과 정확함은 별개 축이고, 사람 검토는 물량에서 집니다.</li>
+  <li><strong>검증기의 사다리</strong>: ① 결정론적 체커(스키마·타입·테스트·Lean 커널) → ② 속성 기반 검사(Hypothesis) → ③ LLM judge(기계로 못 재는 품질만) → ④ 사람(가장 아껴서). 싼 층부터 채우고, 순서대로 거르세요.</li>
+  <li>검증기도 소프트웨어입니다 — 7월 Lean 커널 버그(#14576)처럼 뚫릴 수 있습니다. <strong>TCB는 작게, 이중화는 진짜 독립으로, 공리(가정) 검사는 별도로.</strong> 그리고 녹색 체크는 '형식화된 명제'까지만 보증합니다(spec gap).</li>
+  <li>실전 기본값: <strong>generate → verify → repair 루프</strong>(싼 게이트 먼저, 실패 이유를 피드백으로 재주입, N회 초과 시 사람 에스컬레이션) + 산출물마다 의존성 메타데이터 기록(연쇄 철회 대비).</li>
+  <li>과제를 시킬 때부터 물으세요 — <strong>"이 출력을 나는 무엇으로 체크하지?"</strong> 답이 "읽어 보고 판단"뿐이라면, 출력 형태부터 다시 설계할 차례입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://retractionwatch.com/2026/10/08/openai-withdraws-preprints-722-manuscripts-unsolved-math-problems/" target="_blank" rel="noopener">OpenAI withdraws three preprints a day after releasing 722 manuscripts — Retraction Watch (2026-10-08, 철회 경위·수치의 1차 보도)</a></li>
+  <li><a href="https://theconversation.com/is-this-the-mathocalypse-why-openais-latest-results-dump-has-left-mathematicians-in-shock-293837" target="_blank" rel="noopener">Is this the 'mathocalypse'? — The Conversation (수학계 반응)</a></li>
+  <li><a href="https://www.implicator.ai/openai-posts-372-ai-math-results-then-withdraws-three-papers-over-a-sign-error/" target="_blank" rel="noopener">OpenAI posts 372 AI math results, withdraws three papers over a sign error — Implicator</a></li>
+  <li><a href="https://interestingengineering.com/ai-robotics/openai-largest-math-release-lean-proofs" target="_blank" rel="noopener">OpenAI's largest math release tackles problems with Lean proofs — Interesting Engineering (Lean 형식화 범위)</a></li>
+  <li><a href="https://terrytao.wordpress.com/2026/10/09/what-mathematicians-should-know-about-the-lean-theorem-proverquestions-of-reliability-and-ai/" target="_blank" rel="noopener">What mathematicians should know about the Lean Theorem Prover: reliability &amp; AI — 테렌스 타오 블로그의 Thomas Hales 기고 (2026-10-09)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50024090" target="_blank" rel="noopener">위 기고의 Hacker News 토론</a></li>
+  <li><a href="https://www.jasonwei.net/blog/asymmetry-of-verification-and-verifiers-law" target="_blank" rel="noopener">Asymmetry of verification and verifier's law — Jason Wei (2025)</a></li>
+  <li><a href="https://leodemoura.github.io/blog/2026-8-1-postmortem-for-kernel-soundness-bug-14576/" target="_blank" rel="noopener">Postmortem for Kernel Soundness Bug #14576 — Leonardo de Moura (2026-08-01, Lean 커널 버그 1차 출처)</a></li>
+  <li><a href="https://lawrencecpaulson.github.io/2026/07/30/Collatz.html" target="_blank" rel="noopener">Why is it all in the kernel? — Lawrence Paulson (2026-07-30, 콜라츠 '반증' 사건 해설)</a></li>
+  <li><a href="https://github.com/leanprover/lean4/pull/14577" target="_blank" rel="noopener">fix: missing check at kernel inductive declaration — leanprover/lean4 PR #14577 (수정 커밋)</a></li>
+  <li><a href="https://www.nature.com/articles/s41586-025-09833-y" target="_blank" rel="noopener">Olympiad-level formal mathematical reasoning with reinforcement learning (AlphaProof) — Nature (2025, 공리 3개 검사 사례)</a></li>
+  <li><a href="https://hypothesis.readthedocs.io/" target="_blank" rel="noopener">Hypothesis 공식 문서 — 속성 기반 테스트 라이브러리</a></li>
+  <li>🇰🇷 <a href="https://braindetox.kr/posts/openai_722_math_research_manuscripts_2026.html" target="_blank" rel="noopener">OpenAI 수학 원고 722편은 무엇을 세는 숫자인가 — braindetox (숫자 해석·Lean 형식화 범위 한국어 분석)</a></li>
+  <li>🇰🇷 <a href="https://zeli.app/ko/story/50002650" target="_blank" rel="noopener">OpenAI, 수학 논문 3편 공개 철회 — zeli (철회 소식 한국어 요약)</a></li>
+</ul>

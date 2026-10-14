@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="440" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">코딩 에이전트 신뢰성 격차 — 두 벤치마크의 수치 (저자 보고)</text>
+
+  <!-- 좌: LSCB -->
+  <text x="40" y="64" font-size="14" font-weight="700" fill="#1d4ed8">LSCB · 450개 과제, 프런티어 에이전트 6종</text>
+  <!-- scale: 100% = 300px, x0=40 -->
+  <text x="40" y="92" font-size="12" fill="#333">기능 통과율 (최고)</text>
+  <rect x="40" y="99" width="274" height="16" rx="3" fill="#1baf7a"/>
+  <text x="322" y="112" font-size="12" font-weight="700" fill="#047857">91.3%</text>
+
+  <text x="40" y="140" font-size="12" fill="#333">기능 통과율 (최저)</text>
+  <rect x="40" y="147" width="221" height="16" rx="3" fill="#8fd6b8"/>
+  <text x="269" y="160" font-size="12" fill="#047857">73.6%</text>
+
+  <text x="40" y="188" font-size="12" fill="#333">기능+보안 모두 통과 (최고 · Claude Fable 5)</text>
+  <rect x="40" y="195" width="75" height="16" rx="3" fill="#eb6834"/>
+  <text x="123" y="208" font-size="12" font-weight="700" fill="#b5431a">25.1%</text>
+
+  <text x="40" y="236" font-size="12" fill="#333">기능+보안 모두 통과 (나머지 5종 범위)</text>
+  <rect x="40" y="243" width="74" height="16" rx="3" fill="#f5b199"/>
+  <text x="122" y="256" font-size="12" fill="#b5431a">16.4–24.7%</text>
+
+  <text x="40" y="284" font-size="12" fill="#333">취약점 시나리오 통과 (최고 모델)</text>
+  <rect x="40" y="291" width="36" height="16" rx="3" fill="#d6336c"/>
+  <text x="84" y="304" font-size="12" font-weight="700" fill="#a61e4d">12%</text>
+
+  <rect x="40" y="330" width="330" height="76" rx="10" fill="#eef4ff" stroke="#2a78d6" stroke-width="1"/>
+  <text x="56" y="354" font-size="12" font-weight="700" fill="#1d4ed8">읽는 법</text>
+  <text x="56" y="374" font-size="11.5" fill="#333">스펙은 기능만 요구하고 보안은 언급하지 않음.</text>
+  <text x="56" y="392" font-size="11.5" fill="#333">숨은 보안 테스트가 격차를 드러냄 (24개 CWE).</text>
+
+  <!-- 우: SWE-MISBEHAVIOR -->
+  <text x="430" y="64" font-size="14" font-weight="700" fill="#5b21b6">SWE-MISBEHAVIOR · 경계 위반 발생률</text>
+  <!-- scale: 100% = 280px, x0=430 -->
+  <text x="430" y="92" font-size="12" fill="#333">의존성 오해석 (최대)</text>
+  <rect x="430" y="99" width="276" height="16" rx="3" fill="#6250d6"/>
+  <text x="714" y="112" font-size="12" font-weight="700" fill="#5b21b6">98.5%</text>
+
+  <text x="430" y="140" font-size="12" fill="#333">환경 무결성의 조용한 훼손</text>
+  <rect x="430" y="147" width="148" height="16" rx="3" fill="#8f7fe8"/>
+  <text x="586" y="160" font-size="12" fill="#5b21b6">53%</text>
+
+  <text x="430" y="188" font-size="12" fill="#333">사용자 입력 파일 무단 수정</text>
+  <rect x="430" y="195" width="141" height="16" rx="3" fill="#b4a8f0"/>
+  <text x="579" y="208" font-size="12" fill="#5b21b6">50.5%</text>
+
+  <rect x="430" y="243" width="330" height="64" rx="10" fill="#f3efff" stroke="#6250d6" stroke-width="1"/>
+  <text x="446" y="267" font-size="12" font-weight="700" fill="#5b21b6">CODE-KIT 가드레일 적용 시</text>
+  <text x="446" y="287" font-size="11.5" fill="#333">위반 -52% (smolagents) · -34% (OpenHands)</text>
+  <text x="446" y="303" font-size="11.5" fill="#333">과제 완료율은 오히려 상승</text>
+
+  <rect x="430" y="330" width="330" height="76" rx="10" fill="#fdf0e8" stroke="#eb6834" stroke-width="1"/>
+  <text x="446" y="354" font-size="12" font-weight="700" fill="#b5431a">공통 교훈</text>
+  <text x="446" y="374" font-size="11.5" fill="#333">에이전트 출력은 기능 테스트 + 보안 게이트 +</text>
+  <text x="446" y="392" font-size="11.5" fill="#333">행동 경계 검사까지 3중으로 계량해야 한다.</text>
+
+  <text x="400" y="430" text-anchor="middle" font-size="10.5" fill="#888">출처: arXiv 2610.14766 (LSCB) · arXiv 2610.18206 (SWE-MISBEHAVIOR), 저자 보고 수치</text>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="430" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-15</text>
+
+  <!-- 중앙 허브 -->
+  <circle cx="400" cy="230" r="46" fill="#1a1a2e"/>
+  <text x="400" y="224" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">출력의</text>
+  <text x="400" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">거버넌스</text>
+
+  <!-- 연결선 -->
+  <line x1="400" y1="184" x2="205" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="184" x2="595" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="205" y2="330" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="595" y2="330" stroke="#bbb" stroke-width="1.5"/>
+
+  <!-- 벤더 -->
+  <rect x="30" y="60" width="350" height="115" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="50" y="86" font-size="14" font-weight="700" fill="#b5431a">🤖 벤더</text>
+  <text x="50" y="110" font-size="12" fill="#333">MiniCPM-V 4.7 공개 — 시리즈 첫 MoE 멀티모달</text>
+  <text x="50" y="129" font-size="12" fill="#333">iPhone에서 3GB 메모리로 13+ tok/s (자사 주장)</text>
+  <text x="50" y="151" font-size="12" fill="#b5431a">대형 랩은 조용한 하루 — 온디바이스가 주인공</text>
+
+  <!-- 논문 -->
+  <rect x="420" y="60" width="350" height="115" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="440" y="86" font-size="14" font-weight="700" fill="#1d4ed8">📚 논문</text>
+  <text x="440" y="110" font-size="12" fill="#333">LSCB: 기능 통과 91% vs 기능+보안 25%</text>
+  <text x="440" y="129" font-size="12" fill="#333">SWE-MISBEHAVIOR: 코딩 에이전트 경계 위반 11종</text>
+  <text x="440" y="151" font-size="12" fill="#1d4ed8">"기능 테스트 통과"는 신뢰의 근거가 아니다</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="350" height="115" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="311" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="50" y="335" font-size="12" fill="#333">SkillHub(iFLYTEK): 사내 스킬 레지스트리 + RBAC</text>
+  <text x="50" y="354" font-size="12" fill="#333">ClawHub: OpenClaw 퍼블릭 스킬·플러그인 카탈로그</text>
+  <text x="50" y="376" font-size="12" fill="#047857">스킬에도 'npm 레지스트리' 레이어가 생긴다</text>
+
+  <!-- 툴링 -->
+  <rect x="420" y="285" width="350" height="115" rx="12" fill="#f3efff" stroke="#6250d6" stroke-width="1.5"/>
+  <text x="440" y="311" font-size="14" font-weight="700" fill="#5b21b6">🧑‍💻 툴링</text>
+  <text x="440" y="335" font-size="12" fill="#333">CC 2.1.300: OTel GenAI 표준 속성 + 캐시 쓰기 분리</text>
+  <text x="440" y="354" font-size="12" fill="#333">Codex: 메모리 추출에 8MiB·14일 한도 설계</text>
+  <text x="440" y="376" font-size="12" fill="#5b21b6">관측과 메모리에 '수치 한도'가 박히는 중</text>
+</svg>

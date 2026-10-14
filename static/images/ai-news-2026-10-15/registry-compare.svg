@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">에이전트 스킬 레지스트리 두 갈래 — 사내 vs 퍼블릭</text>
+
+  <!-- SkillHub 카드 -->
+  <rect x="30" y="50" width="360" height="310" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="80" font-size="15" font-weight="700" fill="#047857">SkillHub (iflytek)</text>
+  <text x="50" y="100" font-size="11.5" fill="#555">엔터프라이즈 사내 레지스트리 · Apache-2.0</text>
+
+  <text x="50" y="128" font-size="12" font-weight="700" fill="#333">스택</text>
+  <text x="50" y="146" font-size="12" fill="#333">Java 21 + React 19, 마이크로서비스</text>
+
+  <text x="50" y="174" font-size="12" font-weight="700" fill="#333">배포</text>
+  <text x="50" y="192" font-size="12" fill="#333">Docker Compose / K8s Helm, ghcr.io 이미지</text>
+
+  <text x="50" y="220" font-size="12" font-weight="700" fill="#333">거버넌스</text>
+  <text x="50" y="238" font-size="12" fill="#333">네임스페이스 + RBAC + 감사 로그 + 스캐너</text>
+
+  <text x="50" y="266" font-size="12" font-weight="700" fill="#333">버저닝</text>
+  <text x="50" y="284" font-size="12" fill="#333">시맨틱 버전, 드래프트/퍼블리시 워크플로</text>
+
+  <text x="50" y="312" font-size="12" font-weight="700" fill="#047857">이럴 때</text>
+  <text x="50" y="330" font-size="12" fill="#333">조직 전체에 '승인된 스킬만' 배포하고 싶을 때</text>
+  <text x="50" y="348" font-size="11" fill="#888">v0.2.22 · 10/15 기준 커밋 활발 (클론 검증)</text>
+
+  <!-- ClawHub 카드 -->
+  <rect x="410" y="50" width="360" height="310" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="430" y="80" font-size="15" font-weight="700" fill="#1d4ed8">ClawHub (openclaw)</text>
+  <text x="430" y="100" font-size="11.5" fill="#555">OpenClaw 생태계 퍼블릭 레지스트리 · MIT</text>
+
+  <text x="430" y="128" font-size="12" font-weight="700" fill="#333">스택</text>
+  <text x="430" y="146" font-size="12" fill="#333">TypeScript, TanStack Start + Convex</text>
+
+  <text x="430" y="174" font-size="12" font-weight="700" fill="#333">배포</text>
+  <text x="430" y="192" font-size="12" fill="#333">clawhub.ai 호스티드, 셀프호스트 가능</text>
+
+  <text x="430" y="220" font-size="12" font-weight="700" fill="#333">거버넌스</text>
+  <text x="430" y="238" font-size="12" fill="#333">모더레이션 + 로컬 pin으로 버전 동결</text>
+
+  <text x="430" y="266" font-size="12" font-weight="700" fill="#333">검색</text>
+  <text x="430" y="284" font-size="12" fill="#333">임베딩 벡터 검색 (SKILL.md 단위 패키지)</text>
+
+  <text x="430" y="312" font-size="12" font-weight="700" fill="#1d4ed8">이럴 때</text>
+  <text x="430" y="330" font-size="12" fill="#333">커뮤니티 스킬을 CLI로 설치·고정하고 싶을 때</text>
+  <text x="430" y="348" font-size="11" fill="#888">10/14 기준 커밋 활발 (클론 검증)</text>
+
+  <text x="400" y="386" text-anchor="middle" font-size="10.5" fill="#888">자체 제작 · 스타 수는 세션 API 제한으로 미검증 — 두 저장소 모두 클론으로 활동성 확인</text>
+</svg>

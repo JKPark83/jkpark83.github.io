@@ -1,0 +1,394 @@
+---
+title: "토크나이저 없는 LLM이 Nature에 실렸다 — 다 만든 모델을 바이트 모델로 개조하는 byteification"
+date: 2026-10-16T07:30:00+09:00
+draft: false
+tags: ["AI", "토크나이저", "tokenizer", "byte-level LLM", "byteification", "Bolmo", "BLT", "Byte Latent Transformer", "Ai2", "OLMo", "패치", "tokenization", "다국어", "LLM 아키텍처", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "10월 7일, '다 만든 LLM에서 토크나이저를 떼어내는 법'을 다룬 Ai2의 byteification 연구가 Nature에 실렸고, Qwen3·Llama 3를 개조한 Bwen·Blama 체크포인트까지 공개되며 한 주 내내 화제가 됐습니다. strawberry의 'r'을 못 세고, 한국어에 몇 배 비싼 요금을 물리던 토크나이저라는 부품이 왜 LLM의 고질병 공장인지, 바이트 모델은 왜 이제서야 실용 속도에 도달했는지(BLT의 패치, Bolmo의 2단계 개조), 그리고 엔지니어가 지금 챙겨야 할 것은 무엇인지 — junior 개발자 눈높이에서 쉽고 자세하게 풀어봅니다."
+ShowToc: false
+cover:
+  image: "byte-level-llm-byteification-cover.svg"
+  alt: "LLM 파이프라인에서 토크나이저 블록이 분리되어 떨어져 나가고, 원시 바이트가 곧바로 모델로 흘러 들어가는 그림. 바이트들은 동적 패치로 묶여 트랜스포머에 전달된다"
+  caption: "LLM에서 거의 유일하게 남아 있던 '손으로 설계한 부품', 토크나이저를 떼어내는 중입니다."
+  relative: false
+---
+
+<style>
+/* ── byte-level LLM 포스트 전용 스타일 (bl- 접두사) ── */
+.bl-fig{
+  --bl-green:#16a34a; --bl-rose:#e11d48; --bl-amber:#d97706; --bl-sky:#0284c7;
+  --bl-violet:#7c3aed; --bl-slate:#64748b; --bl-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .bl-fig{
+  --bl-green:#4ade80; --bl-rose:#fb7185; --bl-amber:#fbbf24; --bl-sky:#38bdf8;
+  --bl-violet:#a78bfa; --bl-slate:#94a3b8; --bl-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .bl-fig{
+    --bl-green:#4ade80; --bl-rose:#fb7185; --bl-amber:#fbbf24; --bl-sky:#38bdf8;
+    --bl-violet:#a78bfa; --bl-slate:#94a3b8; --bl-gray:#64748b;
+  }
+}
+.bl-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.bl-fig text{font-family:inherit}
+.bl-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.bl-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.bl-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.bl-toc ol{margin:0;padding-left:1.25rem}
+.bl-toc li{margin:.22rem 0;font-size:.95rem}
+.bl-toc a{text-decoration:none}
+.bl-toc a:hover{text-decoration:underline}
+.bl-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.bl-table th,.bl-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.bl-table th{background:var(--entry)}
+.bl-note{border-left:4px solid var(--bl-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.bl-warn{border-left:4px solid var(--bl-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="bl-toc">
+  <div class="bl-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 마지막으로 남은 '손으로 짠 부품'</a></li>
+    <li><a href="#sec-2">배경 — 토크나이저는 왜 고질병 공장인가</a></li>
+    <li><a href="#sec-3">그냥 바이트로 읽으면 안 되나 — 패치라는 해법 (BLT)</a></li>
+    <li><a href="#sec-4">byteification — 처음부터 다시 훈련하지 않는 법 (Bolmo)</a></li>
+    <li><a href="#sec-5">숫자로 읽는 트레이드오프 — 얼마나 빠르고, 어디가 약한가</a></li>
+    <li><a href="#sec-6">실전 — 직접 눈으로 확인하기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 마지막으로 남은 '손으로 짠 부품'</h2>
+
+<p>10월 7일, Allen Institute for AI(Ai2)의 논문 <a href="https://www.nature.com/articles/s41586-026-11111-4" target="_blank" rel="noopener">"Retrofitting language models to operate over bytes"</a>가 <strong>Nature</strong>에 실렸습니다. 머신러닝 논문이 Nature 본지에 실리는 일 자체가 드문데, 내용이 더 도발적입니다 — <strong>"다 만들어진 LLM에서 토크나이저를 떼어내고, 원시 바이트를 직접 읽게 개조할 수 있다. 비용은 보통 사전 훈련의 1%도 안 든다."</strong></p>
+
+<p>Ai2는 <a href="https://allenai.org/blog/bolmo-nature" target="_blank" rel="noopener">블로그</a>로 발표에 맞춰 체크포인트도 풀었습니다. 작년 12월 OLMo 3를 개조해 만든 <strong>Bolmo</strong>에 이어, 이번에는 같은 방법으로 Qwen3 8B와 Llama 3 8B를 개조한 <strong>Bwen 8B</strong>와 <strong>Blama 8B</strong>까지 공개했습니다. "B"는 byte의 B입니다. 이 소식은 지난주 Hacker News 프런트페이지와 각종 AI 다이제스트에 올랐고, 커뮤니티에서는 "바이트 모델이 토크나이저의 고질병을 정말 해결하느냐", "이게 Nature감이냐"는 논쟁이 벌어졌습니다.</p>
+
+<p>왜 이 소식이 화제가 될까요? 오늘날 LLM 파이프라인에서 토크나이저는 거의 유일하게 남은 <strong>'학습되지 않고 손으로 설계한' 부품</strong>이기 때문입니다. 모델 가중치는 데이터에서 배우지만, 텍스트를 토큰으로 자르는 규칙은 훈련 전에 통계 휴리스틱으로 한 번 굳혀 놓고 끝까지 안 바꿉니다. 그리고 이 부품이 LLM의 유명한 기행들 — "strawberry에 r이 몇 개냐"에 틀리는 것부터, 한국어 사용자에게 영어보다 몇 배 비싼 API 요금을 물리는 것까지 — 의 진원지라는 의심을 오래 받아 왔습니다. Andrej Karpathy가 토크나이제이션 강의에서 LLM의 이상 행동 다수를 토크나이저 탓으로 지목한 건 유명합니다.</p>
+
+<p>오늘은 이 문제를 바닥부터 풀어봅니다. 토크나이저가 왜 필요했고 뭘 망가뜨리는지, "그냥 바이트로 읽으면 되잖아"가 왜 2024년까지 비실용적이었는지(그리고 Meta의 BLT가 어떻게 돌파구를 냈는지), 그리고 이번 주의 주인공 <strong>byteification</strong> — 처음부터 다시 훈련하지 않고 기존 모델을 개조하는 기술 — 이 어떻게 작동하는지까지. 다 읽고 나면 "토크나이저 없는 LLM"이 홍보 문구가 아니라 구체적인 엔지니어링 트레이드오프로 보일 겁니다.</p>
+
+<h2 id="sec-2">배경 — 토크나이저는 왜 고질병 공장인가</h2>
+
+<p>먼저 기본부터. LLM은 텍스트를 바로 읽지 않습니다. <strong>토크나이저(tokenizer)</strong>가 텍스트를 <strong>토큰(token)</strong>이라는 조각으로 자르고, 각 조각을 정수 ID로 바꿔 모델에 넘깁니다. 요즘 표준은 BPE(Byte Pair Encoding) 계열입니다. 대규모 말뭉치에서 <em>자주 붙어 나오는 바이트 쌍을 반복해서 병합</em>해, 보통 10만~25만 개짜리 어휘(vocabulary)를 만듭니다. 자주 나오는 영어 단어는 토큰 하나로 통째 들어가고, 드문 문자열은 잘게 쪼개집니다.</p>
+
+<p>토크나이저를 쓰는 이유는 단순합니다 — <strong>압축</strong>입니다. 토큰 하나가 평균 4바이트쯤을 담아 주면, 같은 글을 바이트로 읽을 때보다 시퀀스가 4분의 1로 줄어듭니다. 트랜스포머의 attention 비용은 시퀀스 길이의 제곱에 비례하니, 이 압축은 공짜가 아니라 필수에 가까웠습니다. 문제는 이 압축이 <strong>모델 훈련과 분리된 채, 한 번 정해지면 끝까지 고정</strong>된다는 점입니다. 여기서 고질병이 자랍니다.</p>
+
+<ul>
+  <li><strong>글자가 안 보입니다.</strong> 모델 입장에서 <code>strawberry</code>는 글자 10개가 아니라 토큰 2~3개입니다. 토큰 내부의 철자는 임베딩 속에 뭉개져 있어서, 글자 세기·거꾸로 쓰기·철자 교정 같은 문자 수준 작업이 구조적으로 어렵습니다.</li>
+  <li><strong>glitch token.</strong> 어휘를 만들 때 쓴 말뭉치와 모델 훈련 말뭉치가 달라서, 어휘에는 있지만 훈련 중 거의 등장하지 않은 '덜 훈련된 토큰'이 생깁니다. 악명 높은 <code>SolidGoldMagikarp</code>가 대표적인데, 이런 토큰이 입력에 섞이면 모델이 환각이나 깨진 출력을 내뱉을 수 있습니다. 이를 자동 탐지하는 연구(<a href="https://arxiv.org/abs/2405.05417" target="_blank" rel="noopener">Fishing for Magikarp</a>)가 나올 정도로 체계적인 문제입니다.</li>
+  <li><strong>언어 간 불공정.</strong> NeurIPS 2023의 <a href="https://arxiv.org/abs/2305.15425" target="_blank" rel="noopener">Petrov et al.</a>은 같은 내용의 텍스트가 언어에 따라 토큰 수가 <strong>최대 15배</strong>까지 벌어지고, 다국어용으로 만든 토크나이저 17종에서도 이 격차가 사라지지 않음을 보였습니다. 토큰 수는 곧 API 요금·지연 시간·컨텍스트 여유입니다. 한국어로 쓰면 같은 말을 하고도 더 비싸고, 더 느리고, 컨텍스트가 더 빨리 차는 이유가 여기 있습니다.</li>
+  <li><strong>경계가 깨지기 쉽습니다.</strong> 오타, 유니코드 변형, 공백 하나에도 토큰 경계가 전혀 다르게 잘려서, 사람 눈에는 같은 입력이 모델에는 완전히 다른 시퀀스로 보입니다. 노이즈에 약해지는 원인 중 하나입니다.</li>
+</ul>
+
+<figure class="bl-fig">
+<svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LLM이 텍스트를 읽는 세 가지 방법 비교 다이어그램. 첫째 줄은 서브워드 토크나이저로 strawberry가 st, raw, berry 세 토큰으로 잘려 글자가 토큰 안에 숨고, 언어별 토큰 수가 최대 15배 차이 난다는 단점이 적혀 있다. 둘째 줄은 순수 바이트 방식으로 글자 하나하나가 다 보이지만 시퀀스가 약 4배 길어져 attention 비용이 제곱으로 폭증한다. 셋째 줄은 동적 패치 방식으로 바이트를 예측 난이도에 따라 가변 길이 패치로 묶어 글자도 보이고 시퀀스도 짧다.">
+  <text x="450" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">LLM이 텍스트를 보는 세 가지 방법</text>
+
+  <!-- 1. 서브워드 -->
+  <g>
+    <text x="40" y="84" font-size="14" font-weight="700" fill="var(--bl-rose)">① 서브워드 토큰 (BPE, 현재 표준)</text>
+    <g font-size="13.5" font-weight="700">
+      <rect x="40" y="100" width="90" height="38" rx="8" fill="var(--bl-rose)" opacity="0.8"/>
+      <text x="85" y="124" text-anchor="middle" fill="#fff">st</text>
+      <rect x="138" y="100" width="110" height="38" rx="8" fill="var(--bl-rose)" opacity="0.8"/>
+      <text x="193" y="124" text-anchor="middle" fill="#fff">raw</text>
+      <rect x="256" y="100" width="150" height="38" rx="8" fill="var(--bl-rose)" opacity="0.8"/>
+      <text x="331" y="124" text-anchor="middle" fill="#fff">berry</text>
+    </g>
+    <text x="430" y="124" font-size="12.5" fill="currentColor">← 토큰 3개. 글자는 토큰 속에 숨어 안 보임</text>
+    <text x="40" y="162" font-size="12" fill="var(--bl-gray)">장점: 시퀀스 짧음(압축 ~4배) · 단점: 문자 작업 취약, glitch token, 언어별 토큰 수 최대 15배 격차</text>
+  </g>
+
+  <line x1="40" y1="186" x2="860" y2="186" stroke="var(--bl-slate)" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <!-- 2. 순수 바이트 -->
+  <g>
+    <text x="40" y="218" font-size="14" font-weight="700" fill="var(--bl-amber)">② 순수 바이트 (어휘 256개)</text>
+    <g font-size="12" font-weight="700">
+      <rect x="40" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="57" y="256" text-anchor="middle" fill="#fff">s</text>
+      <rect x="80" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="97" y="256" text-anchor="middle" fill="#fff">t</text>
+      <rect x="120" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="137" y="256" text-anchor="middle" fill="#fff">r</text>
+      <rect x="160" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="177" y="256" text-anchor="middle" fill="#fff">a</text>
+      <rect x="200" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="217" y="256" text-anchor="middle" fill="#fff">w</text>
+      <rect x="240" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="257" y="256" text-anchor="middle" fill="#fff">b</text>
+      <rect x="280" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="297" y="256" text-anchor="middle" fill="#fff">e</text>
+      <rect x="320" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="337" y="256" text-anchor="middle" fill="#fff">r</text>
+      <rect x="360" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="377" y="256" text-anchor="middle" fill="#fff">r</text>
+      <rect x="400" y="234" width="34" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="417" y="256" text-anchor="middle" fill="#fff">y</text>
+    </g>
+    <text x="450" y="256" font-size="12.5" fill="currentColor">← 바이트 10개. 전부 보이지만 시퀀스 ~4배</text>
+    <text x="40" y="296" font-size="12" fill="var(--bl-gray)">장점: 글자 전부 보임, 어휘·glitch token 없음 · 단점: attention 비용은 길이의 제곱 → 훈련·추론 모두 비싸짐</text>
+  </g>
+
+  <line x1="40" y1="320" x2="860" y2="320" stroke="var(--bl-slate)" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <!-- 3. 동적 패치 -->
+  <g>
+    <text x="40" y="352" font-size="14" font-weight="700" fill="var(--bl-green)">③ 바이트 + 동적 패치 (BLT · Bolmo)</text>
+    <g font-size="12" opacity="0.9">
+      <rect x="40" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="69" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="98" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="127" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="156" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="196" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="225" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="254" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="283" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+      <rect x="312" y="368" width="26" height="30" rx="5" fill="var(--bl-amber)"/>
+    </g>
+    <path d="M53 404 L169 404" stroke="var(--bl-green)" stroke-width="2.5" fill="none"/>
+    <path d="M209 404 L325 404" stroke="var(--bl-green)" stroke-width="2.5" fill="none"/>
+    <g font-size="13" font-weight="700">
+      <rect x="40" y="416" width="142" height="36" rx="8" fill="var(--bl-green)" opacity="0.85"/>
+      <text x="111" y="440" text-anchor="middle" fill="#fff">패치 "straw"</text>
+      <rect x="196" y="416" width="142" height="36" rx="8" fill="var(--bl-green)" opacity="0.85"/>
+      <text x="267" y="440" text-anchor="middle" fill="#fff">패치 "berry"</text>
+    </g>
+    <text x="360" y="440" font-size="12.5" fill="currentColor">← 큰 트랜스포머는 패치 2개만 처리</text>
+    <text x="40" y="482" font-size="12" fill="var(--bl-gray)">바이트는 가벼운 로컬 모듈이 읽고, 예측이 쉬운 구간은 길게·어려운 구간은 짧게 묶어 큰 모델에 전달</text>
+    <text x="40" y="502" font-size="12" fill="var(--bl-gray)">→ 글자도 보이고, 비싼 연산은 압축된 패치 단위로만. 경계는 고정 규칙이 아니라 학습된 예측기가 정함</text>
+  </g>
+
+  <rect x="40" y="524" width="820" height="2" fill="none"/>
+</svg>
+<figcaption>그림 1. 서브워드 토큰은 압축을 주는 대신 글자를 숨기고, 순수 바이트는 글자를 보여주는 대신 시퀀스를 4배로 늘립니다. 동적 패치는 "바이트를 읽되, 비싼 연산은 묶음 단위로"라는 절충입니다.</figcaption>
+</figure>
+
+<h2 id="sec-3">그냥 바이트로 읽으면 안 되나 — 패치라는 해법 (BLT)</h2>
+
+<p>고질병의 뿌리가 토크나이저라면, 가장 깔끔한 해법은 제거입니다. 텍스트는 어차피 UTF-8 바이트의 나열이니, 어휘를 256개(바이트 값 0~255)로 고정하고 바이트를 직접 읽게 하면 됩니다. 어휘 밖 단어(OOV)도, glitch token도, "이 언어는 어휘에 없어서 잘게 쪼개지는" 불이익도 원천적으로 사라집니다.</p>
+
+<p>안 했던 이유는 위에서 본 그 산수입니다. 영어 기준 토큰 1개 ≈ 바이트 4~5개이므로, 바이트로 읽으면 시퀀스가 4~5배 길어집니다. attention은 길이 제곱이니 비용은 그보다 더 뜁니다. 게다가 바이트 하나하나는 정보가 희박해서, 큰 트랜스포머의 한 스텝을 'e' 다음에 'r'이 온다는 예측에 쓰는 건 낭비입니다.</p>
+
+<p>돌파구는 2024년 12월 Meta FAIR의 <a href="https://arxiv.org/abs/2412.09871" target="_blank" rel="noopener">BLT(Byte Latent Transformer)</a>가 열었습니다. 핵심 아이디어는 <strong>패치(patch)</strong>입니다. 바이트를 그대로 큰 모델에 넣는 대신, 가벼운 로컬 모듈이 바이트를 읽어 <strong>가변 길이 묶음</strong>으로 압축하고, 비싼 글로벌 트랜스포머는 이 패치 단위로만 돌립니다. 토크나이저와 뭐가 다르냐고요? 결정적인 차이가 둘 있습니다.</p>
+
+<ul>
+  <li><strong>경계를 학습된 모델이 정합니다.</strong> BLT는 작은 바이트 LM(약 100M 파라미터)을 따로 두고, <strong>다음 바이트의 엔트로피</strong>(예측이 얼마나 어려운지)가 치솟는 지점에서 패치를 끊습니다. 뻔한 구간은 길게 묶어 연산을 아끼고, 어려운 구간은 짧게 끊어 큰 모델의 스텝을 더 씁니다. 즉 <strong>난이도에 비례해 컴퓨트를 배분</strong>하는 셈인데, 고정 어휘 토크나이저는 절대 못 하는 일입니다.</li>
+  <li><strong>글자 정보가 버려지지 않습니다.</strong> 패치는 '입구에서 자르고 끝'이 아니라, 바이트 수준 표현이 로컬 인코더/디코더를 통해 끝까지 흐릅니다. 모델이 철자를 실제로 '봅니다'.</li>
+</ul>
+
+<p>BLT는 8B 파라미터·4T 훈련 바이트까지 FLOP을 통제한 스케일링 실험으로 "패치가 토큰보다 스케일이 잘 된다"는 걸 보였습니다. 다만 BLT는 <strong>처음부터(from scratch) 훈련한</strong> 모델입니다. 그리고 바로 그 점이 실무 도입의 벽이었습니다 — 프런티어급 사전 훈련을 바이트 방식으로 한 번 더 하자고 말할 수 있는 조직은 거의 없으니까요.</p>
+
+<h2 id="sec-4">byteification — 처음부터 다시 훈련하지 않는 법 (Bolmo)</h2>
+
+<p>이번 주 Nature 논문의 기여가 정확히 여기에 있습니다. 질문을 뒤집은 겁니다 — <strong>"바이트 모델을 새로 키우지 말고, 이미 수조 토큰을 먹고 자란 서브워드 모델을 개조하면 안 되나?"</strong> 이 개조 절차가 <strong>byteification</strong>이고, OLMo 3 7B를 개조한 결과물이 Bolmo 7B입니다. 집을 허물고 새로 짓는 대신, 뼈대는 그대로 두고 현관(입력부)과 출구(출력부)만 교체하는 리모델링에 가깝습니다.</p>
+
+<p>구조부터 봅시다. 기존 모델의 트랜스포머 본체(지식과 추론력이 들어 있는 곳)는 그대로 두고, 그 앞뒤에 바이트용 부품을 답니다.</p>
+
+<ul>
+  <li><strong>로컬 인코더:</strong> 바이트 임베딩을 가벼운 mLSTM 층이 문맥화합니다. 논문에 따르면 단 1개 층으로 충분했는데, 기존 모델의 <strong>서브워드 임베딩을 버리지 않고 재활용</strong>해 표현력을 보태기 때문입니다.</li>
+  <li><strong>경계 예측기(boundary predictor):</strong> 바이트마다 0~1 사이 점수를 매겨, 임계값을 넘으면 그 바이트 뒤에서 패치를 끊습니다. 재미있는 디테일: 프리필 단계의 경계 예측기는 <strong>한 바이트 앞을 살짝 엿보는(non-causal)</strong> 구조라, 원본 토크나이저의 경계를 거의 그대로 흉내 낼 수 있습니다. 덕분에 동결된 본체가 "익숙한 모양"의 입력을 받습니다. 생성(decode) 중에는 미래를 볼 수 없으니, LM 헤드 쪽에 미래를 안 보는 별도 경계 예측기를 하나 더 둡니다.</li>
+  <li><strong>로컬 디코더 + 바이트 LM 헤드:</strong> 본체가 패치 단위로 처리한 표현을 다시 바이트 단위로 펼치고, 작은 mLSTM 스택이 다듬은 뒤 다음 바이트를 예측합니다. '여기서 패치가 끝남' 신호를 출력 어휘에 합쳐 넣어, softmax가 256이 아니라 512개 위에서 돌 뿐 — 사실상 공짜입니다.</li>
+</ul>
+
+<figure class="bl-fig">
+<svg viewBox="0 0 900 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bolmo의 byteification 아키텍처 다이어그램. 아래에서 위로: 입력 바이트가 로컬 인코더(mLSTM 1층, 서브워드 임베딩 재활용)로 들어가고, 경계 예측기가 패치 경계를 정해 바이트들이 패치로 풀링된다. 패치는 동결된 기존 트랜스포머 본체(OLMo 3 / Qwen3 / Llama 3)를 통과하고, 로컬 디코더가 다시 바이트 단위로 펼쳐 512-way softmax로 다음 바이트를 예측한다. 오른쪽에 2단계 훈련 설명: 1단계는 본체를 동결하고 새 부품만 9.8B 토큰으로 흉내 학습, 2단계는 전체를 end-to-end 미세 조정, 총 49.1B 토큰으로 사전 훈련의 1% 미만.">
+  <text x="450" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">byteification — 뼈대는 두고 입출력만 바이트로 교체</text>
+
+  <!-- 왼쪽: 아키텍처 스택 (아래→위) -->
+  <g font-size="13">
+    <!-- 입력 바이트 -->
+    <g font-weight="700">
+      <rect x="60" y="560" width="40" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="80" y="582" text-anchor="middle" fill="#fff">b₁</text>
+      <rect x="108" y="560" width="40" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="128" y="582" text-anchor="middle" fill="#fff">b₂</text>
+      <rect x="156" y="560" width="40" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="176" y="582" text-anchor="middle" fill="#fff">b₃</text>
+      <rect x="204" y="560" width="40" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="224" y="582" text-anchor="middle" fill="#fff">b₄</text>
+      <rect x="252" y="560" width="40" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="272" y="582" text-anchor="middle" fill="#fff">b₅</text>
+      <rect x="300" y="560" width="40" height="34" rx="6" fill="var(--bl-amber)" opacity="0.85"/><text x="320" y="582" text-anchor="middle" fill="#fff">b₆</text>
+    </g>
+    <text x="370" y="582" font-size="12" fill="var(--bl-gray)">입력: UTF-8 바이트</text>
+
+    <path d="M200 552 L200 522" stroke="var(--bl-slate)" stroke-width="2" marker-end="none"/>
+    <rect x="60" y="478" width="340" height="44" rx="9" fill="var(--bl-sky)" opacity="0.85"/>
+    <text x="230" y="500" text-anchor="middle" fill="#fff" font-weight="700">로컬 인코더 (mLSTM 1층)</text>
+    <text x="230" y="516" text-anchor="middle" fill="#fff" font-size="11">기존 서브워드 임베딩 재활용</text>
+
+    <path d="M200 470 L200 440" stroke="var(--bl-slate)" stroke-width="2"/>
+    <rect x="60" y="396" width="340" height="44" rx="9" fill="var(--bl-violet)" opacity="0.85"/>
+    <text x="230" y="418" text-anchor="middle" fill="#fff" font-weight="700">경계 예측기 → 패치 풀링</text>
+    <text x="230" y="434" text-anchor="middle" fill="#fff" font-size="11">프리필: 1바이트 선행 엿보기 · 디코드: 별도 예측기</text>
+
+    <path d="M200 388 L200 358" stroke="var(--bl-slate)" stroke-width="2"/>
+    <rect x="60" y="256" width="340" height="102" rx="12" fill="none" stroke="var(--bl-green)" stroke-width="3" stroke-dasharray="7 5"/>
+    <rect x="76" y="272" width="308" height="70" rx="9" fill="var(--bl-green)" opacity="0.8"/>
+    <text x="230" y="300" text-anchor="middle" fill="#fff" font-weight="700" font-size="14.5">기존 트랜스포머 본체 (패치 단위 처리)</text>
+    <text x="230" y="322" text-anchor="middle" fill="#fff" font-size="12">OLMo 3 → Bolmo · Qwen3 → Bwen · Llama 3 → Blama</text>
+    <text x="420" y="268" font-size="11.5" fill="var(--bl-green)" font-weight="700">❄ 1단계에서 동결</text>
+
+    <path d="M200 248 L200 218" stroke="var(--bl-slate)" stroke-width="2"/>
+    <rect x="60" y="174" width="340" height="44" rx="9" fill="var(--bl-sky)" opacity="0.85"/>
+    <text x="230" y="196" text-anchor="middle" fill="#fff" font-weight="700">로컬 디코더 (mLSTM) — 패치 → 바이트 복원</text>
+    <text x="230" y="212" text-anchor="middle" fill="#fff" font-size="11">바이트 수준 표현으로 되돌려 다듬기</text>
+
+    <path d="M200 166 L200 136" stroke="var(--bl-slate)" stroke-width="2"/>
+    <rect x="60" y="92" width="340" height="44" rx="9" fill="var(--bl-rose)" opacity="0.85"/>
+    <text x="230" y="114" text-anchor="middle" fill="#fff" font-weight="700">바이트 LM 헤드 — softmax 512</text>
+    <text x="230" y="130" text-anchor="middle" fill="#fff" font-size="11">바이트 256 × 경계 여부 (오버헤드 사실상 0)</text>
+    <text x="230" y="72" text-anchor="middle" font-size="12.5" fill="currentColor" font-weight="700">출력: 다음 바이트</text>
+  </g>
+
+  <!-- 오른쪽: 2단계 훈련 -->
+  <g font-size="12.5">
+    <rect x="480" y="120" width="380" height="190" rx="12" fill="none" stroke="var(--bl-sky)" stroke-width="2"/>
+    <text x="500" y="150" font-weight="700" font-size="14" fill="var(--bl-sky)">1단계 — 흉내 내기 학습</text>
+    <text x="500" y="178" fill="currentColor">본체는 동결(❄), 새로 단 부품만 훈련</text>
+    <text x="500" y="200" fill="currentColor">목표: 원본 서브워드 모델의 동작 모방</text>
+    <text x="500" y="222" fill="currentColor">비용: 약 9.8B 토큰 (~43B 바이트)</text>
+    <text x="500" y="252" fill="var(--bl-gray)" font-size="11.5">본체가 받던 입력 분포를 경계 예측기가</text>
+    <text x="500" y="270" fill="var(--bl-gray)" font-size="11.5">그대로 재현 → 기존 능력 보존</text>
+
+    <rect x="480" y="330" width="380" height="160" rx="12" fill="none" stroke="var(--bl-violet)" stroke-width="2"/>
+    <text x="500" y="360" font-weight="700" font-size="14" fill="var(--bl-violet)">2단계 — 전체 미세 조정</text>
+    <text x="500" y="388" fill="currentColor">동결 해제, end-to-end 파인튜닝</text>
+    <text x="500" y="410" fill="currentColor">바이트 수준 정보를 본체까지 활용</text>
+    <text x="500" y="432" fill="currentColor">총비용: 49.1B 토큰</text>
+    <text x="500" y="462" fill="var(--bl-green)" font-weight="700">= 통상 사전 훈련 예산의 1% 미만</text>
+
+    <rect x="480" y="520" width="380" height="74" rx="12" fill="var(--bl-green)" opacity="0.12"/>
+    <text x="500" y="548" font-weight="700" fill="var(--bl-green)">결과 (Nature 2026-10-07)</text>
+    <text x="500" y="572" fill="currentColor" font-size="12">Bolmo 7B: STEM에서 BLT 7B 대비 +16.5%p</text>
+  </g>
+</svg>
+<figcaption>그림 2. byteification의 전체 흐름. 지식이 든 본체는 재활용하고, 바이트 입출력 부품만 새로 달아 2단계로 훈련합니다. 처음부터 훈련한 BLT 7B보다 STEM에서 16.5%p 앞서면서 비용은 사전 훈련의 1% 미만입니다.</figcaption>
+</figure>
+
+<p>훈련은 2단계입니다. <strong>1단계</strong>에서는 본체를 동결하고 새 부품만 훈련하는데, 목표가 재밌습니다 — 새 바이트 입출력 경로가 <strong>원본 서브워드 모델의 동작을 그대로 흉내</strong> 내게 만드는 겁니다. 경계 예측기가 원본 토크나이저의 경계를 모방하니, 동결된 본체 입장에서는 세상이 바뀐 걸 거의 못 느낍니다. 이 단계에 약 9.8B 토큰(약 43B 바이트)이면 충분했습니다. <strong>2단계</strong>에서 동결을 풀고 전체를 end-to-end로 미세 조정해, 본체가 바이트 수준 정보를 직접 활용하게 합니다. 전체 비용은 49.1B 토큰 — 논문 표현으로 <strong>통상 사전 훈련 예산의 1% 미만</strong>입니다.</p>
+
+<p>결과가 이 접근의 설득력을 보여줍니다. Bolmo 7B는 처음부터 바이트로 훈련한 BLT 7B를 STEM 과제에서 <strong>절대치 16.5%p</strong> 차이로 앞섰습니다. 수조 토큰짜리 사전 훈련을 공짜로 물려받았으니 어쩌면 당연한 결과인데, 이 "당연함"이 핵심입니다 — <strong>바이트 모델로 가는 길이 '새 사전 훈련'에서 '저렴한 개조'로 바뀌었다</strong>는 뜻이니까요. 방법이 OLMo에만 통하는 것도 아닙니다. 같은 절차로 Qwen3 8B와 Llama 3 8B를 개조한 Bwen 8B·Blama 8B가 이번에 함께 공개됐고, Ai2에 따르면 Bwen 8B가 현재 가장 강한 byteified 모델입니다.</p>
+
+<h2 id="sec-5">숫자로 읽는 트레이드오프 — 얼마나 빠르고, 어디가 약한가</h2>
+
+<p>"바이트 모델은 느려서 못 쓴다"가 오랜 통념이었으니, 속도 숫자를 정직하게 봐야 합니다. 논문이 공개한 수치는 이렇습니다(H100, batch size 1 기준).</p>
+
+<table class="bl-table">
+  <tr><th>항목</th><th>Bolmo 7B (바이트)</th><th>OLMo 3 7B (서브워드)</th></tr>
+  <tr><td>디코딩 속도 (같은 압축률)</td><td>약 125 bytes/s</td><td>약 150 bytes/s</td></tr>
+  <tr><td>프리필 (72K 바이트)</td><td>약 1.0초</td><td>약 0.8초</td></tr>
+  <tr><td>효율 역전 지점</td><td colspan="2">패치당 약 6.6바이트 이상으로 압축률을 올리면 Bolmo가 더 효율적</td></tr>
+</table>
+
+<p>읽는 법: 바이트 모델이 서브워드 모델의 <strong>80~90% 속도까지 따라왔고</strong>, 이것만으로도 "바이트 모델 = 4배 느림"이라는 통념은 깨졌습니다. 더 흥미로운 건 역전 지점입니다. 서브워드 모델의 압축률은 토크나이저에 박제되어 바꿀 수 없지만, 패치 크기는 <strong>훈련으로 조절할 수 있는 다이얼</strong>입니다. 패치당 평균 6.6바이트를 넘기면 추론 효율이 서브워드 모델을 앞서기 시작합니다. 토크나이저를 떼어내면 "압축률"이 설계 파라미터로 풀려난다는 점 — 이게 엔지니어링 관점에서 가장 중요한 변화입니다.</p>
+
+<div class="bl-warn">
+<strong>약점도 분명합니다.</strong> 위 속도는 전부 <strong>batch size 1</strong> 기준입니다. 저자들도 배치 추론 최적화는 숙제로 남겼다고 밝혔습니다. 가변 길이 패치는 배치 안에서 시퀀스마다 경계가 달라 배칭이 까다롭고, vLLM 같은 서빙 엔진의 continuous batching·prefix caching과의 궁합도 아직 검증 전입니다. 커뮤니티 분석에서는 문자 수준 과제는 확실히 좋아진 반면 수학·코딩 첫 시도 성능은 다소 밀린다는 지적도 있었습니다. 프로덕션 서빙용이라기보다 "방향이 증명된 연구 아티팩트"로 보는 게 정확합니다.
+</div>
+
+<figure class="bl-fig">
+<svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="비용과 속도 비교 다이어그램. 왼쪽: 훈련 비용 막대 비교 — 처음부터 바이트 모델 사전 훈련은 수조 토큰으로 긴 막대, byteification은 49.1B 토큰으로 1% 미만의 짧은 막대. 오른쪽: 디코딩 속도 막대 — 서브워드 OLMo 3 7B 약 150 bytes/s, Bolmo 7B 약 125 bytes/s로 80~90% 수준이며, 패치당 6.6바이트 이상으로 압축률을 올리면 역전된다는 화살표 표시.">
+  <text x="450" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="currentColor">byteification의 가격표 — 훈련은 1% 미만, 속도는 83%</text>
+
+  <!-- 왼쪽: 훈련 비용 -->
+  <g font-size="12.5">
+    <text x="60" y="80" font-size="14" font-weight="700" fill="currentColor">훈련 비용 (토큰 수, 로그 느낌의 개념도)</text>
+    <rect x="60" y="100" width="360" height="40" rx="8" fill="var(--bl-rose)" opacity="0.8"/>
+    <text x="240" y="126" text-anchor="middle" fill="#fff" font-weight="700">from scratch 사전 훈련 — 수조 토큰</text>
+    <rect x="60" y="156" width="36" height="40" rx="8" fill="var(--bl-green)" opacity="0.95"/>
+    <text x="110" y="182" fill="currentColor" font-weight="700">byteification — 49.1B 토큰 (&lt;1%)</text>
+    <text x="60" y="232" fill="var(--bl-gray)" font-size="11.5">1단계(흉내 학습) 9.8B + 2단계(전체 미세 조정) 포함 총 49.1B</text>
+  </g>
+
+  <!-- 오른쪽: 속도 -->
+  <g font-size="12.5">
+    <text x="60" y="290" font-size="14" font-weight="700" fill="currentColor">디코딩 속도 (H100 · batch 1 · 같은 압축률)</text>
+    <rect x="60" y="310" width="450" height="34" rx="7" fill="var(--bl-sky)" opacity="0.85"/>
+    <text x="80" y="332" fill="#fff" font-weight="700">OLMo 3 7B (서브워드) ~150 bytes/s</text>
+    <rect x="60" y="352" width="375" height="34" rx="7" fill="var(--bl-amber)" opacity="0.9"/>
+    <text x="80" y="374" fill="#fff" font-weight="700">Bolmo 7B (바이트) ~125 bytes/s</text>
+    <text x="530" y="374" fill="currentColor" font-size="12">≈ 83% — 그리고 패치당 &gt;6.6B면 역전 ↗</text>
+    <text x="60" y="410" fill="var(--bl-gray)" font-size="11.5">패치 크기는 훈련으로 올릴 수 있는 다이얼: 압축률이 고정된 토크나이저와의 결정적 차이</text>
+  </g>
+</svg>
+<figcaption>그림 3. 개조 비용은 사전 훈련의 1% 미만, 속도는 서브워드 모델의 80~90% 수준. "패치당 바이트 수"를 올리면 효율이 역전된다는 점이 장기적으로 더 중요한 포인트입니다.</figcaption>
+</figure>
+
+<h2 id="sec-6">실전 — 직접 눈으로 확인하기</h2>
+
+<p>개념을 손으로 만져 봅시다. 먼저 토크나이저의 '언어 불공정'을 30초 만에 재현하는 실험입니다. 설치는 <code>pip install tiktoken</code> 하나면 됩니다.</p>
+
+{{< highlight python >}}
+import tiktoken
+
+enc = tiktoken.get_encoding("o200k_base")  # GPT-4o 계열이 쓰는 어휘
+
+pairs = [
+    ("영어",   "The weather is really nice today."),
+    ("한국어", "오늘은 날씨가 정말 좋네요."),
+]
+for lang, text in pairs:
+    tokens = enc.encode(text)
+    n_bytes = len(text.encode("utf-8"))
+    # 토큰 수와 '토큰당 바이트'(압축률)를 비교해 봅니다
+    print(f"{lang}: {len(tokens)}토큰 / {n_bytes}바이트 "
+          f"→ 토큰당 {n_bytes/len(tokens):.1f}바이트")
+    print("  조각:", [enc.decode([t]) for t in tokens])
+{{< /highlight >}}
+
+<p>직접 돌려 보면 같은 뜻의 문장인데 한국어 쪽 토큰당 압축률이 눈에 띄게 나쁜 걸 확인할 수 있습니다. API 요금은 토큰 수에 비례하니, 이 차이가 곧 돈입니다. 한 가지 더 — 한글은 UTF-8에서 음절당 3바이트입니다.</p>
+
+{{< highlight python >}}
+>>> len("안녕하세요".encode("utf-8"))
+15   # 5글자 × 3바이트 — 바이트 모델이 보는 한국어의 '길이'
+>>> len("hello".encode("utf-8"))
+5
+{{< /highlight >}}
+
+<p>그래서 바이트 모델에서도 언어 간 차이가 통째로 사라지는 건 아닙니다. 다만 성격이 바뀝니다. 서브워드에서는 "어휘에 내 언어 단어가 몇 개 실렸나"라는 <em>정치적인</em> 변수가 압축률을 정했다면, 패치 기반 바이트 모델에서는 경계 예측기가 데이터에서 학습되므로 <strong>자주 나오는 패턴은 언어와 무관하게 길게 묶일 수 있습니다</strong>. 고정 어휘라는 병목이 학습 가능한 부품으로 바뀌는 겁니다.</p>
+
+<p>Bolmo 자체도 공개되어 있습니다. 가중치는 Hugging Face의 <a href="https://huggingface.co/allenai/Bolmo-7B" target="_blank" rel="noopener">allenai/Bolmo-7B</a>에서 받을 수 있고(1B 버전도 있습니다), 이번에 Bwen 8B·Blama 8B도 함께 풀렸습니다. 사용법 뼈대는 여느 HF 모델과 같습니다.</p>
+
+{{< highlight python >}}
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# '토크나이저'를 로드하지만 실제로는 UTF-8 바이트 매핑에 가깝습니다
+tok = AutoTokenizer.from_pretrained("allenai/Bolmo-7B")
+model = AutoModelForCausalLM.from_pretrained("allenai/Bolmo-7B")
+
+ids = tok("How many r's are in strawberry?", return_tensors="pt")
+out = model.generate(**ids, max_new_tokens=64)  # 생성 단위도 바이트
+print(tok.decode(out[0]))
+{{< /highlight >}}
+
+<p>로드해서 가장 먼저 해볼 만한 실험은 역시 문자 수준 과제입니다. 철자 세기, 단어 뒤집기, 일부러 낸 오타 교정처럼 서브워드 모델이 약하던 과제를 원본 OLMo 3와 나란히 돌려 비교해 보면, 이 글에서 다룬 차이가 벤치마크 숫자가 아니라 실제 동작으로 보입니다.</p>
+
+<h2 id="sec-7">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"이제 토크나이저 공부는 안 해도 되겠네" — 아닙니다.</strong> 프로덕션의 모델은 당분간 전부 서브워드입니다. 요금 계산, 컨텍스트 예산, <a href="/posts/prompt-caching-cache-aware-agents/">프롬프트 캐싱</a> 경계 설계는 여전히 토큰 단위로 돌아갑니다. 바이트 모델은 "토크나이저 지식이 왜 중요한지"를 역설적으로 보여주는 거울에 가깝습니다.</li>
+  <li><strong>토큰 수 ≒ 글자 수로 가정하는 버그.</strong> junior가 가장 자주 밟는 지뢰입니다. "500자 제한이니 토큰 500개로 자르자" 같은 코드는 영어에서는 대충 맞고 한국어에서는 크게 틀립니다. 길이 제한·청킹·비용 추정 로직에는 반드시 해당 모델의 토크나이저로 실측한 숫자를 쓰세요.</li>
+  <li><strong>다국어 평가 함정.</strong> 같은 모델이라도 언어에 따라 토큰 효율이 다르므로, "영어 벤치마크에서 컨텍스트 100K까지 괜찮았다"는 결과가 한국어 문서에서는 훨씬 이른 지점에서 깨질 수 있습니다. <a href="/posts/context-rot-long-context-degradation/">컨텍스트 로트</a>를 다국어로 평가할 때는 토큰 수 기준으로 조건을 맞춰야 공정한 비교가 됩니다.</li>
+  <li><strong>이상 동작 디버깅 체크리스트에 '토크나이저'를 넣으세요.</strong> 특정 문자열에서만 모델이 이상해진다면 glitch token이나 경계 문제를 의심해 볼 가치가 있습니다. 입력을 토큰 ID로 찍어 보는 것만으로 원인이 보이는 경우가 많습니다.</li>
+  <li><strong>benchmark 숫자를 읽을 때 batch 조건을 확인하세요.</strong> 이번 Bolmo의 속도 수치는 batch 1 기준입니다. 서빙 처리량(throughput)과 단일 요청 지연(latency)은 다른 지표입니다 — 논문의 속도 주장을 프로덕션 처리량으로 번역할 때는 항상 배치 조건부터 봐야 합니다.</li>
+</ul>
+
+<h2 id="sec-8">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>토크나이저는 LLM에 남은 거의 유일한 '손으로 설계한' 부품이며, 문자 수준 취약성·glitch token·언어 간 최대 15배 토큰 격차의 진원지입니다.</li>
+  <li>순수 바이트 모델은 시퀀스가 4~5배 길어져 비실용적이었지만, Meta의 BLT(2024)가 <strong>엔트로피 기반 동적 패치</strong>로 "글자는 보이되 비싼 연산은 묶음 단위"라는 절충을 증명했습니다.</li>
+  <li>이번 주 Nature에 실린 Ai2의 <strong>byteification</strong>은 바이트 모델을 처음부터 키우는 대신, <strong>기존 서브워드 모델의 본체를 동결·재활용하고 입출력만 교체</strong>하는 2단계 개조법입니다. 비용은 49.1B 토큰 — 사전 훈련의 1% 미만.</li>
+  <li>개조된 Bolmo 7B는 from-scratch 바이트 모델 BLT 7B를 STEM에서 16.5%p 앞섰고, 같은 방법이 Qwen3(→Bwen)·Llama 3(→Blama)에도 통했습니다. 디코딩 속도는 서브워드 모델의 80~90%, 패치당 6.6바이트를 넘기면 역전됩니다.</li>
+  <li>단, 수치는 batch 1 기준이고 배치 서빙 최적화는 숙제로 남아 있습니다. 당장 프로덕션에 가져올 물건은 아니지만, "압축률이 고정 어휘에서 학습 가능한 다이얼로 바뀐다"는 방향은 분명해졌습니다.</li>
+  <li>오늘 할 일: 길이·비용 로직에서 토큰≠글자 가정을 걷어내고, 다국어 서비스라면 언어별 토큰 효율을 한 번 실측해 두세요. 30초짜리 <code>tiktoken</code> 실험이면 충분합니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.nature.com/articles/s41586-026-11111-4" target="_blank" rel="noopener">Retrofitting language models to operate over bytes — Nature (2026-10-07, Minixhofer et al.)</a></li>
+  <li><a href="https://allenai.org/blog/bolmo-nature" target="_blank" rel="noopener">Now in Nature: Retrofitting language models to operate over bytes — Ai2 블로그 (Bwen 8B·Blama 8B 공개)</a></li>
+  <li><a href="https://allenai.org/blog/bolmo" target="_blank" rel="noopener">Introducing Bolmo: Byteifying the next generation of language models — Ai2 블로그 (1단계 9.8B 토큰 등 훈련 디테일)</a></li>
+  <li><a href="https://arxiv.org/abs/2512.15586" target="_blank" rel="noopener">Bolmo: Byteifying the Next Generation of Language Models — arXiv:2512.15586 (아키텍처·속도 수치 1차 출처)</a></li>
+  <li><a href="https://arxiv.org/abs/2412.09871" target="_blank" rel="noopener">Byte Latent Transformer: Patches Scale Better Than Tokens — Meta FAIR, arXiv:2412.09871</a></li>
+  <li><a href="https://github.com/facebookresearch/blt" target="_blank" rel="noopener">facebookresearch/blt — BLT 공식 구현</a></li>
+  <li><a href="https://huggingface.co/allenai/Bolmo-7B" target="_blank" rel="noopener">allenai/Bolmo-7B — Hugging Face 모델 카드</a></li>
+  <li><a href="https://arxiv.org/abs/2305.15425" target="_blank" rel="noopener">Language Model Tokenizers Introduce Unfairness Between Languages — Petrov et al., NeurIPS 2023 (최대 15배 격차)</a></li>
+  <li><a href="https://arxiv.org/abs/2305.13707" target="_blank" rel="noopener">Do All Languages Cost the Same? — Ahia et al. (API 요금 관점의 토큰 격차)</a></li>
+  <li><a href="https://arxiv.org/abs/2405.05417" target="_blank" rel="noopener">Fishing for Magikarp: Automatically Detecting Under-trained Tokens in LLMs — arXiv:2405.05417 (glitch token)</a></li>
+  <li><a href="https://venturebeat.com/ai/bolmos-architecture-unlocks-efficient-byte-level-lm-training-without" target="_blank" rel="noopener">Bolmo's architecture unlocks efficient byte-level LM training — VentureBeat</a></li>
+  <li><a href="https://www.emergentmind.com/papers/2512.15586" target="_blank" rel="noopener">Bolmo: Byteifying Next Gen LMs — Emergent Mind 논문 요약</a></li>
+</ul>

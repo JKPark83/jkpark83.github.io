@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">오늘의 실전 팁 — 반복 설정의 저장 vs 무인 운영의 상한</text>
+
+  <!-- Codex -->
+  <rect x="30" y="56" width="360" height="310" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="86" font-size="14" font-weight="700" fill="#047857">🟩 Codex — /presets</text>
+  <text x="50" y="114" font-size="12.5" fill="#333">자주 쓰는 입력을 10개 슬롯에 저장</text>
+  <text x="50" y="138" font-size="12.5" fill="#333">저장 대상 2종:</text>
+  <text x="62" y="160" font-size="12" fill="#333">① 컴포저에 적어둔 프롬프트 텍스트</text>
+  <text x="62" y="180" font-size="12" fill="#333">② 현재 모델·리즈닝·속도 조합</text>
+  <text x="50" y="208" font-size="12.5" fill="#333">실행: 번호 선택 → 일반 제출 경로로 주입</text>
+  <text x="50" y="230" font-size="12.5" fill="#333">작성 중이던 초안은 그대로 보존</text>
+  <rect x="50" y="248" width="320" height="52" rx="6" fill="#0b2e22"/>
+  <text x="62" y="270" font-size="12" font-family="monospace" fill="#7ce3b1">/presets   # 피커 열기·저장·교체·삭제</text>
+  <text x="62" y="290" font-size="12" font-family="monospace" fill="#7ce3b1">저장 위치: config의 tui.presets</text>
+  <text x="50" y="326" font-size="11.5" fill="#047857">반복 리뷰 프롬프트·모델 전환 콤보에 유용</text>
+  <text x="50" y="346" font-size="11.5" fill="#666">10/15 머지 (#54380 외 연작 커밋)</text>
+
+  <!-- Claude Code -->
+  <rect x="410" y="56" width="360" height="310" rx="12" fill="#f3efff" stroke="#6250d6" stroke-width="1.5"/>
+  <text x="430" y="86" font-size="14" font-weight="700" fill="#5b21b6">🟦 Claude Code — 무인 재시도 상한</text>
+  <text x="430" y="114" font-size="12.5" fill="#333">무인 세션(cron·CI)용 재시도 모드에</text>
+  <text x="430" y="134" font-size="12.5" fill="#333">'언제까지 기다릴지' 상한이 생김</text>
+  <rect x="430" y="152" width="320" height="88" rx="6" fill="#241b4d"/>
+  <text x="442" y="174" font-size="11" font-family="monospace" fill="#c4b5fd">CLAUDE_CODE_RETRY_WATCHDOG=1</text>
+  <text x="442" y="194" font-size="11" font-family="monospace" fill="#c4b5fd">CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS</text>
+  <text x="442" y="214" font-size="11" font-family="monospace" fill="#c4b5fd">CLAUDE_CODE_RETRY_WATCHDOG</text>
+  <text x="442" y="232" font-size="11" font-family="monospace" fill="#c4b5fd">  _MAX_USAGE_LIMIT_WAIT_MS  # 2.1.301 신규</text>
+  <text x="430" y="264" font-size="12.5" fill="#333">사용량 한도 리셋이 너무 멀면 기다리지</text>
+  <text x="430" y="284" font-size="12.5" fill="#333">않고 즉시 실패 → 파이프라인이 안 멈춤</text>
+  <text x="430" y="326" font-size="11.5" fill="#5b21b6">무인 에이전트는 '실패 빨리'가 미덕</text>
+  <text x="430" y="346" font-size="11.5" fill="#666">v2.1.301 체인지로그 (10/15)</text>
+</svg>

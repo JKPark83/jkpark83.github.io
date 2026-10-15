@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="470" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">Muse Spark Open — 스펙과 에이전트 벤치마크 (Meta 모델 카드 보고치)</text>
+
+  <!-- 왼쪽: 스펙 카드 -->
+  <rect x="30" y="52" width="320" height="390" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="50" y="82" font-size="14" font-weight="700" fill="#b5431a">스펙</text>
+  <text x="50" y="112" font-size="12.5" fill="#333">파라미터: 816B 총 / 42B 활성 (MoE)</text>
+  <text x="50" y="136" font-size="12.5" fill="#333">전문가: 256개 중 토큰당 8개 활성</text>
+  <text x="50" y="160" font-size="12.5" fill="#333">컨텍스트: 1M 토큰</text>
+  <text x="50" y="184" font-size="12.5" fill="#333">입력: 텍스트·이미지·비디오·오디오</text>
+  <text x="50" y="208" font-size="12.5" fill="#333">출력: 텍스트</text>
+  <text x="50" y="232" font-size="12.5" fill="#333">라이선스: Muse Model License</text>
+  <text x="62" y="252" font-size="11.5" fill="#666">"Built with Muse Spark Open" 표기 필수</text>
+  <text x="62" y="270" font-size="11.5" fill="#666">연매출 $20M+ MaaS는 별도 계약</text>
+  <line x1="50" y1="288" x2="330" y2="288" stroke="#eb6834" stroke-width="0.8"/>
+  <text x="50" y="314" font-size="14" font-weight="700" fill="#b5431a">로컬 구동 요구치</text>
+  <text x="50" y="342" font-size="12.5" fill="#333">NVFP4: VRAM 700GB 이상</text>
+  <text x="50" y="366" font-size="12.5" fill="#333">BF16: VRAM 2TB 이상</text>
+  <text x="50" y="390" font-size="12.5" fill="#333">MLX: M5 Ultra Mac Studio 2대</text>
+  <text x="50" y="418" font-size="11.5" fill="#666">vLLM·SGLang·TensorRT-LLM·llama.cpp 지원</text>
+
+  <!-- 오른쪽: 벤치마크 바 차트 -->
+  <rect x="380" y="52" width="390" height="390" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="400" y="82" font-size="14" font-weight="700" fill="#1d4ed8">에이전트 관련 벤치마크 (xhigh reasoning)</text>
+
+  <!-- bars: max width 240 at score 100 -->
+  <text x="400" y="122" font-size="12" fill="#333">GPQA Diamond</text>
+  <rect x="400" y="130" width="214" height="16" rx="3" fill="#2a78d6"/>
+  <text x="622" y="143" font-size="12" font-weight="700" fill="#1d4ed8">89.0</text>
+
+  <text x="400" y="180" font-size="12" fill="#333">OSWorld Verified (컴퓨터 사용)</text>
+  <rect x="400" y="188" width="193" height="16" rx="3" fill="#2a78d6"/>
+  <text x="601" y="201" font-size="12" font-weight="700" fill="#1d4ed8">80.4</text>
+
+  <text x="400" y="238" font-size="12" fill="#333">Terminal-Bench 2.1 (터미널 에이전트)</text>
+  <rect x="400" y="246" width="183" height="16" rx="3" fill="#2a78d6"/>
+  <text x="591" y="259" font-size="12" font-weight="700" fill="#1d4ed8">76.4</text>
+
+  <text x="400" y="296" font-size="12" fill="#333">Toolathlon Verified (툴 호출)</text>
+  <rect x="400" y="304" width="175" height="16" rx="3" fill="#2a78d6"/>
+  <text x="583" y="317" font-size="12" font-weight="700" fill="#1d4ed8">72.8</text>
+
+  <text x="400" y="354" font-size="12" fill="#333">DeepSWE 1.1 (SW 엔지니어링)</text>
+  <rect x="400" y="362" width="144" height="16" rx="3" fill="#2a78d6"/>
+  <text x="552" y="375" font-size="12" font-weight="700" fill="#1d4ed8">60</text>
+
+  <text x="400" y="412" font-size="11.5" fill="#666">막대 길이는 점수/100 비율 · 전부 Meta 자사 보고치</text>
+  <text x="400" y="430" font-size="11.5" fill="#666">(독립 검증 전 — 타 모델과의 직접 비교는 유보)</text>
+</svg>

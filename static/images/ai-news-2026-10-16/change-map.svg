@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="430" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-16</text>
+
+  <!-- 중앙 허브 -->
+  <circle cx="400" cy="230" r="46" fill="#1a1a2e"/>
+  <text x="400" y="224" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">하네스가</text>
+  <text x="400" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">실력이다</text>
+
+  <!-- 연결선 -->
+  <line x1="400" y1="184" x2="205" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="184" x2="595" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="205" y2="330" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="595" y2="330" stroke="#bbb" stroke-width="1.5"/>
+
+  <!-- 벤더 -->
+  <rect x="30" y="60" width="350" height="115" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="50" y="86" font-size="14" font-weight="700" fill="#b5431a">🤖 벤더</text>
+  <text x="50" y="110" font-size="12" fill="#333">Meta Muse Spark Open 816B-A42B 오픈 웨이트</text>
+  <text x="50" y="129" font-size="12" fill="#333">1M 컨텍스트 · 멀티모달 · 에이전틱 코딩 특화</text>
+  <text x="50" y="151" font-size="12" fill="#b5431a">프런티어급 가중치가 다시 내 손에 떨어졌다</text>
+
+  <!-- 논문 -->
+  <rect x="420" y="60" width="350" height="115" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="440" y="86" font-size="14" font-weight="700" fill="#1d4ed8">📚 논문</text>
+  <text x="440" y="110" font-size="12" fill="#333">Doc2Harness: 하네스 '구축 능력' 최고 53% 통과</text>
+  <text x="440" y="129" font-size="12" fill="#333">Cortex: 컨텍스트를 가중치 메모리로 통합 88.9%</text>
+  <text x="440" y="151" font-size="12" fill="#1d4ed8">하네스 엔지니어링이 측정 가능한 과목이 됐다</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="350" height="115" rx="12" fill="#eefbf2" stroke="#1baf7a" stroke-width="1.5"/>
+  <text x="50" y="311" font-size="14" font-weight="700" fill="#047857">🛠 오픈소스</text>
+  <text x="50" y="335" font-size="12" fill="#333">NVIDIA OpenShell: 에이전트 샌드박스 런타임 0.1.x</text>
+  <text x="50" y="354" font-size="12" fill="#333">agent-skills(Addy Osmani): 수명주기 스킬 25종</text>
+  <text x="50" y="376" font-size="12" fill="#047857">실행 격리와 스킬 표준화, 운영 레이어의 양 날개</text>
+
+  <!-- 툴링 -->
+  <rect x="420" y="285" width="350" height="115" rx="12" fill="#f3efff" stroke="#6250d6" stroke-width="1.5"/>
+  <text x="440" y="311" font-size="14" font-weight="700" fill="#5b21b6">🧑‍💻 툴링</text>
+  <text x="440" y="335" font-size="12" fill="#333">Codex: /presets — 프롬프트·모델 조합 10슬롯 저장</text>
+  <text x="440" y="354" font-size="12" fill="#333">CC 2.1.301: 무인 재시도 대기 상한 환경변수 추가</text>
+  <text x="440" y="376" font-size="12" fill="#5b21b6">반복 작업과 무인 운영의 마찰이 줄어드는 중</text>
+</svg>

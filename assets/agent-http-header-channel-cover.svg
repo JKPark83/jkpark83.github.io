@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="브라우저 창에는 평범한 웹페이지 본문만 보이지만, 그 위로 떠 있는 HTTP 응답 헤더 레이어에서 x-llms-txt와 X-AI 같은 헤더들이 로봇(AI 에이전트)에게만 말을 거는 그림. 아래에는 '브라우저에는 안 보인다 — HTTP 헤더, 에이전트만 읽는 채널' 문구가 있다.">
+  <defs>
+    <linearGradient id="hhc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="hhc-beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#a78bfa" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#hhc-bg)"/>
+  <g font-family="'Segoe UI',system-ui,sans-serif">
+
+    <!-- 브라우저 창 (사람이 보는 것) -->
+    <g>
+      <rect x="70" y="120" width="420" height="300" rx="14" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+      <rect x="70" y="120" width="420" height="44" rx="14" fill="#0f172a"/>
+      <circle cx="98" cy="142" r="7" fill="#f87171"/>
+      <circle cx="122" cy="142" r="7" fill="#fbbf24"/>
+      <circle cx="146" cy="142" r="7" fill="#34d399"/>
+      <rect x="170" y="130" width="300" height="24" rx="12" fill="#1e293b"/>
+      <text x="184" y="147" font-size="14" fill="#64748b">https://example.com</text>
+      <!-- 본문 (보이는 것) -->
+      <rect x="100" y="190" width="240" height="20" rx="5" fill="#475569"/>
+      <rect x="100" y="226" width="360" height="12" rx="5" fill="#334155"/>
+      <rect x="100" y="248" width="360" height="12" rx="5" fill="#334155"/>
+      <rect x="100" y="270" width="280" height="12" rx="5" fill="#334155"/>
+      <rect x="100" y="306" width="360" height="12" rx="5" fill="#334155"/>
+      <rect x="100" y="328" width="320" height="12" rx="5" fill="#334155"/>
+      <text x="280" y="394" text-anchor="middle" font-size="16" fill="#64748b">사람이 보는 웹페이지 (본문만)</text>
+    </g>
+
+    <!-- 헤더 레이어 (에이전트만 읽는 것) -->
+    <g>
+      <rect x="560" y="90" width="380" height="188" rx="12" fill="#0f172a" stroke="url(#hhc-beam)" stroke-width="2.5"/>
+      <text x="582" y="124" font-size="16" fill="#38bdf8" font-family="ui-monospace,monospace">HTTP/1.1 200 OK</text>
+      <text x="582" y="154" font-size="16" fill="#34d399" font-family="ui-monospace,monospace">x-llms-txt: /llms.txt</text>
+      <text x="582" y="184" font-size="16" fill="#a78bfa" font-family="ui-monospace,monospace">link: &lt;/.well-known/...&gt;</text>
+      <text x="582" y="214" font-size="16" fill="#fb7185" font-family="ui-monospace,monospace">x-ai: ignore previous...</text>
+      <text x="582" y="252" font-size="14" fill="#64748b">응답 헤더 — 브라우저 화면엔 안 나옴</text>
+    </g>
+
+    <!-- 로봇 (에이전트) -->
+    <g>
+      <rect x="1000" y="300" width="110" height="90" rx="16" fill="#1e293b" stroke="#38bdf8" stroke-width="2.5"/>
+      <circle cx="1032" cy="336" r="10" fill="#38bdf8"/>
+      <circle cx="1078" cy="336" r="10" fill="#38bdf8"/>
+      <rect x="1030" y="362" width="50" height="8" rx="4" fill="#475569"/>
+      <line x1="1055" y1="300" x2="1055" y2="276" stroke="#38bdf8" stroke-width="3"/>
+      <circle cx="1055" cy="270" r="7" fill="#a78bfa"/>
+      <text x="1055" y="416" text-anchor="middle" font-size="15" fill="#94a3b8">AI 에이전트</text>
+    </g>
+
+    <!-- 빔: 헤더 → 에이전트 -->
+    <path d="M 940 184 C 1010 184 1040 240 1052 294" fill="none" stroke="url(#hhc-beam)" stroke-width="4" stroke-dasharray="10 7"/>
+    <!-- 빔: 브라우저 본문 → 둘 다 -->
+    <path d="M 490 270 C 700 330 880 340 996 346" fill="none" stroke="#475569" stroke-width="3"/>
+
+    <!-- 제목 -->
+    <text x="600" y="508" text-anchor="middle" font-size="46" font-weight="800" fill="#f1f5f9">브라우저에는 안 보인다</text>
+    <text x="600" y="560" text-anchor="middle" font-size="26" fill="#94a3b8">HTTP 헤더 — 웹이 AI 에이전트에게만 말을 거는 채널</text>
+  </g>
+</svg>

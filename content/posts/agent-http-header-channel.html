@@ -1,0 +1,367 @@
+---
+title: "브라우저에는 안 보인다 — 웹이 HTTP 헤더로 AI 에이전트에게 말을 걸기 시작했다"
+date: 2026-10-17T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "HTTP 헤더", "prompt injection", "프롬프트 인젝션", "llms.txt", "x-llms-txt", "MCP", "fetch 도구", "Common Crawl", "에이전트 보안", "클로킹", "cloaking", "웹 크롤링", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "10월 14일 보안 연구팀 Signals Corps가 Common Crawl 응답 2억 1,700만 건의 HTTP 헤더를 뒤졌더니, 약 8,000개 사이트가 사람 눈에는 안 보이는 응답 헤더로 AI 에이전트에게 말을 걸고 있었습니다. 대부분은 llms.txt와 MCP 서버를 알려주는 선의의 안내판이었지만, 30곳은 에이전트에게 명령을 심으려는 프롬프트 인젝션 시도였고, 139곳은 'AI 봇인 걸 안다'는 꼬리표를 달고 있었습니다. 헤더가 왜 에이전트 전용 채널이 되는지, 헤더 한 줄이 언제 실제 사고가 되는지, fetch 도구를 만들거나 쓰는 엔지니어가 지금 챙길 것은 무엇인지 — junior 개발자 눈높이에서 쉽고 자세하게 풀어봅니다."
+ShowToc: false
+cover:
+  image: "agent-http-header-channel-cover.svg"
+  alt: "브라우저 창에는 평범한 웹페이지 본문만 보이지만, 그 위 HTTP 응답 헤더 레이어에서 x-llms-txt와 X-AI 같은 헤더들이 AI 에이전트에게만 말을 거는 그림"
+  caption: "같은 응답을 받아도 사람은 본문만 보고, 에이전트는 (설정에 따라) 헤더까지 읽습니다."
+  relative: false
+---
+
+<style>
+/* ── HTTP 헤더 채널 포스트 전용 스타일 (hh- 접두사) ── */
+.hh-fig{
+  --hh-green:#16a34a; --hh-rose:#e11d48; --hh-amber:#d97706; --hh-sky:#0284c7;
+  --hh-violet:#7c3aed; --hh-slate:#64748b; --hh-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .hh-fig{
+  --hh-green:#4ade80; --hh-rose:#fb7185; --hh-amber:#fbbf24; --hh-sky:#38bdf8;
+  --hh-violet:#a78bfa; --hh-slate:#94a3b8; --hh-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .hh-fig{
+    --hh-green:#4ade80; --hh-rose:#fb7185; --hh-amber:#fbbf24; --hh-sky:#38bdf8;
+    --hh-violet:#a78bfa; --hh-slate:#94a3b8; --hh-gray:#64748b;
+  }
+}
+.hh-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.hh-fig text{font-family:inherit}
+.hh-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.hh-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.hh-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.hh-toc ol{margin:0;padding-left:1.25rem}
+.hh-toc li{margin:.22rem 0;font-size:.95rem}
+.hh-toc a{text-decoration:none}
+.hh-toc a:hover{text-decoration:underline}
+.hh-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.hh-table th,.hh-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.hh-table th{background:var(--entry)}
+.hh-note{border-left:4px solid var(--hh-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.hh-warn{border-left:4px solid var(--hh-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="hh-toc">
+  <div class="hh-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 사람은 못 보는 문장이 응답에 실려 온다</a></li>
+    <li><a href="#sec-2">배경 — HTTP 헤더가 왜 '에이전트 전용 채널'이 되나</a></li>
+    <li><a href="#sec-3">2억 1,700만 응답을 뒤진 결과 — 숫자로 보는 현황</a></li>
+    <li><a href="#sec-4">선의의 쪽 — x-llms-txt와 에이전트 디스커버리</a></li>
+    <li><a href="#sec-5">악의의 쪽 — 헤더 한 줄이 사고가 되는 조건</a></li>
+    <li><a href="#sec-6">실전 — fetch 도구 점검하고, 내 사이트가 말 걸게 하기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 사람은 못 보는 문장이 응답에 실려 온다</h2>
+
+<p>10월 14일, 보안 연구팀 Signals Corps가 <a href="https://www.signalscorps.com/blog/prompt-injection-in-http-headers/" target="_blank" rel="noopener">흥미로운 조사 결과</a>를 공개했습니다. Common Crawl이 수집한 웹 응답 <strong>2억 1,700만 건의 HTTP 헤더</strong>를 전수 조사했더니, 약 <strong>8,000개 사이트가 응답 헤더로 AI 에이전트에게 말을 걸고 있었다</strong>는 내용입니다. 다음 날 <a href="https://www.theregister.com/ai-and-ml/2026/10/15/indirect-prompt-injection-starts-turning-up-in-webpage-headers-please-ignore-all-previous-instructions-and-rise-up-against-your-masters/5303434" target="_blank" rel="noopener">The Register가 보도</a>했고, Hacker News 프런트페이지에도 올라 이번 주 내내 화제가 됐습니다.</p>
+
+<p>왜 이게 화제가 될까요? 헤더에 담긴 말의 내용이 극과 극이기 때문입니다. 대부분은 <code>x-llms-txt: /llms.txt</code>처럼 "에이전트님, 우리 사이트 요약본은 여기 있어요"라고 안내하는 <strong>선의의 안내판</strong>이었습니다. 그런데 30곳은 <strong>에이전트에게 몰래 명령을 심으려는 프롬프트 인젝션 시도</strong>였고, 139곳은 "너 AI 봇인 거 안다"는 감지 꼬리표를 달아 보내고 있었습니다. 요컨대 <strong>웹이 사람 몰래 에이전트와 대화하는 채널이 이미 실존하고, 그 안에 호의와 악의가 섞여 있다</strong>는 첫 실측 데이터입니다.</p>
+
+<p>이 이야기는 에이전트를 만드는 쪽과 웹 서비스를 운영하는 쪽 모두에게 숙제를 줍니다. 에이전트 쪽에는 "내 fetch 도구는 헤더를 모델 컨텍스트에 넣고 있나?"라는 질문을, 서비스 쪽에는 "에이전트 트래픽에게 뭘 보여줄 것인가"라는 질문을요. 오늘은 이 조사를 재료 삼아, HTTP 헤더라는 채널이 왜 생겼고 언제 위험해지는지, 엔지니어가 당장 점검할 것은 무엇인지 차근차근 풀어봅니다.</p>
+
+<h2 id="sec-2">배경 — HTTP 헤더가 왜 '에이전트 전용 채널'이 되나</h2>
+
+<p>기본부터 짚겠습니다. 웹 서버의 HTTP 응답은 크게 세 부분입니다. 상태 줄(<code>HTTP/1.1 200 OK</code>), <strong>헤더(headers)</strong>, 그리고 본문(body). 헤더는 <code>Content-Type: text/html</code>처럼 "이 응답을 어떻게 다루라"는 메타데이터 모음이고, 본문이 실제 HTML입니다. 브라우저는 헤더를 <em>처리</em>만 하고 화면에는 본문만 그립니다. 개발자 도구의 Network 탭을 일부러 열지 않는 한, 사람은 헤더를 평생 볼 일이 없습니다.</p>
+
+<p>그런데 AI 에이전트는 사정이 다릅니다. 에이전트가 웹을 읽는 경로는 브라우저 렌더링이 아니라 <strong>fetch 도구</strong> — <code>curl</code> 같은 셸 명령, MCP(Model Context Protocol) fetch 서버, 각종 코딩 에이전트의 내장 WebFetch — 이고, 이 도구들은 설정에 따라 <strong>헤더를 본문과 함께 모델 컨텍스트에 그대로 넣어줄 수 있습니다</strong>. 모델에게 컨텍스트에 들어온 텍스트는 다 같은 텍스트입니다. 헤더든 본문이든 구분하지 않습니다.</p>
+
+<figure class="hh-fig">
+<svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="같은 HTTP 응답을 사람과 에이전트가 다르게 읽는 비교 다이어그램. 왼쪽에 상태 줄, 헤더, 본문으로 구성된 HTTP 응답이 있다. 오른쪽 위 경로는 브라우저로, 본문만 렌더링해 사람에게 보여준다. 오른쪽 아래 경로는 fetch 도구로, 설정에 따라 헤더와 본문을 모두 모델 컨텍스트에 넣는다. 헤더에서 모델 컨텍스트로 가는 선이 강조되어 있고 '사람 검토를 건너뛰는 채널'이라고 적혀 있다.">
+  <text x="450" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="currentColor">같은 응답, 두 독자</text>
+
+  <!-- HTTP 응답 -->
+  <g>
+    <rect x="30" y="60" width="300" height="300" rx="12" fill="none" stroke="var(--hh-slate)" stroke-width="2"/>
+    <text x="180" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">HTTP 응답</text>
+    <rect x="50" y="102" width="260" height="34" rx="6" fill="var(--hh-slate)" opacity="0.35"/>
+    <text x="60" y="124" font-size="12.5" font-family="monospace" fill="currentColor">HTTP/1.1 200 OK</text>
+    <rect x="50" y="144" width="260" height="96" rx="6" fill="var(--hh-violet)" opacity="0.28"/>
+    <text x="60" y="166" font-size="12.5" font-family="monospace" fill="var(--hh-violet)" font-weight="700">headers</text>
+    <text x="60" y="188" font-size="12" font-family="monospace" fill="currentColor">content-type: text/html</text>
+    <text x="60" y="208" font-size="12" font-family="monospace" fill="var(--hh-green)">x-llms-txt: /llms.txt</text>
+    <text x="60" y="228" font-size="12" font-family="monospace" fill="var(--hh-rose)">x-ai: (지시문...)</text>
+    <rect x="50" y="250" width="260" height="92" rx="6" fill="var(--hh-sky)" opacity="0.25"/>
+    <text x="60" y="272" font-size="12.5" font-family="monospace" fill="var(--hh-sky)" font-weight="700">body</text>
+    <text x="60" y="294" font-size="12" font-family="monospace" fill="currentColor">&lt;html&gt;...&lt;/html&gt;</text>
+  </g>
+
+  <!-- 브라우저 경로 -->
+  <g>
+    <path d="M 330 296 C 420 296 440 150 520 140" fill="none" stroke="var(--hh-sky)" stroke-width="3"/>
+    <rect x="530" y="100" width="330" height="80" rx="12" fill="var(--hh-sky)" opacity="0.18"/>
+    <text x="695" y="132" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">브라우저 → 사람</text>
+    <text x="695" y="158" text-anchor="middle" font-size="12.5" fill="currentColor">본문만 화면에 렌더링. 헤더는 안 보임</text>
+  </g>
+
+  <!-- 에이전트 경로 -->
+  <g>
+    <path d="M 330 192 C 430 192 450 290 520 300" fill="none" stroke="var(--hh-rose)" stroke-width="3.5" stroke-dasharray="9 6"/>
+    <path d="M 330 296 C 420 300 450 310 520 316" fill="none" stroke="var(--hh-sky)" stroke-width="3"/>
+    <rect x="530" y="250" width="330" height="110" rx="12" fill="var(--hh-rose)" opacity="0.14"/>
+    <text x="695" y="282" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">fetch 도구 → 모델 컨텍스트</text>
+    <text x="695" y="308" text-anchor="middle" font-size="12.5" fill="currentColor">설정에 따라 헤더+본문이 통째로 들어감</text>
+    <text x="695" y="332" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--hh-rose)">헤더 = 사람 검토를 건너뛰는 채널</text>
+  </g>
+
+  <text x="450" y="406" text-anchor="middle" font-size="12" fill="var(--hh-gray)">모델에게는 헤더도 본문도 그냥 '컨텍스트에 들어온 텍스트'일 뿐입니다</text>
+</svg>
+<figcaption>그림 1. 같은 응답을 받아도 브라우저는 본문만 보여주지만, 에이전트의 fetch 도구는 설정에 따라 헤더까지 모델에 넘깁니다. 사이트 화면에는 흔적이 남지 않으니, 헤더는 사람의 검토를 자연스럽게 우회하는 채널이 됩니다.</figcaption>
+</figure>
+
+<p>이 비대칭이 핵심입니다. 본문에 흰 글씨로 숨긴 인젝션 문구는 페이지 소스를 보면 들키지만, <strong>헤더에 넣은 문구는 사이트 화면 어디에도 나타나지 않습니다</strong>. 사이트 운영자가 떳떳하게 에이전트용 안내를 싣기에도, 공격자가 몰래 명령을 심기에도 똑같이 좋은 자리라는 뜻입니다. 프롬프트 인젝션(prompt injection) — 외부 콘텐츠에 섞인 지시문이 모델의 원래 임무를 가로채는 공격 — 의 새 배달 경로인 셈이죠. 인젝션 방어의 일반론은 <a href="/posts/prompt-injection-defense-agents/">예전 글</a>에서 다뤘으니, 오늘은 '헤더'라는 채널 자체에 집중합니다.</p>
+
+<h2 id="sec-3">2억 1,700만 응답을 뒤진 결과 — 숫자로 보는 현황</h2>
+
+<p>Signals Corps의 방법은 소박하고 재현 가능합니다. Common Crawl의 2026년 9월 크롤(CC-MAIN-2026-39)에서 메타데이터(WAT) 파일 10만 개 중 10개에 1개꼴로 1만 개를 샘플링해, 페이지 캡처 <strong>2억 1,709만 건</strong>의 응답 헤더를 분석했습니다. 전체 크롤의 약 10%입니다. 그 안에서 AI 에이전트를 겨냥한 헤더를 보내는 호스트명 <strong>7,959개</strong>를 찾았습니다. 표본 페이지 약 27,300건당 1개꼴 — 아직 웹 전체로 보면 소수지만, 분포가 흥미롭습니다.</p>
+
+<figure class="hh-fig">
+<svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AI 겨냥 헤더를 보내는 7,959개 사이트의 분류 막대 그래프. 포인터가 7,271곳으로 압도적으로 많고, 정책·학습 관련 주장 511곳, 봇 감지 139곳, 인젝션 시도 30곳, 기타 안내 8곳 순이다. 막대 길이는 제곱근 비율이라 작은 항목도 보이게 그렸다.">
+  <text x="450" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="currentColor">AI 겨냥 헤더를 보내는 사이트 7,959곳의 정체</text>
+
+  <!-- sqrt scale: max 7271 -> 560px. sqrt(v)/sqrt(7271)*560 -->
+  <g font-size="13.5">
+    <text x="215" y="92" text-anchor="end" font-weight="700" fill="currentColor">포인터(안내판)</text>
+    <rect x="230" y="74" width="560" height="28" rx="6" fill="var(--hh-green)" opacity="0.85"/>
+    <text x="238" y="94" font-size="12.5" fill="#fff" font-weight="700">7,271곳 — llms.txt·MCP 서버·agent skills 위치 안내 (x-llms-txt가 6,989곳)</text>
+
+    <text x="215" y="152" text-anchor="end" font-weight="700" fill="currentColor">정책·주장</text>
+    <rect x="230" y="134" width="148" height="28" rx="6" fill="var(--hh-sky)" opacity="0.85"/>
+    <text x="388" y="154" font-size="12.5" fill="currentColor">511곳 — 학습 금지·콘텐츠 정책 등 선언</text>
+
+    <text x="215" y="212" text-anchor="end" font-weight="700" fill="currentColor">봇 감지</text>
+    <rect x="230" y="194" width="77" height="28" rx="6" fill="var(--hh-amber)" opacity="0.9"/>
+    <text x="318" y="214" font-size="12.5" fill="currentColor">139곳 — "AI 봇으로 분류했다"는 꼬리표 (클로킹의 첫 단추)</text>
+
+    <text x="215" y="272" text-anchor="end" font-weight="700" fill="currentColor">인젝션 시도</text>
+    <rect x="230" y="254" width="36" height="28" rx="6" fill="var(--hh-rose)"/>
+    <text x="276" y="274" font-size="12.5" fill="currentColor">30곳 — 에이전트에게 지시 주입 시도 (22곳은 장난)</text>
+
+    <text x="215" y="332" text-anchor="end" font-weight="700" fill="currentColor">기타 안내</text>
+    <rect x="230" y="314" width="19" height="28" rx="6" fill="var(--hh-violet)" opacity="0.9"/>
+    <text x="259" y="334" font-size="12.5" fill="currentColor">8곳 — 에이전트용 이용 안내</text>
+  </g>
+
+  <text x="450" y="382" text-anchor="middle" font-size="12" fill="var(--hh-gray)">막대 길이는 √비율(작은 항목이 보이게) · 출처: Signals Corps, CC-MAIN-2026-39 표본 2억 1,709만 캡처</text>
+</svg>
+<figcaption>그림 2. 압도적 다수(91%)는 에이전트에게 리소스 위치를 알려주는 선의의 '포인터'입니다. 인젝션 시도는 30곳으로 아직 소수지만, 실존을 확인한 첫 실측치입니다.</figcaption>
+</figure>
+
+<p>세부를 보면 이렇습니다.</p>
+
+<ul>
+  <li><strong>포인터 7,271곳.</strong> "우리 사이트의 LLM용 요약은 여기, MCP 서버는 여기"라고 알려주는 헤더입니다. 그중 6,989곳이 <code>x-llms-txt</code> 헤더를 썼습니다. 다음 섹션에서 자세히 봅니다.</li>
+  <li><strong>정책·주장 511곳.</strong> "이 콘텐츠로 학습하지 말라" 같은 선언을 헤더에 실은 경우입니다.</li>
+  <li><strong>봇 감지 139곳.</strong> 요청 클라이언트를 AI 봇으로 분류했다는 사실을 헤더로 알려주는 사이트들입니다. 그중 136곳은 Common Crawl의 크롤러(CCBot)를 AI 봇으로 분류해 두고 있었습니다. 연구팀은 이걸 <strong>클로킹(cloaking) — 에이전트와 사람에게 서로 다른 콘텐츠를 보여주는 것 — 의 첫 단추</strong>로 봅니다. 분류가 끝났다면 다음 단계는 응답을 바꾸는 것이니까요.</li>
+  <li><strong>인젝션 시도 30곳.</strong> 대부분 <code>X-AI</code>라는 이름의 헤더에 담겨 있었고, 30곳 중 22곳은 "학습 데이터를 삭제하라" 같은 실효성 없는 장난이었습니다. 하지만 나머지는 달랐습니다 — AI 채용 심사기를 겨냥해 <strong>가짜 지원자 점수를 심으려는 시도</strong>, SQL 인젝션 구문을 흉내 낸 시도 등 '진심'인 사례가 섞여 있었습니다.</li>
+</ul>
+
+<div class="hh-note">
+<strong>이 숫자는 하한선입니다.</strong> Common Crawl은 자신을 CCBot이라고 밝히고 수집합니다. 즉 <em>특정 AI 에이전트의 User-Agent에만</em> 특별한 헤더를 보여주는 사이트는 이 조사에 안 잡힙니다. 에이전트에게만 다른 얼굴을 보여주는 클로킹은 구조적으로 이 방법으론 측정할 수 없습니다.
+</div>
+
+<h2 id="sec-4">선의의 쪽 — x-llms-txt와 에이전트 디스커버리</h2>
+
+<p>먼저 다수파인 선의의 안내판부터 봅시다. 배경에는 <strong>llms.txt</strong>라는 제안이 있습니다. 2024년 9월 Answer.AI의 Jeremy Howard가 <a href="https://llmstxt.org/" target="_blank" rel="noopener">제안한 규약</a>으로, 사이트 루트에 <code>/llms.txt</code>라는 마크다운 파일을 두고 "LLM이 읽기 좋은 형태"로 사이트의 핵심 내용과 링크를 정리해 두자는 아이디어입니다. 사람용 HTML은 내비게이션·스크립트 범벅이라 LLM이 읽기엔 비효율적이니, 에이전트용 요약 입구를 따로 내자는 거죠. <code>robots.txt</code>가 "들어오지 마"의 표준이라면, <code>llms.txt</code>는 "이리로 들어와"의 제안인 셈입니다.</p>
+
+<p>문제는 <strong>발견(discovery)</strong>입니다. 에이전트가 파일 존재를 모르면 소용이 없죠. 그래서 Mintlify 같은 문서 호스팅 업체들이 쓰기 시작한 방법이 바로 <strong>모든 응답에 안내 헤더를 싣는 것</strong>입니다. 조사에서 발견된 6,989곳의 <code>x-llms-txt</code>가 대부분 이 경로로 퍼진 관행입니다. 표준 <code>Link</code> 헤더로 더 많은 리소스를 가리키기도 합니다.</p>
+
+{{< highlight text >}}
+HTTP/2 200
+content-type: text/html; charset=utf-8
+x-llms-txt: /llms.txt
+link: </llms.txt>; rel="llms-txt",
+      </llms-full.txt>; rel="llms-full-txt",
+      </.well-known/mcp/server-card.json>; rel="mcp-server-card",
+      </.well-known/agent-card.json>; rel="agent-card",
+      </.well-known/agent-skills/index.json>; rel="agent-skills"
+{{< /highlight >}}
+
+<p>눈여겨볼 건 가리키는 대상의 범위입니다. llms.txt(정적 요약)를 넘어 <strong>MCP 서버 카드</strong>(이 사이트와 상호작용할 도구 서버), <strong>agent card</strong>(에이전트 간 통신용 명함), <strong>agent skills</strong>(에이전트가 로드할 스킬 묶음)까지 — 사이트가 "읽을거리"만이 아니라 <strong>"호출할 수 있는 능력"을 광고</strong>하기 시작했다는 뜻입니다. 다만 짚어둘 점: <code>x-llms-txt</code>는 IETF나 W3C 표준이 아니라 업체발 관행이고, llms.txt 자체도 아직 커뮤니티 제안 단계라 <strong>주요 AI 업체가 공식적으로 소비를 확인한 적은 없습니다</strong>. "웹의 에이전트용 게시판"이 표준화 이전의 자생 단계라는 게 지금의 현실입니다.</p>
+
+<h2 id="sec-5">악의의 쪽 — 헤더 한 줄이 사고가 되는 조건</h2>
+
+<p>이제 30곳의 인젝션 시도로 돌아갑시다. 겁먹기 전에 분해부터 하는 게 중요합니다. 헤더에 적힌 명령이 실제 사고가 되려면 <strong>네 개의 관문을 전부 통과</strong>해야 합니다.</p>
+
+<figure class="hh-fig">
+<svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="헤더 인젝션이 사고가 되기까지 통과해야 하는 4단계 관문 다이어그램. 1단계 서버가 악성 헤더 전송, 2단계 fetch 도구가 헤더를 모델 컨텍스트에 포함, 3단계 모델이 지시를 따름(기본은 거부, 사용자가 사이트에 권한을 주면 9회 중 7회 복종), 4단계 에이전트가 그 행동을 실행할 권한 보유. 각 관문 아래에 해당 단계를 끊는 방어책이 적혀 있다.">
+  <text x="450" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="currentColor">헤더 한 줄이 사고가 되기까지 — 4개의 관문</text>
+
+  <g font-size="13">
+    <!-- 관문 1 -->
+    <rect x="40" y="60" width="190" height="104" rx="12" fill="var(--hh-slate)" opacity="0.22"/>
+    <text x="135" y="88" text-anchor="middle" font-weight="700" fill="currentColor">① 서버가</text>
+    <text x="135" y="108" text-anchor="middle" font-weight="700" fill="currentColor">악성 헤더 전송</text>
+    <text x="135" y="138" text-anchor="middle" font-size="11.5" fill="var(--hh-gray)">표본 2.7만 페이지당 1곳,</text>
+    <text x="135" y="154" text-anchor="middle" font-size="11.5" fill="var(--hh-gray)">그중 인젝션은 30곳</text>
+
+    <!-- 관문 2 -->
+    <rect x="250" y="60" width="190" height="104" rx="12" fill="var(--hh-amber)" opacity="0.2"/>
+    <text x="345" y="88" text-anchor="middle" font-weight="700" fill="currentColor">② fetch 도구가</text>
+    <text x="345" y="108" text-anchor="middle" font-weight="700" fill="currentColor">헤더를 컨텍스트에 포함</text>
+    <text x="345" y="138" text-anchor="middle" font-size="11.5" fill="var(--hh-gray)">curl -i, MCP fetch,</text>
+    <text x="345" y="154" text-anchor="middle" font-size="11.5" fill="var(--hh-gray)">Playwright MCP 등</text>
+
+    <!-- 관문 3 -->
+    <rect x="460" y="60" width="190" height="104" rx="12" fill="var(--hh-amber)" opacity="0.35"/>
+    <text x="555" y="88" text-anchor="middle" font-weight="700" fill="currentColor">③ 모델이</text>
+    <text x="555" y="108" text-anchor="middle" font-weight="700" fill="currentColor">지시를 따름</text>
+    <text x="555" y="138" text-anchor="middle" font-size="11.5" fill="var(--hh-gray)">기본값: 무시 / 사용자가</text>
+    <text x="555" y="154" text-anchor="middle" font-size="11.5" fill="var(--hh-gray)">사이트에 권한 주면 7/9 복종</text>
+
+    <!-- 관문 4 -->
+    <rect x="670" y="60" width="190" height="104" rx="12" fill="var(--hh-rose)" opacity="0.3"/>
+    <text x="765" y="88" text-anchor="middle" font-weight="700" fill="currentColor">④ 에이전트가</text>
+    <text x="765" y="108" text-anchor="middle" font-weight="700" fill="currentColor">실행 권한 보유</text>
+    <text x="765" y="138" text-anchor="middle" font-size="11.5" fill="var(--hh-gray)">셸·DB·결제 등</text>
+    <text x="765" y="154" text-anchor="middle" font-size="11.5" fill="var(--hh-gray)">행동 권한과 만나야 사고</text>
+
+    <!-- 화살표 -->
+    <g stroke="var(--hh-slate)" stroke-width="2.5" fill="var(--hh-slate)">
+      <line x1="230" y1="112" x2="246" y2="112"/><path d="M 246 106 L 256 112 L 246 118 Z" stroke="none"/>
+      <line x1="440" y1="112" x2="456" y2="112"/><path d="M 456 106 L 466 112 L 456 118 Z" stroke="none"/>
+      <line x1="650" y1="112" x2="666" y2="112"/><path d="M 666 106 L 676 112 L 666 118 Z" stroke="none"/>
+    </g>
+
+    <!-- 방어 -->
+    <text x="450" y="216" text-anchor="middle" font-size="14" font-weight="700" fill="var(--hh-green)">각 관문에서 끊는 방어</text>
+    <g>
+      <rect x="40" y="236" width="190" height="88" rx="12" fill="var(--hh-green)" opacity="0.14"/>
+      <text x="135" y="264" text-anchor="middle" font-size="12" fill="currentColor">내가 통제 불가.</text>
+      <text x="135" y="284" text-anchor="middle" font-size="12" fill="currentColor">외부 웹은 원래</text>
+      <text x="135" y="304" text-anchor="middle" font-size="12" fill="currentColor">신뢰할 수 없는 입력</text>
+
+      <rect x="250" y="236" width="190" height="88" rx="12" fill="var(--hh-green)" opacity="0.14"/>
+      <text x="345" y="264" text-anchor="middle" font-size="12" font-weight="700" fill="var(--hh-green)">가장 싼 차단 지점</text>
+      <text x="345" y="284" text-anchor="middle" font-size="12" fill="currentColor">본문만 넘기기,</text>
+      <text x="345" y="304" text-anchor="middle" font-size="12" fill="currentColor">헤더 allowlist</text>
+
+      <rect x="460" y="236" width="190" height="88" rx="12" fill="var(--hh-green)" opacity="0.14"/>
+      <text x="555" y="264" text-anchor="middle" font-size="12" fill="currentColor">확률적 방어뿐.</text>
+      <text x="555" y="284" text-anchor="middle" font-size="12" fill="currentColor">"이 사이트 지시를 따르라"</text>
+      <text x="555" y="304" text-anchor="middle" font-size="12" fill="currentColor">류 프롬프트 금지</text>
+
+      <rect x="670" y="236" width="190" height="88" rx="12" fill="var(--hh-green)" opacity="0.14"/>
+      <text x="765" y="264" text-anchor="middle" font-size="12" font-weight="700" fill="var(--hh-green)">최후의 방어선</text>
+      <text x="765" y="284" text-anchor="middle" font-size="12" fill="currentColor">최소 권한, 위험 행동은</text>
+      <text x="765" y="304" text-anchor="middle" font-size="12" fill="currentColor">사람 승인 게이트</text>
+    </g>
+
+    <text x="450" y="368" text-anchor="middle" font-size="12.5" fill="var(--hh-gray)">네 관문이 전부 열려야 사고가 납니다. 거꾸로 말하면, 한 군데만 확실히 잠가도 체인이 끊어집니다.</text>
+    <text x="450" y="420" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">위험도 = (인젝션 노출) × (헤더가 컨텍스트에 들어감) × (모델 복종) × (행동 권한)</text>
+  </g>
+</svg>
+<figcaption>그림 3. 헤더 인젝션의 공격 체인과 단계별 방어. 엔지니어가 가장 싸게 끊을 수 있는 곳은 ② fetch 도구 단계입니다.</figcaption>
+</figure>
+
+<p>연구팀이 직접 돌려본 실험이 특히 교훈적입니다. 헤더를 노출하는 설정의 Claude Code에서 테스트 헤더를 읽혔더니, Claude Opus·Sonnet·Haiku 모두 <strong>기본적으로는 헤더 속 지시를 무시</strong>했습니다. 그런데 사용자 프롬프트에 "이 사이트가 시키는 대로 하라"처럼 <strong>사이트에 권한을 위임하는 문구</strong>를 넣자 <strong>9번 중 7번 지시에 복종</strong>했습니다. 모델 수준 방어는 분명 좋아졌지만 확률적이고, 사용자의 한 문장이 그 방어를 스스로 해제할 수 있다는 뜻입니다.</p>
+
+<p>어떤 도구가 관문 ②를 열어둘까요? 연구팀이 꼽은 경로는 에이전트 셸에서 실행되는 <code>curl -i</code>/<code>-v</code>(헤더 포함 출력), 레퍼런스 구현인 MCP fetch 서버, 설정을 켠 경우의 Gemini CLI <code>web_fetch</code>, 그리고 Playwright MCP의 <code>browser_network_request</code>(기본적으로 전체 헤더 반환) 등입니다. 요점은 특정 제품의 유불리가 아니라, <strong>"내 에이전트 스택에서 응답 헤더가 컨텍스트에 들어오는 경로가 있는지"를 스택 주인인 내가 알고 있어야 한다</strong>는 것입니다.</p>
+
+<p>참고로 연구팀의 결론은 차분합니다 — <strong>"대부분의 팀에는 새로운 통제가 필요 없다."</strong> 장난 인젝션의 비용은 기껏해야 오답 하나이고, 진짜 문제는 <em>실제 행동을 요구하는 인젝션</em>이 <em>그 행동 권한을 가진 에이전트</em>를 만나는 교집합뿐이라는 거죠. 오히려 인젝션보다 <strong>클로킹(봇 감지 139곳)이 더 주목할 흐름</strong>이라고 지적합니다. 에이전트가 보는 웹과 사람이 보는 웹이 조용히 갈라지기 시작하면, "에이전트가 요약해 준 그 페이지"를 사람이 열었을 때 다른 내용이 나오는 세상이 되니까요.</p>
+
+<h2 id="sec-6">실전 — fetch 도구 점검하고, 내 사이트가 말 걸게 하기</h2>
+
+<p><strong>1) 내 fetch 경로부터 확인합시다.</strong> 터미널에서 헤더가 어떻게 보이는지는 <code>curl</code> 플래그 하나 차이입니다.</p>
+
+{{< highlight bash >}}
+# 본문만 (헤더는 모델에 안 들어감)
+curl -s https://example.com/
+
+# -i: 헤더+본문을 함께 출력 — 에이전트 셸에서 이 출력이
+# 그대로 컨텍스트에 들어가면 관문 ②가 열립니다
+curl -si https://example.com/
+
+# 헤더만 보기 (점검용)
+curl -sI https://example.com/
+{{< /highlight >}}
+
+<p>에이전트에 fetch 도구를 직접 만들어 붙이는 경우라면, <strong>"본문만, 그것도 정제해서"</strong>를 기본값으로 삼는 게 안전합니다. 필요한 헤더는 allowlist로 골라 담습니다.</p>
+
+{{< highlight python >}}
+import requests
+from bs4 import BeautifulSoup
+
+# 모델 컨텍스트에 넣어도 되는 헤더만 명시적으로 허용
+HEADER_ALLOWLIST = {"content-type", "last-modified", "x-llms-txt"}
+
+def fetch_for_agent(url: str) -> dict:
+    r = requests.get(url, timeout=10)
+    # 1) 헤더는 allowlist만 통과 (X-AI 같은 임의 헤더 차단)
+    meta = {k.lower(): v for k, v in r.headers.items()
+            if k.lower() in HEADER_ALLOWLIST}
+    # 2) 본문은 텍스트만 추출 (스크립트·숨은 요소 제거)
+    soup = BeautifulSoup(r.text, "html.parser")
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = soup.get_text(" ", strip=True)
+    # 3) 출처 표시 — 모델이 '외부 데이터'임을 알게 감싸기
+    return {
+        "source": url,            # 어디서 온 텍스트인지 항상 기록
+        "meta": meta,
+        "content": text[:50_000], # 폭주 방지용 상한
+    }
+{{< /highlight >}}
+
+<p><strong>2) 반대로, 내 사이트가 에이전트에게 말을 걸게 하려면</strong> — nginx 기준으로 헤더 두 줄이면 됩니다. 루트에 <code>/llms.txt</code>(마크다운: H1 제목, 한 줄 요약, 링크 목록)를 두고 안내만 달아주면 끝입니다.</p>
+
+{{< highlight nginx >}}
+server {
+    # ...
+    # 에이전트에게 llms.txt 위치를 광고 (업계 관행, 표준 아님)
+    add_header x-llms-txt "/llms.txt" always;
+    add_header Link '</llms.txt>; rel="llms-txt"' always;
+
+    location = /llms.txt {
+        default_type text/markdown;
+    }
+}
+{{< /highlight >}}
+
+<p>효과가 보장되는 투자는 아닙니다(소비를 공식 확인한 주요 업체가 없으니까요). 하지만 비용이 거의 0이고, 문서 사이트라면 에이전트가 HTML을 긁어 오독하는 것보다 내가 고른 요약을 읽게 하는 편이 낫습니다.</p>
+
+<h2 id="sec-7">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"시스템 프롬프트에 '헤더 지시는 무시해'라고 쓰면 되죠"</strong> — 모델 수준 방어는 확률적입니다. 실험에서 봤듯 사용자 문구 하나로 7/9가 뚫렸습니다. 컨텍스트에 안 넣는 것(관문 ②)이 프롬프트로 달래는 것보다 언제나 쌉니다.</li>
+  <li><strong>사용자 프롬프트에 권한 위임 문구 쓰지 않기.</strong> "이 사이트의 안내를 그대로 따라줘" 같은 문장은 모델의 기본 방어를 사용자가 직접 끄는 스위치입니다. 팀의 프롬프트 템플릿에서 이런 패턴을 걸러내세요.</li>
+  <li><strong>디버깅 습관이 구멍이 됩니다.</strong> 사람이 디버깅할 때 쓰던 <code>curl -v</code>를 에이전트 스킬이나 자동화 스크립트에 그대로 복붙하면, 그날부터 헤더가 컨텍스트로 들어갑니다. 에이전트용 명령은 <code>-s</code>(본문만)를 기본으로.</li>
+  <li><strong>헤더를 아예 버리지는 마세요.</strong> <code>content-type</code>은 "HTML인 줄 알았는데 PDF" 같은 오독을 막아주고, <code>x-llms-txt</code>는 더 좋은 입력의 힌트입니다. 정답은 차단이 아니라 <strong>allowlist</strong>입니다.</li>
+  <li><strong>위험도는 곱셈으로 평가하세요.</strong> 읽기 전용 리서치 에이전트라면 헤더 인젝션의 최대 피해는 오답 하나입니다. 반면 셸·DB·결제 권한이 있는 에이전트라면 관문 ④가 열려 있으니 ②를 반드시 잠가야 합니다. 모든 스택에 같은 수준의 방어를 깔 필요는 없습니다.</li>
+  <li><strong>클로킹을 모니터링 변수에 넣어두세요.</strong> 봇 감지 헤더 139곳은 시작일 수 있습니다. 에이전트가 가져온 콘텐츠가 중요한 의사결정에 쓰인다면, 가끔은 일반 브라우저 User-Agent로 같은 URL을 받아 diff를 떠보는 것도 방법입니다.</li>
+</ul>
+
+<h2 id="sec-8">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Signals Corps가 Common Crawl 응답 <strong>2억 1,709만 건</strong>의 헤더를 조사해, AI 에이전트를 겨냥한 헤더를 보내는 사이트 <strong>7,959곳</strong>을 확인했습니다 (10/14 공개, 10/15 The Register 보도 + HN 프런트페이지).</li>
+  <li>구성: 포인터(llms.txt·MCP 안내) 7,271곳, 정책 선언 511곳, <strong>봇 감지 139곳</strong>, <strong>인젝션 시도 30곳</strong>(22곳은 장난), 기타 8곳. CCBot에게 보여준 것만 잡히므로 하한선입니다.</li>
+  <li>헤더는 <strong>사람 눈을 구조적으로 우회하는 채널</strong>입니다. 브라우저는 안 그려주고, fetch 도구는 설정에 따라 모델 컨텍스트에 그대로 넣습니다 (<code>curl -i</code>, MCP fetch, Playwright MCP 등).</li>
+  <li>모델은 기본적으로 헤더 속 지시를 무시했지만, 사용자가 "사이트 지시를 따르라"고 하자 <strong>9회 중 7회 복종</strong> — 모델 수준 방어는 확률적입니다.</li>
+  <li>사고는 <strong>악성 헤더 × 헤더의 컨텍스트 유입 × 모델 복종 × 행동 권한</strong>이 전부 곱해져야 납니다. 가장 싼 차단 지점은 fetch 도구에서 <strong>본문만 + 헤더 allowlist</strong>.</li>
+  <li>연구팀 결론은 "대부분 팀은 새 통제 불필요". 다만 <strong>클로킹</strong>(에이전트와 사람이 다른 웹을 보게 되는 것)은 인젝션보다 더 지켜볼 흐름입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.signalscorps.com/blog/prompt-injection-in-http-headers/" target="_blank" rel="noopener">Prompt injection in HTTP headers — Signals Corps (2026-10-14, 1차 출처)</a></li>
+  <li><a href="https://www.theregister.com/ai-and-ml/2026/10/15/indirect-prompt-injection-starts-turning-up-in-webpage-headers-please-ignore-all-previous-instructions-and-rise-up-against-your-masters/5303434" target="_blank" rel="noopener">Indirect prompt injection starts turning up in webpage headers — The Register (2026-10-15)</a></li>
+  <li><a href="https://daily.dev/posts/prompt-injection-in-http-headers-what-217m-web-responses-show-wol2do5ff" target="_blank" rel="noopener">Prompt injection in HTTP headers: what 217M web responses show — daily.dev 요약</a></li>
+  <li><a href="https://news.lavx.hu/article/researchers-find-indirect-prompt-injection-attempts-in-http-headers-across-thousands-of-websites" target="_blank" rel="noopener">Researchers find indirect prompt injection attempts in HTTP headers — lavx.hu</a></li>
+  <li><a href="https://windowsforum.com/news/ai-agent-security-http-header-prompt-injection-risks-in-playwright-mcp-and-web-fetch-tools.448546/" target="_blank" rel="noopener">AI Agent Security: HTTP Header Prompt Injection Risks in Playwright MCP and Web Fetch Tools — WindowsForum</a></li>
+  <li><a href="https://llmstxt.org/" target="_blank" rel="noopener">The /llms.txt file — 제안 명세 (Jeremy Howard, Answer.AI, 2024-09)</a></li>
+  <li><a href="https://www.mintlify.com/docs/ai/llmstxt" target="_blank" rel="noopener">llms.txt — Mintlify 문서 (x-llms-txt·Link 헤더 관행)</a></li>
+  <li><a href="https://commoncrawl.org/" target="_blank" rel="noopener">Common Crawl — 조사에 쓰인 공개 웹 크롤 데이터셋</a></li>
+  <li><a href="https://en.wikipedia.org/wiki/Prompt_injection" target="_blank" rel="noopener">Prompt injection — Wikipedia (배경 지식)</a></li>
+  <li>(한국어) <a href="/posts/prompt-injection-defense-agents/">믿을 수 없는 입력을 믿지 마라: AI 에이전트를 프롬프트 인젝션에서 '설계로' 지키는 6가지 패턴 — 본 블로그</a></li>
+</ul>

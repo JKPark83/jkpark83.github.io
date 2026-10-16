@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">Reflection Beam 1.0 — 스펙과 에이전트 벤치마크 (BF16, 벤더 보고치)</text>
+
+  <!-- 왼쪽: 스펙 카드 -->
+  <rect x="30" y="55" width="300" height="300" rx="12" fill="#fff" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="50" y="85" font-size="14" font-weight="700" fill="#b5431a">스펙</text>
+  <text x="50" y="113" font-size="12.5" fill="#333">파라미터  501.3B 총 / 23.4B 활성</text>
+  <text x="50" y="137" font-size="12.5" fill="#333">구조  52층(MoE 49) · 전문가 256</text>
+  <text x="50" y="161" font-size="12.5" fill="#333">컨텍스트  1M 토큰 · 텍스트 전용</text>
+  <text x="50" y="185" font-size="12.5" fill="#333">라이선스  Apache-2.0</text>
+  <text x="50" y="209" font-size="12.5" fill="#333">포맷  BF16 / FP8 / NVFP4</text>
+  <text x="50" y="233" font-size="12.5" fill="#333">동반 공개  DFlash2 드래프터</text>
+  <text x="50" y="257" font-size="12.5" fill="#333">하네스  Mirror CLI (오픈소스)</text>
+  <text x="50" y="281" font-size="12.5" fill="#333">지식 컷오프  2026-06-30</text>
+  <text x="50" y="312" font-size="11.5" fill="#b5431a">HF: reflection/Beam-1.0-501B-A23B</text>
+  <text x="50" y="332" font-size="11.5" fill="#999">10/16 가중치 공개 (HF API 확인)</text>
+
+  <!-- 오른쪽: 벤치마크 바 (0~100 스케일, 폭 = 값 * 3.8) -->
+  <text x="360" y="85" font-size="14" font-weight="700" fill="#1d4ed8">에이전트·코딩 벤치마크 (%)</text>
+
+  <text x="360" y="117" font-size="12" fill="#333">SWE-bench Verified</text>
+  <rect x="360" y="125" width="310" height="14" rx="4" fill="#dbeafe"/>
+  <rect x="360" y="125" width="253" height="14" rx="4" fill="#2a78d6"/>
+  <text x="620" y="137" font-size="12" font-weight="700" fill="#1d4ed8">81.6</text>
+
+  <text x="360" y="167" font-size="12" fill="#333">Terminal-Bench 2.1</text>
+  <rect x="360" y="175" width="310" height="14" rx="4" fill="#dbeafe"/>
+  <rect x="360" y="175" width="248" height="14" rx="4" fill="#2a78d6"/>
+  <text x="615" y="187" font-size="12" font-weight="700" fill="#1d4ed8">80.1</text>
+
+  <text x="360" y="217" font-size="12" fill="#333">LiveCodeBench</text>
+  <rect x="360" y="225" width="310" height="14" rx="4" fill="#dbeafe"/>
+  <rect x="360" y="225" width="274" height="14" rx="4" fill="#2a78d6"/>
+  <text x="641" y="237" font-size="12" font-weight="700" fill="#1d4ed8">88.3</text>
+
+  <text x="360" y="267" font-size="12" fill="#333">MCP Atlas</text>
+  <rect x="360" y="275" width="310" height="14" rx="4" fill="#dbeafe"/>
+  <rect x="360" y="275" width="250" height="14" rx="4" fill="#2a78d6"/>
+  <text x="617" y="287" font-size="12" font-weight="700" fill="#1d4ed8">80.8</text>
+
+  <text x="360" y="317" font-size="12" fill="#333">GPQA Diamond</text>
+  <rect x="360" y="325" width="310" height="14" rx="4" fill="#dbeafe"/>
+  <rect x="360" y="325" width="281" height="14" rx="4" fill="#2a78d6"/>
+  <text x="648" y="337" font-size="12" font-weight="700" fill="#1d4ed8">90.6</text>
+
+  <text x="400" y="382" text-anchor="middle" font-size="11" fill="#999">출처: Reflection HF 모델 카드 (벤더 자체 보고, temp 0.7 · top_p 0.99) · 자체 제작</text>
+</svg>

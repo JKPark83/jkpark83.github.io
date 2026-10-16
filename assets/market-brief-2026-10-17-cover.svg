@@ -1,0 +1,39 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="코스피가 2.05퍼센트 반등한 금요일 낮과 달리 밤사이 뉴욕은 AI 부채 우려로 나스닥이 2.14퍼센트 하락해 6월 이후 최악의 주간을 기록했고, 비트코인은 8만1,000달러 아래로 밀렸다가 8만2,000달러대를 회복하며 8만달러를 이번 주 세 번째 방어한 하루를 요약한 토요일 아침 브리핑 표지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.10.17 · 나스닥 &amp; 비트코인 5분 요약 · 토요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">아시아가 반등한 자리를 이번엔 뉴욕이 내줬습니다 — 'AI 부채'가 새 걱정거리입니다</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">뉴욕 — AI 부채 걱정</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">나스닥 -2.14%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">주간 -4.5% · 6월 이후 최악</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#f59e0b" opacity="0.15"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#fbbf24">코어위브 -12%</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fde68a">회사채 부실 수준 금리</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">비트코인 — 8만 세 번째 방어</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.18"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#a5b4fc">$82,000대</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">81,000 하회 후 회복</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.14"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#f87171">매도 유지</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">심리 다시 탐욕(64) · 유입 제로</text>
+  </g>
+
+  <g transform="translate(80,540)">
+    <rect x="0" y="0" width="330" height="48" rx="24" fill="#eab308" opacity="0.18"/>
+    <text x="165" y="31" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#facc15">나스닥: 관망 (심리 25까지 3pt)</text>
+    <rect x="360" y="0" width="330" height="48" rx="24" fill="#ef4444" opacity="0.18"/>
+    <text x="525" y="31" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#f87171">암호화폐: 매도 (수급 부재)</text>
+  </g>
+</svg>

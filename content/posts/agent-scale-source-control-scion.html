@@ -1,0 +1,373 @@
+---
+title: "하루 3만 머지가 git을 멈춰 세웠다 — Anthropic이 소스 컨트롤을 다시 설계한 이유, Scion 해부"
+date: 2026-10-18T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "소스 컨트롤", "git", "Scion", "모노레포", "monorepo", "버전 관리", "Anthropic", "CI", "sparse checkout", "partial clone", "코드 리뷰", "개발 인프라", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "10월 13일 Anthropic이 '소스 컨트롤이 개발의 최대 병목이 됐다'며 git을 자체 시스템 Scion으로 교체한 과정을 공개했고, 이번 주 내내 Hacker News와 기술 블로그를 달궜습니다. 에이전트가 코드를 쏟아내자 모노레포 머지가 5개월 만에 하루 2,500건에서 3만 건으로 뛰었고, CI 체크아웃만 하루 2,500만 번 — git의 '모두가 전체 복제본을 갖는다'는 설계 가정이 깨진 겁니다. git이 정확히 어디서 부러졌는지, Scion은 커밋·머지·blame을 왜 전부 서버로 올렸는지, 그리고 Anthropic 규모가 아닌 우리 팀이 오늘 에이전트 샌드박스에 적용할 수 있는 건 무엇인지 — junior 개발자 눈높이에서 쉽고 자세하게 풀어봅니다."
+ShowToc: false
+cover:
+  image: "agent-scale-source-control-scion-cover.svg"
+  alt: "하루 3만 건의 머지가 쏟아지는 모노레포를 git의 로컬 전체 복제 모델이 감당하지 못하고, 서버가 커밋과 머지를 처리하고 얇은 클라이언트가 필요한 파일만 받아 가는 Scion 모델이 이를 대체하는 그림"
+  caption: "git은 모두에게 전체 복제본을 준다는 가정 위에 서 있습니다. 하루 2,500만 체크아웃 앞에서 그 가정이 깨졌습니다."
+  relative: false
+---
+
+<style>
+/* ── 에이전트 스케일 소스 컨트롤 포스트 전용 스타일 (sc- 접두사) ── */
+.sc-fig{
+  --sc-green:#16a34a; --sc-rose:#e11d48; --sc-amber:#d97706; --sc-sky:#0284c7;
+  --sc-violet:#7c3aed; --sc-slate:#64748b; --sc-gray:#94a3b8;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .sc-fig{
+  --sc-green:#4ade80; --sc-rose:#fb7185; --sc-amber:#fbbf24; --sc-sky:#38bdf8;
+  --sc-violet:#a78bfa; --sc-slate:#94a3b8; --sc-gray:#64748b;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .sc-fig{
+    --sc-green:#4ade80; --sc-rose:#fb7185; --sc-amber:#fbbf24; --sc-sky:#38bdf8;
+    --sc-violet:#a78bfa; --sc-slate:#94a3b8; --sc-gray:#64748b;
+  }
+}
+.sc-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.sc-fig text{font-family:inherit}
+.sc-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.sc-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.sc-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.sc-toc ol{margin:0;padding-left:1.25rem}
+.sc-toc li{margin:.22rem 0;font-size:.95rem}
+.sc-toc a{text-decoration:none}
+.sc-toc a:hover{text-decoration:underline}
+.sc-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.sc-table th,.sc-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.sc-table th{background:var(--entry)}
+.sc-note{border-left:4px solid var(--sc-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.sc-warn{border-left:4px solid var(--sc-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="sc-toc">
+  <div class="sc-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 에이전트가 코드를 쏟아내자 git이 병목이 됐다</a></li>
+    <li><a href="#sec-2">배경 — git의 설계 가정과 '모노레포가 git을 넘어서는 순간'</a></li>
+    <li><a href="#sec-3">무엇이 부러졌나 — 숫자로 보는 붕괴 과정</a></li>
+    <li><a href="#sec-4">Scion의 설계 — 커밋·머지·blame을 전부 서버로</a></li>
+    <li><a href="#sec-5">데이터 모델과 서빙 계층 — changeset, Spanner, 4단 캐시</a></li>
+    <li><a href="#sec-6">결과, 그리고 바뀐 워크플로</a></li>
+    <li><a href="#sec-7">실전 — Anthropic이 아니어도 오늘 할 수 있는 것</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 에이전트가 코드를 쏟아내자 git이 병목이 됐다</h2>
+
+<p>10월 13일, Anthropic 엔지니어링 블로그에 <a href="https://www.anthropic.com/engineering/redesigning-source-control" target="_blank" rel="noopener">Redesigning source control at Anthropic</a>이라는 글이 올라왔습니다. 첫 문장이 심상치 않습니다. <strong>"하루 머지 수가 10배 넘게 늘면서, 소스 컨트롤이 우리의 최대 개발 병목이 됐다."</strong> 결론은 더 과격합니다. git을 고쳐 쓰는 대신, <strong>Scion</strong>이라는 소스 컨트롤 시스템을 새로 만들어 모노레포(monorepo, 전사 코드를 하나의 저장소에 담는 방식) 전체를 이주시켰다는 겁니다. 7명이 5개월 만에요.</p>
+
+<p>이 글은 곧바로 <a href="https://news.ycombinator.com/item?id=50073633" target="_blank" rel="noopener">Hacker News 프런트페이지</a>에 올라 댓글 수백 개가 달리는 대형 토론이 됐고, <a href="https://www.theregister.com/devops/2026/10/13/anthropic-reinvents-source-control-as-claude-floods-the-world-with-code/5302943" target="_blank" rel="noopener">The Register</a>를 비롯한 매체들이 "Claude가 쏟아내는 코드에 Anthropic이 소스 컨트롤을 재발명했다"고 보도하면서 이번 주 AI 엔지니어링 씬의 최대 화제가 됐습니다. 토론이 뜨거웠던 이유는 분명합니다. "git도 대체되는구나"라는 충격 때문이 아니라, <strong>에이전트가 개발의 주 클라이언트가 되는 순간 지금까지 당연하던 인프라의 어떤 가정들이 깨지는지</strong>를 보여준 첫 상세 보고서이기 때문입니다.</p>
+
+<p>중요한 건 이게 Anthropic만의 유난이 아니라는 점입니다. Cursor도 올해 8월, 에이전트 군단이 만드는 코드를 호스팅하려고 자체 플랫폼 <a href="https://www.infoq.com/news/2026/08/cursor-origin-alternative-github" target="_blank" rel="noopener">Origin</a>을 내놨습니다. Anthropic 스스로도 글 말미에 "6~12개월 안에 다른 조직들도 같은 문제를 만날 것"이라고 썼습니다. 오늘은 이 글을 재료 삼아, git이 정확히 어떤 가정 위에 서 있고 그 가정이 어디서 깨졌는지, Scion은 무엇을 다르게 했는지, 그리고 <strong>Anthropic 규모가 아닌 우리가 오늘 가져갈 수 있는 교훈</strong>은 무엇인지 차근차근 풀어봅니다.</p>
+
+<h2 id="sec-2">배경 — git의 설계 가정과 '모노레포가 git을 넘어서는 순간'</h2>
+
+<p>기본부터 짚겠습니다. git은 <strong>분산 버전 관리 시스템(DVCS, distributed version control system)</strong>입니다. <code>git clone</code>을 하면 저장소의 <em>전체 히스토리</em>가 내 디스크에 내려옵니다. 덕분에 비행기 안에서도 커밋하고, 브랜치를 만들고, <code>git log</code>와 <code>git blame</code>을 돌릴 수 있습니다. 서버는 그저 복제본들끼리 변경을 주고받는 만남의 장소일 뿐입니다.</p>
+
+<p>이 "모두가 완전한 복제본을 갖는다"는 설계는 2005년 리눅스 커널 개발을 위해 태어났고, 지난 20년간 눈부시게 잘 작동했습니다. 단, 한 가지 전제가 있습니다. <strong>저장소 크기와 변경 빈도가 '사람 손'의 속도로 자란다</strong>는 전제요. 저장소가 수백 GB로 불고, 커밋 주체가 사람이 아니라 24시간 도는 에이전트 수천 개가 되면 이야기가 달라집니다. 복제본 하나하나가 비싸지고, 모든 클라이언트가 같은 데이터를 중복 보관하는 구조 자체가 낭비가 됩니다.</p>
+
+<p>사실 이 문제를 먼저 만난 건 AI 회사가 아니라 초대형 모노레포를 가진 빅테크였습니다. Google은 git을 아예 쓰지 않고 자체 시스템 <a href="https://research.google/pubs/why-google-stores-billions-of-lines-of-code-in-a-single-repository/" target="_blank" rel="noopener">Piper</a>를 씁니다. 2016년 논문 기준으로 저장소가 약 86TB, 소스 파일 900만 개에 20억 줄이었고, 개발자는 CitC(Clients in the Cloud)라는 가상 작업 공간으로 접근했습니다. Meta는 Mercurial을 확장해 <a href="https://github.com/facebook/sapling" target="_blank" rel="noopener">Sapling</a>을 만들었고, 서버 측(Mononoke)은 Rust로 새로 썼습니다. 공통 교훈은 하나입니다. <strong>어느 규모를 넘으면 '전체 복제' 모델을 포기하고, 서버가 저장소의 진실을 들고 클라이언트는 필요한 조각만 받아 가는 모델로 간다</strong>는 것. Anthropic도 글에서 Sapling의 Mononoke를 선행 사례로 직접 언급합니다.</p>
+
+<div class="sc-note">
+<strong>그럼 Anthropic이 특별한 이유는?</strong> 빅테크는 수만 명의 <em>사람</em> 때문에 이 벽을 수십 년에 걸쳐 만났습니다. Anthropic은 <em>에이전트</em> 때문에 이 벽을 단 몇 달 만에 만났습니다. 코드를 쓰는 주체가 사람에서 에이전트로 바뀌면, "대기업만의 문제"였던 것이 훨씬 작은 조직에도 닥칠 수 있다는 게 이번 글의 핵심 함의입니다.</div>
+
+<h2 id="sec-3">무엇이 부러졌나 — 숫자로 보는 붕괴 과정</h2>
+
+<p>Anthropic이 공개한 숫자를 먼저 보겠습니다. 모두 원문에 명시된 값입니다.</p>
+
+<table class="sc-table">
+  <thead><tr><th>항목</th><th>수치</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td>모노레포 머지 수</td><td>2026년 5월 약 2,500건/일 → 9월 <strong>30,000건+/일</strong></td><td>4개월 만에 10배 이상. 에이전트가 만든 변경이 쏟아진 결과</td></tr>
+    <tr><td>main 브랜치 히스토리</td><td>약 <strong>100GB</strong></td><td>전체 클론 한 번이 이미 대형 다운로드</td></tr>
+    <tr><td>압축된 워킹 카피</td><td><strong>25GB+</strong></td><td>히스토리를 빼고 최신 코드만 받아도 이 크기</td></tr>
+    <tr><td>CI 코드 체크아웃</td><td>약 <strong>2,500만 회/일</strong></td><td>개발 환경·에이전트 샌드박스·리서치 잡은 별도</td></tr>
+    <tr><td>순진하게 전체를 받을 경우</td><td><strong>600PB+/일</strong>의 git 트래픽</td><td>물리적으로 불가능한 수준</td></tr>
+  </tbody>
+</table>
+
+<p>여기서 "왜 그냥 git 최적화 기능을 쓰지 않았냐"는 의문이 들 수 있습니다. 썼습니다. shallow clone(히스토리를 얕게 받기), sparse checkout(일부 디렉터리만 받기), partial clone(blob을 필요할 때 받기), 수백 대의 내부 git 미러까지. 원문의 표현을 빌리면 전부 <strong>"도움은 됐지만, 일시적으로만"</strong> 효과가 있었습니다. 구체적인 실패 양상은 세 가지였습니다.</p>
+
+<ul>
+  <li><strong>미러 스프롤(mirror sprawl).</strong> 읽기 부하를 받아내려고 git 미러를 수백 대까지 늘렸는데, 머지 속도가 빨라질수록 미러 운영이 어려워졌고, 저장소가 미러의 디스크·메모리를 넘어서자 더는 확장되지 않았습니다.</li>
+  <li><strong>낡아가는 시드(seed).</strong> 클론 시간을 아끼려고 저장소 스냅숏을 캐싱해 두는데, 변경이 너무 빨라 스냅숏이 금세 main 끝에서 멀어졌습니다. 시드가 낡을수록 따라잡기 fetch가 커지는 악순환입니다.</li>
+  <li><strong>partial clone의 마찰.</strong> blob 없는 클론에서는 <code>git diff</code>나 <code>git blame</code>처럼 히스토리를 건드리는 명령이 그때그때 서버에 객체를 요청합니다. 이런 동작이 끊기지 않게 유지하는 데 점점 더 많은 공이 들었습니다.</li>
+</ul>
+
+<p>근본 원인을 Anthropic은 이렇게 진단합니다. <strong>git은 "클라이언트가 오프라인일 수 있고, 그래서 자기 완결적인 전체 복제본이 필요하다"는 가정 위에 설계됐는데, 자기들 클라이언트의 거의 전부는 항상 온라인인 에이전트와 CI 잡이었다</strong>는 겁니다. 오프라인 능력이라는 비용은 계속 내는데, 그 혜택을 받는 클라이언트가 사실상 없었던 거죠. 설계 가정과 실제 워크로드가 어긋난 전형적인 사례입니다.</p>
+
+<h2 id="sec-4">Scion의 설계 — 커밋·머지·blame을 전부 서버로</h2>
+
+<p>그래서 Scion은 가정을 뒤집는 데서 출발합니다. <strong>"클라이언트는 항상 온라인이다."</strong> 이 한 줄에서 나머지 설계가 줄줄이 따라 나옵니다.</p>
+
+<figure class="sc-fig">
+<svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="git 모델과 Scion 모델의 비교 다이어그램. 왼쪽 git 모델에서는 서버가 단순 저장소이고 각 클라이언트가 100GB 전체 복제본을 들고 커밋, 머지, blame을 로컬에서 수행한다. 오른쪽 Scion 모델에서는 서버가 커밋 생성, 머지, 리베이스, blame, 히스토리를 모두 수행하고 클라이언트는 작은 객체 캐시만 들고 필요한 파일을 요청하거나 아예 체크아웃 없이 API로 질의한다.">
+  <text x="450" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="currentColor">일은 누가 하는가 — git vs Scion</text>
+
+  <!-- git side -->
+  <g>
+    <rect x="25" y="55" width="410" height="390" rx="14" fill="none" stroke="var(--sc-amber)" stroke-width="2"/>
+    <text x="230" y="85" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sc-amber)">git — 로컬이 일한다</text>
+    <rect x="120" y="100" width="220" height="48" rx="10" fill="var(--sc-amber)" opacity="0.25"/>
+    <text x="230" y="122" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">서버 = 복제본 만남의 장소</text>
+    <text x="230" y="140" text-anchor="middle" font-size="11.5" fill="currentColor">push/fetch를 받아줄 뿐</text>
+    <g stroke="var(--sc-amber)" stroke-width="2" opacity="0.8">
+      <path d="M 170 148 L 110 215" fill="none"/>
+      <path d="M 230 148 L 230 215" fill="none"/>
+      <path d="M 290 148 L 350 215" fill="none"/>
+    </g>
+    <g>
+      <rect x="45" y="218" width="130" height="150" rx="10" fill="var(--sc-amber)" opacity="0.14" stroke="var(--sc-amber)"/>
+      <rect x="165" y="218" width="130" height="150" rx="10" fill="var(--sc-amber)" opacity="0.14" stroke="var(--sc-amber)" transform="translate(0,0)"/>
+      <rect x="285" y="218" width="130" height="150" rx="10" fill="var(--sc-amber)" opacity="0.14" stroke="var(--sc-amber)"/>
+    </g>
+    <g font-size="11.5" fill="currentColor" text-anchor="middle">
+      <text x="110" y="242" font-weight="700">클라이언트 A</text>
+      <text x="110" y="263">히스토리 전체</text>
+      <text x="110" y="281">+ 워킹 카피</text>
+      <text x="110" y="305" font-weight="700" fill="var(--sc-rose)">= 100GB+</text>
+      <text x="110" y="332">commit·merge</text>
+      <text x="110" y="349">blame 전부 로컬</text>
+      <text x="230" y="242" font-weight="700">클라이언트 B</text>
+      <text x="230" y="263">히스토리 전체</text>
+      <text x="230" y="281">+ 워킹 카피</text>
+      <text x="230" y="305" font-weight="700" fill="var(--sc-rose)">= 100GB+</text>
+      <text x="230" y="332">commit·merge</text>
+      <text x="230" y="349">blame 전부 로컬</text>
+      <text x="350" y="242" font-weight="700">CI 잡 ×2,500만/일</text>
+      <text x="350" y="263">매번 클론 또는</text>
+      <text x="350" y="281">낡은 시드 + fetch</text>
+      <text x="350" y="305" font-weight="700" fill="var(--sc-rose)">트래픽 폭발</text>
+      <text x="350" y="332">오프라인 능력은</text>
+      <text x="350" y="349">아무도 안 씀</text>
+    </g>
+    <text x="230" y="420" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sc-rose)">가정: 클라이언트는 오프라인일 수 있다</text>
+  </g>
+
+  <!-- Scion side -->
+  <g>
+    <rect x="465" y="55" width="410" height="390" rx="14" fill="none" stroke="var(--sc-sky)" stroke-width="2"/>
+    <text x="670" y="85" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sc-sky)">Scion — 서버가 일한다</text>
+    <rect x="530" y="100" width="280" height="88" rx="10" fill="var(--sc-sky)" opacity="0.22"/>
+    <text x="670" y="124" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">서버 = 저장소의 진실 + 연산</text>
+    <text x="670" y="144" text-anchor="middle" font-size="11.5" fill="currentColor">커밋 생성 · merge · rebase · blame · 히스토리</text>
+    <text x="670" y="162" text-anchor="middle" font-size="11.5" fill="currentColor">push 없음 — 커밋이 서버에서 태어남</text>
+    <text x="670" y="180" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--sc-green)">비용이 변경 크기에 비례 (저장소 크기 아님)</text>
+    <g stroke="var(--sc-sky)" stroke-width="2" opacity="0.8" stroke-dasharray="7 5">
+      <path d="M 590 188 L 545 245" fill="none"/>
+      <path d="M 670 188 L 670 245" fill="none"/>
+      <path d="M 750 188 L 795 245" fill="none"/>
+    </g>
+    <g>
+      <rect x="485" y="248" width="120" height="120" rx="10" fill="var(--sc-sky)" opacity="0.13" stroke="var(--sc-sky)"/>
+      <rect x="610" y="248" width="120" height="120" rx="10" fill="var(--sc-sky)" opacity="0.13" stroke="var(--sc-sky)"/>
+      <rect x="735" y="248" width="120" height="120" rx="10" fill="var(--sc-sky)" opacity="0.13" stroke="var(--sc-sky)"/>
+    </g>
+    <g font-size="11.5" fill="currentColor" text-anchor="middle">
+      <text x="545" y="272" font-weight="700">개발자</text>
+      <text x="545" y="293">읽는 파일만</text>
+      <text x="545" y="311">가상 체크아웃</text>
+      <text x="545" y="338" font-weight="700" fill="var(--sc-green)">로컬은 캐시만</text>
+      <text x="670" y="272" font-weight="700">CI 잡</text>
+      <text x="670" y="293">diff·머지베이스를</text>
+      <text x="670" y="311">API로 질의</text>
+      <text x="670" y="338" font-weight="700" fill="var(--sc-green)">체크아웃 생략도</text>
+      <text x="795" y="272" font-weight="700">에이전트</text>
+      <text x="795" y="293">sparse 체크아웃</text>
+      <text x="795" y="311">필요한 트리만 요청</text>
+      <text x="795" y="338" font-weight="700" fill="var(--sc-green)">초 단위 준비</text>
+    </g>
+    <text x="670" y="420" text-anchor="middle" font-size="12" font-weight="700" fill="var(--sc-green)">가정: 클라이언트는 항상 온라인이다</text>
+  </g>
+</svg>
+<figcaption>그림 1. git에서는 모든 클라이언트가 전체 복제본을 들고 로컬에서 연산합니다. Scion은 커밋·머지·blame을 서버로 올리고, 클라이언트는 실제로 읽는 데이터만 받습니다. 연산 비용이 "저장소 크기"가 아니라 "변경 크기"에 비례하게 되는 것이 핵심입니다.</figcaption>
+</figure>
+
+<p>원문이 밝힌 설계 원칙을 하나씩 풀면 이렇습니다.</p>
+
+<ul>
+  <li><strong>클라이언트-서버 비대칭.</strong> 히스토리 보관, blame, 커밋 생성, 머지, 리베이스는 전부 서버 몫입니다. 클라이언트(<code>scn</code>)는 크기가 제한된 로컬 객체 캐시를 들고, 워킹 파일을 깔아 주고, 파일 변경을 감시하는 얇은 존재입니다.</li>
+  <li><strong>push 없는 커밋.</strong> 커밋·리베이스·머지가 서버에서 일어나므로 push라는 단계 자체가 없습니다. 락도 없습니다. 연산 비용은 변경된 파일 양에 비례하고, 저장소가 아무리 커져도 커밋 비용은 그대로입니다. 브랜치(ref)는 main과 릴리스 브랜치 정도만 권장합니다.</li>
+  <li><strong>API 우선.</strong> 소스 컨트롤 질의가 API로 노출되므로, 많은 잡이 로컬 저장소 자체를 만들지 않습니다. "이 커밋과 main의 diff 줘", "머지 베이스 알려줘" 같은 질문을 체크아웃 없이 던집니다. 자동 bisect(이진 탐색으로 문제 커밋 찾기)·자동 revert 파이프라인이 이 위에서 돕니다.</li>
+  <li><strong>선택적·희소 워킹 카피.</strong> 체크아웃이 필요한 경우에도 클라이언트가 실제로 읽는 파일만 구체화(materialize)합니다. 안 읽는 트리는 애초에 요청하지 않으니, git의 sparse checkout처럼 특별한 프로토콜 지원이 필요 없습니다.</li>
+</ul>
+
+<p>비유하자면 git이 "전 직원에게 도서관 전체를 복사해 주는 모델"이라면, Scion은 "사서(서버)에게 전화해서 필요한 페이지만 받아 보는 모델"입니다. 전 직원이 사람이고 출장이 잦다면 전자가 편하지만, 직원 대부분이 도서관 옆 사무실에 상주하는 (게다가 하루 2,500만 번 방문하는) 로봇이라면 후자가 압도적으로 쌉니다.</p>
+
+<h2 id="sec-5">데이터 모델과 서빙 계층 — changeset, Spanner, 4단 캐시</h2>
+
+<p>내부 구조도 git과 꽤 다릅니다. 저장의 기본 단위는 커밋이 아니라 <strong>changeset</strong>입니다. git 커밋이 "그 시점 전체 트리"를 가리키는 반면, changeset은 <strong>WAL(write-ahead log, 추가만 되는 기록 장부)의 한 항목</strong>으로서 첫 부모 대비 <em>바뀐 파일 목록</em>만 담습니다. 각 파일은 내용 주소(content-addressed, 내용의 해시가 곧 주소) 포인터로 blob 저장소의 압축된 실제 내용을 가리킵니다. 브랜치 포인터 갱신은 changeset 생성과 분리되어, <strong>Spanner(구글의 분산 DB)의 행 하나에 대한 compare-and-swap</strong>(비교 후 교체 — 값이 예상과 같을 때만 바꾸는 원자적 연산)으로 처리됩니다. 머지 레이스가 나도 DB 수준의 원자성으로 정리되는 구조입니다.</p>
+
+<p>"그럼 blame이나 파일 히스토리처럼 전체 히스토리를 훑어야 하는 연산은 어떡하냐"가 당연한 다음 질문입니다. Scion은 이를 <strong>파생 데이터(derived data)</strong>라는 하나의 일반 메커니즘으로 풉니다. blame, 경로별 히스토리, 커밋 그래프 스킵 리스트, 복사 감지, 경로 기반 검색 같은 값들을 "부모 changeset들의 값에서 재귀적으로 정의"해 두고, 타입별로 미리(eager) 또는 요청 시(lazy) 계산합니다. 클라이언트는 결과만 받으니 내부 구현은 언제든 바꿀 수 있습니다.</p>
+
+<figure class="sc-fig">
+<svg viewBox="0 0 900 480" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Scion의 4단 서빙 계층 다이어그램. 맨 아래에 Spanner와 blob 저장소를 읽는 scion-server, 그 위에 메모리에서 객체를 스트리밍하는 지역 캐시 scion-cache, 그 위에 노드별 데몬 scion-daemon, 맨 위에 클라이언트 scn이 있다. 모든 계층이 같은 RPC에 응답하고, 각 캐시 계층의 히트율은 99퍼센트가 넘으며, 요청은 루트 트리에서 시작해 없는 트리와 blob만 내려받는다.">
+  <text x="450" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="currentColor">Scion 서빙 계층 — 모든 층이 같은 RPC를 말한다</text>
+
+  <g>
+    <rect x="80" y="55" width="500" height="70" rx="12" fill="var(--sc-green)" opacity="0.16" stroke="var(--sc-green)" stroke-width="2"/>
+    <text x="110" y="84" font-size="14" font-weight="700" fill="currentColor">scn (클라이언트)</text>
+    <text x="110" y="106" font-size="12" fill="currentColor">워킹 파일 구체화 · 파일 변경 감시 · 크기 제한 로컬 캐시</text>
+  </g>
+  <g>
+    <rect x="80" y="150" width="500" height="70" rx="12" fill="var(--sc-sky)" opacity="0.16" stroke="var(--sc-sky)" stroke-width="2"/>
+    <text x="110" y="179" font-size="14" font-weight="700" fill="currentColor">scion-daemon (노드별 데몬)</text>
+    <text x="110" y="201" font-size="12" fill="currentColor">같은 머신 위 모든 잡의 객체를 한곳에 — 잡마다 중복 저장 안 함</text>
+  </g>
+  <g>
+    <rect x="80" y="245" width="500" height="70" rx="12" fill="var(--sc-violet)" opacity="0.16" stroke="var(--sc-violet)" stroke-width="2"/>
+    <text x="110" y="274" font-size="14" font-weight="700" fill="currentColor">scion-cache (지역 캐시)</text>
+    <text x="110" y="296" font-size="12" fill="currentColor">메모리에서 객체 스트리밍 · 장기 상태 없음 · 꺼져도 위층이 아래층으로</text>
+  </g>
+  <g>
+    <rect x="80" y="340" width="500" height="80" rx="12" fill="var(--sc-amber)" opacity="0.16" stroke="var(--sc-amber)" stroke-width="2"/>
+    <text x="110" y="369" font-size="14" font-weight="700" fill="currentColor">scion-server (권위 서버)</text>
+    <text x="110" y="391" font-size="12" fill="currentColor">Spanner(메타데이터·ref CAS) + 클라우드 blob 저장소(파일 내용)</text>
+    <text x="110" y="409" font-size="12" fill="currentColor">커밋·머지·blame 등 연산 수행 — 어느 서버도 저장소 전체를 들고 있지 않음</text>
+  </g>
+
+  <g stroke="var(--sc-gray)" stroke-width="2.5">
+    <path d="M 330 125 L 330 148" fill="none" marker-end="none"/>
+    <path d="M 330 220 L 330 243" fill="none"/>
+    <path d="M 330 315 L 330 338" fill="none"/>
+  </g>
+  <g font-size="11" fill="var(--sc-gray)" text-anchor="start">
+    <text x="345" y="141">miss 시에만 아래로</text>
+    <text x="345" y="236">miss 시에만 아래로</text>
+    <text x="345" y="331">miss 시에만 아래로</text>
+  </g>
+
+  <g>
+    <rect x="620" y="90" width="250" height="180" rx="12" fill="none" stroke="var(--sc-slate)" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="745" y="118" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">fetch 프로토콜</text>
+    <text x="635" y="144" font-size="11.5" fill="currentColor">① 루트 트리에서 시작</text>
+    <text x="635" y="166" font-size="11.5" fill="currentColor">② 없는 트리만 재귀 요청</text>
+    <text x="635" y="188" font-size="11.5" fill="currentColor">③ 마지막에 blob 요청</text>
+    <text x="635" y="214" font-size="11.5" fill="currentColor">객체는 전부 불변 →</text>
+    <text x="635" y="232" font-size="11.5" fill="currentColor">아무 캐시나 응답 가능,</text>
+    <text x="635" y="250" font-size="11.5" fill="currentColor">전송 중단돼도 이어받기 OK</text>
+  </g>
+  <g>
+    <rect x="620" y="300" width="250" height="120" rx="12" fill="var(--sc-green)" opacity="0.1" stroke="var(--sc-green)" stroke-width="1.5"/>
+    <text x="745" y="330" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">효과</text>
+    <text x="635" y="356" font-size="11.5" fill="currentColor">캐시 계층 히트율 99%+</text>
+    <text x="635" y="378" font-size="11.5" fill="currentColor">git 미러 대비 CPU·메모리 약 1/200</text>
+    <text x="635" y="400" font-size="11.5" fill="currentColor">CI·리서치 체크아웃 분 → 초</text>
+  </g>
+
+  <text x="450" y="458" text-anchor="middle" font-size="12" fill="var(--sc-gray)">git과 달리 "내가 가진 것"을 서버에 협상하지 않습니다 — 필요한 객체를 그냥 요청하면 끝</text>
+</svg>
+<figcaption>그림 2. Scion의 4단 서빙 계층. 클라이언트부터 권위 서버까지 모두 같은 RPC에 응답하고, 계층 분리가 엄격해 지역 캐시가 죽어도 상위 서버가 압사하지 않습니다. 객체가 전부 불변이라 어떤 캐시든 안심하고 응답할 수 있습니다.</figcaption>
+</figure>
+
+<p>fetch 프로토콜도 눈여겨볼 만합니다. git의 fetch는 "나 이거 가지고 있어요" 협상(negotiation)을 거쳐 서버가 맞춤 packfile(객체 묶음 파일)을 만들어 줍니다. 서버 입장에선 클라이언트마다 다른 응답을 계산해야 하니 캐싱이 어렵습니다. Scion은 협상을 버렸습니다. 클라이언트가 루트 트리에서 시작해 <strong>없는 트리를 재귀적으로, 그다음 blob을 요청</strong>할 뿐입니다. 모든 객체가 불변이므로 어느 캐시 계층이든 그대로 응답할 수 있고, 거대한 packfile 응답이 없으니 전송이 끊겨도 이어받으면 됩니다. "희소 체크아웃"도 별도 기능이 아니라, 그냥 필요 없는 트리를 요청하지 않는 것으로 자연히 구현됩니다.</p>
+
+<h2 id="sec-6">결과, 그리고 바뀐 워크플로</h2>
+
+<p>성과 숫자부터. git 미러 함대 대비 <strong>CPU·메모리 사용량 약 1/200</strong>, CI·리서치 체크아웃은 <strong>분 단위에서 초 단위로</strong>(두 자릿수 배 개선), 체크아웃이 빨라진 덕에 CI 전체에서 <strong>CPU 용량 25%를 회수</strong>했습니다. 각 캐시 계층의 히트율은 99%를 넘습니다. 재미있는 디테일 하나 — git에서 Scion으로 데이터를 옮기는 인제스천 파이프라인은 Claude가 재작성했는데, 메모리를 20분의 1로 쓰면서 4배 빨라졌다고 합니다.</p>
+
+<p>더 흥미로운 건 소스 컨트롤이 바뀌자 <em>개발 문화</em>까지 바뀌었다는 대목입니다.</p>
+
+<ul>
+  <li><strong>전역 머지 큐가 없습니다.</strong> 하루 3만 머지를 한 줄로 세우면 그 줄이 곧 병목입니다. Anthropic은 머지 전 직렬 검증 대신 <strong>머지 후 + 배포 전 자동 테스트</strong>에 기댑니다. 동시 변경이 충돌하면? 원문 표현으로는, 사람이 충돌을 감지하기도 전에 Claude가 먼저 해소하는 경우가 보통이라고 합니다.</li>
+  <li><strong>리뷰의 초점이 줄 단위에서 의도 단위로.</strong> 자체 코드 리뷰 시스템 <strong>Antique</strong>는 "주석만 바꾼 변경"과 "민감한 로직 변경"을 구분하는 식의 의미론적 승인 규칙을 표현할 수 있습니다. 엔지니어는 모든 줄을 읽는 대신 설계 제약을 정하고, 과잉 설계(에이전트의 적대적 리뷰가 부추기곤 하는 과도한 검증 코드 등)를 쳐내는 역할로 이동했습니다.</li>
+  <li><strong>컴포넌트마다 '슈퍼팬' 에이전트.</strong> scion-daemon, scion-cache, Antique 머지 큐 같은 컴포넌트 하나씩을 전담해 텔레메트리와 로그를 지켜보는 Claude 에이전트를 붙여 두고, 정적 알림이 놓치는 미묘한 이상을 잡게 합니다.</li>
+  <li><strong>디렉터리 단위 접근 제어.</strong> 모노레포 안에서도 민감한 코드를 경로별 IAM으로 보호합니다. git처럼 "클론하면 전부"가 아니라는 점이 에이전트 시대에 특히 중요해집니다 — 에이전트 샌드박스에 저장소 전체를 쥐여줄 이유가 없으니까요.</li>
+</ul>
+
+<div class="sc-warn">
+<strong>주의: Scion은 오픈소스가 아닙니다.</strong> 이번 주에 "Anthropic이 git 대체재를 공개했다"는 식의 요약이 꽤 돌았는데, 원문은 반대로 말합니다. Scion은 범용 git 대체재로 적합하지 않고, 코드 리뷰·검색·CI까지 통째로 바꿔야 해서 공개 제공이 어렵다고요. 대신 설계 아이디어(서버사이드 RPC, 잘 합성되는 sparse/shallow 기능)를 GitHub·GitLab·오픈소스 커뮤니티와 나누겠다는 입장입니다. 2차 기사만 읽고 "도입 검토"를 시작하면 곤란합니다.</div>
+
+<h2 id="sec-7">실전 — Anthropic이 아니어도 오늘 할 수 있는 것</h2>
+
+<p>우리 대부분은 하루 3만 머지도, Spanner도 없습니다. 그래도 이 글의 교훈은 바로 적용할 수 있습니다. 핵심 원리는 하나거든요. <strong>"항상 온라인인 클라이언트(CI·에이전트)에게 전체 복제본을 주지 마라."</strong> git에는 이를 위한 기능이 이미 들어 있고, Anthropic도 git을 떠나기 전까지 썼던 바로 그 기능들입니다.</p>
+
+<p><strong>① 에이전트 샌드박스·CI의 클론 다이어트.</strong> 히스토리가 필요 없는 일회성 잡이라면 blob 없는 partial clone과 shallow clone부터 적용하세요.</p>
+
+{{< highlight bash >}}
+# 전체 클론 — 히스토리+모든 blob을 받는다 (에이전트 샌드박스에선 낭비)
+git clone https://github.com/org/big-repo.git
+
+# partial clone — 트리·커밋만 받고, blob은 실제로 읽을 때 가져온다
+git clone --filter=blob:none https://github.com/org/big-repo.git
+
+# 거기에 shallow — 최신 커밋 1개의 히스토리만
+git clone --depth=1 --filter=blob:none https://github.com/org/big-repo.git
+
+# 모노레포라면 sparse checkout으로 작업 디렉터리만 구체화
+git clone --filter=blob:none --no-checkout https://github.com/org/mono.git
+cd mono
+git sparse-checkout set services/payments   # 이 경로만 워킹 트리에 깔림
+git checkout main
+{{< /highlight >}}
+
+<p>효과는 저장소가 클수록 극적입니다. 에이전트가 파일 몇 개 고치고 사라지는 워크로드에 100GB 히스토리를 내려받는 건, Anthropic 표현을 빌리면 "아무도 쓰지 않는 오프라인 능력에 비용을 내는 것"입니다.</p>
+
+<p><strong>② 체크아웃 자체를 의심하기.</strong> Scion의 "API 우선" 원칙은 git 세계에서도 흉내 낼 수 있습니다. 많은 자동화 잡은 사실 저장소가 아니라 <em>질문의 답</em>이 필요합니다. "이 PR에서 바뀐 파일 목록", "이 파일의 최신 내용", "두 브랜치의 머지 베이스" 같은 것들요. 호스팅 플랫폼 API로 물으면 클론이 통째로 사라집니다.</p>
+
+{{< highlight bash >}}
+# 나쁜 예: 바뀐 파일 목록 하나 얻자고 25GB 클론
+git clone https://github.com/org/big-repo.git && cd big-repo
+git diff --name-only main...feature-branch
+
+# 좋은 예: GitHub API로 체크아웃 없이 같은 답 얻기
+curl -s "https://api.github.com/repos/org/big-repo/compare/main...feature-branch" \
+  | jq -r '.files[].filename'
+
+# 파일 하나의 내용도 클론 없이
+curl -s "https://api.github.com/repos/org/big-repo/contents/src/app.py?ref=main" \
+  | jq -r '.content' | base64 -d
+{{< /highlight >}}
+
+<p><strong>③ 에이전트에게 저장소 '전부'를 주지 않기.</strong> Scion의 디렉터리 단위 IAM이 주는 힌트입니다. 에이전트 샌드박스에 조직의 모든 코드가 들어갈 필요는 없습니다. sparse checkout으로 작업 범위만 깔아 주면 토큰(컨텍스트)도, 보안 노출 면적도, 준비 시간도 같이 줄어듭니다. "에이전트가 뭘 읽을 수 있는가"를 클론 단계에서 설계하는 습관이 앞으로 점점 중요해집니다.</p>
+
+<p><strong>④ 머지 충돌을 '사람의 일'에서 빼기.</strong> 전역 머지 큐 없이 버틴다는 Anthropic의 선택은, 규모를 줄이면 "리베이스·충돌 해소를 에이전트에게 맡기는 파이프라인"으로 번역됩니다. PR이 main에 뒤처지면 자동으로 리베이스를 시도하고, 충돌이 나면 에이전트가 1차 해소안을 만들어 사람이 확인만 하는 구조는 지금 도구로도 만들 수 있습니다. 다만 그 전제는 머지 후를 받쳐 줄 탄탄한 자동 테스트입니다 — 검증 없이 큐만 없애면 main이 깨진 채로 달립니다.</p>
+
+<h2 id="sec-8">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"git이 죽었다"로 읽지 마세요.</strong> Anthropic 스스로 분산 모델이 대부분의 저장소에는 여전히 옳다고 말합니다. 이 글의 교훈은 "git을 버려라"가 아니라 <strong>"워크로드가 바뀌면 설계 가정을 다시 검사하라"</strong>입니다. 여러분의 저장소에서 클론이 수 초면 끝난다면, 아무것도 바꿀 필요 없습니다.</li>
+  <li><strong><code>--depth=1</code>을 만능으로 쓰지 않기.</strong> shallow clone에서 <code>git log</code>·<code>git blame</code>·머지 베이스 계산은 제대로 안 됩니다. 히스토리를 쓰는 잡엔 <code>--filter=blob:none</code>(히스토리는 있고 blob만 지연 로딩)이 맞고, 빌드 한 번 하고 버릴 잡엔 <code>--depth=1</code>이 맞습니다. 용도에 따라 고르세요.</li>
+  <li><strong>partial clone 뒤의 지연 fetch를 계산에 넣기.</strong> blob 없는 클론에서 <code>git diff</code>가 옛 파일을 건드리면 그때그때 서버에 다녀옵니다. 네트워크가 느리거나 서버가 멀면 오히려 느려질 수 있습니다. Anthropic도 이 마찰 때문에 미러를 늘리다 한계에 부딪혔다는 걸 기억하세요.</li>
+  <li><strong>CI 캐시(시드)의 신선도를 모니터링하기.</strong> 클론 캐싱을 쓴다면 "시드가 main 끝에서 얼마나 뒤처져 있나"를 지표로 두세요. 머지 속도가 빨라질수록 낡은 시드의 따라잡기 fetch가 커지는 게 Anthropic이 겪은 악순환입니다.</li>
+  <li><strong>머지 큐 제거는 테스트가 먼저입니다.</strong> "머지 후 검증"으로 가려면 머지 후·배포 전 파이프라인이 회귀를 실제로 잡아야 합니다. 순서를 바꾸면(큐부터 제거) main이 수시로 깨집니다.</li>
+  <li><strong>2차 요약 말고 원문을 읽으세요.</strong> 이번 건은 "오픈소스로 공개했다"는 오보성 요약이 특히 많이 돌았습니다. 인프라 의사결정에 영향을 주는 글일수록 1차 출처 확인이 필수입니다.</li>
+</ul>
+
+<h2 id="sec-9">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Anthropic 모노레포의 하루 머지가 5월 2,500건에서 9월 <strong>3만 건+</strong>으로 뛰며 git이 최대 병목이 됐고, 7명이 5개월 만에 자체 시스템 <strong>Scion</strong>으로 전면 이주했습니다 (10/13 공개, HN 프런트페이지 대형 토론).</li>
+  <li>붕괴 원인은 규모의 숫자: 히스토리 약 100GB, 워킹 카피 25GB+, CI 체크아웃 하루 <strong>2,500만 회</strong> — 순진하게 받으면 600PB/일. 미러 수백 대, shallow/sparse/partial clone 전부 "일시적으로만" 도움이 됐습니다.</li>
+  <li>핵심 전환은 가정의 교체: git의 "클라이언트는 오프라인일 수 있다" → Scion의 <strong>"클라이언트는 항상 온라인이다"</strong>. 커밋·머지·blame이 서버에서 일어나 push가 없고, 연산 비용이 저장소 크기가 아니라 <strong>변경 크기에 비례</strong>합니다.</li>
+  <li>데이터 모델은 changeset(WAL 항목, 바뀐 파일 목록 + content-addressed blob 포인터), ref 갱신은 Spanner 행 하나의 compare-and-swap. 4단 서빙 계층(scn → daemon → cache → server)은 히트율 99%+, git 미러 대비 자원 <strong>약 1/200</strong>, 체크아웃은 <strong>분 → 초</strong>.</li>
+  <li>워크플로도 바뀌었습니다: 전역 머지 큐 없이 머지 후 검증, 충돌은 Claude가 먼저 해소, 리뷰는 줄 단위에서 의도 단위로(Antique), 컴포넌트별 감시 에이전트, 디렉터리 단위 IAM.</li>
+  <li>Scion은 <strong>오픈소스가 아니며</strong> 범용 git 대체재도 아닙니다. 우리가 가져갈 것은 원리입니다: 에이전트·CI 샌드박스에 <code>--filter=blob:none</code>·<code>--depth=1</code>·sparse checkout으로 <strong>필요한 만큼만</strong> 주고, 질문은 클론 대신 <strong>API로</strong> 던지고, 머지 충돌 해소를 자동화 파이프라인으로 옮기는 것.</li>
+  <li>Anthropic의 전망: 같은 문제가 <strong>6~12개월 안에</strong> 업계 전반에 옵니다. Cursor가 이미 자체 호스팅 Origin을 내놓은 것도 같은 흐름입니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.anthropic.com/engineering/redesigning-source-control" target="_blank" rel="noopener">Redesigning source control at Anthropic — Anthropic Engineering (2026-10-13, 1차 출처)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50073633" target="_blank" rel="noopener">Redesigning source control at Anthropic — Hacker News 토론</a></li>
+  <li><a href="https://www.theregister.com/devops/2026/10/13/anthropic-reinvents-source-control-as-claude-floods-the-world-with-code/5302943" target="_blank" rel="noopener">Anthropic reinvents source control as Claude floods the world with code — The Register (2026-10-13)</a></li>
+  <li><a href="https://simonwillison.net/2026/Oct/13/redesigning-source-control-at-anthropic/" target="_blank" rel="noopener">Redesigning source control at Anthropic — Simon Willison의 코멘터리 (2026-10-13)</a></li>
+  <li><a href="https://research.google/pubs/why-google-stores-billions-of-lines-of-code-in-a-single-repository/" target="_blank" rel="noopener">Why Google Stores Billions of Lines of Code in a Single Repository — Potvin &amp; Levenberg, CACM (2016, Piper·CitC)</a></li>
+  <li><a href="https://github.com/facebook/sapling" target="_blank" rel="noopener">Sapling — Meta의 소스 컨트롤 시스템 (서버 측 Mononoke 포함, Scion의 선행 사례)</a></li>
+  <li><a href="https://www.infoq.com/news/2026/08/cursor-origin-alternative-github" target="_blank" rel="noopener">Cursor Origin — 에이전트 군단을 위한 코드 호스팅 (InfoQ, 2026-08)</a></li>
+  <li><a href="https://git-scm.com/docs/partial-clone" target="_blank" rel="noopener">git partial clone 공식 문서 — --filter=blob:none의 동작 원리</a></li>
+  <li><a href="https://git-scm.com/docs/git-sparse-checkout" target="_blank" rel="noopener">git sparse-checkout 공식 문서</a></li>
+  <li>(한국어) <a href="/posts/ci-bottleneck-agent-era/">에이전트 시대의 CI 병목 엔지니어링 — 본 블로그 (소스 컨트롤 다음 병목인 테스트 스위트 이야기)</a></li>
+  <li>(한국어) <a href="/posts/agent-code-execution-sandbox/">에이전트 코드 실행 샌드박스 설계 — 본 블로그</a></li>
+</ul>

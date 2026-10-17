@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="하루 3만 건의 머지가 쏟아지는 모노레포를 git 로컬 전체 복제 모델이 감당하지 못해 병목이 되고, 오른쪽에서는 서버가 커밋과 머지를 처리하고 얇은 클라이언트가 필요한 파일만 받아 가는 Scion 모델이 이를 대체하는 그림">
+  <defs>
+    <linearGradient id="scg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="sc-amber" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/></linearGradient>
+    <linearGradient id="sc-sky" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0284c7"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#scg)"/>
+
+  <text x="80" y="92" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">하루 3만 머지가 git을 멈춰 세웠다</text>
+  <text x="80" y="148" fill="#93c5fd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">에이전트 시대의 소스 컨트롤, Scion 해부</text>
+  <text x="80" y="192" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="500">Anthropic 엔지니어링 — 전체 복제 대신 서버사이드 커밋, 체크아웃은 분 단위에서 초 단위로</text>
+
+  <!-- 왼쪽: git 모델 -->
+  <g>
+    <rect x="80" y="240" width="440" height="310" rx="18" fill="#fbbf24" opacity="0.08" stroke="#fbbf24" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="300" y="282" text-anchor="middle" fill="#fbbf24" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700">git: 모두가 전체 복제</text>
+    <!-- 서버 -->
+    <rect x="230" y="304" width="140" height="48" rx="10" fill="url(#sc-amber)" opacity="0.9"/>
+    <text x="300" y="334" text-anchor="middle" fill="#1f2937" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="700">repo 100GB</text>
+    <!-- 클론들 -->
+    <g fill="#fbbf24" opacity="0.55">
+      <rect x="110" y="420" width="100" height="40" rx="8"/>
+      <rect x="250" y="420" width="100" height="40" rx="8"/>
+      <rect x="390" y="420" width="100" height="40" rx="8"/>
+    </g>
+    <g fill="#1f2937" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" font-weight="700" text-anchor="middle">
+      <text x="160" y="445">100GB</text><text x="300" y="445">100GB</text><text x="440" y="445">100GB</text>
+    </g>
+    <g stroke="#fbbf24" stroke-width="2.5" opacity="0.7">
+      <path d="M 280 352 L 165 418" fill="none"/>
+      <path d="M 300 352 L 300 418" fill="none"/>
+      <path d="M 320 352 L 435 418" fill="none"/>
+    </g>
+    <text x="300" y="505" text-anchor="middle" fill="#fcd34d" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="600">하루 2,500만 체크아웃 × 전체 복제</text>
+    <text x="300" y="532" text-anchor="middle" fill="#f87171" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="700">= 이론상 600PB/일 트래픽</text>
+  </g>
+
+  <!-- 오른쪽: Scion 모델 -->
+  <g>
+    <rect x="600" y="240" width="520" height="310" rx="18" fill="#38bdf8" opacity="0.08" stroke="#38bdf8" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="860" y="282" text-anchor="middle" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700">Scion: 서버가 일하고, 클라이언트는 얇게</text>
+    <rect x="740" y="304" width="240" height="52" rx="10" fill="url(#sc-sky)" opacity="0.95"/>
+    <text x="860" y="327" text-anchor="middle" fill="#082f49" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15" font-weight="700">서버: 커밋·머지·blame·히스토리</text>
+    <text x="860" y="347" text-anchor="middle" fill="#082f49" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13" font-weight="600">changeset 로그 + blob 저장소</text>
+    <g fill="#38bdf8" opacity="0.5">
+      <rect x="640" y="430" width="120" height="36" rx="8"/>
+      <rect x="800" y="430" width="120" height="36" rx="8"/>
+      <rect x="960" y="430" width="120" height="36" rx="8"/>
+    </g>
+    <g fill="#e0f2fe" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13.5" font-weight="700" text-anchor="middle">
+      <text x="700" y="453">읽은 파일만</text>
+      <text x="860" y="453">API 질의만</text>
+      <text x="1020" y="453">sparse 체크아웃</text>
+    </g>
+    <g stroke="#38bdf8" stroke-width="2.5" opacity="0.8" stroke-dasharray="7 5">
+      <path d="M 800 356 L 710 428" fill="none"/>
+      <path d="M 860 356 L 860 428" fill="none"/>
+      <path d="M 920 356 L 1010 428" fill="none"/>
+    </g>
+    <text x="860" y="505" text-anchor="middle" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="600">필요한 객체만 캐시 계층에서 당겨 받기</text>
+    <text x="860" y="532" text-anchor="middle" fill="#4ade80" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="700">체크아웃 분 → 초, 인프라 자원 약 1/200</text>
+  </g>
+</svg>

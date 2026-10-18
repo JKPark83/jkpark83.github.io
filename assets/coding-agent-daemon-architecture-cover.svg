@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="터미널 명령 한 번에 프로세스 하나가 뜨던 코딩 에이전트가, 터미널·데스크톱·웹·IDE 네 클라이언트가 하나의 상주 백그라운드 서버에 접속하는 데몬 구조로 바뀌는 그림. 데몬 옆에는 자동 업데이트와 API 키 보관이라는 두 가지 경고 표시가 붙어 있다">
+  <defs>
+    <linearGradient id="cadg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="cad-sky" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0284c7"/></linearGradient>
+    <linearGradient id="cad-amber" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#cadg)"/>
+
+  <text x="80" y="92" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">코딩 에이전트가 데몬이 되다</text>
+  <text x="80" y="148" fill="#93c5fd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">Codex·OpenCode의 상주 서버 전환과 그 대가</text>
+  <text x="80" y="192" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="500">명령 한 번 = 프로세스 하나의 시대가 끝나간다 — 공유 세션, 자동 업데이트, 그리고 키 금고의 문제</text>
+
+  <!-- 왼쪽: 일회성 프로세스 모델 -->
+  <g>
+    <rect x="80" y="240" width="400" height="310" rx="18" fill="#fbbf24" opacity="0.08" stroke="#fbbf24" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="280" y="282" text-anchor="middle" fill="#fbbf24" font-family="ui-sans-serif,system-ui,sans-serif" font-size="23" font-weight="700">어제: 터미널마다 프로세스</text>
+    <g font-family="ui-monospace,monospace" font-size="17" fill="#fde68a">
+      <rect x="110" y="310" width="160" height="56" rx="10" fill="url(#cad-amber)" opacity="0.25" stroke="#fbbf24"/>
+      <text x="190" y="344" text-anchor="middle">$ agent ①</text>
+      <rect x="290" y="310" width="160" height="56" rx="10" fill="url(#cad-amber)" opacity="0.25" stroke="#fbbf24"/>
+      <text x="370" y="344" text-anchor="middle">$ agent ②</text>
+      <rect x="110" y="390" width="160" height="56" rx="10" fill="url(#cad-amber)" opacity="0.25" stroke="#fbbf24"/>
+      <text x="190" y="424" text-anchor="middle">$ agent ③</text>
+      <rect x="290" y="390" width="160" height="56" rx="10" fill="url(#cad-amber)" opacity="0.25" stroke="#fbbf24"/>
+      <text x="370" y="424" text-anchor="middle">$ agent ④</text>
+    </g>
+    <text x="280" y="492" text-anchor="middle" fill="#fca5a5" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18" font-weight="600">창을 닫으면 세션도 죽는다</text>
+    <text x="280" y="520" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16">상태 공유 없음 · 클라이언트 하나뿐</text>
+  </g>
+
+  <!-- 화살표 -->
+  <g stroke="#e2e8f0" stroke-width="4" fill="none" opacity="0.85">
+    <path d="M 500 395 L 575 395"/>
+    <path d="M 561 381 L 581 395 L 561 409"/>
+  </g>
+
+  <!-- 오른쪽: 데몬 모델 -->
+  <g>
+    <rect x="610" y="240" width="510" height="310" rx="18" fill="#38bdf8" opacity="0.08" stroke="#38bdf8" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="865" y="282" text-anchor="middle" fill="#38bdf8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="23" font-weight="700">오늘: 하나의 상주 서버</text>
+    <rect x="735" y="304" width="260" height="78" rx="12" fill="url(#cad-sky)" opacity="0.9"/>
+    <text x="865" y="336" text-anchor="middle" fill="#0f172a" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="800">에이전트 데몬</text>
+    <text x="865" y="362" text-anchor="middle" fill="#0f172a" font-family="ui-monospace,monospace" font-size="15" font-weight="600">세션 · 권한 · 도구 · API 키</text>
+    <g stroke="#38bdf8" stroke-width="2.5" fill="none" opacity="0.8">
+      <path d="M 700 460 L 790 386"/>
+      <path d="M 810 460 L 845 386"/>
+      <path d="M 920 460 L 885 386"/>
+      <path d="M 1030 460 L 940 386"/>
+    </g>
+    <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" fill="#bae6fd" text-anchor="middle" font-weight="600">
+      <rect x="650" y="462" width="100" height="44" rx="9" fill="#38bdf8" opacity="0.18" stroke="#38bdf8"/>
+      <text x="700" y="490">터미널</text>
+      <rect x="760" y="462" width="100" height="44" rx="9" fill="#38bdf8" opacity="0.18" stroke="#38bdf8"/>
+      <text x="810" y="490">데스크톱</text>
+      <rect x="870" y="462" width="100" height="44" rx="9" fill="#38bdf8" opacity="0.18" stroke="#38bdf8"/>
+      <text x="920" y="490">웹</text>
+      <rect x="980" y="462" width="100" height="44" rx="9" fill="#38bdf8" opacity="0.18" stroke="#38bdf8"/>
+      <text x="1030" y="490">IDE</text>
+    </g>
+    <!-- 경고 배지 -->
+    <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="15" font-weight="700">
+      <rect x="1000" y="296" width="106" height="30" rx="15" fill="#e11d48" opacity="0.85"/>
+      <text x="1053" y="317" text-anchor="middle" fill="#fff">자동 업데이트</text>
+      <rect x="1000" y="334" width="106" height="30" rx="15" fill="#d97706" opacity="0.9"/>
+      <text x="1053" y="355" text-anchor="middle" fill="#fff">키 보관</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,363 @@
+---
+title: "코딩 에이전트가 데몬이 되다 — Codex·OpenCode는 왜 상주 서버로 갔고, 무엇이 논란이 됐나"
+date: 2026-10-19T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "코딩 에이전트", "데몬", "daemon", "Codex CLI", "OpenCode", "클라이언트-서버", "로컬 서버", "자동 업데이트", "세션 관리", "API 키", "보안", "신뢰 경계", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 코딩 에이전트 씬은 한 가지 아키텍처 질문으로 수렴했습니다. 10/12~14 OpenCode 2.0이 '모든 클라이언트가 접속하는 하나의 백그라운드 서비스'로 재설계를 발표했고, 10/15에는 Codex CLI가 상주·자가 업데이트 데몬을 기본으로 깔아 둔다는 사실이 Hacker News를 달궜으며, 10/17에는 OpenCode Console이 저장된 API 키를 노린 distillation 공격 침해를 공개했습니다. '명령 한 번 = 프로세스 하나'였던 코딩 에이전트가 왜 ssh-agent나 dockerd 같은 상주 서버가 되고 있는지, 두 구현(OpenCode의 localhost HTTP+OpenAPI, Codex의 유닉스 소켓+JSON-RPC)은 코드 레벨에서 어떻게 다른지, 그리고 데몬이 가져오는 세금 — 자동 업데이트로 인한 작업 중단, 버전 skew, 크레덴셜 집중 — 을 junior 개발자 눈높이에서 쉽고 자세하게 풀어봅니다."
+ShowToc: false
+cover:
+  image: "coding-agent-daemon-architecture-cover.svg"
+  alt: "터미널마다 프로세스를 띄우던 코딩 에이전트가 터미널·데스크톱·웹·IDE가 모두 접속하는 하나의 상주 데몬으로 바뀌고, 그 데몬에 자동 업데이트와 API 키 보관이라는 경고 배지가 붙어 있는 그림"
+  caption: "에이전트 런타임이 터미널 프로세스에서 상주 서버로 옮겨 가고 있습니다. 얻는 것과 치르는 값이 모두 분명해진 한 주였습니다."
+  relative: false
+---
+
+<style>
+/* ── 코딩 에이전트 데몬 포스트 전용 스타일 (cad- 접두사) ── */
+.cad-fig{
+  --cad-green:#16a34a; --cad-rose:#e11d48; --cad-amber:#d97706; --cad-sky:#0284c7;
+  --cad-violet:#7c3aed; --cad-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .cad-fig{
+  --cad-green:#4ade80; --cad-rose:#fb7185; --cad-amber:#fbbf24; --cad-sky:#38bdf8;
+  --cad-violet:#a78bfa; --cad-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .cad-fig{
+    --cad-green:#4ade80; --cad-rose:#fb7185; --cad-amber:#fbbf24; --cad-sky:#38bdf8;
+    --cad-violet:#a78bfa; --cad-slate:#94a3b8;
+  }
+}
+.cad-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.cad-fig text{font-family:inherit}
+.cad-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.cad-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.cad-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.cad-toc ol{margin:0;padding-left:1.25rem}
+.cad-toc li{margin:.22rem 0;font-size:.95rem}
+.cad-toc a{text-decoration:none}
+.cad-toc a:hover{text-decoration:underline}
+.cad-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.cad-table th,.cad-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.cad-table th{background:var(--entry)}
+.cad-note{border-left:4px solid var(--cad-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.cad-warn{border-left:4px solid var(--cad-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="cad-toc">
+  <div class="cad-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 한 주에 몰린 세 사건, 질문은 하나</a></li>
+    <li><a href="#sec-2">배경 — 일회성 프로세스와 상주 데몬, 그리고 선배들</a></li>
+    <li><a href="#sec-3">에이전트는 왜 데몬을 원하나</a></li>
+    <li><a href="#sec-4">구현 해부 ① — OpenCode 2.0: localhost HTTP 서버</a></li>
+    <li><a href="#sec-5">구현 해부 ② — Codex: 유닉스 소켓 위의 app-server</a></li>
+    <li><a href="#sec-6">데몬의 세금 — 자동 업데이트, 버전 skew, 키 금고</a></li>
+    <li><a href="#sec-7">실전 — 내 머신의 에이전트 데몬 점검하기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-ref">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">도입 — 한 주에 몰린 세 사건, 질문은 하나</h2>
+
+<p>이번 주(10/12~18) 코딩 에이전트 씬에서는 서로 달라 보이는 사건 세 개가 연달아 터졌습니다. 시간순으로 놓고 보면 사실 하나의 이야기입니다.</p>
+
+<ul>
+  <li><strong>10/12~14 — OpenCode 2.0 공개.</strong> 오픈소스 코딩 에이전트 OpenCode가 2.0을 공식 발표하고 <a href="https://aitoolly.com/ai-news/article/2026-10-14-opencode-20-featured-on-product-hunt-following-submission-by-industry-veteran-chris-messina" target="_blank" rel="noopener">Product Hunt에도 올랐습니다</a>. 핵심 변화는 기능이 아니라 구조입니다. 터미널마다 따로 뜨던 프로세스를 버리고, <strong>터미널·데스크톱 앱·웹 UI가 전부 하나의 백그라운드 서비스에 접속</strong>하는 구조로 다시 썼습니다.</li>
+  <li><strong>10/15 — Codex CLI 데몬 논란.</strong> OpenAI의 Codex CLI가 <strong>상주하며 스스로 업데이트하는 백그라운드 데몬을 기본으로 설치</strong>한다는 사실이 알려지며 <a href="https://news.ycombinator.com/item?id=50060694" target="_blank" rel="noopener">Hacker News 프런트페이지</a>에 올랐습니다. 공식 문서에는 데몬 설명이 없고, 끄는 방법도 비공식 플래그뿐이라는 점에 "malware 같다"는 격한 반응까지 나왔습니다.</li>
+  <li><strong>10/17 — OpenCode Console 침해 공개.</strong> OpenCode가 <a href="https://x.com/opencode/status/2111519637049319818" target="_blank" rel="noopener">X 공지</a>로 Console 사용자 1.4%에 영향을 준 보안 침해를 알렸습니다. 공격자는 사용자가 연결해 둔 OpenAI·Anthropic·Google <strong>API 키를 탈취해 대규모 distillation 공격</strong>에 썼고, 피해자들은 자신이 쓰지 않은 요금 청구를 목격했습니다.</li>
+</ul>
+
+<p>세 사건을 관통하는 질문은 이겁니다. <strong>"코딩 에이전트 런타임은 어디서, 어떤 모습으로 살아야 하는가?"</strong> 1년 전 코딩 에이전트는 터미널에서 명령 한 번에 뜨고 창을 닫으면 사라지는 CLI 프로그램이었습니다. 지금은 두 주요 에이전트가 모두, 운영체제에 상주하면서 여러 클라이언트를 받아 주는 <strong>로컬 서버(데몬)</strong>로 이사하는 중입니다. 왜 이런 전환이 일어나는지, 코드 레벨에서 어떻게 구현됐는지, 그리고 이번 주 논란이 보여 준 비용은 무엇인지 차근차근 보겠습니다.</p>
+
+<h2 id="sec-2">배경 — 일회성 프로세스와 상주 데몬, 그리고 선배들</h2>
+
+<p>용어부터 정리하겠습니다. <strong>데몬(daemon)</strong>은 터미널에 붙어 있지 않고 백그라운드에서 계속 도는 프로세스입니다. 보통 ① 사용자가 명시적으로 띄우지 않아도 필요할 때 자동으로 시작되고, ② 터미널이나 앱을 닫아도 살아남으며, ③ 소켓 같은 통신 채널로 요청을 받아 처리합니다.</p>
+
+<p>일회성 CLI와 데몬의 차이는 "일을 누가 들고 있느냐"입니다. 일회성 CLI에서는 프로세스가 곧 작업입니다. 프로세스가 죽으면 진행 중이던 모든 상태 — 대화 히스토리, 켜 둔 권한, 파일 감시 — 가 함께 사라집니다. 데몬 모델에서는 작업이 서버에 살고, CLI는 서버에 붙었다 떨어지는 얇은 클라이언트가 됩니다.</p>
+
+<p>이 전환 자체는 전혀 새롭지 않습니다. 개발 도구의 역사에서 반복돼 온 패턴입니다.</p>
+
+<ul>
+  <li><strong>Docker</strong>: <code>docker run</code>이라는 CLI는 사실 상주 데몬 <code>dockerd</code>에 API 요청을 보내는 클라이언트입니다. 컨테이너는 CLI가 아니라 데몬이 들고 있어서, 터미널을 닫아도 계속 돕니다.</li>
+  <li><strong>LSP(Language Server Protocol)</strong>: 자동완성·정의 이동 같은 언어 지능을 에디터마다 다시 구현하는 대신, 언어 서버 하나를 띄우고 모든 에디터가 JSON-RPC로 접속하게 만들었습니다. "클라이언트가 여럿이면 엔진을 서버로 뽑아내라"의 교과서적 사례입니다.</li>
+  <li><strong><code>ssh-agent</code></strong>: 개인 키를 메모리에 들고 상주하면서, 여러 ssh 세션이 소켓으로 서명을 요청하게 합니다. <strong>크레덴셜을 한 프로세스에 모아 두는</strong> 데몬의 원형입니다.</li>
+</ul>
+
+<p>코딩 에이전트의 데몬 전환은 이 세 선배의 동기를 전부 물려받았습니다. 그리고 뒤에서 보겠지만, 위험도 전부 물려받았습니다.</p>
+
+<h2 id="sec-3">에이전트는 왜 데몬을 원하나</h2>
+
+<p>그냥 CLI로 두면 안 됐을까요? 에이전트 워크로드의 네 가지 변화가 상주 서버를 강하게 요구합니다.</p>
+
+<p><strong>첫째, 클라이언트가 여럿이 됐습니다.</strong> 같은 에이전트를 터미널에서도, 데스크톱 앱에서도, 웹에서도, IDE 확장에서도 씁니다. 엔진을 프런트엔드마다 내장하면 상태가 갈라집니다. 터미널에서 시작한 세션을 데스크톱에서 이어 보려면, 세션은 어느 한 프런트엔드가 아니라 <strong>공유 서버</strong>에 살아야 합니다. LSP가 풀었던 문제 그대로입니다.</p>
+
+<p><strong>둘째, 세션이 프로세스보다 오래 삽니다.</strong> 에이전트 작업은 이제 수십 분짜리가 흔합니다. 터미널 창을 실수로 닫았다고 30분짜리 리팩터링이 날아가면 곤란합니다. 세션을 데몬이 들고 있으면 클라이언트는 언제든 다시 붙으면 됩니다. 실제로 Codex CLI 소스에는 <code>codex agents</code>라는 명령이 "공유 로컬 app-server 데몬 위의 모든 에이전트 세션을 둘러본다"고 설명돼 있습니다.</p>
+
+<p><strong>셋째, 백그라운드 작업이 늘었습니다.</strong> 서브에이전트를 병렬로 돌리고, 긴 테스트를 돌려 두고 다른 일을 하는 식의 워크플로는 "요청을 받아 두고 나중에 결과를 돌려주는" 서버 구조와 자연스럽게 맞습니다.</p>
+
+<p><strong>넷째, 프로그래밍 가능한 표면이 필요해졌습니다.</strong> 에이전트를 스크립트나 다른 도구에서 조작하려면 안정된 API가 필요합니다. OpenCode는 아예 서버의 OpenAPI 스펙에서 SDK를 생성해 배포합니다. "에이전트 = 로컬 API 서버"가 되면 에이전트 위에 도구를 쌓는 일이 보통의 웹 개발과 같아집니다.</p>
+
+<figure class="cad-fig">
+<svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="일회성 프로세스 모델과 공유 데몬 모델의 비교. 왼쪽에서는 터미널 두 개가 각각 UI와 엔진과 세션을 통째로 들고 있어 서로 상태를 공유하지 못하고 창을 닫으면 세션이 사라진다. 오른쪽에서는 터미널, 데스크톱, 웹, IDE 네 클라이언트가 세션 저장소, 권한, 도구 실행, 프로바이더 키를 가진 하나의 에이전트 데몬에 접속하고, 클라이언트가 떨어져도 세션은 데몬에 남는다.">
+  <text x="450" y="28" text-anchor="middle" font-size="17" font-weight="700" fill="currentColor">에이전트는 어디에 사는가 — 프로세스 모델의 전환</text>
+
+  <!-- 왼쪽: 일회성 -->
+  <g>
+    <rect x="25" y="50" width="400" height="350" rx="14" fill="none" stroke="var(--cad-amber)" stroke-width="2"/>
+    <text x="225" y="80" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--cad-amber)">일회성 프로세스 — 프로세스가 곧 작업</text>
+    <g>
+      <rect x="55" y="100" width="160" height="200" rx="10" fill="var(--cad-amber)" opacity="0.14" stroke="var(--cad-amber)"/>
+      <rect x="235" y="100" width="160" height="200" rx="10" fill="var(--cad-amber)" opacity="0.14" stroke="var(--cad-amber)"/>
+    </g>
+    <g font-size="12" fill="currentColor" text-anchor="middle">
+      <text x="135" y="125" font-weight="700">터미널 ①</text>
+      <text x="135" y="152">TUI</text>
+      <text x="135" y="176">+ 에이전트 엔진</text>
+      <text x="135" y="200">+ 세션 상태</text>
+      <text x="135" y="224">+ 권한 설정</text>
+      <text x="135" y="248">+ 프로바이더 키</text>
+      <text x="315" y="125" font-weight="700">터미널 ②</text>
+      <text x="315" y="152">TUI</text>
+      <text x="315" y="176">+ 에이전트 엔진</text>
+      <text x="315" y="200">+ 세션 상태</text>
+      <text x="315" y="224">+ 권한 설정</text>
+      <text x="315" y="248">+ 프로바이더 키</text>
+    </g>
+    <path d="M 215 200 L 235 200" stroke="var(--cad-rose)" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
+    <text x="225" y="192" text-anchor="middle" font-size="16" fill="var(--cad-rose)">✕</text>
+    <text x="225" y="330" text-anchor="middle" font-size="12" font-weight="700" fill="var(--cad-rose)">상태 공유 불가 · 창을 닫으면 세션 소멸</text>
+    <text x="225" y="352" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.75">같은 엔진이 프로세스 수만큼 복제됨</text>
+  </g>
+
+  <!-- 오른쪽: 데몬 -->
+  <g>
+    <rect x="475" y="50" width="400" height="350" rx="14" fill="none" stroke="var(--cad-sky)" stroke-width="2"/>
+    <text x="675" y="80" text-anchor="middle" font-size="14.5" font-weight="700" fill="var(--cad-sky)">공유 데몬 — 작업이 서버에 산다</text>
+    <rect x="545" y="100" width="260" height="110" rx="10" fill="var(--cad-sky)" opacity="0.2" stroke="var(--cad-sky)"/>
+    <g font-size="12" fill="currentColor" text-anchor="middle">
+      <text x="675" y="124" font-weight="700">에이전트 데몬 (1개)</text>
+      <text x="675" y="148">세션 저장소 · 권한 · 도구 실행</text>
+      <text x="675" y="170">모델 호출 · 프로바이더 키</text>
+      <text x="675" y="194" font-weight="700" fill="var(--cad-green)">클라이언트가 죽어도 세션은 산다</text>
+    </g>
+    <g stroke="var(--cad-sky)" stroke-width="2" opacity="0.8" stroke-dasharray="6 4" fill="none">
+      <path d="M 540 310 L 610 212"/>
+      <path d="M 630 310 L 655 212"/>
+      <path d="M 720 310 L 695 212"/>
+      <path d="M 810 310 L 740 212"/>
+    </g>
+    <g font-size="11.5" fill="currentColor" text-anchor="middle">
+      <rect x="500" y="312" width="80" height="40" rx="8" fill="var(--cad-sky)" opacity="0.13" stroke="var(--cad-sky)"/>
+      <text x="540" y="336" font-weight="700">터미널</text>
+      <rect x="590" y="312" width="80" height="40" rx="8" fill="var(--cad-sky)" opacity="0.13" stroke="var(--cad-sky)"/>
+      <text x="630" y="336" font-weight="700">데스크톱</text>
+      <rect x="680" y="312" width="80" height="40" rx="8" fill="var(--cad-sky)" opacity="0.13" stroke="var(--cad-sky)"/>
+      <text x="720" y="336" font-weight="700">웹 UI</text>
+      <rect x="770" y="312" width="80" height="40" rx="8" fill="var(--cad-sky)" opacity="0.13" stroke="var(--cad-sky)"/>
+      <text x="810" y="336" font-weight="700">IDE</text>
+    </g>
+    <text x="675" y="382" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.75">얇은 클라이언트: 그리기와 입력만 담당</text>
+  </g>
+</svg>
+<figcaption>그림 1. 일회성 프로세스 모델에서는 터미널마다 엔진과 세션이 복제되고 창을 닫으면 사라집니다. 데몬 모델에서는 세션·권한·키가 하나의 상주 서버에 살고, 모든 프런트엔드는 얇은 클라이언트가 됩니다.</figcaption>
+</figure>
+
+<h2 id="sec-4">구현 해부 ① — OpenCode 2.0: localhost HTTP 서버</h2>
+
+<p>이제 두 구현이 실제로 어떻게 생겼는지 보겠습니다. 둘 다 오픈소스라 코드로 직접 확인할 수 있습니다.</p>
+
+<p>OpenCode는 원래부터 서버 지향이었습니다. v1에서도 <code>opencode</code>를 실행하면 내부적으로 HTTP 서버가 뜨고 TUI는 그 서버의 클라이언트로 동작했습니다. <a href="https://opencode.ai/docs/server/" target="_blank" rel="noopener">공식 문서</a>가 설명하듯 <code>opencode serve</code>로 headless 서버만 따로 띄울 수도 있고, 서버는 OpenAPI 3.1 스펙을 <code>/doc</code> 경로에 게시하며, 이 스펙에서 SDK가 생성됩니다. 다만 v1에서는 <strong>터미널마다 서버가 하나씩</strong> 떴습니다.</p>
+
+<p>2.0의 전환은 "서버를 하나로 합치기"입니다. 여러 분석 글이 전하듯 터미널·데스크톱·웹이 <a href="https://capitalandcompute.net/blog/opencode-2-0-what-changed/" target="_blank" rel="noopener">같은 백그라운드 서비스 하나에 접속</a>합니다. 저장소 코드를 열어 보면 설계가 꽤 구체적으로 드러납니다. CLI의 <code>service-config.ts</code>는 서비스 등록 파일(<code>service.json</code>)에 호스트명·포트·비밀번호·CORS 허용 목록을 저장하고, 기본 포트는 재치 있게도 <strong><code>0xC0DE</code>, 즉 49374번</strong>입니다. Windows에서는 Hyper-V가 그 대역을 예약하는 문제를 피해 <code>0xB0DE</code>(45278)로 옮깁니다. 소스 주석에 "低 12비트를 유지한다: 0xC0DE가 0xB0DE가 된다"는 설명까지 달려 있습니다.</p>
+
+<p>보안 표면도 명시적입니다. 서버는 기본적으로 <code>127.0.0.1</code>에만 바인딩되고, <code>OPENCODE_SERVER_PASSWORD</code>를 설정하면 HTTP basic auth가 걸립니다. 외부에서 접속하는 원격 접근은 기본 꺼짐이고, 켜면 <strong>예측 불가능한 비밀 서브도메인</strong>이 생성되며(끄고 다시 켜면 주소가 바뀝니다), 사용자가 "인터넷에 노출하는 데 동의했다"는 플래그(<code>remoteAccepted</code>)를 명시적으로 기록합니다. 상주 서버가 생기는 순간 이런 것들이 전부 설계 항목이 된다는 점을 눈여겨봐 두세요.</p>
+
+<h2 id="sec-5">구현 해부 ② — Codex: 유닉스 소켓 위의 app-server</h2>
+
+<p>Codex CLI는 Rust로 짜인 <strong>app-server</strong>라는 데몬을 씁니다. 전송 계층이 OpenCode와 다릅니다. TCP 포트 대신 <strong>유닉스 도메인 소켓(Unix domain socket)</strong> — 네트워크가 아니라 파일시스템 경로로 접근하는 프로세스 간 통신 채널 — 을 씁니다. 소스 기준으로 제어 소켓은 <code>$CODEX_HOME/app-server-control/app-server-control.sock</code>에 생기고, 그 위로 WebSocket을 올려 JSON-RPC 메시지를 주고받습니다. 프로토콜은 <code>thread/list</code>, <code>turn/completed</code>처럼 스레드(세션)와 턴을 일급 개념으로 다룹니다.</p>
+
+<p>유닉스 소켓 선택에는 보안상 장점이 있습니다. TCP localhost 포트는 그 머신의 모든 로컬 프로세스(브라우저에서 돌아가는 악성 스크립트 포함)가 접근을 시도할 수 있지만, 유닉스 소켓은 파일 권한으로 접근을 제한할 수 있습니다. 대신 원격·브라우저 클라이언트를 받기 어렵습니다. OpenCode가 HTTP를 고른 것과 정확히 반대 방향의 트레이드오프입니다.</p>
+
+<table class="cad-table">
+  <thead><tr><th></th><th>OpenCode 2.0</th><th>Codex CLI (app-server)</th></tr></thead>
+  <tbody>
+    <tr><td>전송</td><td>localhost TCP — HTTP + SSE 이벤트 스트림</td><td>유닉스 도메인 소켓 + WebSocket, JSON-RPC</td></tr>
+    <tr><td>주소</td><td>기본 포트 <code>0xC0DE</code>=49374 (Windows 45278)</td><td><code>$CODEX_HOME/app-server-control/app-server-control.sock</code></td></tr>
+    <tr><td>API 계약</td><td>OpenAPI 3.1 스펙 공개(<code>/doc</code>), 스펙에서 SDK 생성</td><td>JSON-RPC 프로토콜 크레이트(<code>thread/*</code>, <code>turn/*</code>)</td></tr>
+    <tr><td>인증</td><td>basic auth(<code>OPENCODE_SERVER_PASSWORD</code>), 기본 127.0.0.1 바인딩</td><td>소켓 파일 권한 + 연결-인증 소유자 바인딩</td></tr>
+    <tr><td>원격 접근</td><td>옵트인, 비밀 랜덤 서브도메인, 명시적 동의 기록</td><td>옵트인(<code>codex daemon enable-remote-control</code>)</td></tr>
+    <tr><td>수동 제어</td><td><code>opencode serve</code>로 headless 서버 직접 실행</td><td><code>codex daemon start/stop/restart/version</code>, <code>--no-daemon</code></td></tr>
+    <tr><td>자동 시작</td><td>클라이언트가 서비스 발견·시동 (<code>@opencode/client</code>)</td><td><code>daemon_auto_start</code> 기능 플래그 — <strong>기본 켜짐</strong></td></tr>
+  </tbody>
+</table>
+
+<p>표의 마지막 줄이 이번 주 논란의 진원지입니다. Codex 소스의 기능 플래그 정의를 보면 <code>daemon_auto_start</code>는 안정(Stable) 단계에 <code>default_enabled: true</code>로 선언돼 있습니다. 즉 사용자가 아무것도 설정하지 않아도, <code>codex</code>를 실행하는 순간 데몬이 깔리고 상주를 시작합니다.</p>
+
+<h2 id="sec-6">데몬의 세금 — 자동 업데이트, 버전 skew, 키 금고</h2>
+
+<p>10/15 Hacker News 논란의 제목은 "Codex CLI installs a persistent, self-updating background daemon by default"였습니다. 쟁점을 하나씩 분해해 보면, 전부 <strong>데몬이라는 아키텍처가 구조적으로 만들어 내는 비용</strong>입니다.</p>
+
+<p><strong>① 동의 없는 상주.</strong> 데몬은 사용자가 띄운 적 없는 프로세스가 계속 돌고 있다는 뜻입니다. 그 자체는 dockerd도 마찬가지지만, Docker는 설치 과정에서 데몬의 존재가 명시적입니다. Codex의 데몬은 <a href="https://github.com/openai/codex/issues/48195" target="_blank" rel="noopener">GitHub 이슈 #48195</a>가 지적하듯 기본 켜짐인데, 제가 저장소 <code>docs/</code> 디렉터리를 직접 확인해 봐도 데몬을 설명하는 공식 문서가 없습니다. 끄는 방법(<code>config.toml</code>의 <code>[features] daemon_auto_start = false</code>)은 커뮤니티 정리 글을 통해 퍼졌습니다.</p>
+
+<p><strong>② 자가 업데이트가 작업을 중단시킨다.</strong> Codex 데몬의 업데이트 루프는 소스 기준으로 <strong>시작 5분 뒤 첫 확인, 이후 기본 60분 간격</strong>으로 새 버전을 확인하고(<code>auto_update_enabled</code> 역시 기본 켜짐), 설치 후 데몬을 재시작합니다. CLI의 <code>codex daemon update</code> 도움말조차 "진행 중인 작업을 중단시킬 수 있음(may interrupt running work)"이라고 적어 뒀습니다. 실제로 <a href="https://github.com/openai/codex/issues/51763" target="_blank" rel="noopener">이슈 #51763</a>에는 자동 업데이트가 활성 세션을 끊어 버리고, 업데이트된 데몬이 아직 안 업데이트된 클라이언트와 호환되지 않는 상태를 만들었다는 보고가 올라와 있습니다.</p>
+
+<p><strong>③ 버전 skew.</strong> 엔진과 UI가 한 바이너리일 때는 존재하지 않던 문제입니다. 클라이언트와 서버가 따로 업데이트되는 순간, "서버는 v2인데 클라이언트는 v1" 조합이 생깁니다. 두 프로젝트 모두 이를 코드로 방어합니다. Codex의 데몬 시동 정책은 자동 시동 시 <strong>호환되는 공유 서버</strong>를 요구하고 실패하면 내장(embedded) 모드로 떨어지며, OpenCode는 서비스 등록 파일에 버전·채널을 기록하고 채널마다 포트를 분리해 dev 빌드와 안정 빌드가 서로의 데몬에 붙는 사고를 막습니다. 데몬을 직접 만든다면 반드시 베껴야 할 설계입니다.</p>
+
+<p><strong>④ 환경의 고착.</strong> 데몬은 <em>처음 띄운 프로세스의</em> 환경변수를 들고 계속 삽니다. HN 스레드에서는 첫 세션의 프록시 설정이 데몬에 박제돼 이후 세션에 계속 적용되는 문제가 지적됐습니다. 터미널에서 <code>export HTTPS_PROXY=...</code>를 바꿔도 이미 떠 있는 데몬에는 전달되지 않습니다. 일회성 CLI 감각으로는 도저히 디버깅이 안 되는 종류의 문제입니다.</p>
+
+<figure class="cad-fig">
+<svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="데몬 자가 업데이트의 타임라인. 데몬이 시작되고 5분 뒤 첫 업데이트 확인, 이후 60분 간격으로 확인한다. 어느 확인 시점에 새 버전이 발견되면 설치와 재시작이 일어나는데, 바로 그때 돌고 있던 40분짜리 에이전트 세션이 끊기고, 재시작된 신버전 데몬과 구버전 클라이언트 사이에 버전 불일치가 생기는 과정을 보여준다.">
+  <text x="450" y="28" text-anchor="middle" font-size="16.5" font-weight="700" fill="currentColor">자가 업데이트 루프가 만드는 두 가지 사고 (Codex 소스 기준 기본값)</text>
+
+  <!-- 타임라인 축 -->
+  <line x1="60" y1="110" x2="840" y2="110" stroke="var(--cad-slate)" stroke-width="2"/>
+  <g fill="var(--cad-slate)">
+    <circle cx="90" cy="110" r="5"/>
+    <circle cx="230" cy="110" r="5"/>
+    <circle cx="420" cy="110" r="5"/>
+    <circle cx="610" cy="110" r="7" fill="var(--cad-rose)"/>
+  </g>
+  <g font-size="12" fill="currentColor" text-anchor="middle">
+    <text x="90" y="90" font-weight="700">데몬 시작</text>
+    <text x="230" y="90">+5분: 첫 확인</text>
+    <text x="420" y="90">+60분 간격 확인</text>
+    <text x="610" y="88" font-weight="700" fill="var(--cad-rose)">새 버전 발견!</text>
+  </g>
+  <g font-size="11" fill="currentColor" opacity="0.7" text-anchor="middle">
+    <text x="90" y="135">codex 첫 실행 시</text>
+    <text x="230" y="135">INITIAL_UPDATE_DELAY</text>
+    <text x="420" y="135">update_interval 기본 60분</text>
+  </g>
+
+  <!-- 사고 1: 세션 중단 -->
+  <rect x="140" y="180" width="440" height="42" rx="8" fill="var(--cad-green)" opacity="0.2" stroke="var(--cad-green)"/>
+  <text x="360" y="206" text-anchor="middle" font-size="12.5" fill="currentColor">돌고 있던 에이전트 세션 (40분째 리팩터링 중…)</text>
+  <path d="M 610 117 L 610 222" stroke="var(--cad-rose)" stroke-width="2.5" stroke-dasharray="5 4" fill="none"/>
+  <text x="596" y="208" text-anchor="end" font-size="15" font-weight="700" fill="var(--cad-rose)">✕ 재시작이 세션을 끊음</text>
+
+  <!-- 사고 2: 버전 skew -->
+  <g>
+    <rect x="620" y="250" width="240" height="56" rx="10" fill="var(--cad-violet)" opacity="0.16" stroke="var(--cad-violet)"/>
+    <text x="740" y="273" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">데몬: v0.158 (신)</text>
+    <text x="740" y="293" text-anchor="middle" font-size="11.5" fill="currentColor">업데이트 후 자동 재시작</text>
+    <rect x="320" y="250" width="240" height="56" rx="10" fill="var(--cad-amber)" opacity="0.16" stroke="var(--cad-amber)"/>
+    <text x="440" y="273" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor">클라이언트: v0.157 (구)</text>
+    <text x="440" y="293" text-anchor="middle" font-size="11.5" fill="currentColor">터미널에 설치된 CLI는 그대로</text>
+    <path d="M 560 278 L 620 278" stroke="var(--cad-rose)" stroke-width="2.5" fill="none"/>
+    <text x="590" y="268" text-anchor="middle" font-size="14" font-weight="700" fill="var(--cad-rose)">⚡</text>
+    <text x="590" y="335" text-anchor="middle" font-size="12" font-weight="700" fill="var(--cad-rose)">버전 skew: 기능 불일치 (이슈 #51763)</text>
+  </g>
+
+  <text x="450" y="378" text-anchor="middle" font-size="12" fill="currentColor" opacity="0.75">방어책: 호환성 검사 후 내장 모드로 폴백(Codex) · 채널별 포트/등록 파일 분리(OpenCode) · 끄기: [features] daemon_auto_start = false</text>
+</svg>
+<figcaption>그림 2. 자가 업데이트 루프(시작 +5분, 이후 기본 60분 간격 — Codex 소스의 기본값)는 편리하지만, 재시작이 진행 중인 세션을 끊을 수 있고 데몬과 클라이언트의 버전이 어긋나는 skew를 만듭니다. 두 사고 모두 실제 이슈로 보고됐습니다.</figcaption>
+</figure>
+
+<p><strong>⑤ 그리고 키 금고.</strong> 데몬·플랫폼 전환의 마지막 비용은 10/17 OpenCode Console 침해가 보여 줬습니다. 에이전트 런타임은 성격상 가장 민감한 크레덴셜 — 모델 프로바이더 API 키 — 을 보관합니다. 로컬 데몬이면 내 디스크에, Console 같은 클라우드 서비스에 연결하면 그쪽 서버에 저장되죠. OpenCode의 공지에 따르면 공격자는 폐기 중이던 레거시 시스템을 통해 Console 사용자 1.4%의 연결된 프로바이더 키에 접근했고, 이 키들로 <strong>distillation 공격</strong> — 훔친 키로 프런티어 모델에 대량 질의를 던져 그 출력을 자기 모델 학습 데이터로 수집하는 공격 — 을 돌렸습니다. <a href="https://www.notebookcheck.net/OpenCode-hacked-users-urged-to-revoke-their-API-keys.1426957.0.html" target="_blank" rel="noopener">피해 사용자들은 승인한 적 없는 사용량 청구</a>를 보고 이상을 알아챘습니다. 훔친 API 키가 그 자체로 "프런티어 모델 출력을 뽑는 자원"으로 거래되는 시대라는 뜻이기도 합니다.</p>
+
+<div class="cad-warn">
+<strong>교훈을 정확히 읽기:</strong> 이 침해는 로컬 데몬이 아니라 OpenCode의 클라우드 서비스(Console)에서 일어났습니다. 로컬 데몬 전환 자체의 취약점이 아닙니다. 그러나 방향은 같습니다 — 에이전트 인프라는 어디에 있든 <strong>크레덴셜이 집중되는 지점</strong>이 되고, 그래서 가장 매력적인 표적이 됩니다. 키를 맡기는 곳이 하나 늘 때마다 공격 표면도 하나 늡니다.</div>
+
+<h2 id="sec-7">실전 — 내 머신의 에이전트 데몬 점검하기</h2>
+
+<p>읽기만 하면 남의 일 같으니, 지금 내 머신에서 직접 확인해 봅시다. 코딩 에이전트를 하나라도 쓰고 있다면 몇 분이면 됩니다.</p>
+
+<p><strong>1단계 — 무엇이 떠 있는지 본다.</strong> 데몬은 프로세스 목록과 리스닝 소켓에 흔적을 남깁니다.</p>
+
+{{< highlight bash >}}
+# 에이전트 관련 상주 프로세스 찾기
+ps aux | grep -iE "codex|opencode" | grep -v grep
+
+# OpenCode 2.x 백그라운드 서비스의 기본 포트(0xC0DE=49374) 확인
+# (Windows는 45278, macOS는 lsof -i :49374)
+ss -ltnp | grep 49374
+
+# Codex 데몬: TCP 포트 대신 유닉스 소켓을 쓰므로 소켓 파일을 확인
+ls -l ~/.codex/app-server-control/
+{{< /highlight >}}
+
+<p><strong>2단계 — 공식 명령으로 상태를 묻는다.</strong> Codex는 데몬 관리 서브커맨드를 제공합니다. 설치된 CLI와 떠 있는 데몬의 버전을 나란히 보여 주는 <code>version</code>이 특히 유용합니다 — 앞서 본 버전 skew를 직접 눈으로 확인하는 명령입니다.</p>
+
+{{< highlight bash >}}
+codex daemon version   # CLI 버전과 실행 중인 app-server 버전을 JSON으로 출력
+codex daemon stop      # 데몬 중지
+codex daemon start     # 다시 시작
+
+# 데몬 없이 일회성 프로세스로 실행 (문제 격리용)
+codex --no-daemon
+{{< /highlight >}}
+
+<p><strong>3단계 — 정책을 명시한다.</strong> 자동 시작·자동 업데이트를 원하지 않으면 설정 파일에 적어 둡니다. "기본값에 동의하는지"를 한 번은 의식적으로 결정하는 것이 핵심입니다.</p>
+
+{{< highlight toml >}}
+# ~/.codex/config.toml — 데몬 자동 시작 끄기
+[features]
+daemon_auto_start = false
+{{< /highlight >}}
+
+<p><strong>4단계 — 서버를 역이용한다.</strong> 데몬 아키텍처는 위험만 주는 게 아니라 프로그래밍 표면도 줍니다. OpenCode 서버는 로컬에서 바로 호출할 수 있는 HTTP API입니다.</p>
+
+{{< highlight bash >}}
+# headless 서버를 명시적으로 띄우고 (기본 127.0.0.1:4096)
+opencode serve
+
+# 헬스 체크 — 서버 버전 확인
+curl http://localhost:4096/global/health
+
+# 서버가 게시하는 OpenAPI 3.1 스펙 — 전체 API 지도
+curl http://localhost:4096/doc
+
+# SSE 이벤트 스트림 구독 — 에이전트의 모든 활동이 실시간으로 흐른다
+curl -N http://localhost:4096/global/event
+{{< /highlight >}}
+
+<p>마지막 명령을 띄워 두고 다른 터미널에서 에이전트에게 일을 시켜 보세요. 세션 생성, 도구 호출, 메시지 스트림이 이벤트로 흘러갑니다. 에이전트 모니터링 대시보드나 커스텀 클라이언트가 "이 스트림을 구독하는 프로그램"일 뿐이라는 감각이 생기면, 이번 전환이 열어 주는 가능성이 보이기 시작합니다.</p>
+
+<h2 id="sec-8">흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"프로세스를 껐는데 설정이 안 먹어요."</strong> 데몬 모델에서 가장 흔한 함정입니다. 환경변수·프록시·설정 변경은 <em>이미 떠 있는 데몬</em>에 전달되지 않습니다. 설정을 바꿨으면 <code>codex daemon restart</code>처럼 데몬을 재시작하세요. "터미널을 새로 열면 리셋된다"는 직관은 더 이상 통하지 않습니다.</li>
+  <li><strong>기업 프록시 환경에서는 <code>NO_PROXY</code>부터.</strong> 클라이언트가 로컬 서버와 HTTP로 통신하는 구조에서는, 프록시 설정이 localhost 트래픽까지 가로채면 루프가 생깁니다. OpenCode 문서도 <code>NO_PROXY=localhost,127.0.0.1</code>을 필수로 안내합니다.</li>
+  <li><strong>버전 skew를 의심 목록에 넣기.</strong> 에이전트가 어제까지 되던 기능에서 이상하게 실패하면, 클라이언트·데몬 버전부터 비교하세요(<code>codex daemon version</code>). 자동 업데이트는 내가 모르는 사이에 반쪽만 일어날 수 있습니다.</li>
+  <li><strong>localhost 서버도 인증이 필요합니다.</strong> "내 컴퓨터 안인데 뭘"이라고 생각하기 쉽지만, 로컬의 다른 프로세스나 브라우저의 악성 스크립트도 localhost 포트에 요청을 보낼 수 있습니다. OpenCode라면 <code>OPENCODE_SERVER_PASSWORD</code>를 설정하고, 원격 접근은 꼭 필요할 때만 켜세요.</li>
+  <li><strong>에이전트에 연결한 API 키는 '위임한 키'로 관리하기.</strong> 지출 한도와 사용량 알림을 걸어 두면, OpenCode Console 피해자들이 그랬듯 이상 사용을 청구서가 아니라 알림으로 먼저 알 수 있습니다. 플랫폼 침해 공지가 뜨면 해당 키는 즉시 회전(revoke 후 재발급)이 기본입니다.</li>
+  <li><strong>데몬을 직접 만든다면 두 저장소를 교과서로.</strong> 채널별 포트 분리와 등록 파일(OpenCode), 호환성 검사 후 내장 모드 폴백과 <code>--no-daemon</code> 탈출구(Codex)는 전부 오픈소스로 공개돼 있습니다. 특히 <strong>탈출구 없는 데몬은 만들지 마세요</strong> — 이번 주 반발의 상당 부분은 기능이 아니라 "끌 수 없음"을 향했습니다.</li>
+</ul>
+
+<h2 id="sec-9">마무리 (TL;DR)</h2>
+
+<ul>
+  <li>이번 주(10/12~18) 세 사건 — OpenCode 2.0의 공유 서비스 재설계 발표, Codex CLI의 상주 데몬 논란(10/15 HN), OpenCode Console 키 유출(10/17) — 은 하나의 질문으로 수렴합니다: <strong>에이전트 런타임은 어디서 살아야 하는가.</strong></li>
+  <li>전환의 동기는 네 가지입니다. 멀티 클라이언트(터미널·데스크톱·웹·IDE), 프로세스보다 오래 사는 세션, 백그라운드 작업, 프로그래밍 가능한 API 표면. LSP·dockerd·ssh-agent가 걸었던 길 그대로입니다.</li>
+  <li>구현은 갈립니다. OpenCode는 <strong>localhost HTTP + OpenAPI 3.1 + SSE</strong>(기본 포트 0xC0DE=49374, basic auth, 옵트인 원격 터널), Codex는 <strong>유닉스 소켓 + WebSocket JSON-RPC</strong>(<code>$CODEX_HOME/app-server-control/</code>, 파일 권한 기반)입니다. 접근성과 격리의 트레이드오프입니다.</li>
+  <li>데몬의 세금: 동의 없는 상주(Codex <code>daemon_auto_start</code> 기본 켜짐 + 공식 문서 부재), <strong>자가 업데이트로 인한 세션 중단</strong>(시작 +5분, 이후 60분 간격 확인 — 소스 기본값), 클라이언트·서버 <strong>버전 skew</strong>, 첫 세션 환경변수의 고착, 그리고 <strong>크레덴셜 집중</strong>.</li>
+  <li>OpenCode Console 침해는 저장된 프로바이더 키(OpenAI·Anthropic·Google)가 탈취돼 distillation 공격에 쓰인 사건으로, Console 사용자 1.4%가 영향을 받았습니다. 에이전트 인프라는 어디에 있든 키 금고이고, 키 금고는 표적이 됩니다.</li>
+  <li>오늘 할 일: 내 머신의 에이전트 데몬을 확인하고(<code>ss -ltnp</code>, <code>codex daemon version</code>), 자동 시작·업데이트에 대한 내 정책을 설정 파일에 명시하고, 에이전트에 연결한 키에는 지출 한도·알림을 걸어 두기.</li>
+  <li>데몬을 설계한다면: 버전·채널 격리, 호환성 검사와 폴백, 명시적 동의 기록, 그리고 무엇보다 <strong>끌 수 있는 스위치</strong>. 이번 주 논란은 아키텍처가 아니라 '기본값과 투명성'을 향한 것이었습니다.</li>
+</ul>
+
+<h2 id="sec-ref">참고 자료</h2>
+
+<ul>
+  <li><a href="https://news.ycombinator.com/item?id=50060694" target="_blank" rel="noopener">Codex CLI installs a persistent, self-updating background daemon by default — Hacker News 토론 (2026-10-15)</a></li>
+  <li><a href="https://github.com/openai/codex/issues/48195" target="_blank" rel="noopener">CLI: make daemon_auto_start opt-in — openai/codex 이슈 #48195</a></li>
+  <li><a href="https://github.com/openai/codex/issues/51763" target="_blank" rel="noopener">Background daemon auto-update drains active session and leaves daemon incompatible with current Codex client — openai/codex 이슈 #51763</a></li>
+  <li><a href="https://github.com/openai/codex" target="_blank" rel="noopener">openai/codex 저장소 — 본문 인용 소스: features/src/lib.rs(daemon_auto_start), app-server-daemon/src/update_loop.rs·settings.rs(업데이트 주기), app-server-transport(유닉스 소켓 경로), cli/src/main.rs(daemon 서브커맨드)</a></li>
+  <li><a href="https://gigazine.net/gsc_news/en/20261015-codex-cli-background-daemon/" target="_blank" rel="noopener">Codex CLI installs a persistent, self-updating background daemon by default — GIGAZINE (2026-10-15)</a></li>
+  <li><a href="https://dev.to/akaranjkar08/codex-cli-daemon-what-it-does-and-how-to-turn-it-off-kk" target="_blank" rel="noopener">Codex CLI Daemon: What It Does and How to Turn It Off — DEV Community</a></li>
+  <li><a href="https://opencode.ai/docs/server/" target="_blank" rel="noopener">OpenCode Server 공식 문서 — opencode serve, OpenAPI 스펙, basic auth</a></li>
+  <li><a href="https://github.com/sst/opencode" target="_blank" rel="noopener">OpenCode 저장소 — 본문 인용 소스: packages/cli/src/services/service-config.ts(포트 0xC0DE·service.json·remoteAccepted), CHANGELOG.md(v2.0.26~32)</a></li>
+  <li><a href="https://capitalandcompute.net/blog/opencode-2-0-what-changed/" target="_blank" rel="noopener">OpenCode 2.0: What Changed and Should You Upgrade? — 버전 타임라인과 공유 서버 구조 분석</a></li>
+  <li><a href="https://aitoolly.com/ai-news/article/2026-10-14-opencode-20-featured-on-product-hunt-following-submission-by-industry-veteran-chris-messina" target="_blank" rel="noopener">OpenCode 2.0 Product Hunt 등재 (2026-10-12~14)</a></li>
+  <li><a href="https://x.com/opencode/status/2111519637049319818" target="_blank" rel="noopener">OpenCode 보안 침해 공지 — X (2026-10-17, 1차 출처)</a></li>
+  <li><a href="https://www.notebookcheck.net/OpenCode-hacked-users-urged-to-revoke-their-API-keys.1426957.0.html" target="_blank" rel="noopener">OpenCode confirms breach as users report AI charges they never authorised — Notebookcheck (2026-10)</a></li>
+  <li><a href="https://dev.to/gabrielanhaia/opencode-told-14-of-console-users-to-revoke-their-openai-and-anthropic-keys-561" target="_blank" rel="noopener">OpenCode Told 1.4% of Console Users to Revoke Their Keys — DEV Community</a></li>
+  <li><a href="https://microsoft.github.io/language-server-protocol/" target="_blank" rel="noopener">Language Server Protocol — '엔진을 서버로 뽑아내기'의 원형</a></li>
+  <li>(한국어) <a href="/posts/agent-runaway-cost-guardrails/">에이전트 폭주 비용과 예산 가드레일 엔지니어링 — 본 블로그 (키에 지출 한도를 거는 이유)</a></li>
+  <li>(한국어) <a href="/posts/agents-api-managed-harness/">하네스의 상품화 — OpenAI Agents API 해부 — 본 블로그 (클라우드 쪽에서 일어난 같은 전환)</a></li>
+</ul>

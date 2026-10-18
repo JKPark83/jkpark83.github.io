@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">Codex vs Claude Code — 오늘의 실전 팁 한 장</text>
+
+  <!-- Codex card -->
+  <rect x="30" y="55" width="360" height="315" rx="12" fill="#eefaf0" stroke="#27a35c" stroke-width="1.5"/>
+  <text x="50" y="85" font-size="14" font-weight="700" fill="#15803d">🟩 Codex — wake_on_agent_messages</text>
+  <text x="50" y="112" font-size="12" fill="#333">문제: 부모 세션이 답을 끝낸 뒤 도착한</text>
+  <text x="50" y="130" font-size="12" fill="#333">워커의 메시지는 세션을 깨우지 못했다</text>
+
+  <rect x="50" y="148" width="320" height="58" rx="8" fill="#1a1a2e"/>
+  <text x="66" y="172" font-size="12" font-family="monospace" fill="#7ee787"># config.toml</text>
+  <text x="66" y="192" font-size="12" font-family="monospace" fill="#e6edf3">[features]  wake_on_agent_messages = true</text>
+
+  <text x="50" y="232" font-size="12" fill="#333">→ 에이전트 메일 도착 시 쉬고 있던 루트 세션이</text>
+  <text x="50" y="250" font-size="12" fill="#333">   새 턴을 시작해 결과를 이어받는다</text>
+  <text x="50" y="276" font-size="12" fill="#333">경계: 중단된 세션 · Plan 모드 · 자식 에이전트는</text>
+  <text x="50" y="294" font-size="12" fill="#333">   자동으로 깨어나지 않음</text>
+  <text x="50" y="330" font-size="12" font-weight="700" fill="#15803d">늦게 끝나는 워커가 있는 멀티 에이전트</text>
+  <text x="50" y="348" font-size="12" font-weight="700" fill="#15803d">오케스트레이션에서 durable sleep 폴링 대체</text>
+
+  <!-- Claude Code card -->
+  <rect x="410" y="55" width="360" height="315" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="430" y="85" font-size="14" font-weight="700" fill="#1d4ed8">🟦 Claude Code — decider: "person"</text>
+  <text x="430" y="112" font-size="12" fill="#333">문제: 훅이 ask를 띄워도 자동 분류기의 allow나</text>
+  <text x="430" y="130" font-size="12" fill="#333">다른 플러그인이 조용히 통과시킬 수 있었다</text>
+
+  <rect x="430" y="148" width="320" height="58" rx="8" fill="#1a1a2e"/>
+  <text x="446" y="172" font-size="12" font-family="monospace" fill="#7ee787">// tool.check 훅 판정</text>
+  <text x="446" y="192" font-size="12" font-family="monospace" fill="#e6edf3">{ decision:'ask', decider:'person' }</text>
+
+  <text x="430" y="232" font-size="12" fill="#333">→ 이 ask는 사람이 직접 답할 때까지 유지되고,</text>
+  <text x="430" y="250" font-size="12" fill="#333">   분류기 allow가 이를 무르지 못한다 (sec-default)</text>
+  <text x="430" y="276" font-size="12" fill="#333">플러그인은 host의 ask를 person으로 좁히는 것만</text>
+  <text x="430" y="294" font-size="12" fill="#333">   허용 — 완화는 차단, 강화는 통과</text>
+  <text x="430" y="330" font-size="12" font-weight="700" fill="#1d4ed8">프로덕션 배포·DB 마이그레이션 등 위험한</text>
+  <text x="430" y="348" font-size="12" font-weight="700" fill="#1d4ed8">도구 호출에 '사람 승인'을 강제할 때</text>
+</svg>

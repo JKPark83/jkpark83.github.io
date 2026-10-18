@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="430" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-19</text>
+
+  <!-- 중앙 허브 -->
+  <circle cx="400" cy="230" r="46" fill="#1a1a2e"/>
+  <text x="400" y="224" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">스펙 너머,</text>
+  <text x="400" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">현장으로</text>
+
+  <!-- 연결선 -->
+  <line x1="400" y1="184" x2="205" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="184" x2="595" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="205" y2="330" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="595" y2="330" stroke="#bbb" stroke-width="1.5"/>
+
+  <!-- 모델 -->
+  <rect x="30" y="60" width="350" height="115" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="50" y="86" font-size="14" font-weight="700" fill="#b5431a">🤖 모델</text>
+  <text x="50" y="110" font-size="12" fill="#333">주말 — 새 대형 모델 없음</text>
+  <text x="50" y="129" font-size="12" fill="#333">LFM2.5-24B-A2B: 24B 중 2B만 활성, 온디바이스 에이전트</text>
+  <text x="50" y="151" font-size="12" fill="#b5431a">로컬에서 도는 에이전트용 MoE가 늘고 있다</text>
+
+  <!-- 논문 -->
+  <rect x="420" y="60" width="350" height="115" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="440" y="86" font-size="14" font-weight="700" fill="#1d4ed8">📚 논문</text>
+  <text x="440" y="110" font-size="12" fill="#333">FDE-Gym: 고객 납품 '라스트 마일' 벤치마크 (95과제)</text>
+  <text x="440" y="129" font-size="12" fill="#333">Verifier Hardening: 평가 검증기를 해커-수리 루프로 보강</text>
+  <text x="440" y="151" font-size="12" fill="#1d4ed8">"코드 정답" 다음은 "현장에서 통하는가"</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="350" height="115" rx="12" fill="#eefaf0" stroke="#27a35c" stroke-width="1.5"/>
+  <text x="50" y="311" font-size="14" font-weight="700" fill="#15803d">🛠 오픈소스</text>
+  <text x="50" y="335" font-size="12" fill="#333">CLI-Anything: 모든 소프트웨어를 에이전트 네이티브로</text>
+  <text x="50" y="354" font-size="12" fill="#333">fde-gym: FDE 훈련용 셀프호스트 '온라인 저지'</text>
+  <text x="50" y="376" font-size="12" fill="#15803d">에이전트가 쓰는 인터페이스는 GUI가 아니라 CLI</text>
+
+  <!-- 도구 -->
+  <rect x="420" y="285" width="350" height="115" rx="12" fill="#f5efff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="440" y="311" font-size="14" font-weight="700" fill="#6d28d9">🧑‍💻 바이브코딩 도구</text>
+  <text x="440" y="335" font-size="12" fill="#333">Codex: 에이전트 메일이 쉬는 세션을 깨운다 (옵트인)</text>
+  <text x="440" y="354" font-size="12" fill="#333">Claude Code: 훅이 '사람 확인'을 강제하는 ask 판정</text>
+  <text x="440" y="376" font-size="12" fill="#6d28d9">멀티 에이전트의 '대기'와 '승인'이 정식 기능이 됐다</text>
+</svg>

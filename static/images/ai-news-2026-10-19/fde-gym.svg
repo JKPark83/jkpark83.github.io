@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="470" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">FDE-Gym — 에이전트가 '고객 납품'을 해내는가</text>
+  <text x="400" y="52" text-anchor="middle" font-size="12" fill="#666">95개 과제 · 20개 고객 시나리오 · 18개 산업 (arXiv:2610.22350)</text>
+
+  <!-- 파이프라인 -->
+  <rect x="30" y="75" width="170" height="80" rx="10" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="115" y="103" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d4ed8">모호한 요구사항</text>
+  <text x="115" y="122" text-anchor="middle" font-size="11" fill="#333">스폰서의 한 문단 설명</text>
+  <text x="115" y="139" text-anchor="middle" font-size="11" fill="#333">진짜 문제는 숨어 있음</text>
+
+  <path d="M200 115 L225 115" stroke="#888" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="228" y="75" width="170" height="80" rx="10" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="313" y="103" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b5431a">이해관계자 질의</text>
+  <text x="313" y="122" text-anchor="middle" font-size="11" fill="#333">스크립트된 담당자들</text>
+  <text x="313" y="139" text-anchor="middle" font-size="11" fill="#333">질문·대기 시간 = 감점</text>
+
+  <path d="M398 115 L423 115" stroke="#888" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="426" y="75" width="170" height="80" rx="10" fill="#eefaf0" stroke="#27a35c" stroke-width="1.5"/>
+  <text x="511" y="103" text-anchor="middle" font-size="12.5" font-weight="700" fill="#15803d">라이브 시스템 수정</text>
+  <text x="511" y="122" text-anchor="middle" font-size="11" fill="#333">프로덕션급 환경에서</text>
+  <text x="511" y="139" text-anchor="middle" font-size="11" fill="#333">코딩 에이전트로 작업</text>
+
+  <path d="M596 115 L621 115" stroke="#888" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="624" y="75" width="150" height="80" rx="10" fill="#f5efff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="699" y="103" text-anchor="middle" font-size="12.5" font-weight="700" fill="#6d28d9">숨겨진 트래픽 평가</text>
+  <text x="699" y="122" text-anchor="middle" font-size="11" fill="#333">고객 지표 개선도로</text>
+  <text x="699" y="139" text-anchor="middle" font-size="11" fill="#333">0~1점 채점 · 제출 1회</text>
+
+  <!-- 결과 -->
+  <text x="40" y="205" font-size="14" font-weight="700" fill="#1a1a2e">결과: 13개 모델 구성 중 최고 성적도 "현장"에선 고전</text>
+
+  <!-- bar 1: mean score -->
+  <text x="40" y="243" font-size="12" fill="#333">최고 구성 평균 점수</text>
+  <rect x="220" y="228" width="520" height="20" rx="4" fill="#eee"/>
+  <rect x="220" y="228" width="291" height="20" rx="4" fill="#2a78d6"/>
+  <text x="520" y="243" font-size="12" font-weight="700" fill="#1d4ed8">0.56 / 1.0</text>
+
+  <!-- bar 2: resolved -->
+  <text x="40" y="283" font-size="12" fill="#333">해결한 과제 (0.8점↑, 무사고)</text>
+  <rect x="220" y="268" width="520" height="20" rx="4" fill="#eee"/>
+  <rect x="220" y="268" width="77" height="20" rx="4" fill="#eb6834"/>
+  <text x="306" y="283" font-size="12" font-weight="700" fill="#b5431a">14 / 95</text>
+
+  <!-- bar 3: info != success -->
+  <text x="40" y="323" font-size="12" fill="#333">핵심 정보를 다 얻고도 성공</text>
+  <rect x="220" y="308" width="520" height="20" rx="4" fill="#eee"/>
+  <rect x="220" y="308" width="226" height="20" rx="4" fill="#8b5cf6"/>
+  <text x="455" y="323" font-size="12" font-weight="700" fill="#6d28d9">10 / 23 과제</text>
+
+  <rect x="30" y="355" width="740" height="90" rx="10" fill="#fff8e6" stroke="#d6a52a" stroke-width="1.5"/>
+  <text x="50" y="382" font-size="13" font-weight="700" fill="#92650a">병목은 "안 적혀 있는 제약 찾기"</text>
+  <text x="50" y="404" font-size="12" fill="#333">명시 안 된 제약을 스스로 발견해야 하는 설정에서 점수가 급락. 심지어 정보를 전부 얻어도</text>
+  <text x="50" y="422" font-size="12" fill="#333">절반 이상이 비즈니스 지표 개선에 실패 — 정보 수집 ≠ 납품 능력이라는 것이 핵심 발견.</text>
+
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#888"/>
+    </marker>
+  </defs>
+</svg>

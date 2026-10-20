@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="430" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a2e">오늘의 AI 변화 지도 — 2026-10-21</text>
+
+  <!-- 중앙 허브 -->
+  <circle cx="400" cy="230" r="46" fill="#1a1a2e"/>
+  <text x="400" y="224" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">속도와</text>
+  <text x="400" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">기억</text>
+
+  <!-- 연결선 -->
+  <line x1="400" y1="184" x2="205" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="184" x2="595" y2="128" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="205" y2="330" stroke="#bbb" stroke-width="1.5"/>
+  <line x1="400" y1="276" x2="595" y2="330" stroke="#bbb" stroke-width="1.5"/>
+
+  <!-- 모델 -->
+  <rect x="30" y="60" width="350" height="115" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="50" y="86" font-size="14" font-weight="700" fill="#b5431a">🤖 모델</text>
+  <text x="50" y="110" font-size="12" fill="#333">Mercury 3: 디퓨전 LLM, 1,068 tok/s, 1M 컨텍스트</text>
+  <text x="50" y="129" font-size="12" fill="#333">MemT-1.0: 메모리 내장 모델 오픈 웨이트 (MIT)</text>
+  <text x="50" y="151" font-size="12" fill="#b5431a">생성 방식과 기억 구조, 둘 다 아키텍처 실험 중</text>
+
+  <!-- 논문 -->
+  <rect x="420" y="60" width="350" height="115" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="440" y="86" font-size="14" font-weight="700" fill="#1d4ed8">📚 논문</text>
+  <text x="440" y="110" font-size="12" fill="#333">MemT-1.0: 메모리를 모델 연산 안으로 (HF 109 업보트)</text>
+  <text x="440" y="129" font-size="12" fill="#333">Self-HPO: 하네스-정책 교대 최적화 57.8% → 64.8%</text>
+  <text x="440" y="151" font-size="12" fill="#1d4ed8">하네스도 학습 대상이다</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="350" height="115" rx="12" fill="#eefaf0" stroke="#27a35c" stroke-width="1.5"/>
+  <text x="50" y="311" font-size="14" font-weight="700" fill="#15803d">🛠 오픈소스</text>
+  <text x="50" y="335" font-size="12" fill="#333">ai-memory: 20+ 에이전트가 공유하는 장기 기억 (Rust)</text>
+  <text x="50" y="354" font-size="12" fill="#333">magpie: 코딩 CLI × 모델 조합 자유 교체 게이트웨이 (Go)</text>
+  <text x="50" y="376" font-size="12" fill="#15803d">기억은 밖에서도(도구) 안에서도(모델) 쌓인다</text>
+
+  <!-- 도구 -->
+  <rect x="420" y="285" width="350" height="115" rx="12" fill="#f5efff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="440" y="311" font-size="14" font-weight="700" fill="#6d28d9">🧑‍💻 바이브코딩 도구</text>
+  <text x="440" y="335" font-size="12" fill="#333">Codex: 풀 포크가 부모 히스토리를 기본으로 상속</text>
+  <text x="440" y="354" font-size="12" fill="#333">Claude Code 2.1.305: 샌드박스 안 Chromium/podman 허용 옵션</text>
+  <text x="440" y="376" font-size="12" fill="#6d28d9">서브에이전트에게 무엇을 물려줄지가 설정값이 됐다</text>
+</svg>

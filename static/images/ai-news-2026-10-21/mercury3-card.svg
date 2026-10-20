@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">Mercury 3 — 디퓨전 LLM, 숫자로 보기</text>
+
+  <!-- 스펙 카드 3개 -->
+  <rect x="30" y="54" width="238" height="92" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="149" y="84" text-anchor="middle" font-size="13" fill="#b5431a">생성 속도 (벤더 보고)</text>
+  <text x="149" y="116" text-anchor="middle" font-size="24" font-weight="700" fill="#1a1a2e">1,068 tok/s</text>
+  <text x="149" y="136" text-anchor="middle" font-size="11" fill="#666">NVIDIA GPU 기준</text>
+
+  <rect x="281" y="54" width="238" height="92" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="400" y="84" text-anchor="middle" font-size="13" fill="#1d4ed8">컨텍스트 윈도우</text>
+  <text x="400" y="116" text-anchor="middle" font-size="24" font-weight="700" fill="#1a1a2e">260K → 1M</text>
+  <text x="400" y="136" text-anchor="middle" font-size="11" fill="#666">전작 대비 확대</text>
+
+  <rect x="532" y="54" width="238" height="92" rx="12" fill="#eefaf0" stroke="#27a35c" stroke-width="1.5"/>
+  <text x="651" y="84" text-anchor="middle" font-size="13" fill="#15803d">가격 ($/1M tok, 입력/출력)</text>
+  <text x="651" y="116" text-anchor="middle" font-size="24" font-weight="700" fill="#1a1a2e">$0.20 / $0.70</text>
+  <text x="651" y="136" text-anchor="middle" font-size="11" fill="#666">런칭 기간 50% 할인 중</text>
+
+  <!-- 독립 테스트 바 차트 -->
+  <text x="30" y="188" font-size="14" font-weight="700" fill="#1a1a2e">독립 테스트 (Bito, 장시간 멀티턴 코딩 세션)</text>
+
+  <text x="30" y="222" font-size="12" fill="#333">Mercury 3</text>
+  <rect x="150" y="208" width="364" height="20" rx="4" fill="#eb6834"/>
+  <text x="522" y="223" font-size="12" font-weight="700" fill="#b5431a">65%</text>
+
+  <text x="30" y="254" font-size="12" fill="#333">Claude Opus 5.5</text>
+  <rect x="150" y="240" width="487" height="20" rx="4" fill="#2a78d6"/>
+  <text x="645" y="255" font-size="12" font-weight="700" fill="#1d4ed8">87%</text>
+
+  <line x1="150" y1="204" x2="150" y2="266" stroke="#999" stroke-width="1"/>
+  <text x="30" y="290" font-size="11" fill="#666">막대 = 과제 점수. 단, 세션 소요 시간은 Mercury 3가 5.8분으로 비교군 중 최단.</text>
+
+  <!-- 요점 -->
+  <rect x="30" y="310" width="740" height="66" rx="12" fill="#f5efff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="50" y="336" font-size="13" font-weight="700" fill="#6d28d9">요점</text>
+  <text x="50" y="358" font-size="12" fill="#333">속도·가격이 필요한 보조 루프(초안, 분류, 서브태스크)에 배치하고, 장기 멀티스텝 메인 루프는 아직 기존 모델로.</text>
+</svg>

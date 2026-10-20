@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360" font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="800" height="360" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">Self-HPO — 하네스와 정책을 번갈아 키우는 루프</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- H-step -->
+  <rect x="40" y="70" width="330" height="110" rx="12" fill="#eef4ff" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="60" y="98" font-size="14" font-weight="700" fill="#1d4ed8">H-step: 하네스 제안</text>
+  <text x="60" y="122" font-size="12" fill="#333">현재 정책 모델이 자기 실패 트래젝터리를 분석해</text>
+  <text x="60" y="141" font-size="12" fill="#333">새 하네스 후보(프롬프트·도구·스캐폴드)를 제안</text>
+  <text x="60" y="165" font-size="12" fill="#1d4ed8">→ 후보 중 최적 하네스 선택</text>
+
+  <!-- P-step -->
+  <rect x="430" y="70" width="330" height="110" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="450" y="98" font-size="14" font-weight="700" fill="#b5431a">P-step: 정책 RL 업데이트</text>
+  <text x="450" y="122" font-size="12" fill="#333">선택된 하네스 아래에서 정책 모델을 RL로 학습</text>
+  <text x="450" y="141" font-size="12" fill="#333">학습 중 발견된 어려운 과제를</text>
+  <text x="450" y="165" font-size="12" fill="#b5431a">→ 다음 라운드 하네스 탐색 셋으로 적재</text>
+
+  <!-- 화살표 (순환) -->
+  <path d="M 370 100 L 425 100" stroke="#555" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <path d="M 430 150 L 375 150" stroke="#555" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <text x="400" y="92" text-anchor="middle" font-size="11" fill="#555">하네스</text>
+  <text x="400" y="168" text-anchor="middle" font-size="11" fill="#555">난제 셋</text>
+
+  <!-- 결과 박스 -->
+  <rect x="40" y="210" width="720" height="60" rx="12" fill="#eefaf0" stroke="#27a35c" stroke-width="1.5"/>
+  <text x="60" y="235" font-size="13" font-weight="700" fill="#15803d">결과 (코딩 벤치마크 3종 평균 해결률, Qwen3.5-35B-A3B)</text>
+  <text x="60" y="258" font-size="13" fill="#333">57.8% → 64.8% (+7.0%p) · 하네스/정책 각각 단독 교체해도 이득 유지 · 합동 이득 &gt; 개별 이득의 합</text>
+
+  <!-- 시사점 -->
+  <rect x="40" y="286" width="720" height="56" rx="12" fill="#f5efff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="60" y="310" font-size="13" font-weight="700" fill="#6d28d9">Agent Builder 시사점</text>
+  <text x="60" y="331" font-size="12" fill="#333">RL 없이도 H-step은 흉내 낼 수 있다: 실패 로그 → 모델에게 하네스 수정안 제안 → 홀드아웃 과제로 채택 판정.</text>
+</svg>

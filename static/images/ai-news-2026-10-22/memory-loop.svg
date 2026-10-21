@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#ef4444"/>
+    </marker>
+    <marker id="ag" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#16a34a"/>
+    </marker>
+  </defs>
+  <rect width="800" height="460" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">오류 재생산 루프 vs Anti-Persistence (arXiv 2610.27406)</text>
+
+  <!-- left: error reproduction -->
+  <rect x="30" y="56" width="360" height="330" rx="10" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="210" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#b91c1c">기존: 추상화를 저장하는 메모리</text>
+
+  <rect x="100" y="104" width="220" height="44" rx="8" fill="#ffffff" stroke="#ef4444"/>
+  <text x="210" y="124" text-anchor="middle" font-size="12.5" fill="#111827">추상화 저장</text>
+  <text x="210" y="140" text-anchor="middle" font-size="11" fill="#6b7280">규칙·요약·스킬 (오류 포함)</text>
+
+  <rect x="100" y="188" width="220" height="44" rx="8" fill="#ffffff" stroke="#ef4444"/>
+  <text x="210" y="208" text-anchor="middle" font-size="12.5" fill="#111827">검색·재사용 → 실행</text>
+  <text x="210" y="224" text-anchor="middle" font-size="11" fill="#6b7280">오류가 트래젝터리를 오염</text>
+
+  <rect x="100" y="272" width="220" height="44" rx="8" fill="#ffffff" stroke="#ef4444"/>
+  <text x="210" y="292" text-anchor="middle" font-size="12.5" fill="#111827">재추상화</text>
+  <text x="210" y="308" text-anchor="middle" font-size="11" fill="#6b7280">오염된 실행이 다시 "교훈"으로</text>
+
+  <line x1="210" y1="148" x2="210" y2="186" stroke="#ef4444" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="210" y1="232" x2="210" y2="270" stroke="#ef4444" stroke-width="2" marker-end="url(#ar)"/>
+  <path d="M 320 294 C 372 260 372 160 322 128" fill="none" stroke="#ef4444" stroke-width="2" marker-end="url(#ar)" stroke-dasharray="5,4"/>
+  <text x="210" y="360" text-anchor="middle" font-size="12" fill="#b91c1c" font-weight="700">한 번 저장된 오류가 사이클을 돌며 영속화</text>
+
+  <!-- right: anti-persistence -->
+  <rect x="410" y="56" width="360" height="330" rx="10" fill="#f0fdf4" stroke="#16a34a"/>
+  <text x="590" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#15803d">제안: Anti-Persistence</text>
+
+  <rect x="480" y="104" width="220" height="44" rx="8" fill="#ffffff" stroke="#16a34a"/>
+  <text x="590" y="124" text-anchor="middle" font-size="12.5" fill="#111827">원본 경험만 축적</text>
+  <text x="590" y="140" text-anchor="middle" font-size="11" fill="#6b7280">트래젝터리 + 성공/실패 결과</text>
+
+  <rect x="480" y="188" width="220" height="44" rx="8" fill="#ffffff" stroke="#16a34a"/>
+  <text x="590" y="208" text-anchor="middle" font-size="12.5" fill="#111827">과제마다 가이드를 즉석 합성</text>
+  <text x="590" y="224" text-anchor="middle" font-size="11" fill="#6b7280">선택기가 과거 결과로 합성 여부 결정</text>
+
+  <rect x="480" y="272" width="220" height="44" rx="8" fill="#ffffff" stroke="#16a34a"/>
+  <text x="590" y="292" text-anchor="middle" font-size="12.5" fill="#111827">실행 후 가이드 폐기</text>
+  <text x="590" y="308" text-anchor="middle" font-size="11" fill="#6b7280">추상화가 저장 객체로 남지 않음</text>
+
+  <line x1="590" y1="148" x2="590" y2="186" stroke="#16a34a" stroke-width="2" marker-end="url(#ag)"/>
+  <line x1="590" y1="232" x2="590" y2="270" stroke="#16a34a" stroke-width="2" marker-end="url(#ag)"/>
+  <text x="590" y="348" text-anchor="middle" font-size="12" fill="#15803d" font-weight="700">홀드아웃 성공률 최고 + 평균 LLM 호출 비용 최저</text>
+  <text x="590" y="366" text-anchor="middle" font-size="11" fill="#6b7280">(논문이 비교한 메모리 설계들 기준)</text>
+
+  <text x="400" y="420" text-anchor="middle" font-size="12.5" fill="#374151">핵심: 경험 축적과 추상화 영속화를 분리하라 — "교훈 노트"는 쓰고 버리는 소모품</text>
+  <text x="400" y="444" text-anchor="middle" font-size="11" fill="#9ca3af">jkpark83.github.io · AI 데일리 브리핑 2026-10-22</text>
+</svg>

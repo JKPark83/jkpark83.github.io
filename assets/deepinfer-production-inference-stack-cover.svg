@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="DeepSeek이 공개한 프로덕션 추론 프레임워크 DeepInfer — 프리필 머신과 와이드 EP 디코드 슈퍼노드, 3FS KV 캐시 스토리지로 이어지는 분리 아키텍처를 단순화한 그림">
+  <defs>
+    <linearGradient id="difg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#082f49"/>
+    </linearGradient>
+    <linearGradient id="dif-sky" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0284c7"/></linearGradient>
+    <linearGradient id="dif-green" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#difg)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">하루 155조 토큰을 서빙하는 엔진이 열렸다</text>
+  <text x="80" y="152" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">DeepSeek DeepInfer 해부</text>
+  <text x="80" y="196" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="500">프런티어 랩의 프로덕션 추론 스택 — 공개된 코드와, 일부러 공개하지 않은 것들</text>
+
+  <!-- Prefill 머신 -->
+  <g>
+    <rect x="80" y="268" width="300" height="190" rx="16" fill="#38bdf8" opacity="0.08" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="230" y="302" text-anchor="middle" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700">Prefill</text>
+    <text x="230" y="330" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">8-GPU 머신 · EP2–8</text>
+    <g fill="url(#dif-sky)" opacity="0.9">
+      <rect x="117" y="352" width="50" height="50" rx="8"/><rect x="177" y="352" width="50" height="50" rx="8"/>
+      <rect x="237" y="352" width="50" height="50" rx="8"/><rect x="297" y="352" width="50" height="50" rx="8"/>
+    </g>
+    <text x="230" y="438" text-anchor="middle" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15">TTFT 담당 · compute-bound</text>
+  </g>
+
+  <!-- 화살표 -->
+  <g stroke="#94a3b8" stroke-width="4" fill="none" opacity="0.85">
+    <path d="M 392 363 L 468 363"/>
+    <path d="M 452 348 L 474 363 L 452 378"/>
+  </g>
+  <text x="432" y="340" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15">KV 전송</text>
+
+  <!-- Decode 슈퍼노드 -->
+  <g>
+    <rect x="482" y="240" width="380" height="250" rx="16" fill="#4ade80" opacity="0.08" stroke="#4ade80" stroke-width="2.5"/>
+    <text x="672" y="276" text-anchor="middle" fill="#86efac" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700">Decode — Wide-EP</text>
+    <text x="672" y="304" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">64–128 GPU 슈퍼노드 · EP64–128</text>
+    <g fill="url(#dif-green)" opacity="0.85">
+      <g>
+        <rect x="518" y="324" width="36" height="36" rx="6"/><rect x="562" y="324" width="36" height="36" rx="6"/><rect x="606" y="324" width="36" height="36" rx="6"/><rect x="650" y="324" width="36" height="36" rx="6"/><rect x="694" y="324" width="36" height="36" rx="6"/><rect x="738" y="324" width="36" height="36" rx="6"/><rect x="782" y="324" width="36" height="36" rx="6"/>
+        <rect x="518" y="368" width="36" height="36" rx="6"/><rect x="562" y="368" width="36" height="36" rx="6"/><rect x="606" y="368" width="36" height="36" rx="6"/><rect x="650" y="368" width="36" height="36" rx="6"/><rect x="694" y="368" width="36" height="36" rx="6"/><rect x="738" y="368" width="36" height="36" rx="6"/><rect x="782" y="368" width="36" height="36" rx="6"/>
+        <rect x="518" y="412" width="36" height="36" rx="6"/><rect x="562" y="412" width="36" height="36" rx="6"/><rect x="606" y="412" width="36" height="36" rx="6"/><rect x="650" y="412" width="36" height="36" rx="6"/><rect x="694" y="412" width="36" height="36" rx="6"/><rect x="738" y="412" width="36" height="36" rx="6"/><rect x="782" y="412" width="36" height="36" rx="6"/>
+      </g>
+    </g>
+    <text x="672" y="474" text-anchor="middle" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15">TBT 담당 · 전문가를 노드 전체에 분산</text>
+  </g>
+
+  <!-- KV 스토리지 -->
+  <g>
+    <rect x="900" y="268" width="220" height="190" rx="16" fill="#fbbf24" opacity="0.07" stroke="#fbbf24" stroke-width="2.5"/>
+    <text x="1010" y="302" text-anchor="middle" fill="#fcd34d" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="700">KV 캐시 스토리지</text>
+    <text x="1010" y="330" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">3FS · SSD 100 PiB</text>
+    <g fill="#fbbf24" opacity="0.75">
+      <rect x="940" y="352" width="140" height="22" rx="5"/>
+      <rect x="940" y="382" width="140" height="22" rx="5"/>
+      <rect x="940" y="412" width="140" height="22" rx="5"/>
+    </g>
+    <text x="1010" y="452" text-anchor="middle" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15">TTL 3–7일 · 10+2 EC</text>
+  </g>
+  <g stroke="#fbbf24" stroke-width="3" fill="none" opacity="0.6" stroke-dasharray="7 5">
+    <path d="M 874 363 L 896 363"/>
+  </g>
+
+  <text x="80" y="556" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="21" font-weight="700">Wide-EP · DSpark · SWA bounded replay · batch-invariant inference</text>
+  <text x="80" y="590" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18">github.com/deepseek-ai/DeepInfer — Apache 2.0 · NVIDIA SM100 + Huawei Ascend 950</text>
+</svg>

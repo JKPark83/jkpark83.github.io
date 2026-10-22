@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 330" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="330" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">Codex vs Claude Code 오늘의 실전 팁</text>
+
+  <!-- Codex -->
+  <rect x="30" y="52" width="360" height="240" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="80" font-size="14" font-weight="700" fill="#15803d">🟩 Codex — Vertex AI 내장 프로바이더</text>
+  <rect x="50" y="94" width="320" height="78" rx="6" fill="#111827"/>
+  <text x="62" y="114" font-size="11" fill="#a7f3d0" font-family="monospace"># ~/.codex/config.toml</text>
+  <text x="62" y="132" font-size="11" fill="#e5e7eb" font-family="monospace">model_provider = "gcp"</text>
+  <text x="62" y="150" font-size="11" fill="#9ca3af" font-family="monospace"># GOOGLE_CLOUD_PROJECT / _LOCATION 사용</text>
+  <text x="62" y="166" font-size="11" fill="#9ca3af" font-family="monospace"># 인증: gcloud ADC 토큰 자동 획득</text>
+  <text x="50" y="196" font-size="12" fill="#374151">· OpenAI 로그인 없이 GCP 크레덴셜로 Codex 실행</text>
+  <text x="50" y="216" font-size="12" fill="#374151">· location 기본값 global · base_url 등 오버라이드 가능</text>
+  <text x="50" y="236" font-size="12" fill="#374151">· Bedrock 설정 마법사도 기본 활성화됨</text>
+  <text x="50" y="262" font-size="11" fill="#b45309">⚠ 웹 검색·이미지 생성·추론 요약은 비활성</text>
+  <text x="50" y="280" font-size="11" fill="#6b7280">출처: openai/codex #56265 (10/22 머지)</text>
+
+  <!-- Claude Code -->
+  <rect x="410" y="52" width="360" height="240" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="430" y="80" font-size="14" font-weight="700" fill="#1d4ed8">🟦 Claude Code — safety_event 텔레메트리</text>
+  <rect x="430" y="94" width="320" height="78" rx="6" fill="#111827"/>
+  <text x="442" y="114" font-size="11" fill="#93c5fd" font-family="monospace">export CLAUDE_CODE_ENABLE_TELEMETRY=1</text>
+  <text x="442" y="132" font-size="11" fill="#e5e7eb" font-family="monospace">export OTEL_LOGS_EXPORTER=otlp</text>
+  <text x="442" y="150" font-size="11" fill="#9ca3af" font-family="monospace"># 이벤트: claude_code.safety_event</text>
+  <text x="442" y="166" font-size="11" fill="#9ca3af" font-family="monospace"># v2.1.307+</text>
+  <text x="430" y="196" font-size="12" fill="#374151">· 퍼미션 규칙·auto mode·훅·샌드박스가</text>
+  <text x="430" y="216" font-size="12" fill="#374151">  막거나 물어본 툴 콜마다 이벤트 1건 발행</text>
+  <text x="430" y="236" font-size="12" fill="#374151">· 팀/플릿 단위로 "뭐가 자꾸 막히나" 집계 가능</text>
+  <text x="430" y="262" font-size="11" fill="#b45309">⚠ OTel 컬렉터 등 수신단은 직접 준비해야 함</text>
+  <text x="430" y="280" font-size="11" fill="#6b7280">출처: claude-code CHANGELOG 2.1.307 (10/21)</text>
+
+  <text x="400" y="316" text-anchor="middle" font-size="11" fill="#6b7280">공통 교훈: 하네스를 "조직 인프라"로 올릴 때 필요한 두 조각 — 크레덴셜 통합과 거버넌스 관측</text>
+</svg>

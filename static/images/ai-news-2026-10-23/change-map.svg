@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="500" fill="#ffffff"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-10-23</text>
+  <text x="400" y="58" text-anchor="middle" font-size="13" fill="#6b7280">키워드: 컨텍스트 다음은 캐시 — 에이전트가 자기 KV 캐시를 직접 만진다</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="80" width="360" height="180" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1d4ed8">모델 / 릴리즈</text>
+  <text x="50" y="134" font-size="13" fill="#111827">Claude Duet (10/21 리서치 프리뷰)</text>
+  <text x="50" y="156" font-size="12" fill="#374151">· Opus 5.5 기반 "선제적 에이전트" 전용 앱</text>
+  <text x="50" y="176" font-size="12" fill="#374151">· 먼저 말 걸고, 자리 비워도 계속 일함</text>
+  <text x="50" y="196" font-size="12" fill="#374151">· 미국 Pro/Max 대기열 · 계정 메모리·스킬 승계</text>
+  <text x="50" y="222" font-size="11" fill="#6b7280">MiniMax M3.1-Flash 웨이트: 예고일(10/23) 아침 기준</text>
+  <text x="50" y="240" font-size="11" fill="#6b7280">HF 조직에 아직 없음 — 직접 확인</text>
+
+  <!-- 논문 -->
+  <rect x="410" y="80" width="360" height="180" rx="10" fill="#fdf4ff" stroke="#a855f7"/>
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#7e22ce">논문</text>
+  <text x="430" y="134" font-size="13" fill="#111827">Cache Engineering for Agents (2610.28577)</text>
+  <text x="430" y="154" font-size="12" fill="#374151">· 에이전트가 KV 캐시 drop·재배치를 직접 결정</text>
+  <text x="430" y="172" font-size="12" fill="#374151">· 요약 대비 +1.7점 · 비용 -27.7%</text>
+  <text x="430" y="198" font-size="13" fill="#111827">WildAWM (2610.26828, MSR)</text>
+  <text x="430" y="218" font-size="12" fill="#374151">· 컴퓨터 사용 에이전트 훈련 환경 341개 합성</text>
+  <text x="430" y="240" font-size="11" fill="#6b7280">공통점: 에이전트 스택의 수작업 영역이 또 줄었다</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="280" width="360" height="170" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="308" font-size="15" font-weight="700" fill="#15803d">오픈소스</text>
+  <text x="50" y="334" font-size="13" fill="#111827">slackapi/slack-skills-plugin (MIT)</text>
+  <text x="50" y="354" font-size="12" fill="#374151">· Slack 공식 — CC·Cursor·Codex에 MCP+스킬 설치</text>
+  <text x="50" y="382" font-size="13" fill="#111827">NousResearch/hermes-agent (Python, MIT)</text>
+  <text x="50" y="402" font-size="12" fill="#374151">· 경험에서 스킬을 만드는 자기개선 에이전트</text>
+  <text x="50" y="428" font-size="11" fill="#6b7280">커밋 10/19·10/22 확인 · 스타 수는 API 제약으로 미확인</text>
+
+  <!-- 바이브코딩 -->
+  <rect x="410" y="280" width="360" height="170" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="430" y="308" font-size="15" font-weight="700" fill="#c2410c">바이브코딩</text>
+  <text x="430" y="334" font-size="13" fill="#111827">Codex: Vertex AI 내장 프로바이더</text>
+  <text x="430" y="354" font-size="12" fill="#374151">· model_provider = "gcp" — GCP 크레덴셜로 실행</text>
+  <text x="430" y="382" font-size="13" fill="#111827">Claude Code 2.1.307: safety_event 텔레메트리</text>
+  <text x="430" y="402" font-size="12" fill="#374151">· 규칙·훅·샌드박스가 막은 툴 콜을 OTel로 집계</text>
+  <text x="430" y="428" font-size="11" fill="#6b7280">둘 다 10/21~22 커밋·체인지로그에서 직접 확인</text>
+</svg>

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">Cache Engineering: 요약 대신 캐시를 직접 편집한다</text>
+
+  <!-- 기존 방식 -->
+  <rect x="30" y="56" width="355" height="180" rx="10" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="50" y="84" font-size="14" font-weight="700" fill="#b91c1c">기존: 임계치 도달 시 요약(compaction)</text>
+  <rect x="50" y="100" width="80" height="26" rx="4" fill="#fecaca"/>
+  <text x="90" y="117" text-anchor="middle" font-size="11" fill="#7f1d1d">히스토리</text>
+  <text x="145" y="117" font-size="12" fill="#991b1b">→</text>
+  <rect x="160" y="100" width="90" height="26" rx="4" fill="#fecaca"/>
+  <text x="205" y="117" text-anchor="middle" font-size="11" fill="#7f1d1d">LLM 요약</text>
+  <text x="263" y="117" font-size="12" fill="#991b1b">→</text>
+  <rect x="278" y="100" width="92" height="26" rx="4" fill="#fca5a5"/>
+  <text x="324" y="117" text-anchor="middle" font-size="11" fill="#7f1d1d">전체 re-prefill</text>
+  <text x="50" y="158" font-size="12" fill="#374151">· 텍스트가 바뀌므로 프리픽스 캐시 전부 무효화</text>
+  <text x="50" y="178" font-size="12" fill="#374151">· 요약 호출 비용 + 재프리필 비용이 추가</text>
+  <text x="50" y="198" font-size="12" fill="#374151">· 요약에 정보가 뭉개질 수 있음</text>
+
+  <!-- AKV 방식 -->
+  <rect x="415" y="56" width="355" height="180" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="435" y="84" font-size="14" font-weight="700" fill="#15803d">AKV: 에이전트가 캐시 항목을 drop·재배치</text>
+  <rect x="435" y="100" width="62" height="26" rx="4" fill="#bbf7d0"/>
+  <text x="466" y="117" text-anchor="middle" font-size="11" fill="#14532d">sys</text>
+  <rect x="503" y="100" width="62" height="26" rx="4" fill="#bbf7d0"/>
+  <text x="534" y="117" text-anchor="middle" font-size="11" fill="#14532d">turn 1</text>
+  <rect x="571" y="100" width="62" height="26" rx="4" fill="#e5e7eb" stroke="#9ca3af" stroke-dasharray="4 3"/>
+  <text x="602" y="117" text-anchor="middle" font-size="11" fill="#6b7280">tool ✕</text>
+  <rect x="639" y="100" width="62" height="26" rx="4" fill="#bbf7d0"/>
+  <text x="670" y="117" text-anchor="middle" font-size="11" fill="#14532d">turn N</text>
+  <text x="435" y="158" font-size="12" fill="#374151">· 소비 끝난 tool response를 어텐션에서 제외(drop)</text>
+  <text x="435" y="178" font-size="12" fill="#374151">· 남은 키의 포지션 인코딩만 당겨서 재배치</text>
+  <text x="435" y="198" font-size="12" fill="#374151">· re-prefill 없음 — 나머지 캐시는 그대로 재사용</text>
+  <text x="435" y="222" font-size="11" fill="#6b7280">AKV 서빙 엔진(SGLang 기반)이 상태 관리를 대신함</text>
+
+  <!-- 검증된 수치 -->
+  <text x="400" y="272" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">검증된 수치 (논문 초록 기준, 비교 대상: 임계치 요약)</text>
+  <rect x="30" y="290" width="138" height="100" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="99" y="330" text-anchor="middle" font-size="22" font-weight="700" fill="#1d4ed8">+1.7점</text>
+  <text x="99" y="356" text-anchor="middle" font-size="11" fill="#374151">벤치마크 평균</text>
+  <text x="99" y="372" text-anchor="middle" font-size="11" fill="#374151">(rolling-drop 정책)</text>
+  <rect x="188" y="290" width="138" height="100" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="257" y="330" text-anchor="middle" font-size="22" font-weight="700" fill="#15803d">-27.7%</text>
+  <text x="257" y="356" text-anchor="middle" font-size="11" fill="#374151">평균 비용</text>
+  <rect x="346" y="290" width="138" height="100" rx="10" fill="#fdf4ff" stroke="#a855f7"/>
+  <text x="415" y="330" text-anchor="middle" font-size="22" font-weight="700" fill="#7e22ce">1.2배</text>
+  <text x="415" y="356" text-anchor="middle" font-size="11" fill="#374151">출력 처리량</text>
+  <text x="415" y="372" text-anchor="middle" font-size="11" fill="#374151">(AKV 엔진, 최대)</text>
+  <rect x="504" y="290" width="138" height="100" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="573" y="330" text-anchor="middle" font-size="22" font-weight="700" fill="#c2410c">1.5배</text>
+  <text x="573" y="356" text-anchor="middle" font-size="11" fill="#374151">P95 지연 개선</text>
+  <rect x="662" y="290" width="108" height="100" rx="10" fill="#f8fafc" stroke="#64748b"/>
+  <text x="716" y="330" text-anchor="middle" font-size="22" font-weight="700" fill="#334155">-7.1%</text>
+  <text x="716" y="356" text-anchor="middle" font-size="11" fill="#374151">자기개선 정책</text>
+  <text x="716" y="372" text-anchor="middle" font-size="11" fill="#374151">추가 비용 절감</text>
+
+  <text x="400" y="424" text-anchor="middle" font-size="11" fill="#6b7280">출처: arXiv 2610.28577 초록 · 코드 github.com/thu-nics/AKV (클론으로 확인)</text>
+</svg>

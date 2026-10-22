@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="컨텍스트 엔지니어링 다음 단계인 캐시 엔지니어링 — 에이전트가 KV 캐시 블록 일부를 drop으로 attention에서 제외하고 reposition으로 압축하는 모습을 단순화한 그림">
+  <defs>
+    <linearGradient id="ceag" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="cea-violet" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+    <linearGradient id="cea-green" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#ceag)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">요약하지 말고, 캐시에서 빼라</text>
+  <text x="80" y="152" fill="#c4b5fd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">에이전트를 위한 캐시 엔지니어링</text>
+  <text x="80" y="200" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22">컨텍스트(텍스트)가 아니라 KV 캐시를 직접 관리하는 에이전트 — arXiv:2610.28577 · AKV</text>
+
+  <!-- before: KV row with dropped blocks -->
+  <text x="80" y="296" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19" font-weight="700">KV 캐시</text>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="700">
+    <rect x="80" y="316" width="110" height="64" rx="10" fill="url(#cea-violet)" opacity="0.9"/>
+    <text x="135" y="354" text-anchor="middle" fill="#0f172a">system</text>
+    <rect x="202" y="316" width="110" height="64" rx="10" fill="url(#cea-violet)" opacity="0.9"/>
+    <text x="257" y="354" text-anchor="middle" fill="#0f172a">user</text>
+    <rect x="324" y="316" width="130" height="64" rx="10" fill="none" stroke="#f87171" stroke-width="3" stroke-dasharray="8 6"/>
+    <text x="389" y="347" text-anchor="middle" fill="#f87171">tool 결과 #1</text>
+    <text x="389" y="368" text-anchor="middle" fill="#f87171" font-size="13">drop (attention 제외)</text>
+    <rect x="466" y="316" width="110" height="64" rx="10" fill="url(#cea-violet)" opacity="0.9"/>
+    <text x="521" y="354" text-anchor="middle" fill="#0f172a">assistant</text>
+    <rect x="588" y="316" width="130" height="64" rx="10" fill="none" stroke="#f87171" stroke-width="3" stroke-dasharray="8 6"/>
+    <text x="653" y="347" text-anchor="middle" fill="#f87171">tool 결과 #2</text>
+    <text x="653" y="368" text-anchor="middle" fill="#f87171" font-size="13">drop</text>
+    <rect x="730" y="316" width="110" height="64" rx="10" fill="url(#cea-violet)" opacity="0.9"/>
+    <text x="785" y="354" text-anchor="middle" fill="#0f172a">최신 턴</text>
+  </g>
+
+  <!-- arrow -->
+  <path d="M 920 348 L 1000 348" stroke="#4ade80" stroke-width="4" fill="none"/>
+  <path d="M 1000 348 l -14 -9 v 18 z" fill="#4ade80"/>
+  <text x="960" y="330" text-anchor="middle" fill="#4ade80" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15" font-weight="700">reposition</text>
+
+  <!-- after: compacted -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" font-weight="700">
+    <rect x="1020" y="316" width="42" height="64" rx="8" fill="url(#cea-green)" opacity="0.95"/>
+    <rect x="1068" y="316" width="42" height="64" rx="8" fill="url(#cea-green)" opacity="0.95"/>
+    <rect x="1116" y="316" width="42" height="64" rx="8" fill="url(#cea-green)" opacity="0.95"/>
+  </g>
+  <text x="1089" y="408" text-anchor="middle" fill="#86efac" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15">re-prefill 없이 압축</text>
+
+  <!-- bottom stats -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="80" y="470" width="320" height="92" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="100" y="508" fill="#4ade80" font-size="30" font-weight="800">비용 −27.7%</text>
+    <text x="100" y="540" fill="#94a3b8" font-size="16">요약(summarization) 대비, 점수는 +1.7</text>
+    <rect x="430" y="470" width="320" height="92" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="450" y="508" fill="#7dd3fc" font-size="30" font-weight="800">P95 1.5× 단축</text>
+    <text x="450" y="540" fill="#94a3b8" font-size="16">AKV 서빙 엔진 · 처리량 1.2×</text>
+    <rect x="780" y="470" width="340" height="92" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="800" y="508" fill="#c4b5fd" font-size="30" font-weight="800">정책 자가 개선 −7.1%</text>
+    <text x="800" y="540" fill="#94a3b8" font-size="16">에이전트가 캐시 정책까지 스스로 설계</text>
+  </g>
+</svg>

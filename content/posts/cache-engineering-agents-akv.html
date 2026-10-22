@@ -1,0 +1,332 @@
+---
+title: "요약하지 말고 캐시에서 빼라 — 에이전트가 KV 캐시를 직접 관리하는 '캐시 엔지니어링' (AKV 해부)"
+date: 2026-10-23T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "KV 캐시", "cache engineering", "context engineering", "prompt caching", "AKV", "SGLang", "compaction", "요약", "서빙", "추론 비용", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "긴 에이전트 세션에서 컨텍스트가 차면 요약(compaction)으로 줄이는 게 지금까지의 상식이었습니다. 그런데 요약은 히스토리를 다시 쓰는 순간 서버의 KV 캐시를 통째로 무효화하고, 전체 re-prefill 비용을 조용히 청구합니다. 10월 20일 공개돼 Hugging Face 트렌딩에 오른 논문 'Cache Engineering for Agents'(arXiv:2610.28577)는 발상을 뒤집습니다 — 텍스트(컨텍스트)가 아니라 KV 캐시 자체를 에이전트가 직접 관리하게 하자는 겁니다. 오래된 tool 결과의 KV를 attention에서 '빼는' drop, 자리의 빈틈을 메우는 reposition, 두 연산만으로 요약 대비 비용 27.7% 절감에 점수까지 1.7점 올렸고, 전용 서빙 엔진 AKV는 P95 지연을 1.5배 줄였습니다. 같은 토큰 시퀀스라도 캐시 상태가 달라질 수 있다는 까다로운 시스템 문제까지, 공개된 코드와 함께 junior 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "cache-engineering-agents-akv-cover.svg"
+  alt: "KV 캐시 블록 중 오래된 tool 결과 두 개가 drop으로 attention에서 제외되고 reposition으로 압축되는 모습을 그린 그림"
+  caption: "컨텍스트 엔지니어링이 '모델에게 무엇을 보여줄까'의 문제였다면, 캐시 엔지니어링은 '이미 계산해 둔 것 중 무엇을 버릴까'의 문제입니다."
+  relative: false
+---
+
+<style>
+/* ── 캐시 엔지니어링 포스트 전용 스타일 (cea- 접두사) ── */
+.cea-fig{
+  --cea-green:#16a34a; --cea-rose:#e11d48; --cea-amber:#d97706; --cea-sky:#0284c7;
+  --cea-violet:#7c3aed; --cea-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .cea-fig{
+  --cea-green:#4ade80; --cea-rose:#fb7185; --cea-amber:#fbbf24; --cea-sky:#38bdf8;
+  --cea-violet:#a78bfa; --cea-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .cea-fig{
+    --cea-green:#4ade80; --cea-rose:#fb7185; --cea-amber:#fbbf24; --cea-sky:#38bdf8;
+    --cea-violet:#a78bfa; --cea-slate:#94a3b8;
+  }
+}
+.cea-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.cea-fig text{font-family:inherit}
+.cea-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.cea-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.cea-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.cea-toc ol{margin:0;padding-left:1.25rem}
+.cea-toc li{margin:.22rem 0;font-size:.95rem}
+.cea-toc a{text-decoration:none}
+.cea-toc a:hover{text-decoration:underline}
+.cea-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.cea-table th,.cea-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.cea-table th{background:var(--entry)}
+.cea-note{border-left:4px solid var(--cea-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.cea-warn{border-left:4px solid var(--cea-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="cea-toc">
+  <div class="cea-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 요약(compaction)의 숨은 청구서</a></li>
+    <li><a href="#sec-2">배경 — KV 캐시와 prefix caching 3분 복습</a></li>
+    <li><a href="#sec-3">발상의 전환 — 텍스트가 아니라 캐시를 관리하라: drop과 reposition</a></li>
+    <li><a href="#sec-4">AKV 엔진 — stateless API 뒤의 stateful 캐시</a></li>
+    <li><a href="#sec-5">CachePolicy — 언제, 무엇을, 어떻게 뺄 것인가</a></li>
+    <li><a href="#sec-6">숫자로 보는 효과 — 그리고 정책을 스스로 고치는 에이전트</a></li>
+    <li><a href="#sec-7">실전 — 직접 돌려보기 &amp; 지금 내 에이전트에 가져갈 것</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 요약(compaction)의 숨은 청구서</h2>
+
+<p>에이전트를 오래 돌려본 사람이라면 누구나 같은 벽에 부딪힙니다. 턴이 쌓일수록 컨텍스트가 비대해지고, tool 호출 결과 — 검색 결과 수십 KB, 파일 내용, 로그 덤프 — 가 대부분의 자리를 차지합니다. 그래서 거의 모든 에이전트 하네스가 같은 처방을 씁니다. 컨텍스트가 임계치를 넘으면 지난 대화를 <strong>요약(summarization/compaction)</strong>해서 짧은 텍스트로 바꿔치기하는 겁니다. Claude Code의 compaction이 대표적이고, <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic의 컨텍스트 엔지니어링 가이드</a>도 compaction을 장기 세션의 기본 도구로 소개합니다.</p>
+
+<p>그런데 이 처방에는 영수증에 잘 안 찍히는 비용이 있습니다. 요약은 <strong>히스토리를 다시 쓰는</strong> 행위입니다. 메시지 배열이 바뀌는 순간, 서빙 엔진이 애써 만들어 둔 KV 캐시는 prefix가 깨져서 대부분 무효가 됩니다. 다음 요청에서 모델은 요약문을 포함한 컨텍스트 전체를 <strong>처음부터 다시 프리필(re-prefill)</strong>해야 합니다. 요약을 "토큰을 아끼는 기술"로만 알고 있었다면, 실제로는 요약할 때마다 전체 컨텍스트만큼의 프리필 비용을 한 번씩 더 내고 있던 셈입니다.</p>
+
+<p>10월 20일 arXiv에 올라온 논문 <a href="https://arxiv.org/abs/2610.28577" target="_blank" rel="noopener">Cache Engineering for Agents</a>(Tianyu Fu 외)는 바로 이 지점을 찌릅니다. 공개 직후 <a href="https://huggingface.co/papers/trending" target="_blank" rel="noopener">Hugging Face 트렌딩 페이퍼</a>에 올랐고, 같은 주에 KV 캐시 × 에이전트를 다룬 논문이 여럿 쏟아지면서 "컨텍스트 엔지니어링 다음은 캐시 엔지니어링"이라는 말이 나오기 시작했습니다. 주장은 간단합니다. <strong>텍스트(컨텍스트)를 고쳐 쓰지 말고, 서버에 있는 KV 캐시를 에이전트가 직접 관리하게 하자</strong>는 겁니다. 코드도 <a href="https://github.com/thu-nics/AKV" target="_blank" rel="noopener">AKV</a>라는 이름으로 Apache 2.0 라이선스로 공개됐습니다.</p>
+
+<h2 id="sec-2">2. 배경 — KV 캐시와 prefix caching 3분 복습</h2>
+
+<p>트랜스포머가 다음 토큰을 만들 때는 앞선 모든 토큰의 key/value 벡터가 필요합니다. 이를 매번 다시 계산하지 않도록 GPU 메모리에 저장해 두는 것이 <strong>KV 캐시</strong>입니다. 토큰 하나당 모든 레이어의 K, V 벡터가 저장되므로, 컨텍스트가 길어질수록 캐시는 수 GB 단위로 커집니다. 자세한 구조는 예전 글 <a href="/posts/llm-serving-engine-internals/" target="_blank" rel="noopener">LLM 서빙 엔진 내부</a>에서 다뤘습니다.</p>
+
+<p>여기에 vLLM, SGLang 같은 서빙 엔진은 <strong>prefix caching</strong>을 얹습니다. 두 요청의 앞부분이 토큰 단위로 완전히 같으면, 그 구간의 KV를 다시 계산하지 않고 재사용하는 기법입니다. 에이전트는 매 턴 "지금까지의 전체 대화 + 새 메시지"를 보내므로 prefix caching과 찰떡궁합입니다. API 쪽에도 같은 개념이 있습니다. Anthropic의 <a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching" target="_blank" rel="noopener">prompt caching</a>은 캐시 읽기를 기본 입력 단가의 10%로 과금합니다. 캐시에 맞으면 10분의 1 가격, 깨지면 정가라는 뜻입니다.</p>
+
+<p>그래서 에이전트 하네스의 제1원칙이 "<strong>컨텍스트는 append-only로 유지하라</strong>"가 됐습니다. 뒤에 붙이기만 하면 prefix가 보존되고 캐시가 계속 맞습니다. 문제는 이 원칙과 "컨텍스트를 줄여야 한다"는 요구가 정면으로 충돌한다는 겁니다. 요약이든 오래된 메시지 삭제든, 컨텍스트 중간을 건드리는 순간 append-only가 깨지고 캐시도 함께 깨집니다. 지금까지는 둘 중 하나를 포기해야 했습니다.</p>
+
+<div class="cea-note">
+<strong>용어 정리:</strong> 이 글에서 <strong>컨텍스트 엔지니어링</strong>은 "모델에게 보낼 텍스트(메시지 배열)를 설계·편집하는 일", <strong>캐시 엔지니어링(cache engineering)</strong>은 "서버에 이미 계산돼 있는 KV 캐시 자체를 유지·제외·압축하는 일"을 가리킵니다. 전자는 클라이언트의 일이었고, 후자는 지금까지 서빙 엔진만의 일이었습니다. 이 논문은 후자의 제어권을 에이전트에게 넘깁니다.
+</div>
+
+<h2 id="sec-3">3. 발상의 전환 — 텍스트가 아니라 캐시를 관리하라: drop과 reposition</h2>
+
+<p>논문의 핵심 관찰은 이렇습니다. 요약이 캐시를 깨는 이유는 <strong>토큰 시퀀스를 바꾸기 때문</strong>입니다. 그렇다면 토큰 시퀀스는 그대로 두고, 필요 없어진 부분의 KV만 <strong>앞으로의 attention 계산에서 제외</strong>하면 어떨까요? 텍스트 차원에서는 아무것도 지우지 않았으니 히스토리는 멀쩡하고, 살아남은 KV는 재계산 없이 그대로 재사용됩니다. re-prefill이 아예 발생하지 않습니다.</p>
+
+<p>이를 위해 논문은 두 가지 연산을 정의합니다.</p>
+
+<ul>
+  <li><strong>drop</strong> — 지정한 메시지의 KV 엔트리를 이후 attention에서 제외합니다. 메시지 히스토리 자체는 수정하지 않습니다. 오래된 tool 결과처럼 "한 번 보고 버려도 되는" 덩어리가 주 대상입니다.</li>
+  <li><strong>reposition</strong> — drop만 하면 살아남은 토큰들의 위치(position)에 빈틈이 생깁니다. reposition은 남은 KV의 위치 인코딩을 다시 매겨 빈틈을 압축합니다. 모델 입장에서는 컨텍스트가 실제로 짧아진 효과가 납니다.</li>
+</ul>
+
+<figure class="cea-fig">
+<svg viewBox="0 0 860 440" role="img" aria-label="왼쪽은 요약 방식으로 히스토리를 다시 써서 KV 캐시 전체가 무효화되고 re-prefill이 발생하는 흐름, 오른쪽은 drop 방식으로 KV를 유지한 채 일부만 attention에서 제외해 re-prefill이 없는 흐름을 비교한 다이어그램">
+  <text x="215" y="30" text-anchor="middle" fill="var(--cea-rose)" font-size="15.5" font-weight="700">기존: 요약(compaction)</text>
+  <text x="645" y="30" text-anchor="middle" fill="var(--cea-green)" font-size="15.5" font-weight="700">캐시 엔지니어링: drop + reposition</text>
+
+  <!-- left: summarization -->
+  <g font-size="12">
+    <rect x="40" y="50" width="350" height="56" rx="9" fill="var(--cea-slate)" opacity="0.12" stroke="var(--cea-slate)" stroke-width="1.5"/>
+    <text x="215" y="73" text-anchor="middle" fill="var(--cea-slate)" font-weight="700">대화 히스토리 (20만 토큰)</text>
+    <text x="215" y="93" text-anchor="middle" fill="var(--cea-slate)">system · user · tool 결과 × N · assistant …</text>
+
+    <path d="M 215 106 L 215 136" stroke="var(--cea-rose)" stroke-width="2" fill="none"/>
+    <text x="228" y="128" fill="var(--cea-rose)" font-size="11.5">요약 모델 호출 (추가 비용)</text>
+
+    <rect x="40" y="138" width="350" height="50" rx="9" fill="var(--cea-rose)" opacity="0.1" stroke="var(--cea-rose)" stroke-width="1.8"/>
+    <text x="215" y="160" text-anchor="middle" fill="var(--cea-rose)" font-weight="700">히스토리를 요약문으로 교체</text>
+    <text x="215" y="178" text-anchor="middle" fill="var(--cea-slate)">메시지 배열이 바뀜 → prefix 불일치</text>
+
+    <path d="M 215 188 L 215 218" stroke="var(--cea-rose)" stroke-width="2" fill="none"/>
+
+    <rect x="40" y="220" width="350" height="50" rx="9" fill="var(--cea-rose)" opacity="0.18" stroke="var(--cea-rose)" stroke-width="1.8"/>
+    <text x="215" y="242" text-anchor="middle" fill="var(--cea-rose)" font-weight="700">KV 캐시 전체 무효화</text>
+    <text x="215" y="260" text-anchor="middle" fill="var(--cea-slate)">다음 요청에서 전체 re-prefill (정가 과금)</text>
+
+    <path d="M 215 270 L 215 300" stroke="var(--cea-slate)" stroke-width="2" fill="none"/>
+    <rect x="40" y="302" width="350" height="50" rx="9" fill="var(--cea-slate)" opacity="0.12" stroke="var(--cea-slate)" stroke-width="1.5"/>
+    <text x="215" y="324" text-anchor="middle" fill="var(--cea-slate)" font-weight="700">정보 손실 위험</text>
+    <text x="215" y="342" text-anchor="middle" fill="var(--cea-slate)">요약에서 빠진 디테일은 영영 복구 불가</text>
+  </g>
+
+  <!-- right: drop -->
+  <g font-size="12">
+    <rect x="470" y="50" width="350" height="56" rx="9" fill="var(--cea-slate)" opacity="0.12" stroke="var(--cea-slate)" stroke-width="1.5"/>
+    <text x="645" y="73" text-anchor="middle" fill="var(--cea-slate)" font-weight="700">대화 히스토리 (20만 토큰, 그대로)</text>
+    <text x="645" y="93" text-anchor="middle" fill="var(--cea-slate)">텍스트는 한 글자도 안 바꿈</text>
+
+    <path d="M 645 106 L 645 136" stroke="var(--cea-green)" stroke-width="2" fill="none"/>
+    <text x="658" y="128" fill="var(--cea-green)" font-size="11.5">요청에 drop_message 지시만 추가</text>
+
+    <rect x="470" y="138" width="350" height="50" rx="9" fill="var(--cea-green)" opacity="0.1" stroke="var(--cea-green)" stroke-width="1.8"/>
+    <text x="645" y="160" text-anchor="middle" fill="var(--cea-green)" font-weight="700">오래된 tool 결과의 KV만 attention 제외</text>
+    <text x="645" y="178" text-anchor="middle" fill="var(--cea-slate)">나머지 KV는 재계산 없이 그대로 재사용</text>
+
+    <path d="M 645 188 L 645 218" stroke="var(--cea-green)" stroke-width="2" fill="none"/>
+
+    <rect x="470" y="220" width="350" height="50" rx="9" fill="var(--cea-green)" opacity="0.1" stroke="var(--cea-green)" stroke-width="1.8"/>
+    <text x="645" y="242" text-anchor="middle" fill="var(--cea-green)" font-weight="700">reposition으로 위치 빈틈 압축</text>
+    <text x="645" y="260" text-anchor="middle" fill="var(--cea-slate)">유효 컨텍스트 길이가 실제로 줄어듦</text>
+
+    <path d="M 645 270 L 645 300" stroke="var(--cea-green)" stroke-width="2" fill="none"/>
+    <rect x="470" y="302" width="350" height="50" rx="9" fill="var(--cea-green)" opacity="0.18" stroke="var(--cea-green)" stroke-width="1.8"/>
+    <text x="645" y="324" text-anchor="middle" fill="var(--cea-green)" font-weight="700">re-prefill 0 · 요약 모델 호출 0</text>
+    <text x="645" y="342" text-anchor="middle" fill="var(--cea-slate)">비용 −27.7%, 점수 +1.7 (논문 보고치)</text>
+  </g>
+
+  <text x="430" y="410" text-anchor="middle" fill="var(--cea-slate)" font-size="12.5">같은 목표(컨텍스트 다이어트), 전혀 다른 비용 구조</text>
+</svg>
+<figcaption>그림 1. 요약은 히스토리를 다시 써서 캐시를 깨지만, drop은 KV를 그대로 둔 채 attention에서만 제외합니다.</figcaption>
+</figure>
+
+<p>비유하자면 이렇습니다. 요약이 "책의 앞 챕터들을 찢어내고 한 장짜리 줄거리로 다시 제본하는 것"이라면, drop은 "책은 그대로 두고 다 읽은 챕터에 '다시 안 봐도 됨' 포스트잇을 붙이는 것"입니다. 제본을 다시 하면(요약) 책 전체를 다시 들춰봐야 하지만(re-prefill), 포스트잇 방식은 책장도 그대로, 읽던 자리도 그대로입니다. 게다가 포스트잇은 떼면 그만이라, 정책에 따라서는 나중에 되살릴 여지도 있습니다 — 요약으로 날린 디테일은 영영 복구할 수 없는 것과 대조적입니다.</p>
+
+<p>흥미로운 점은 품질입니다. 직관적으로는 "요약이라도 남기는 쪽"이 정보를 덜 잃을 것 같지만, 논문의 실험에서는 tool 결과를 통째로 drop하는 쪽이 요약 기반 베이스라인보다 벤치마크 평균 점수가 <strong>1.7점 더 높았습니다</strong>. 요약 과정 자체가 디테일을 뭉개고, 모델이 자기가 쓴 요약문을 과신하는 부작용이 있는 반면, drop은 "최근 것은 원문 그대로, 오래된 것은 깔끔하게 제외"라는 더 예측 가능한 컨텍스트를 만들기 때문으로 해석할 수 있습니다. <a href="/posts/context-rot-long-context-degradation/" target="_blank" rel="noopener">컨텍스트가 길수록 품질이 떨어지는 현상(context rot)</a>을 생각하면, 안 쓰는 KV를 attention에서 빼는 것 자체가 품질에도 득이 됩니다.</p>
+
+<h2 id="sec-4">4. AKV 엔진 — stateless API 뒤의 stateful 캐시</h2>
+
+<p>"KV를 골라서 빼자"는 아이디어는 간단해 보이지만, 서빙 시스템 입장에서는 골치 아픈 문제를 하나 만듭니다. 기존 prefix caching은 "<strong>토큰 시퀀스가 같으면 캐시 상태도 같다</strong>"는 가정 위에 서 있습니다. 그런데 drop이 들어오는 순간 이 가정이 깨집니다. 똑같은 메시지 배열이라도, 2번 메시지를 drop한 세션과 안 한 세션의 캐시 상태는 서로 다릅니다. 즉 <strong>같은 토큰 ≠ 같은 캐시</strong>가 되어, 단순 prefix 매칭으로는 캐시를 올바르게 재사용할 수 없습니다.</p>
+
+<p>논문이 SGLang 위에 구현한 <strong>AKV</strong>(<a href="https://github.com/thu-nics/AKV" target="_blank" rel="noopener">thu-nics/AKV</a>)는 이 문제를 "겉은 stateless, 속은 stateful"로 풉니다. 클라이언트는 평소처럼 OpenAI 호환 Chat Completions API로 전체 메시지를 보내되, 요청 페이로드에 캐시 지시 필드 두 개만 얹습니다.</p>
+
+{{< highlight json >}}
+{
+  "model": "gpt-oss-120b",
+  "messages": [ /* 전체 히스토리를 평소처럼 그대로 */ ],
+  "drop_message": {"4": [2]},   // 메시지 4 처리 후, 메시지 2의 KV를 drop
+  "reposition": [4]             // 메시지 4 이후 남은 KV의 위치를 압축
+}
+{{< /highlight >}}
+
+<p><code>drop_message</code>는 "어느 시점에(키), 어떤 메시지들을(값) 뺄 것인가"의 매핑입니다. 인덱스는 0부터 시작하고, 예를 들어 <code>{"3": [1, 2]}</code>는 메시지 3까지 처리한 뒤 메시지 1, 2의 KV를 제외하라는 뜻입니다. 두 연산이 같은 시점에 걸리면 drop을 먼저, reposition을 나중에 적용합니다. 서버는 내부적으로 세션별 캐시 연산 이력을 추적하면서 재사용·축출(eviction)·복원을 관리합니다. 응답의 <code>usage.prompt_tokens_details</code>에는 <code>cached_tokens</code>, <code>drop_skipped_tokens</code>, <code>repos_tokens</code> 세 필드가 추가돼, 캐시가 실제로 얼마나 재사용되고 얼마나 건너뛰었는지 요청 단위로 확인할 수 있습니다.</p>
+
+<div class="cea-note">
+<strong>왜 API가 stateless를 유지하는 게 중요할까요?</strong> 세션 상태를 클라이언트가 들고 있게 하면(예: 캐시 핸들을 주고받는 방식) 하네스와 로드밸런서, 재시도 로직 전부를 뜯어고쳐야 합니다. AKV는 "전체 메시지 + 캐시 지시"라는 기존 요청 형태를 유지해서, 하네스 쪽 변경을 요청 필드 두 개 추가로 최소화했습니다. 기존 에이전트 코드와의 호환성이 이 설계의 핵심 셀링 포인트입니다.
+</div>
+
+<p>성능 면에서는, 요약처럼 전체 re-prefill을 일으키는 연산이 사라지니 서버의 프리필 부하가 급감합니다. 논문 보고치는 출력 처리량 <strong>최대 1.18배</strong>, P95 요청 지연 <strong>1.51배 단축</strong>입니다. 비용 절감이 서비스 수준 지표(SLO) 개선으로도 이어진다는 뜻입니다.</p>
+
+<h2 id="sec-5">5. CachePolicy — 언제, 무엇을, 어떻게 뺄 것인가</h2>
+
+<p>그럼 "무엇을 언제 drop할지"는 누가 정할까요? AKV의 에이전트 레이어(<code>akv.agent</code>)는 이 결정을 <strong>CachePolicy</strong>라는 세 부품의 조합으로 추상화합니다.</p>
+
+<table class="cea-table">
+  <tr><th>부품</th><th>역할</th><th>내장 구현</th></tr>
+  <tr><td><code>trigger</code></td><td><strong>언제</strong> 정리를 발동할지 (bool 반환)</td><td>턴 수 기반 · 토큰 수 기반 · 모델 판단 기반</td></tr>
+  <tr><td><code>selector</code></td><td><strong>무엇을</strong> drop할지 (메시지 ID 집합 반환)</td><td>턴 기반 · 토큰 기반 · 모델 판단 기반</td></tr>
+  <tr><td><code>reposition</code></td><td>위치 압축을 <strong>할지 말지</strong> (bool 반환)</td><td>턴 기반 · 토큰 기반 · 모델 판단 기반</td></tr>
+</table>
+
+<p>논문이 메인으로 내세우는 정책은 <strong>tool-response rolling drop</strong>입니다. 아이디어는 소박합니다. "tool 결과는 받은 직후 몇 턴만 원문이 필요하고, 그 뒤로는 거의 안 쓴다. 그러니 최근 K개의 tool 결과만 남기고 더 오래된 것부터 순서대로(rolling) drop하라." 에이전트 컨텍스트의 대부분을 tool 결과가 차지한다는 점을 생각하면, 이 단순한 규칙만으로 컨텍스트 팽창이 사실상 평평하게 눌립니다. 임계치에 도달할 때마다 한 번에 크게 요약하는 기존 방식과 달리, 매 턴 조금씩 정리하므로 비용 스파이크도 없습니다.</p>
+
+<figure class="cea-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="에이전트 하네스의 CachePolicy와 CacheTool이 drop_message, reposition 필드가 담긴 OpenAI 호환 요청을 만들어 AKV 서버로 보내고, 서버 내부의 SGLang 기반 엔진이 세션별 캐시 상태를 추적하며 KV 재사용과 drop-aware eviction을 수행하는 구조">
+  <!-- Agent side -->
+  <rect x="30" y="40" width="340" height="300" rx="14" fill="var(--cea-violet)" opacity="0.07" stroke="var(--cea-violet)" stroke-width="2"/>
+  <text x="200" y="70" text-anchor="middle" fill="var(--cea-violet)" font-size="15" font-weight="700">에이전트 하네스 (akv.agent)</text>
+
+  <rect x="55" y="90" width="290" height="104" rx="10" fill="var(--cea-violet)" opacity="0.12" stroke="var(--cea-violet)" stroke-width="1.5"/>
+  <text x="200" y="112" text-anchor="middle" fill="var(--cea-violet)" font-size="13" font-weight="700">CachePolicy (하네스가 결정)</text>
+  <text x="200" y="134" text-anchor="middle" fill="var(--cea-slate)" font-size="12">trigger: 언제? (턴/토큰/모델)</text>
+  <text x="200" y="153" text-anchor="middle" fill="var(--cea-slate)" font-size="12">selector: 무엇을? (메시지 ID 집합)</text>
+  <text x="200" y="172" text-anchor="middle" fill="var(--cea-slate)" font-size="12">reposition: 압축할까? (bool)</text>
+
+  <rect x="55" y="212" width="290" height="80" rx="10" fill="var(--cea-amber)" opacity="0.1" stroke="var(--cea-amber)" stroke-width="1.5"/>
+  <text x="200" y="236" text-anchor="middle" fill="var(--cea-amber)" font-size="13" font-weight="700">CacheTool (모델이 결정)</text>
+  <text x="200" y="257" text-anchor="middle" fill="var(--cea-slate)" font-size="12">모델이 drop_context 도구를 직접 호출</text>
+  <text x="200" y="276" text-anchor="middle" fill="var(--cea-slate)" font-size="12">→ 다음 요청의 drop_message로 변환</text>
+
+  <text x="200" y="322" text-anchor="middle" fill="var(--cea-slate)" font-size="11.5">히스토리는 append-only 그대로 유지</text>
+
+  <!-- arrow -->
+  <path d="M 370 190 L 480 190" stroke="var(--cea-slate)" stroke-width="2.2" fill="none"/>
+  <path d="M 480 190 l -12 -7 v 14 z" fill="var(--cea-slate)"/>
+  <text x="425" y="168" text-anchor="middle" fill="var(--cea-slate)" font-size="11.5">Chat Completions 요청</text>
+  <text x="425" y="212" text-anchor="middle" fill="var(--cea-sky)" font-size="11.5" font-weight="700">+ drop_message / reposition</text>
+
+  <!-- Server side -->
+  <rect x="490" y="40" width="340" height="300" rx="14" fill="var(--cea-sky)" opacity="0.07" stroke="var(--cea-sky)" stroke-width="2"/>
+  <text x="660" y="70" text-anchor="middle" fill="var(--cea-sky)" font-size="15" font-weight="700">AKV 서버 (akv.system · SGLang 기반)</text>
+
+  <rect x="515" y="90" width="290" height="70" rx="10" fill="var(--cea-sky)" opacity="0.12" stroke="var(--cea-sky)" stroke-width="1.5"/>
+  <text x="660" y="114" text-anchor="middle" fill="var(--cea-sky)" font-size="13" font-weight="700">캐시 상태 추적</text>
+  <text x="660" y="134" text-anchor="middle" fill="var(--cea-slate)" font-size="12">같은 토큰이라도 연산 이력이 다르면</text>
+  <text x="660" y="151" text-anchor="middle" fill="var(--cea-slate)" font-size="12">다른 캐시 → prefix 매칭만으론 부족</text>
+
+  <rect x="515" y="176" width="290" height="62" rx="10" fill="var(--cea-green)" opacity="0.1" stroke="var(--cea-green)" stroke-width="1.5"/>
+  <text x="660" y="200" text-anchor="middle" fill="var(--cea-green)" font-size="13" font-weight="700">KV 재사용 · 복원</text>
+  <text x="660" y="220" text-anchor="middle" fill="var(--cea-slate)" font-size="12">살아남은 KV는 re-prefill 없이 사용</text>
+
+  <rect x="515" y="254" width="290" height="62" rx="10" fill="var(--cea-rose)" opacity="0.08" stroke="var(--cea-rose)" stroke-width="1.5"/>
+  <text x="660" y="278" text-anchor="middle" fill="var(--cea-rose)" font-size="13" font-weight="700">drop-aware eviction</text>
+  <text x="660" y="298" text-anchor="middle" fill="var(--cea-slate)" font-size="12">drop된 블록부터 우선 축출해 메모리 회수</text>
+
+  <text x="430" y="378" text-anchor="middle" fill="var(--cea-slate)" font-size="12.5">usage.prompt_tokens_details로 cached_tokens · drop_skipped_tokens · repos_tokens 확인</text>
+</svg>
+<figcaption>그림 2. AKV의 두 레이어 — 하네스(또는 모델)가 정책을 정하고, 서버가 stateful 캐시 연산을 실행합니다.</figcaption>
+</figure>
+
+<p>한 발 더 나아간 것이 <strong>CacheTool</strong>입니다. 정책을 하네스에 하드코딩하는 대신, <code>drop_context</code> 같은 도구를 모델에게 쥐여 주고 <strong>모델이 스스로 "이 메시지들은 이제 필요 없음"을 판단해 tool call로 drop을 지시</strong>하게 합니다. 하네스는 그 호출을 다음 요청의 <code>drop_message</code> 필드로 변환하기만 하면 됩니다. 컨텍스트 관리의 주체가 하네스 개발자에서 모델 자신으로 옮겨가는 그림입니다.</p>
+
+<h2 id="sec-6">6. 숫자로 보는 효과 — 그리고 정책을 스스로 고치는 에이전트</h2>
+
+<p>논문이 보고하는 핵심 수치를 정리하면 다음과 같습니다(모두 저자 보고치이며, 세 가지 LLM과 네 가지 에이전트 벤치마크에서 측정했습니다).</p>
+
+<table class="cea-table">
+  <tr><th>항목</th><th>결과</th><th>비교 대상</th></tr>
+  <tr><td>벤치마크 평균 점수</td><td><strong>+1.7점</strong></td><td>임계치 도달 시 요약하는 기존 방식</td></tr>
+  <tr><td>평균 비용</td><td><strong>−27.7%</strong></td><td>〃</td></tr>
+  <tr><td>출력 처리량 (AKV 엔진)</td><td><strong>최대 1.18배</strong></td><td>기존 서빙 대비</td></tr>
+  <tr><td>P95 요청 지연 (AKV 엔진)</td><td><strong>1.51배 단축</strong></td><td>〃</td></tr>
+  <tr><td>정책 자가 개선 후 비용</td><td><strong>추가 −7.1%</strong></td><td>사람이 설계한 정책 대비</td></tr>
+</table>
+
+<p>실험에는 GPT-OSS-120B, MiniMax-M2.7 등이 쓰였고, BCP 벤치마크(100개 태스크 서브셋, 태스크당 4회 시행)에서 GPT-OSS-120B가 61.0%로 비교 기법 중 가장 높은 pass rate를 기록했으며, SWE-bench Verified에서도 태스크 성능과 서빙 처리량을 함께 측정했습니다.</p>
+
+<p>개인적으로 가장 눈이 가는 건 마지막 줄입니다. 저자들은 캐시 정책 코드 자체를 에이전트에게 주고 "벤치마크 성능과 비용을 보고 정책을 고쳐 봐라"는 <strong>재귀적 자가 개선(recursive self-improvement)</strong> 실험을 했습니다. 그 결과물이 전문가가 손으로 설계한 정책보다 held-out 태스크에서 비용을 7.1% 더 줄였습니다. trigger/selector/reposition이라는 좁고 명확한 인터페이스 덕분에, "에이전트가 자기 인프라 코드를 최적화한다"는 다소 아찔한 아이디어가 안전하고 측정 가능한 놀이터 안에서 작동한 사례입니다.</p>
+
+<h2 id="sec-7">7. 실전 — 직접 돌려보기 &amp; 지금 내 에이전트에 가져갈 것</h2>
+
+<p>AKV는 pip 패키지가 아니라 연구용 코드지만, GPU가 있다면 README의 Quick Start 그대로 돌려볼 수 있습니다.</p>
+
+{{< highlight bash >}}
+# 설치 (Python 3.12 + uv)
+git clone https://github.com/thu-nics/AKV && cd AKV
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e .
+
+# AKV 서버 띄우기 (GPT-OSS-120B 예시, GPU 2장 텐서 병렬)
+python -m akv.system.launch_server \
+  --model-path /path/to/gpt-oss-120b \
+  --reasoning-parser gpt-oss \
+  --tool-call-parser gpt-oss \
+  --tp-size 2 \
+  --port 8000
+
+# 캐시 정책이 적용된 에이전트 데모
+python examples/demo.py \
+  --base-url http://localhost:8000/v1 \
+  --model gpt-oss-120b \
+  --output local/demo-tool-01
+{{< /highlight >}}
+
+<p>지원 모델은 현재 Qwen 계열(Qwen2/2.5/3, MoE 변형 포함), GPT-OSS, MiniMax-M2 계열이고, drop/reposition은 SGLang의 <code>--page-size 1</code>(기본값)에서만 동작합니다. 직접 서빙하지 않고 상용 API만 쓰는 입장이라도, 이 논문의 사고방식은 바로 적용할 수 있습니다.</p>
+
+<ul>
+  <li><strong>컨텍스트 편집의 진짜 비용을 계산하세요.</strong> 요약으로 아끼는 토큰 수만 보지 말고, "요약 직후 1회의 전체 re-prefill(정가) + 요약 모델 호출 비용"을 빼 보세요. 캐시 읽기가 정가의 10%인 요금 체계에서는, 캐시를 깨는 요약이 오히려 손해인 구간이 생각보다 넓습니다. 세션이 얼마나 길어야 요약이 이득인지 손익분기점을 한 번 구해 보면 감이 옵니다.</li>
+  <li><strong>요약 대신 '통째 제거'를 먼저 검토하세요.</strong> 논문의 rolling drop이 시사하듯, tool 결과는 요약할 가치조차 없는 경우가 많습니다. 상용 API에서도 "오래된 tool 결과를 플레이스홀더로 치환"하는 전략은 요약보다 싸고 예측 가능합니다. 단, 이 역시 히스토리를 수정하므로 캐시는 깨집니다 — 그래서 매 턴이 아니라 가끔, 한꺼번에 하는 게 유리합니다. OpenAI와 Anthropic 모두 비슷한 방향의 컨텍스트 편집 기능을 제공하기 시작했으니 사용하는 API의 문서를 확인해 보세요.</li>
+  <li><strong>캐시 지표를 대시보드에 올리세요.</strong> AKV가 <code>cached_tokens</code>/<code>drop_skipped_tokens</code>를 노출하듯, 상용 API 응답의 캐시 히트 필드(Anthropic의 <code>cache_read_input_tokens</code> 등)를 로깅하면 "우리 하네스가 캐시를 얼마나 깨먹고 있는지"가 한눈에 보입니다. <a href="/posts/agent-token-economics/" target="_blank" rel="noopener">에이전트 토큰 경제학</a>에서 다뤘듯, 긴 세션 에이전트의 비용은 출력이 아니라 입력(프리필) 쪽에서 터집니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"drop했으니 모델이 그 내용을 기억할 것"이라고 착각하기.</strong> drop된 KV는 이후 attention에서 완전히 제외됩니다. 모델 입장에서는 그 메시지가 처음부터 없던 것과 같습니다. 최종 답변에 꼭 필요한 정보(태스크 목표, 핵심 발견)는 drop 대상에서 제외하거나, drop 전에 짧은 메모로 다시 써 두는 설계가 필요합니다.</li>
+  <li><strong>reposition 없이 drop만 쌓기.</strong> drop만 하면 위치 인덱스에 빈틈이 남아 유효 컨텍스트 길이는 줄지 않습니다. 길이 한계에 부딪혀서 정리하는 거라면 reposition까지 해야 실제로 자리가 생깁니다.</li>
+  <li><strong>클라이언트 측 trimming과 혼동하기.</strong> 하네스에서 오래된 메시지를 배열에서 지우는 것(trimming)은 prefix를 깨서 전체 re-prefill을 유발합니다. drop은 반대로 배열을 그대로 두고 서버 쪽 KV만 건드립니다. 겉보기 효과는 비슷해도 비용 구조가 정반대입니다.</li>
+  <li><strong>벤더 API에 그대로 이식하려 하기.</strong> <code>drop_message</code>/<code>reposition</code>은 AKV 서버의 확장 필드입니다. OpenAI/Anthropic API에는 (아직) 이런 KV 수준 제어가 없습니다. 상용 API에서는 "캐시 브레이크포인트를 안정된 prefix 뒤에 두기, 편집은 드물게 한꺼번에" 같은 간접 전략이 현실적인 대안입니다.</li>
+  <li><strong>모델 기반 trigger/selector를 공짜로 여기기.</strong> "모델이 판단해서 drop"은 그 판단 자체가 추가 호출/토큰입니다. 대부분의 워크로드에서는 턴·토큰 기반의 멍청한 규칙이 가성비가 좋고, 논문의 메인 결과도 단순한 rolling 규칙에서 나왔습니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>10/20 공개된 <strong>Cache Engineering for Agents</strong>(arXiv:2610.28577)가 Hugging Face 트렌딩에 올랐습니다. 요지: 긴 에이전트 세션의 지배적 비용은 KV 캐시이며, 요약/트리밍 같은 컨텍스트 편집은 캐시를 깨고 전체 re-prefill을 청구합니다.</li>
+  <li>해법은 텍스트가 아니라 <strong>KV 캐시를 직접 관리</strong>하는 것: <strong>drop</strong>(선택한 메시지의 KV를 이후 attention에서 제외)과 <strong>reposition</strong>(남은 KV의 위치 압축). 히스토리는 append-only 그대로, re-prefill은 0.</li>
+  <li>오래된 tool 결과를 순서대로 빼는 <strong>rolling drop 정책</strong>만으로 요약 대비 비용 <strong>−27.7%</strong>, 점수 <strong>+1.7</strong>(저자 보고치). 요약보다 싸면서 품질도 좋았다는 게 포인트.</li>
+  <li>drop이 생기면 "같은 토큰 = 같은 캐시" 가정이 깨지므로, SGLang 기반 <strong>AKV 엔진</strong>이 stateless API(<code>drop_message</code>/<code>reposition</code> 필드) 뒤에서 세션별 캐시 상태를 추적합니다. 처리량 1.18배, P95 지연 1.51배 단축.</li>
+  <li>정책은 <code>trigger</code>(언제)/<code>selector</code>(무엇을)/<code>reposition</code>(압축할지)으로 분해되고, <strong>CacheTool</strong>로 모델이 직접 drop을 지시할 수도, 에이전트가 정책 코드를 <strong>스스로 개선</strong>(추가 −7.1%)할 수도 있습니다.</li>
+  <li>상용 API 사용자도 교훈은 동일합니다: 컨텍스트 편집의 비용에 re-prefill을 포함해 계산하고, 요약보다 통째 제거를 먼저 검토하고, 캐시 히트 지표를 상시 관측하세요.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2610.28577" target="_blank" rel="noopener">Cache Engineering for Agents — arXiv:2610.28577</a></li>
+  <li><a href="https://arxiv.org/html/2610.28577" target="_blank" rel="noopener">Cache Engineering for Agents — arXiv HTML 전문</a></li>
+  <li><a href="https://github.com/thu-nics/AKV" target="_blank" rel="noopener">AKV — 공식 구현 (thu-nics, Apache 2.0)</a></li>
+  <li><a href="https://huggingface.co/papers/2610.28577" target="_blank" rel="noopener">Cache Engineering for Agents — Hugging Face Papers</a></li>
+  <li><a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching" target="_blank" rel="noopener">Prompt caching — Anthropic Docs</a></li>
+  <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Effective context engineering for AI agents — Anthropic Engineering</a></li>
+  <li><a href="https://github.com/sgl-project/sglang" target="_blank" rel="noopener">SGLang — GitHub</a></li>
+  <li>(한국어) <a href="/posts/prompt-caching-cache-aware-agents/" target="_blank" rel="noopener">Prompt caching과 캐시 친화적 에이전트 설계 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/context-compaction-long-horizon-agents/" target="_blank" rel="noopener">장기 세션 에이전트의 컨텍스트 compaction — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/kv-cache-eviction-random-attention/" target="_blank" rel="noopener">KV 캐시 축출 전략 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/agent-token-economics/" target="_blank" rel="noopener">에이전트 토큰 경제학 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/llm-serving-engine-internals/" target="_blank" rel="noopener">LLM 서빙 엔진 내부 — 이 블로그</a></li>
+</ul>

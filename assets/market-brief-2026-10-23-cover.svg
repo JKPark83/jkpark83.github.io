@@ -1,0 +1,34 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="금요일 아침 브리핑 표지. 메타의 현금흐름 적자에 AI 돈줄 걱정이 되살아나 나스닥이 2.6% 급락했습니다. 주식 공포·탐욕 지수는 20으로 되돌아가 역발상 신호가 재점등됐고 분할 매수를 유지합니다. 비트코인은 85,000달러 터치 후 81,000달러로 왕복 급락해 매도를 유지합니다">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.10.23 · 나스닥 &amp; 비트코인 5분 요약 · 금요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">메타의 현금흐름 적자에 AI 돈줄 걱정이 되살아난 밤 — 나스닥 6월 이후 최대 낙폭</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 극단적 공포 재진입</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">심리 29→20</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">역발상 신호 재점등</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.15"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#4ade80">나스닥 매수</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#bbf7d0">분할분 유지·추가 보류</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 85,000 왕복 급락</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#a5b4fc">탐욕 67</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">급락일에 짙어진 탐욕</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.15"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">84,000 터치 후 거부</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">나스닥 26,008.86(-2.60%) · S&amp;P 7,663.43(-1.21%) · BTC 81,000~81,400달러 · 목요일(10/22) 종가 기준</text>
+</svg>

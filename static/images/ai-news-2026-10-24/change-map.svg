@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="500" fill="#ffffff"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-10-24</text>
+  <text x="400" y="58" text-anchor="middle" font-size="13" fill="#6b7280">키워드: 오픈웨이트 2연타 — 1M 컨텍스트 거함부터 맥북용 코딩 모델까지</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="80" width="360" height="180" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1d4ed8">모델 / 릴리즈</text>
+  <text x="50" y="134" font-size="13" fill="#111827">MiniMax M3.1-Flash 웨이트 공개 (10/23)</text>
+  <text x="50" y="154" font-size="12" fill="#374151">· 428B MoE(활성 23B) · 1M ctx · 이미지·비디오 입력</text>
+  <text x="50" y="172" font-size="12" fill="#374151">· 어제 "아직 없음" 확인 → 당일 낮에 업로드됨</text>
+  <text x="50" y="198" font-size="13" fill="#111827">Recursive Flint (10/21, Apache 2.0)</text>
+  <text x="50" y="218" font-size="12" fill="#374151">· 40B-A2.5B 코딩 에이전트 전용 · 262K ctx</text>
+  <text x="50" y="236" font-size="12" fill="#374151">· H200 1장 또는 M4 Pro 맥에서 로컬 실행</text>
+
+  <!-- 논문 -->
+  <rect x="410" y="80" width="360" height="180" rx="10" fill="#fdf4ff" stroke="#a855f7"/>
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#7e22ce">논문</text>
+  <text x="430" y="134" font-size="13" fill="#111827">Adaptive Skill Granularity (2610.31461)</text>
+  <text x="430" y="154" font-size="12" fill="#374151">· 스킬 입도를 런타임에 라우팅, 실패 시 마이크로 복구</text>
+  <text x="430" y="172" font-size="12" fill="#374151">· 스킬 = 검색 자원이 아니라 실행 추상화</text>
+  <text x="430" y="198" font-size="13" fill="#111827">Herding &amp; Runaway Cascades (2610.30769)</text>
+  <text x="430" y="218" font-size="12" fill="#374151">· LLM 집단은 인간보다 허딩에 훨씬 취약</text>
+  <text x="430" y="236" font-size="12" fill="#374151">· 쏠림이 시작되면 자기교정을 못 한다</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="280" width="360" height="170" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="308" font-size="15" font-weight="700" fill="#15803d">오픈소스</text>
+  <text x="50" y="334" font-size="13" fill="#111827">llm-d/llm-d v1.0.0 (10/20, Apache 2.0)</text>
+  <text x="50" y="354" font-size="12" fill="#374151">· K8s 분산 추론 — prefix-cache 라우팅·KV 오프로딩</text>
+  <text x="50" y="372" font-size="12" fill="#374151">· Red Hat·Google·IBM·CoreWeave·NVIDIA 창립</text>
+  <text x="50" y="398" font-size="13" fill="#111827">recursive-oss/rec (Go, Apache 2.0)</text>
+  <text x="50" y="418" font-size="12" fill="#374151">· Flint 로컬 엔진 — llama.cpp 대비 1.4~2.6×</text>
+  <text x="50" y="436" font-size="11" fill="#6b7280">데이터센터와 노트북, 서빙 전선의 양 끝이 같은 날 움직였다</text>
+
+  <!-- 바이브코딩 -->
+  <rect x="410" y="280" width="360" height="170" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="430" y="308" font-size="15" font-weight="700" fill="#c2410c">바이브코딩</text>
+  <text x="430" y="334" font-size="13" fill="#111827">Codex: Guardian(auto_review) 설정 공개 중</text>
+  <text x="430" y="354" font-size="12" fill="#374151">· 리뷰 예산 timeout_ms · 조직 정책 주입 policy</text>
+  <text x="430" y="382" font-size="13" fill="#111827">Claude Code 2.1.309</text>
+  <text x="430" y="402" font-size="12" fill="#374151">· bypass 모드 rm → 즉시 거부+재작성 힌트</text>
+  <text x="430" y="420" font-size="12" fill="#374151">· sed -i 실제 실행으로 변경(/rewind 복구 불가)</text>
+  <text x="430" y="438" font-size="11" fill="#6b7280">무인 세션을 "안 죽게" 만드는 방향으로 수렴 중</text>
+</svg>

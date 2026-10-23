@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="HybridAgent가 생각은 latent 벡터 루프로 하고 행동은 텍스트 tool 호출로 하는 구조를 단순화한 그림">
+  <defs>
+    <linearGradient id="hrag" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="hra-violet" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+    <linearGradient id="hra-green" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#hrag)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">생각은 벡터로, 행동은 텍스트로</text>
+  <text x="80" y="152" fill="#c4b5fd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">토큰 없이 생각하는 에이전트, HybridAgent</text>
+  <text x="80" y="200" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22">latent reasoning × tool calling — arXiv:2610.18861 · Stanford · UIUC · Together AI</text>
+
+  <!-- latent loop -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="80" y="258" width="430" height="150" rx="14" fill="#1e293b" stroke="#7c3aed" stroke-width="2"/>
+    <text x="295" y="290" text-anchor="middle" fill="#c4b5fd" font-size="20" font-weight="800">latent mode — 생각</text>
+    <circle cx="170" cy="345" r="26" fill="url(#hra-violet)" opacity="0.95"/>
+    <circle cx="255" cy="345" r="26" fill="url(#hra-violet)" opacity="0.8"/>
+    <circle cx="340" cy="345" r="26" fill="url(#hra-violet)" opacity="0.65"/>
+    <circle cx="425" cy="345" r="26" fill="url(#hra-violet)" opacity="0.5"/>
+    <path d="M 196 345 L 229 345 M 281 345 L 314 345 M 366 345 L 399 345" stroke="#a78bfa" stroke-width="3"/>
+    <path d="M 229 345 l -10 -6 v 12 z M 314 345 l -10 -6 v 12 z M 399 345 l -10 -6 v 12 z" fill="#a78bfa"/>
+    <text x="295" y="394" text-anchor="middle" fill="#94a3b8" font-size="15">hidden state를 그대로 다음 입력으로 — 토큰 0개</text>
+  </g>
+
+  <!-- arrow -->
+  <path d="M 530 333 L 620 333" stroke="#4ade80" stroke-width="4" fill="none"/>
+  <path d="M 620 333 l -14 -9 v 18 z" fill="#4ade80"/>
+  <text x="575" y="315" text-anchor="middle" fill="#4ade80" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15" font-weight="700">모드 전환</text>
+
+  <!-- text mode -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="640" y="258" width="480" height="150" rx="14" fill="#1e293b" stroke="#16a34a" stroke-width="2"/>
+    <text x="880" y="290" text-anchor="middle" fill="#86efac" font-size="20" font-weight="800">text mode — 행동</text>
+    <rect x="668" y="312" width="424" height="40" rx="8" fill="url(#hra-green)" opacity="0.18"/>
+    <text x="880" y="338" text-anchor="middle" fill="#86efac" font-size="17" font-family="ui-monospace,monospace">search("trailing zeros of 100!")</text>
+    <text x="880" y="390" text-anchor="middle" fill="#94a3b8" font-size="15">tool 호출·최종 답변만 텍스트로 — 밖에서 보이고, 검증 가능</text>
+  </g>
+
+  <!-- bottom stats -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="80" y="470" width="320" height="92" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="100" y="508" fill="#4ade80" font-size="30" font-weight="800">성능 +10.4%</text>
+    <text x="100" y="540" fill="#94a3b8" font-size="16">3개 모델 × 11개 벤치마크 평균 (저자 보고)</text>
+    <rect x="430" y="470" width="320" height="92" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="450" y="508" fill="#7dd3fc" font-size="30" font-weight="800">토큰 −35.5~54.7%</text>
+    <text x="450" y="540" fill="#94a3b8" font-size="16">생각을 디코딩하지 않으니 토큰이 준다</text>
+    <rect x="780" y="470" width="340" height="92" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="800" y="508" fill="#c4b5fd" font-size="30" font-weight="800">비용 2.7~3.7× 절감</text>
+    <text x="800" y="540" fill="#94a3b8" font-size="16">추론 속도 1.8~2.6× — 코드·모델 공개(MIT)</text>
+  </g>
+</svg>

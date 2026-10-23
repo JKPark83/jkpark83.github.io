@@ -1,0 +1,319 @@
+---
+title: "생각은 벡터로, 행동은 텍스트로 — 토큰 없이 생각하는 에이전트, HybridAgent 해부"
+date: 2026-10-24T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "latent reasoning", "HybridAgent", "Coconut", "chain-of-thought", "추론 비용", "토큰 절감", "Together AI", "Qwen3", "post-training", "RL", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트는 검색 한 번, 코드 실행 한 번을 하기 전에 생각을 전부 텍스트로 씁니다. 그 생각 토큰이 비용과 지연의 대부분을 차지합니다. 10월 13일 공개돼 Hacker News 500점·X 바이럴을 탄 Stanford·UIUC·Together AI의 'Hybrid Reasoning Agents'(arXiv:2610.18861)는 발상을 바꿉니다 — 생각은 hidden state를 그대로 되먹이는 latent 벡터 루프로 하고, tool 호출과 최종 답변만 텍스트로 쓰자는 겁니다. 약 1,000만 파라미터짜리 어댑터 HybridLink 하나와 2단계 post-training(HybridSFT→HybridRL)으로, 11개 벤치마크 평균 +10.4%, 토큰 35.5–54.7% 절감, 비용 2.7–3.7배 절감을 보고했습니다(저자 보고치). Coconut에서 시작한 latent reasoning 계보부터, 모드 전환 메커니즘, '생각이 안 보이는 에이전트'를 둘러싼 논쟁까지 junior 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "hybrid-reasoning-agents-latent-cover.svg"
+  alt: "HybridAgent가 생각은 latent 벡터 루프로, 행동은 텍스트 tool 호출로 하는 구조를 그린 그림"
+  caption: "생각을 매번 토큰으로 디코딩하는 건 사실 '출력 포맷'의 관성일지도 모릅니다. HybridAgent는 생각과 행동의 매체를 분리합니다."
+  relative: false
+---
+
+<style>
+/* ── HybridAgent 포스트 전용 스타일 (hra- 접두사) ── */
+.hra-fig{
+  --hra-green:#16a34a; --hra-rose:#e11d48; --hra-amber:#d97706; --hra-sky:#0284c7;
+  --hra-violet:#7c3aed; --hra-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .hra-fig{
+  --hra-green:#4ade80; --hra-rose:#fb7185; --hra-amber:#fbbf24; --hra-sky:#38bdf8;
+  --hra-violet:#a78bfa; --hra-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .hra-fig{
+    --hra-green:#4ade80; --hra-rose:#fb7185; --hra-amber:#fbbf24; --hra-sky:#38bdf8;
+    --hra-violet:#a78bfa; --hra-slate:#94a3b8;
+  }
+}
+.hra-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.hra-fig text{font-family:inherit}
+.hra-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.hra-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.hra-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.hra-toc ol{margin:0;padding-left:1.25rem}
+.hra-toc li{margin:.22rem 0;font-size:.95rem}
+.hra-toc a{text-decoration:none}
+.hra-toc a:hover{text-decoration:underline}
+.hra-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.hra-table th,.hra-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.hra-table th{background:var(--entry)}
+.hra-note{border-left:4px solid var(--hra-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.hra-warn{border-left:4px solid var(--hra-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="hra-toc">
+  <div class="hra-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 에이전트는 말을 너무 많이 한다</a></li>
+    <li><a href="#sec-2">배경 — latent reasoning 3분 복습: Coconut이 연 길</a></li>
+    <li><a href="#sec-3">HybridAgent — 한 번의 생성 안에서 두 모드를 오가기</a></li>
+    <li><a href="#sec-4">HybridLink — 10M짜리 어댑터가 하는 일</a></li>
+    <li><a href="#sec-5">멀티턴의 복병 — 대화 기록(transcript)으로 복원되지 않는 상태</a></li>
+    <li><a href="#sec-6">학습 — HybridSFT로 적응시키고, HybridRL로 '언제'를 가르친다</a></li>
+    <li><a href="#sec-7">숫자로 보는 효과 — 그리고 '생각이 안 보인다'는 논쟁</a></li>
+    <li><a href="#sec-8">실전 — 직접 돌려보기 &amp; 지금 가져갈 교훈</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-11">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 에이전트는 말을 너무 많이 한다</h2>
+
+<p>리즈닝 모델 기반 에이전트의 청구서를 열어 본 적이 있다면 알 겁니다. 비용의 상당 부분이 사용자에게 보이지도 않는 <strong>생각 토큰(thinking tokens)</strong>에서 나옵니다. 지금의 에이전트는 검색 한 번, 코드 실행 한 번을 하기 전에 "먼저 A를 확인하고, 그다음 B를 비교해서…" 같은 추론 과정을 전부 텍스트로 써 내려가야 합니다. 그 텍스트는 토큰 단위로 과금되고, 디코딩은 순차적이라 토큰 수만큼 시간이 걸립니다. <a href="/posts/reasoning-effort-thinking-budget/" target="_blank" rel="noopener">추론 예산 관리</a>에서 다뤘듯, 그래서 모든 API가 "얼마나 오래 생각할지"를 돈 주고 조절하는 손잡이를 팔게 됐습니다.</p>
+
+<p>그런데 한 발 물러서서 보면 이상한 구조입니다. 생각을 꼭 <em>사람이 읽는 언어로 디코딩해 가며</em> 해야 할까요? 모델 내부에는 이미 hidden state라는 풍부한 연속 벡터 표현이 있는데, 매 스텝 그걸 어휘 하나로 눌러 담았다가(토큰 샘플링) 다시 임베딩으로 풀어내는 과정은 정보를 깎아 먹는 병목이기도 합니다.</p>
+
+<p>10월 13일 arXiv에 올라온 <a href="https://arxiv.org/abs/2610.18861" target="_blank" rel="noopener">Hybrid Reasoning Agents</a>(Stanford·UIUC·Together AI, Jiaru Zou 외)는 이 질문에 실용적인 답을 내놨습니다. <strong>생각은 latent 벡터 루프로, tool 호출과 답변은 텍스트로.</strong> 하나의 생성 안에서 두 모드를 오가는 HybridAgent는 11개 벤치마크 평균 +10.4%, 토큰 35.5~54.7% 절감, 비용 2.7~3.7배 절감을 보고했습니다(저자 보고치). 공개 직후 Hacker News에서 <a href="https://news.ycombinator.com/item?id=50145337" target="_blank" rel="noopener">500점·236댓글</a>을 받으며 프런트페이지에 올랐고, X에서는 elvis의 <a href="https://x.com/omarsar0/status/2110488828062675096" target="_blank" rel="noopener">"Banger paper" 스레드</a>가 돌며 "latent reasoning이 드디어 에이전트에 왔다"는 이야기가 한 주 내내 이어졌습니다. 코드와 모델도 <a href="https://github.com/togethercomputer/HybridAgent" target="_blank" rel="noopener">MIT 라이선스로 공개</a>됐습니다.</p>
+
+<h2 id="sec-2">2. 배경 — latent reasoning 3분 복습: Coconut이 연 길</h2>
+
+<p>이 논문을 이해하려면 먼저 <strong>latent reasoning(잠재 공간 추론)</strong>이 뭔지 알아야 합니다. 출발점은 Meta FAIR의 <a href="https://arxiv.org/abs/2412.06769" target="_blank" rel="noopener">Coconut</a>(Chain of Continuous Thought, 2024년 12월 공개, COLM 2025 채택)입니다. 아이디어는 한 문장입니다. 트랜스포머가 다음 토큰을 만들 때 쓰는 <strong>마지막 레이어의 hidden state를, 토큰으로 디코딩하지 않고 그대로 다음 스텝의 입력 임베딩 자리에 되먹이는(feed back)</strong> 겁니다.</p>
+
+<p>평소의 생성 루프는 "hidden state → 어휘 분포 → 토큰 샘플링 → 그 토큰의 임베딩이 다음 입력"입니다. Coconut은 가운데 두 단계를 건너뜁니다. 토큰이라는 이산적인 병목을 거치지 않으니, 하나의 '연속 생각(continuous thought)' 벡터가 여러 후보 경로를 동시에 품을 수 있습니다. Coconut 논문은 이 덕분에 모델이 한 경로에 성급하게 올인하는 대신 너비 우선 탐색(BFS)처럼 추론하는 패턴이 나타난다고 보고했고, 백트래킹이 많이 필요한 논리 퍼즐에서 텍스트 CoT보다 적은 '생각 스텝'으로 더 잘 풀었습니다. 애초에 CoT 토큰의 대부분은 추론이 아니라 <em>문장을 자연스럽게 잇는 데</em> 쓰인다는 게 이 계보의 공통 관찰입니다.</p>
+
+<p>그런데 Coconut류 순수 latent 모델은 에이전트로 쓰기 어려웠습니다. 이유는 단순합니다. <strong>에이전트는 바깥세상과 텍스트로 만납니다.</strong> 검색 API에 보낼 쿼리, 실행할 코드, 사용자에게 줄 답 — 전부 텍스트여야 합니다. 생각 전체를 latent로 바꿔 버리면 tool을 부를 방법이 없고, 밖에서 과정을 관찰할 수도 없으며, 소규모 과제를 넘어 학습을 안정시키기도 어려웠습니다. 그래서 latent reasoning은 2년 가까이 "흥미롭지만 실험실 안의 아이디어"에 머물렀습니다.</p>
+
+<div class="hra-note">
+<strong>용어 정리:</strong> 이 글에서 <strong>latent mode</strong>는 "hidden state를 되먹이며 토큰 생성 없이 추론하는 구간", <strong>text mode</strong>는 "평소처럼 토큰을 하나씩 디코딩하는 구간"을 가리킵니다. HybridAgent의 '하이브리드'는 이 두 모드를 한 번의 생성 안에서 오간다는 뜻입니다. API 요금제 이름으로 쓰이는 '하이브리드 추론 모델'(생각 on/off 전환)과는 다른 개념이니 헷갈리지 마세요.
+</div>
+
+<h2 id="sec-3">3. HybridAgent — 한 번의 생성 안에서 두 모드를 오가기</h2>
+
+<p>HybridAgent의 설계 원칙은 포스터 한 줄로 요약됩니다. <strong>"Think in latent space, act through text."</strong> 계획 세우기, 중간 결과 검토, 다음 행동 고르기 같은 <em>내부 추론</em>은 latent mode에서 벡터 루프로 처리하고, <em>외부에 영향을 주는 것</em> — tool 호출, 최종 답변 — 만 text mode로 생성합니다. 비유하자면 이렇습니다. 지금의 에이전트는 생각을 전부 소리 내어 말해야 하는 사람입니다. HybridAgent는 속으로 생각하다가 필요한 순간에만 입을 여는 사람입니다. 말하는 속도(토큰 디코딩)가 생각의 속도를 제한하지 않게 되는 겁니다.</p>
+
+<figure class="hra-fig">
+<svg viewBox="0 0 860 460" role="img" aria-label="왼쪽은 텍스트 전용 에이전트가 모든 추론을 토큰으로 디코딩한 뒤 tool을 호출하는 흐름, 오른쪽은 HybridAgent가 latent 벡터 루프로 추론하고 tool 호출만 텍스트로 생성하는 흐름을 비교한 다이어그램">
+  <text x="215" y="30" text-anchor="middle" fill="var(--hra-rose)" font-size="15.5" font-weight="700">기존: 텍스트 전용 에이전트</text>
+  <text x="645" y="30" text-anchor="middle" fill="var(--hra-green)" font-size="15.5" font-weight="700">HybridAgent</text>
+
+  <!-- left -->
+  <g font-size="12">
+    <rect x="40" y="50" width="350" height="50" rx="9" fill="var(--hra-slate)" opacity="0.12" stroke="var(--hra-slate)" stroke-width="1.5"/>
+    <text x="215" y="71" text-anchor="middle" fill="var(--hra-slate)" font-weight="700">질문 입력</text>
+    <text x="215" y="89" text-anchor="middle" fill="var(--hra-slate)">"100!의 끝에 0이 몇 개?"</text>
+
+    <path d="M 215 100 L 215 126" stroke="var(--hra-rose)" stroke-width="2" fill="none"/>
+
+    <rect x="40" y="128" width="350" height="92" rx="9" fill="var(--hra-rose)" opacity="0.1" stroke="var(--hra-rose)" stroke-width="1.8"/>
+    <text x="215" y="150" text-anchor="middle" fill="var(--hra-rose)" font-weight="700">생각을 전부 토큰으로 디코딩</text>
+    <text x="215" y="170" text-anchor="middle" fill="var(--hra-slate)">"먼저 5의 배수를 세어 보자. 100÷5=20,</text>
+    <text x="215" y="188" text-anchor="middle" fill="var(--hra-slate)">100÷25=4, 그러니까… 아니 잠깐, 검색으로</text>
+    <text x="215" y="206" text-anchor="middle" fill="var(--hra-slate)">확인하는 게 낫겠다…" (수백~수천 토큰)</text>
+
+    <path d="M 215 220 L 215 246" stroke="var(--hra-rose)" stroke-width="2" fill="none"/>
+
+    <rect x="40" y="248" width="350" height="50" rx="9" fill="var(--hra-slate)" opacity="0.12" stroke="var(--hra-slate)" stroke-width="1.5"/>
+    <text x="215" y="269" text-anchor="middle" fill="var(--hra-slate)" font-weight="700">tool 호출 (텍스트)</text>
+    <text x="215" y="287" text-anchor="middle" fill="var(--hra-slate)">search(...) → 결과 수신 → 다시 생각 토큰…</text>
+
+    <path d="M 215 298 L 215 324" stroke="var(--hra-rose)" stroke-width="2" fill="none"/>
+    <rect x="40" y="326" width="350" height="56" rx="9" fill="var(--hra-rose)" opacity="0.18" stroke="var(--hra-rose)" stroke-width="1.8"/>
+    <text x="215" y="349" text-anchor="middle" fill="var(--hra-rose)" font-weight="700">토큰 수만큼 과금 · 토큰 수만큼 대기</text>
+    <text x="215" y="369" text-anchor="middle" fill="var(--hra-slate)">디코딩은 순차적 — 생각이 길수록 느리고 비싸다</text>
+  </g>
+
+  <!-- right -->
+  <g font-size="12">
+    <rect x="470" y="50" width="350" height="50" rx="9" fill="var(--hra-slate)" opacity="0.12" stroke="var(--hra-slate)" stroke-width="1.5"/>
+    <text x="645" y="71" text-anchor="middle" fill="var(--hra-slate)" font-weight="700">질문 입력</text>
+    <text x="645" y="89" text-anchor="middle" fill="var(--hra-slate)">"100!의 끝에 0이 몇 개?"</text>
+
+    <path d="M 645 100 L 645 126" stroke="var(--hra-green)" stroke-width="2" fill="none"/>
+    <text x="658" y="120" fill="var(--hra-violet)" font-size="11.5">&lt;latent&gt; 앵커 토큰으로 진입</text>
+
+    <rect x="470" y="128" width="350" height="92" rx="9" fill="var(--hra-violet)" opacity="0.1" stroke="var(--hra-violet)" stroke-width="1.8"/>
+    <text x="645" y="150" text-anchor="middle" fill="var(--hra-violet)" font-weight="700">latent mode — 벡터 루프로 추론</text>
+    <circle cx="560" cy="180" r="14" fill="var(--hra-violet)" opacity="0.85"/>
+    <circle cx="610" cy="180" r="14" fill="var(--hra-violet)" opacity="0.65"/>
+    <circle cx="660" cy="180" r="14" fill="var(--hra-violet)" opacity="0.5"/>
+    <circle cx="710" cy="180" r="14" fill="var(--hra-violet)" opacity="0.38"/>
+    <path d="M 574 180 L 596 180 M 624 180 L 646 180 M 674 180 L 696 180" stroke="var(--hra-violet)" stroke-width="2.5"/>
+    <text x="645" y="212" text-anchor="middle" fill="var(--hra-slate)">hidden state → HybridLink → 다음 입력 (토큰 0개)</text>
+
+    <path d="M 645 220 L 645 246" stroke="var(--hra-green)" stroke-width="2" fill="none"/>
+    <text x="658" y="240" fill="var(--hra-green)" font-size="11.5">복귀 마커 감지 → text mode</text>
+
+    <rect x="470" y="248" width="350" height="50" rx="9" fill="var(--hra-green)" opacity="0.1" stroke="var(--hra-green)" stroke-width="1.8"/>
+    <text x="645" y="269" text-anchor="middle" fill="var(--hra-green)" font-weight="700">tool 호출·답변만 텍스트로</text>
+    <text x="645" y="287" text-anchor="middle" fill="var(--hra-slate)">search(...) — 밖에서 보이고, 파싱·검증 가능</text>
+
+    <path d="M 645 298 L 645 324" stroke="var(--hra-green)" stroke-width="2" fill="none"/>
+    <rect x="470" y="326" width="350" height="56" rx="9" fill="var(--hra-green)" opacity="0.18" stroke="var(--hra-green)" stroke-width="1.8"/>
+    <text x="645" y="349" text-anchor="middle" fill="var(--hra-green)" font-weight="700">토큰 −35.5~54.7% · 1.8~2.6× 빠름</text>
+    <text x="645" y="369" text-anchor="middle" fill="var(--hra-slate)">생각에는 과금할 토큰 자체가 없다 (저자 보고치)</text>
+  </g>
+
+  <text x="430" y="430" text-anchor="middle" fill="var(--hra-slate)" font-size="12.5">같은 에이전트 루프, 생각의 매체만 다르다 — 행동 인터페이스(tool/답변)는 그대로 텍스트</text>
+</svg>
+<figcaption>그림 1. 텍스트 전용 에이전트는 모든 추론을 토큰으로 디코딩하지만, HybridAgent는 생각 구간에서 토큰을 아예 만들지 않습니다.</figcaption>
+</figure>
+
+<p>모드 전환은 특별한 <strong>앵커 토큰(anchor token)</strong>으로 신호합니다. 모델이 <code>&lt;latent&gt;</code> 토큰을 생성하면 latent mode로 들어가고, 이후에는 토큰 샘플링 없이 hidden state가 직접 다음 입력이 되는 루프가 돕니다. 루프에서 나올 때는 반대로, 각 latent 스텝의 상태를 어휘 임베딩에 가장 가까운 토큰으로 읽어낸 값(readout)이 복귀 마커에 해당하면 text mode로 돌아옵니다. 즉 <strong>언제 생각을 시작하고 언제 입을 열지도 모델이 스스로 결정</strong>합니다 — 이것이 뒤에서 볼 RL 학습의 핵심 목표입니다.</p>
+
+<h2 id="sec-4">4. HybridLink — 10M짜리 어댑터가 하는 일</h2>
+
+<p>"hidden state를 입력으로 되먹인다"는 말은 간단해 보이지만, 그대로 꽂으면 문제가 생깁니다. 마지막 레이어의 hidden state와 입력 임베딩은 <strong>같은 차원이라도 분포가 다른 공간</strong>이기 때문입니다. 입력 임베딩 공간은 어휘 테이블이 만드는 비교적 좁은 영역이고, 마지막 hidden state는 다음 토큰 예측에 맞게 늘어난 전혀 다른 통계를 가집니다. 분포가 어긋난 벡터를 입력 자리에 꽂으면 모델은 학습 때 본 적 없는 입력을 받게 됩니다.</p>
+
+<p>HybridAgent는 이 간극을 <strong>HybridLink</strong>라는 작은 어댑터로 메웁니다. 구조는 소박합니다 — 선형 레이어 2개 사이에 GELU를 끼우고 잔차 연결(residual connection)을 더한, 약 <strong>1,000만(10M) 파라미터</strong>짜리 모듈입니다. 역할은 "마지막 레이어의 latent 생각을 입력 임베딩 공간의 언어로 번역"하는 것뿐입니다. 백본은 Qwen3-Base 4B/8B/14B를 그대로 쓰므로, 수십억 파라미터 모델에 10M짜리 부품 하나를 더해 새로운 추론 모드를 여는 셈입니다. 생성 루프를 의사 코드로 쓰면 이렇습니다.</p>
+
+{{< highlight python >}}
+# HybridAgent 생성 루프의 개념적 의사 코드 (실제 구현은 공식 repo 참고)
+emb = embed(prompt_tokens)
+while not done:
+    hidden = transformer(emb)           # 마지막 레이어 hidden state
+    if mode == "text":
+        token = sample(lm_head(hidden))     # 평소처럼 토큰 디코딩
+        if token == LATENT_ANCHOR:          # <latent> 생성 → 생각 시작
+            mode = "latent"
+        emb = append(emb, embed(token))
+    else:  # latent mode — 샘플링도, 토큰도 없다
+        thought = hybrid_link(hidden)       # 2×Linear+GELU+residual, ~10M 파라미터
+        if nearest_token(thought) == EXIT_MARKER:   # 복귀 신호 감지
+            mode = "text"                   # 다시 입을 연다 (tool 호출/답변)
+        emb = append(emb, thought)          # 벡터를 그대로 다음 입력으로
+{{< /highlight >}}
+
+<p>포인트는 두 모드가 <strong>같은 백본, 같은 KV 캐시, 같은 attention</strong>을 공유한다는 겁니다. latent 생각도 시퀀스의 한 자리를 차지하고 이후 스텝이 attention으로 참조합니다. 다른 점은 단 하나, 그 자리의 입력이 "어휘 테이블에서 온 임베딩"이냐 "HybridLink가 번역한 연속 벡터"냐입니다.</p>
+
+<h2 id="sec-5">5. 멀티턴의 복병 — 대화 기록(transcript)으로 복원되지 않는 상태</h2>
+
+<p>여기까지는 단일 생성 이야기입니다. 에이전트는 tool 결과를 받아 다음 턴을 이어가야 하는데, 이 지점에서 지금까지의 에이전트 인프라가 당연하게 기대 온 가정 하나가 깨집니다. <strong>"세션의 전체 상태는 텍스트 대화 기록으로 복원할 수 있다"</strong>는 가정입니다.</p>
+
+<p>지금의 LLM 서빙은 stateless API입니다. 매 요청에 전체 메시지 배열을 다시 보내면, 서버는 텍스트를 다시 토크나이즈해 (캐시가 깨졌다면) 처음부터 다시 계산할 수 있습니다. 텍스트가 곧 상태의 완전한 직렬화이기 때문입니다. 그런데 HybridAgent의 히스토리에는 <strong>토큰이 아닌 latent 벡터</strong>가 끼어 있습니다. 이 벡터들은 텍스트로 직렬화되지 않으므로, 대화 기록만 다시 보내서는 세션 상태를 복원할 수 없습니다. 그래서 논문은 텍스트·latent 생각·tool 결과를 모두 담는 <strong>working memory</strong>를 두고, 턴이 바뀌어도 attention 캐시(KV 캐시)를 버리지 않고 이어 쓰는 방식을 택했습니다. 상태가 서버에 '살아 있어야' 하는 겁니다.</p>
+
+<p>저자들도 기존 스택이 이를 지원하지 않는다고 못 박습니다 — verl(RL 학습 프레임워크)과 vLLM은 멀티턴 하이브리드 생성을 직접 지원하지 않아서, 학습·추론 스택을 직접 확장해야 했습니다. 어제 다룬 <a href="/posts/cache-engineering-agents-akv/" target="_blank" rel="noopener">캐시 엔지니어링(AKV)</a>이 "stateless API 뒤에 stateful 캐시"라는 같은 긴장을 다뤘다는 점이 흥미롭습니다. 방향은 달라도 결론이 겹칩니다. <strong>에이전트가 고도화될수록, '모든 상태는 텍스트'라는 전제가 서빙 인프라의 발목을 잡기 시작했다</strong>는 겁니다.</p>
+
+<h2 id="sec-6">6. 학습 — HybridSFT로 적응시키고, HybridRL로 '언제'를 가르친다</h2>
+
+<p>백본 모델은 latent 입력을 받아 본 적이 없으니, 두 단계의 post-training이 필요합니다.</p>
+
+<figure class="hra-fig">
+<svg viewBox="0 0 860 300" role="img" aria-label="Qwen3-Base 백본에 HybridLink를 붙인 뒤 HybridSFT로 하이브리드 궤적을 모방 학습시키고 HybridRL로 모드 전환 시점을 강화학습시키는 2단계 파이프라인">
+  <g font-size="12">
+    <rect x="30" y="60" width="230" height="170" rx="12" fill="var(--hra-slate)" opacity="0.08" stroke="var(--hra-slate)" stroke-width="1.8"/>
+    <text x="145" y="90" text-anchor="middle" fill="var(--hra-slate)" font-size="14" font-weight="700">시작점</text>
+    <text x="145" y="118" text-anchor="middle" fill="var(--hra-slate)">Qwen3-Base (4B/8B/14B)</text>
+    <text x="145" y="140" text-anchor="middle" fill="var(--hra-slate)">+ HybridLink (~10M, 랜덤 초기화)</text>
+    <text x="145" y="176" text-anchor="middle" fill="var(--hra-slate)">latent 입력을 본 적 없음</text>
+    <text x="145" y="196" text-anchor="middle" fill="var(--hra-slate)">앵커 토큰도 모름</text>
+
+    <path d="M 260 145 L 310 145" stroke="var(--hra-slate)" stroke-width="2.2" fill="none"/>
+    <path d="M 310 145 l -12 -7 v 14 z" fill="var(--hra-slate)"/>
+
+    <rect x="320" y="60" width="230" height="170" rx="12" fill="var(--hra-sky)" opacity="0.08" stroke="var(--hra-sky)" stroke-width="1.8"/>
+    <text x="435" y="90" text-anchor="middle" fill="var(--hra-sky)" font-size="14" font-weight="700">1단계: HybridSFT</text>
+    <text x="435" y="118" text-anchor="middle" fill="var(--hra-slate)">하이브리드 궤적으로 지도학습</text>
+    <text x="435" y="140" text-anchor="middle" fill="var(--hra-slate)">· 포맷 활성화 (앵커 토큰 사용법)</text>
+    <text x="435" y="162" text-anchor="middle" fill="var(--hra-slate)">· HybridLink 활성화</text>
+    <text x="435" y="184" text-anchor="middle" fill="var(--hra-slate)">· self-conditioned 학습 —</text>
+    <text x="435" y="204" text-anchor="middle" fill="var(--hra-slate)">  자기 자신이 만든 latent에 적응</text>
+
+    <path d="M 550 145 L 600 145" stroke="var(--hra-slate)" stroke-width="2.2" fill="none"/>
+    <path d="M 600 145 l -12 -7 v 14 z" fill="var(--hra-slate)"/>
+
+    <rect x="610" y="60" width="230" height="170" rx="12" fill="var(--hra-violet)" opacity="0.08" stroke="var(--hra-violet)" stroke-width="1.8"/>
+    <text x="725" y="90" text-anchor="middle" fill="var(--hra-violet)" font-size="14" font-weight="700">2단계: HybridRL</text>
+    <text x="725" y="118" text-anchor="middle" fill="var(--hra-slate)">하이브리드 정책 롤아웃 + 보상</text>
+    <text x="725" y="140" text-anchor="middle" fill="var(--hra-slate)">· 언제 latent로 생각하고</text>
+    <text x="725" y="162" text-anchor="middle" fill="var(--hra-slate)">  언제 텍스트로 행동할지 학습</text>
+    <text x="725" y="184" text-anchor="middle" fill="var(--hra-slate)">· 롤아웃 정확 재현(exact replay)</text>
+    <text x="725" y="204" text-anchor="middle" fill="var(--hra-slate)">· 데이터: 수학 추론 + 에이전트 검색</text>
+  </g>
+  <text x="430" y="270" text-anchor="middle" fill="var(--hra-slate)" font-size="12.5">SFT가 "할 수 있게", RL이 "제때 하게" — 모드 전환 자체가 학습된 정책입니다</text>
+</svg>
+<figcaption>그림 2. HybridAgent의 2단계 post-training. 공개된 HybridSFT/HybridRL 데이터셋으로 재현할 수 있습니다.</figcaption>
+</figure>
+
+<p><strong>HybridSFT</strong>는 큐레이션한 하이브리드 궤적(텍스트와 latent 구간이 섞인 풀이 과정)으로 지도학습을 합니다. 단계가 셋으로 나뉘는 게 재미있는데 — 먼저 앵커 토큰이 낀 출력 <em>포맷</em>에 적응시키고, HybridLink를 통과한 벡터를 입력으로 받는 데 적응시키고, 마지막으로 <strong>self-conditioned 학습</strong>, 즉 남이 만들어 준 latent가 아니라 <em>자기 자신이 직전에 만든</em> latent 생각 위에서 다음 스텝을 잇는 연습을 시킵니다. 추론 시점에는 자기 출력이 곧 자기 입력이 되므로, 이 마지막 단계가 없으면 학습과 추론의 분포가 어긋납니다.</p>
+
+<p><strong>HybridRL</strong>은 그 위에 강화학습을 얹어 '언제'를 가르칩니다. 과제를 끝까지 풀어 보는 롤아웃에서 좋은 결과로 이어진 모드 전환 패턴에 보상을 주는 식입니다. latent 구간은 샘플링이 없어 재현이 까다로운데, 논문은 학습 때 롤아웃을 정확히 재현(exact rollout replay)하는 장치를 넣었습니다. 공개된 RL 데이터셋은 수학 심화 추론과 에이전트 검색 두 축입니다. README 기준 SFT는 GPU 8~16장, RL은 32장을 권장하니 개인이 재학습할 규모는 아니지만, 파이프라인 전체가 코드·데이터와 함께 공개돼 있다는 점이 중요합니다.</p>
+
+<h2 id="sec-7">7. 숫자로 보는 효과 — 그리고 '생각이 안 보인다'는 논쟁</h2>
+
+<p>저자 보고치를 정리하면 다음과 같습니다. 평가는 수학·과학·의학·검색·에이전트 추론에 걸친 11개 벤치마크, 3개 모델 스케일에서 진행됐고, 비교 대상은 프런티어 LLM 에이전트와 텍스트·latent 기반 프레임워크들입니다.</p>
+
+<table class="hra-table">
+  <tr><th>항목</th><th>결과</th><th>비고</th></tr>
+  <tr><td>평균 성능</td><td><strong>+10.4%</strong></td><td>3개 스케일 × 11개 벤치마크 평균</td></tr>
+  <tr><td>토큰 사용량</td><td><strong>−35.5 ~ −54.7%</strong></td><td>생각 구간이 토큰을 만들지 않음</td></tr>
+  <tr><td>추론 속도</td><td><strong>1.8 ~ 2.6×</strong></td><td>디코딩 스텝 수 감소</td></tr>
+  <tr><td>비용</td><td><strong>2.7 ~ 3.7× 절감</strong></td><td>디코딩 연산 최대 ~72.9% 절감 추정</td></tr>
+  <tr><td>WebWalker (14B)</td><td><strong>49.5</strong> vs 40.5</td><td>같은 크기 텍스트 전용 RL 에이전트(ARPO) 대비</td></tr>
+</table>
+
+<p>에이전트 검색 벤치마크에서 같은 백본·같은 크기의 텍스트 전용 RL 에이전트를 앞선 것이 핵심입니다. "latent는 싸지만 멍청하다"는 통념과 달리, 싸면서 점수도 올랐다는 주장이니까요. 다만 모든 벤치마크에서 이긴 건 아니고(커뮤니티 분석에 따르면 GAIA의 이득이 HLE 같은 최고 난도 벤치마크에서는 재현되지 않습니다), 검증은 4B~14B 스케일에 한정됩니다. 더 큰 모델에서도 성립하는지는 열린 질문입니다.</p>
+
+<p>Hacker News에서 가장 뜨거웠던 쟁점은 성능이 아니라 <strong>관측 가능성</strong>이었습니다. 생각이 벡터로 숨으면, 우리가 <a href="/posts/agent-observability-tracing/" target="_blank" rel="noopener">에이전트 관측성</a>에서 강조했던 "추론 과정을 읽고 디버깅한다"는 안전망이 약해집니다. 논문은 각 latent 스텝을 가장 가까운 토큰 임베딩으로 투영해 유사 텍스트(pseudo-text)로 읽어낼 수 있다고 답하고, repo에는 이를 HTML 리포트로 렌더링하는 <code>interpretable_latent_mode</code>까지 들어 있습니다. 하지만 비판자들은 이 투영이 <strong>벡터가 품은 정보 대부분을 버리는 근사치</strong>라고 지적합니다 — 벡터 하나가 여러 경로를 중첩해 담는 게 latent의 장점인데, 그걸 토큰 하나로 읽는 순간 중첩은 사라집니다. 모니터링으로 원치 않는 행동을 잡아야 하는 안전 관점에서 퇴보라는 우려와, "어차피 CoT 텍스트도 모델의 진짜 내부 과정이라는 보장은 없었고, latent 상태를 사후에 자연어로 설명하는 연구도 진전이 있다"는 반론이 맞섰습니다. 효율과 투명성의 트레이드오프 — 이 논쟁은 이제 시작입니다.</p>
+
+<h2 id="sec-8">8. 실전 — 직접 돌려보기 &amp; 지금 가져갈 교훈</h2>
+
+<p>모델(8B/14B)과 데이터셋이 모두 Hugging Face에 공개돼 있어, GPU가 있다면 바로 체험할 수 있습니다.</p>
+
+{{< highlight bash >}}
+# 설치 (Python 3.11 + conda)
+git clone https://github.com/togethercomputer/HybridAgent.git && cd HybridAgent
+conda create -n hybridagent python=3.11 -y && conda activate hybridagent
+pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+pip install -r requirements.txt && pip install -e .
+cp .env.example .env   # 검색 tool용 TAVILY_API_KEY 설정
+
+# 배치 하이브리드 추론
+python -m hybrid_inference.run_batch --model togethercomputer/HybridAgent-8B-Agentic \
+    --input examples/questions.jsonl --output outputs/results.jsonl --num_samples 4
+
+# latent 생각을 유사 텍스트로 들여다보기 (HTML 리포트 생성)
+python -m interpretable_latent_mode --model togethercomputer/HybridAgent-14B-Agentic \
+    --question "How many trailing zeros does 100! have?" --output report.html
+{{< /highlight >}}
+
+<p>상용 API 위에서 에이전트를 만드는 입장이라면 당장 라우터를 갈아 끼울 일은 없습니다. 그래도 가져갈 교훈은 분명합니다.</p>
+
+<ul>
+  <li><strong>생각 토큰을 비용 항목으로 따로 집계하세요.</strong> <a href="/posts/agent-token-economics/" target="_blank" rel="noopener">에이전트 토큰 경제학</a>에서 봤듯 에이전트 비용 구조는 직관과 자주 어긋납니다. reasoning 토큰이 전체 출력 토큰의 몇 %인지부터 재 보면, latent reasoning이 어디서 왜 3배 절감을 만드는지 — 그리고 우리 워크로드에서 그 절감이 의미 있을지 — 가 보입니다.</li>
+  <li><strong>'생각의 양'과 '말의 양'을 분리해 설계하세요.</strong> 지금 API에서도 적용되는 원칙입니다. 추론은 reasoning/thinking 파라미터로 조절하고, 중간 결과의 장황한 재서술 같은 불필요한 가시적 출력은 프롬프트와 구조화 출력으로 눌러 두세요. HybridAgent는 이 분리를 아키텍처 수준으로 밀어붙인 극단일 뿐입니다.</li>
+  <li><strong>'상태 = 텍스트 transcript' 가정에 기대는 코드를 점검하세요.</strong> 로깅, 리플레이, 세션 이관, 장애 복구가 전부 "메시지 배열만 저장하면 된다"에 기대고 있다면, latent 상태든 서버 측 캐시 상태든 텍스트 밖의 상태가 등장하는 순간 함께 깨집니다. 이 가정이 코드 어디에 박혀 있는지 알아 두는 것만으로도 준비가 됩니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"latent mode = 생각 생략"으로 오해하기.</strong> 생각을 안 하는 게 아니라, 생각의 <em>출력 포맷</em>을 바꾼 겁니다. latent 스텝도 한 스텝에 forward pass 한 번씩 연산을 씁니다. 줄어드는 건 디코딩할 토큰 수와 그에 비례한 과금·지연이지, 사고 과정 자체가 아닙니다.</li>
+  <li><strong>아무 모델에나 hidden state를 되먹이면 될 거라 기대하기.</strong> HybridLink 없이 꽂으면 입력 분포가 어긋나고, HybridSFT 없이 쓰면 모델이 latent 입력을 해석하지 못합니다. 이 기법은 "추론 트릭"이 아니라 어댑터 + 2단계 post-training이 한 몸인 패키지입니다.</li>
+  <li><strong>유사 텍스트 readout을 '진짜 생각'으로 읽기.</strong> nearest-token 투영은 디버깅용 근사치입니다. readout이 그럴듯해 보여도 벡터에는 다른 정보가 더 실려 있을 수 있습니다. 감사(audit)나 안전성 근거로 쓰기에는 아직 부족하다는 게 공개 논쟁의 요지입니다.</li>
+  <li><strong>기존 서빙 스택에 바로 올리려 하기.</strong> vLLM 등은 멀티턴 하이브리드 생성을 직접 지원하지 않습니다(저자들도 스택을 직접 확장했습니다). working memory가 요구하는 "세션 간 KV 캐시 유지"는 로드밸런싱·축출 정책과 충돌하는, 아직 풀리는 중인 시스템 문제입니다.</li>
+  <li><strong>벤치마크 평균만 보고 올인하기.</strong> +10.4%는 평균이고, 이득의 크기는 과제 유형에 따라 다릅니다. 최고 난도 벤치마크에서는 이득이 재현되지 않았다는 분석도 있으니, 도입을 검토한다면 반드시 자기 과제 분포에서 평가부터 하세요.</li>
+</ul>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>10/13 공개된 <strong>Hybrid Reasoning Agents</strong>(arXiv:2610.18861, Stanford·UIUC·Together AI)가 HN 500점·X 바이럴로 한 주를 달궜습니다. 요지: <strong>생각은 latent 벡터 루프로, tool 호출·답변만 텍스트로.</strong></li>
+  <li>메커니즘: <code>&lt;latent&gt;</code> 앵커 토큰으로 latent mode에 진입하고, 마지막 레이어 hidden state를 <strong>HybridLink</strong>(2×Linear+GELU+residual, 약 10M 파라미터)로 입력 임베딩 공간에 번역해 되먹입니다. 생각 구간에는 토큰이 아예 없습니다.</li>
+  <li>학습은 <strong>HybridSFT</strong>(포맷·어댑터·self-conditioned 적응) → <strong>HybridRL</strong>(언제 생각하고 언제 행동할지)의 2단계. Qwen3-Base 4B/8B/14B 기준 11개 벤치마크 평균 <strong>+10.4%</strong>, 토큰 <strong>−35.5~54.7%</strong>, 속도 <strong>1.8~2.6×</strong>, 비용 <strong>2.7~3.7× 절감</strong>(저자 보고치).</li>
+  <li>대가도 있습니다: latent 상태는 텍스트 transcript로 복원되지 않아 <strong>stateless 서빙 가정이 깨지고</strong>(working memory + 세션 간 KV 캐시 유지 필요), 생각이 벡터로 숨어 <strong>관측 가능성 논쟁</strong>이 붙었습니다. nearest-token readout은 근사치일 뿐입니다.</li>
+  <li>코드·모델·데이터셋 전부 공개(MIT, togethercomputer/HybridAgent). 상용 API 사용자의 교훈: <strong>생각 토큰을 따로 집계하고, 생각의 양과 말의 양을 분리해 설계하고, '상태=텍스트' 가정에 기댄 코드를 점검해 둘 것.</strong></li>
+</ul>
+
+<h2 id="sec-11">11. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2610.18861" target="_blank" rel="noopener">Hybrid Reasoning Agents — arXiv:2610.18861</a></li>
+  <li><a href="https://arxiv.org/html/2610.18861v1" target="_blank" rel="noopener">Hybrid Reasoning Agents — arXiv HTML 전문</a></li>
+  <li><a href="https://github.com/togethercomputer/HybridAgent" target="_blank" rel="noopener">HybridAgent — 공식 구현 (togethercomputer, MIT)</a></li>
+  <li><a href="https://huggingface.co/papers/2610.18861" target="_blank" rel="noopener">Hybrid Reasoning Agents — Hugging Face Papers</a></li>
+  <li><a href="https://huggingface.co/togethercomputer/HybridAgent-14B-Agentic" target="_blank" rel="noopener">HybridAgent-14B-Agentic — Hugging Face 모델</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50145337" target="_blank" rel="noopener">Hacker News 토론 — 해석 가능성 논쟁</a></li>
+  <li><a href="https://x.com/omarsar0/status/2110488828062675096" target="_blank" rel="noopener">elvis(@omarsar0)의 X 스레드 — 논문 해설</a></li>
+  <li><a href="https://arxiv.org/abs/2412.06769" target="_blank" rel="noopener">Coconut: Training LLMs to Reason in a Continuous Latent Space — arXiv:2412.06769 (Meta FAIR)</a></li>
+  <li><a href="https://gigazine.net/gsc_news/en/20261019-hybrid-reasoning-agents/" target="_blank" rel="noopener">GIGAZINE — Hybrid Reasoning Agents 보도</a></li>
+  <li>(한국어) <a href="/posts/reasoning-effort-thinking-budget/" target="_blank" rel="noopener">추론 예산(reasoning budget) 관리 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/agent-token-economics/" target="_blank" rel="noopener">에이전트 토큰 경제학 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/cache-engineering-agents-akv/" target="_blank" rel="noopener">에이전트를 위한 캐시 엔지니어링(AKV) — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/agent-observability-tracing/" target="_blank" rel="noopener">AI 에이전트 관측성 — 이 블로그</a></li>
+</ul>

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="420" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">이번 주 오픈소스 양극단 — 7.3M vs 320B</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#6b7280">에이전트 스택의 양 끝: 로컬 CPU에서 도는 문서 인제스천과 8×GPU급 코딩 두뇌</text>
+
+  <!-- indra -->
+  <rect x="30" y="78" width="360" height="280" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#15803d">datalab-to/indra</text>
+  <text x="50" y="130" font-size="12" fill="#374151">Python · 코드 Apache 2.0 / 웨이트 OpenRAIL-M 변형</text>
+  <text x="50" y="158" font-size="13" fill="#111827">· 총 7.3M 파라미터 OCR — 다운로드 약 76MB</text>
+  <text x="50" y="182" font-size="13" fill="#111827">· CPU + ONNX만으로 실행, PyTorch 불필요</text>
+  <text x="50" y="206" font-size="13" fill="#111827">· PDF/이미지 → 마크다운·JSON(바운딩 박스)</text>
+  <text x="50" y="230" font-size="13" fill="#111827">· 한국어 포함 80+개 언어 · 레이아웃·읽기 순서</text>
+  <text x="50" y="254" font-size="13" fill="#111827">· 4코어 기준 페이지당 약 210ms (자체 측정)</text>
+  <rect x="50" y="276" width="320" height="30" rx="6" fill="#dcfce7"/>
+  <text x="62" y="296" font-size="12" font-family="monospace" fill="#166534">pip install indra-ocr &amp;&amp; indra-ocr paper.pdf</text>
+  <text x="50" y="334" font-size="12" font-weight="700" fill="#15803d">용도: 에이전트 문서 인제스천을 외부 API 없이 로컬로</text>
+
+  <!-- IQuest-Q1 -->
+  <rect x="410" y="78" width="360" height="280" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#1d4ed8">IQuestLab/IQuest-Q1</text>
+  <text x="430" y="130" font-size="12" fill="#374151">모델 카드 + 서빙 킷 · 자체 iquest-q1 라이선스</text>
+  <text x="430" y="158" font-size="13" fill="#111827">· 320B MoE 웨이트의 공식 배포·서빙 레퍼런스</text>
+  <text x="430" y="182" font-size="13" fill="#111827">· SGLang / vLLM용 cu130 도커 이미지 동봉</text>
+  <text x="430" y="206" font-size="13" fill="#111827">· 8×GPU 노드 기준 tensor parallel 8 구성</text>
+  <text x="430" y="230" font-size="13" fill="#111827">· 전용 tool-call / reasoning 파서 플래그 제공</text>
+  <text x="430" y="254" font-size="13" fill="#111827">· 재귀 MTP 스펙큘레이티브 디코딩 옵션</text>
+  <rect x="430" y="276" width="320" height="30" rx="6" fill="#dbeafe"/>
+  <text x="442" y="296" font-size="12" font-family="monospace" fill="#1e40af">--tool-call-parser iquest_q1 --tp-size 8</text>
+  <text x="430" y="334" font-size="12" font-weight="700" fill="#1d4ed8">용도: 자체 인프라에서 에이전틱 코딩 모델 셀프호스팅</text>
+
+  <text x="400" y="394" text-anchor="middle" font-size="12" fill="#9ca3af">스타 수는 이 세션의 GitHub API 제한으로 집계 못 함 — 두 저장소 모두 클론으로 존재·최신성 검증 (10/22, 10/5 커밋)</text>
+</svg>

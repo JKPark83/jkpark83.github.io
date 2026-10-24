@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 510" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="510" fill="#ffffff"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-10-25</text>
+  <text x="400" y="58" text-anchor="middle" font-size="13" fill="#6b7280">키워드: 활성 15B로 프런티어 추격, 그리고 "복잡한 메모리가 정말 필요한가"</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="80" width="360" height="185" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1d4ed8">모델 / 릴리즈</text>
+  <text x="50" y="134" font-size="13" fill="#111827">IQuest-Q1 기술 리포트 (2610.30949)</text>
+  <text x="50" y="154" font-size="12" fill="#374151">· 320B MoE(활성 15B) · 524K ctx · 88레이어</text>
+  <text x="50" y="172" font-size="12" fill="#374151">· 3 SWA + 1 FA 하이브리드 어텐션 + 재귀 MTP</text>
+  <text x="50" y="190" font-size="12" fill="#374151">· 공식 하네스가 Claude Code / Codex CLI</text>
+  <text x="50" y="216" font-size="13" fill="#111827">그 외 큰 모델 소식 없음 (주말)</text>
+  <text x="50" y="236" font-size="12" fill="#374151">· HF 트렌딩 1위는 여전히 DeepSeek-V4.1-Flash</text>
+
+  <!-- 논문 -->
+  <rect x="410" y="80" width="360" height="185" rx="10" fill="#fdf4ff" stroke="#a855f7"/>
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#7e22ce">논문</text>
+  <text x="430" y="134" font-size="13" fill="#111827">Raw-RAG — 복잡한 메모리 필요? (2610.30755)</text>
+  <text x="430" y="154" font-size="12" fill="#374151">· 원문 검색+리랭크가 7개 세팅 중 6개 1위</text>
+  <text x="430" y="172" font-size="12" fill="#374151">· 변환 저장은 접근을 다 열어줘도 정보 손실</text>
+  <text x="430" y="198" font-size="13" fill="#111827">OpenDS-World — 실웹 딥서치 (2610.30181)</text>
+  <text x="430" y="218" font-size="12" fill="#374151">· 라이브 웹 200문제 · 최고 모델 39.0%</text>
+  <text x="430" y="236" font-size="12" fill="#374151">· 인간은 21.1% — 이미 사람보다 낫지만 멀었다</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="360" height="175" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="313" font-size="15" font-weight="700" fill="#15803d">오픈소스</text>
+  <text x="50" y="339" font-size="13" fill="#111827">datalab-to/indra — 7.3M CPU OCR</text>
+  <text x="50" y="359" font-size="12" fill="#374151">· PDF→마크다운/JSON · 80+개 언어 · 76MB</text>
+  <text x="50" y="377" font-size="12" fill="#374151">· GPU도 PyTorch도 없이 pip 한 줄로 문서 인제스천</text>
+  <text x="50" y="403" font-size="13" fill="#111827">IQuestLab/IQuest-Q1 — 서빙 킷</text>
+  <text x="50" y="423" font-size="12" fill="#374151">· SGLang/vLLM cu130 도커 · tp=8 · 파서 동봉</text>
+
+  <!-- 바이브코딩 -->
+  <rect x="410" y="285" width="360" height="175" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="430" y="313" font-size="15" font-weight="700" fill="#c2410c">바이브코딩</text>
+  <text x="430" y="339" font-size="13" fill="#111827">Codex: 외부 에이전트 임포트에 메모리 추가</text>
+  <text x="430" y="359" font-size="12" fill="#374151">· Claude Code / Cursor 설정·훅·MCP에 이어</text>
+  <text x="430" y="377" font-size="12" fill="#374151">· 메모리까지 memories_v2로 가져온다 (10/23)</text>
+  <text x="430" y="403" font-size="13" fill="#111827">Claude Code 2.1.310</text>
+  <text x="430" y="423" font-size="12" fill="#374151">· Monitor 툴이 Bedrock·Vertex·Foundry로 확대</text>
+  <text x="430" y="441" font-size="12" fill="#374151">· 긴 sleep 폴링은 그쪽에서도 차단</text>
+
+  <text x="400" y="492" text-anchor="middle" font-size="12" fill="#9ca3af">관통 테마: 더 작게(활성 15B, 7.3M OCR), 더 단순하게(Raw-RAG) — 복잡도는 증명 후에 산다</text>
+</svg>

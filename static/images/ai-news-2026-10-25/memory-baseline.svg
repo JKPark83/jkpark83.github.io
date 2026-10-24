@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="470" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">복잡한 Agentic Memory vs Raw-RAG (arXiv 2610.30755)</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#6b7280">같은 대화 기록을 두고 두 파이프라인이 경쟁 — 결과는 단순한 쪽의 승리</text>
+
+  <!-- 왼쪽: agentic memory -->
+  <rect x="30" y="80" width="360" height="250" rx="10" fill="#fef2f2" stroke="#ef4444"/>
+  <text x="210" y="108" text-anchor="middle" font-size="15" font-weight="700" fill="#b91c1c">복잡한 Agentic Memory</text>
+  <rect x="60" y="124" width="300" height="34" rx="6" fill="#ffffff" stroke="#fca5a5"/>
+  <text x="210" y="146" text-anchor="middle" font-size="12" fill="#111827">원문 대화 기록</text>
+  <text x="210" y="178" text-anchor="middle" font-size="14" fill="#b91c1c">▼ 변환 (요약·그래프화·구조화)</text>
+  <rect x="60" y="190" width="300" height="34" rx="6" fill="#ffffff" stroke="#fca5a5"/>
+  <text x="210" y="212" text-anchor="middle" font-size="12" fill="#111827">가공된 메모리 저장소</text>
+  <text x="210" y="244" text-anchor="middle" font-size="14" fill="#b91c1c">▼ 학습된 검색 전략</text>
+  <rect x="60" y="256" width="300" height="34" rx="6" fill="#ffffff" stroke="#fca5a5"/>
+  <text x="210" y="278" text-anchor="middle" font-size="12" fill="#111827">리더 LLM 답변</text>
+  <text x="210" y="314" text-anchor="middle" font-size="12" font-weight="700" fill="#b91c1c">변환 시점에 관계·의존 경로가 유실된다</text>
+
+  <!-- 오른쪽: Raw-RAG -->
+  <rect x="410" y="80" width="360" height="250" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="590" y="108" text-anchor="middle" font-size="15" font-weight="700" fill="#15803d">Raw-RAG (나이브 베이스라인)</text>
+  <rect x="440" y="124" width="300" height="34" rx="6" fill="#ffffff" stroke="#86efac"/>
+  <text x="590" y="146" text-anchor="middle" font-size="12" fill="#111827">원문 대화 기록 — 그대로 보존</text>
+  <text x="590" y="178" text-anchor="middle" font-size="14" fill="#15803d">▼ dense retrieval</text>
+  <rect x="440" y="190" width="300" height="34" rx="6" fill="#ffffff" stroke="#86efac"/>
+  <text x="590" y="212" text-anchor="middle" font-size="12" fill="#111827">원문 청크 후보</text>
+  <text x="590" y="244" text-anchor="middle" font-size="14" fill="#15803d">▼ 리랭킹</text>
+  <rect x="440" y="256" width="300" height="34" rx="6" fill="#ffffff" stroke="#86efac"/>
+  <text x="590" y="278" text-anchor="middle" font-size="12" fill="#111827">리더 LLM 답변</text>
+  <text x="590" y="314" text-anchor="middle" font-size="12" font-weight="700" fill="#15803d">증거 커버리지가 높아 활용률 손해를 상쇄</text>
+
+  <!-- 결과 스트립 -->
+  <rect x="30" y="350" width="740" height="76" rx="10" fill="#f9fafb" stroke="#e5e7eb"/>
+  <text x="400" y="378" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">결과: 7개 벤치마크×모델 세팅 중 6개에서 Raw-RAG 1위 · 최강 agentic memory 대비 +0.13~5.53점</text>
+  <text x="400" y="402" text-anchor="middle" font-size="12" fill="#374151">평가: LoCoMo · LongMemEval · MEME · MemoryAgentBench — 가공 저장소는 전체 접근을 허용해도 원문 대비 정확도 격차 존재</text>
+
+  <text x="400" y="452" text-anchor="middle" font-size="12" fill="#9ca3af">교훈: 메모리 프레임워크를 들이기 전에, 원문 로그 + 검색 + 리랭크부터 베이스라인으로 깔아라</text>
+</svg>

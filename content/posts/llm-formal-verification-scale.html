@@ -1,0 +1,370 @@
+---
+title: "환각하는 모델에게 증명을 맡겨도 되는 이유 — LLM이 깨운 형식 검증의 시대 (Anthropic×Theorem 해부)"
+date: 2026-10-26T07:30:00+09:00
+draft: false
+tags: ["AI", "형식 검증", "formal verification", "Rocq", "Coq", "퍼징", "OSS-Fuzz", "RISC-V", "Claude", "Theorem", "증명", "검증", "에이전트", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "이번 주 Hacker News에서 가장 뜨거웠던 엔지니어링 글은 Anthropic Frontier Red Team의 발표였습니다 — Claude가 오픈소스 라이브러리 123개의 컴파일된 바이너리에 대해 약 1억 8천만 줄의 Rocq 증명을 쓰고, '64MB 이하 어떤 입력에도 crash가 없다'를 수학적으로 증명했다는 내용입니다. 핵심은 역설처럼 들리는 한 문장입니다. 환각하는 LLM에게 증명을 맡겨도 된다 — 증명은 만들기는 어렵지만 검사는 기계적이라서, 틀린 증명은 작고 신뢰된 검사기가 전부 걸러내기 때문입니다. 형식 검증이 왜 지금까지 사치였는지(seL4는 C 8,700줄에 증명 20만 줄, 20인년 이상), 퍼징용 fuzz target을 스펙으로 재활용한 파이프라인, 퍼저가 수년간 놓친 버그들, '증명됐다 ≠ 버그가 없다'는 함정까지 junior 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "llm-formal-verification-scale-cover.svg"
+  alt: "신뢰할 수 없는 LLM이 쓴 거대한 증명이 작고 신뢰된 Rocq 검사기를 통과해야만 증명 완료가 되는 구조를 그린 그림"
+  caption: "LLM은 믿지 않아도 됩니다. 검사기만 믿으면 됩니다 — 이 비대칭이 형식 검증과 LLM의 궁합을 만듭니다."
+  relative: false
+---
+
+<style>
+/* ── 형식 검증 포스트 전용 스타일 (fv- 접두사) ── */
+.fv-fig{
+  --fv-green:#16a34a; --fv-rose:#e11d48; --fv-amber:#d97706; --fv-sky:#0284c7;
+  --fv-violet:#7c3aed; --fv-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .fv-fig{
+  --fv-green:#4ade80; --fv-rose:#fb7185; --fv-amber:#fbbf24; --fv-sky:#38bdf8;
+  --fv-violet:#a78bfa; --fv-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .fv-fig{
+    --fv-green:#4ade80; --fv-rose:#fb7185; --fv-amber:#fbbf24; --fv-sky:#38bdf8;
+    --fv-violet:#a78bfa; --fv-slate:#94a3b8;
+  }
+}
+.fv-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.fv-fig text{font-family:inherit}
+.fv-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.fv-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.fv-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.fv-toc ol{margin:0;padding-left:1.25rem}
+.fv-toc li{margin:.22rem 0;font-size:.95rem}
+.fv-toc a{text-decoration:none}
+.fv-toc a:hover{text-decoration:underline}
+.fv-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.fv-table th,.fv-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.fv-table th{background:var(--entry)}
+.fv-note{border-left:4px solid var(--fv-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.fv-warn{border-left:4px solid var(--fv-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="fv-toc">
+  <div class="fv-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 버그를 찾는 시대에서, 없음을 증명하는 시대로</a></li>
+    <li><a href="#sec-2">배경 — 테스트·퍼징·형식 검증은 각각 무엇을 보장하나</a></li>
+    <li><a href="#sec-3">핵심 — 환각하는 모델에게 증명을 맡겨도 되는 이유</a></li>
+    <li><a href="#sec-4">파이프라인 해부 — fuzz target이 공짜 스펙이 되기까지</a></li>
+    <li><a href="#sec-5">결과 — 퍼저가 수년간 놓친 버그들</a></li>
+    <li><a href="#sec-6">그래서 무엇을 믿어야 하나 — TCB와 "증명됐다 ≠ 버그 없다"</a></li>
+    <li><a href="#sec-7">엔지니어링 디테일 — 토큰 비용, 증명 재사용, reward hacking</a></li>
+    <li><a href="#sec-8">실전 — 내 프로젝트 검증 대상으로 올려보기</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-11">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 버그를 찾는 시대에서, 없음을 증명하는 시대로</h2>
+
+<p>10월 22일, Anthropic Frontier Red Team이 형식 검증(formal verification) 스타트업 Theorem과 함께 낸 <a href="https://www.anthropic.com/research/formal-verification" target="_blank" rel="noopener">연구 글</a> 하나가 이번 주 엔지니어링 담론을 삼켰습니다. 제목부터 도발적입니다 — "LLMs are making formal software verification feasible at a much larger scale". Hacker News에서 <a href="https://news.ycombinator.com/item?id=50202217" target="_blank" rel="noopener">457포인트, 댓글 303개</a>를 모으며 한 주 내내 상위권에 머물렀고, <a href="https://devops.com/claude-writes-180-million-lines-of-proofs-to-verify-123-open-source-libraries" target="_blank" rel="noopener">DevOps.com</a>, <a href="https://www.unite.ai/anthropic-says-claude-proved-security-properties-across-123-libraries/" target="_blank" rel="noopener">Unite.AI</a> 등이 연달아 보도했습니다.</p>
+
+<p>발표 내용을 한 문장으로 줄이면 이렇습니다. <strong>Claude가 몇 주 만에 오픈소스 라이브러리 123개의 컴파일된 RISC-V 바이너리에 대해 약 1억 8천만 줄의 기계 검증 증명을 쓰고, "64MB 이하의 어떤 입력을 넣어도 crash하지 않는다"를 수학적으로 증명했다.</strong> 사람 손으로는 수십 년이 걸렸을 분량입니다. 그리고 증명을 시도하는 과정에서, 퍼저(fuzzer)가 수년간 돌면서도 놓친 버그 수백 개가 함께 드러났습니다.</p>
+
+<p>타이밍이 절묘합니다. 지난주 이 블로그에서 다뤘듯 <a href="/posts/nvidia-openshell-agent-runtime/" target="_blank" rel="noopener">에이전트가 공격자이자 피해자가 된 주간</a>이었습니다. AI가 버그를 찾고 악용하는 속도는 점점 빨라지는데, 방어 쪽은 여전히 "테스트 돌려보고 통과하면 배포"에 머물러 있습니다. Anthropic의 주장은 명확합니다 — 공격이 자동화되는 시대에는 <strong>버그를 더 많이 찾는 것만으로는 부족하고, 버그가 없다는 보장(guarantee)이 필요하다</strong>는 것. 그런데 그 보장을 만드는 형식 검증은 지금까지 너무 비싸서 극소수 안전-중요(safety-critical) 시스템의 사치품이었습니다.</p>
+
+<p>이 글에서는 "LLM은 환각을 하는데 어떻게 증명을 믿지?"라는 당연한 의문부터 시작해서, 왜 이 조합이 오히려 LLM에게 가장 잘 맞는 일인지, 파이프라인이 실제로 어떻게 생겼는지, 그리고 "증명됐다"는 말을 어디까지 믿어야 하는지까지 차례로 뜯어봅니다.</p>
+
+<h2 id="sec-2">2. 배경 — 테스트·퍼징·형식 검증은 각각 무엇을 보장하나</h2>
+
+<p>셋의 차이를 입력 공간(입력이 될 수 있는 모든 값의 집합) 관점에서 보면 명확합니다.</p>
+
+<ul>
+  <li><strong>테스트</strong>는 내가 고른 입력 몇 개에 대해 "이 입력에서는 맞게 동작한다"를 확인합니다. 입력 공간에 점 몇 개를 찍는 일입니다.</li>
+  <li><strong>퍼징(fuzzing)</strong>은 무작위(정확히는 커버리지 피드백 기반) 입력을 수백만 개 던져서 crash를 찾습니다. 점을 훨씬 많이, 더 교묘하게 찍지만 여전히 점입니다.</li>
+  <li><strong>형식 검증</strong>은 "모든 입력에 대해 이 성질이 성립한다"를 수학 증명으로 보입니다. 점이 아니라 영역 전체를 칠하는 일입니다.</li>
+</ul>
+
+<figure class="fv-fig">
+<svg viewBox="0 0 860 300" role="img" aria-label="입력 공간에서 테스트는 점 몇 개, 퍼징은 많은 점, 형식 검증은 영역 전체를 커버함을 비교한 그림">
+  <g font-size="15" font-weight="700">
+    <text x="140" y="28" text-anchor="middle" fill="var(--fv-slate)">테스트</text>
+    <text x="430" y="28" text-anchor="middle" fill="var(--fv-slate)">퍼징</text>
+    <text x="720" y="28" text-anchor="middle" fill="var(--fv-slate)">형식 검증</text>
+  </g>
+  <!-- test -->
+  <rect x="40" y="44" width="200" height="170" rx="12" fill="none" stroke="var(--fv-slate)" stroke-width="1.6"/>
+  <g fill="var(--fv-sky)">
+    <circle cx="90" cy="100" r="5"/><circle cx="150" cy="140" r="5"/><circle cx="190" cy="80" r="5"/><circle cx="120" cy="180" r="5"/>
+  </g>
+  <circle cx="205" cy="185" r="7" fill="none" stroke="var(--fv-rose)" stroke-width="2.5"/>
+  <text x="140" y="245" text-anchor="middle" font-size="13" fill="var(--fv-slate)">고른 입력 몇 개만 확인</text>
+  <text x="140" y="266" text-anchor="middle" font-size="13" fill="var(--fv-rose)">빨간 원(버그)은 안 밟으면 못 찾음</text>
+  <!-- fuzz -->
+  <rect x="330" y="44" width="200" height="170" rx="12" fill="none" stroke="var(--fv-slate)" stroke-width="1.6"/>
+  <g fill="var(--fv-amber)">
+    <circle cx="350" cy="60" r="3.4"/><circle cx="375" cy="95" r="3.4"/><circle cx="400" cy="70" r="3.4"/><circle cx="430" cy="110" r="3.4"/>
+    <circle cx="455" cy="85" r="3.4"/><circle cx="480" cy="130" r="3.4"/><circle cx="505" cy="65" r="3.4"/><circle cx="360" cy="140" r="3.4"/>
+    <circle cx="390" cy="170" r="3.4"/><circle cx="420" cy="150" r="3.4"/><circle cx="450" cy="185" r="3.4"/><circle cx="485" cy="165" r="3.4"/>
+    <circle cx="510" cy="195" r="3.4"/><circle cx="345" cy="190" r="3.4"/><circle cx="470" cy="55" r="3.4"/><circle cx="515" cy="140" r="3.4"/>
+  </g>
+  <circle cx="500" cy="205" r="7" fill="none" stroke="var(--fv-rose)" stroke-width="2.5"/>
+  <text x="430" y="245" text-anchor="middle" font-size="13" fill="var(--fv-slate)">입력을 대량 투하 — 대개 1MB 이하</text>
+  <text x="430" y="266" text-anchor="middle" font-size="13" fill="var(--fv-rose)">큰 입력·희귀 경로의 버그는 여전히 사각지대</text>
+  <!-- formal -->
+  <rect x="620" y="44" width="200" height="170" rx="12" fill="var(--fv-green)" opacity="0.28"/>
+  <rect x="620" y="44" width="200" height="170" rx="12" fill="none" stroke="var(--fv-green)" stroke-width="2.4"/>
+  <text x="720" y="136" text-anchor="middle" font-size="15" font-weight="800" fill="var(--fv-green)">영역 전체가 증명 범위</text>
+  <text x="720" y="245" text-anchor="middle" font-size="13" fill="var(--fv-slate)">"어떤 입력에도 crash 없음"을</text>
+  <text x="720" y="266" text-anchor="middle" font-size="13" fill="var(--fv-slate)">수학적으로 보장</text>
+</svg>
+<figcaption>같은 입력 공간을 셋이 어떻게 다루는지 비교. 퍼저는 점을 아무리 많이 찍어도 "버그가 없다"고 말할 수 없습니다. 증명만이 영역 전체를 말할 수 있습니다.</figcaption>
+</figure>
+
+<p>그럼 왜 다들 형식 검증을 안 썼을까요? <strong>비용이 터무니없었기 때문입니다.</strong> 가장 유명한 사례인 검증된 마이크로커널 seL4는 <a href="https://trustworthy.systems/projects/OLD/l4.verified/numbers" target="_blank" rel="noopener">C 코드 약 8,700줄을 검증하는 데 손으로 쓴 Isabelle 증명 스크립트 20만 줄</a>이 들었고, 설계부터 검증까지 전체 프로젝트에 20인년이 넘는 노력이 투입됐습니다. 코드 1줄에 증명 20~30줄, 그것도 박사급 증명 엔지니어의 손으로요. 이 비용 구조 때문에 형식 검증은 항공·우주·커널 같은 극단적 분야 밖으로 나오지 못했습니다.</p>
+
+<p>비용의 정체는 두 가지입니다. 첫째, <strong>스펙(specification) 작성</strong> — "이 프로그램이 맞게 동작한다"에서 '맞게'를 수학 언어로 정의하는 일 자체가 어렵습니다. 둘째, <strong>증명 작성</strong> — 그 스펙이 성립함을 보이는 증명을 쓰는 노동이 코드 작성의 수십 배입니다. Anthropic×Theorem의 작업은 이 둘을 각각 다른 방법으로 격파합니다. 스펙은 이미 존재하는 fuzz target에서 자동 생성하고(4장), 증명 노동은 LLM에게 떠넘깁니다(3장).</p>
+
+<h2 id="sec-3">3. 핵심 — 환각하는 모델에게 증명을 맡겨도 되는 이유</h2>
+
+<p>여기서 당연한 의문이 나옵니다. LLM은 그럴듯한 거짓말, 즉 환각(hallucination)을 하는데, 그런 모델이 쓴 "증명"을 어떻게 믿죠?</p>
+
+<p>답은 <strong>믿지 않아도 된다</strong>입니다. 형식 검증의 세계에는 생성과 검사 사이에 근본적인 비대칭이 있습니다. 증명을 <em>만드는</em> 일은 창의성이 필요한 어려운 탐색이지만, 다 만들어진 증명이 올바른지 <em>검사하는</em> 일은 완전히 기계적입니다. Rocq(록크, 증명 보조기 Coq의 새 이름) 같은 증명 보조기(proof assistant)에는 작은 검사기(proof checker)가 붙어 있는데, 이 검사기는 증명의 모든 단계가 논리 규칙을 정확히 따르는지 한 줄씩 확인합니다. 단 한 단계라도 비약이 있으면 통과하지 못합니다.</p>
+
+<p>그래서 구조가 이렇게 됩니다. LLM은 신뢰하지 않는 생성기(untrusted generator)로 두고, 신뢰는 전부 작은 검사기에 몰아줍니다. LLM이 환각으로 엉터리 증명을 100번 내놓아도, 검사기가 100번 다 거부하면 그만입니다. 통과한 증명 하나는 — 모델이 어떤 과정으로 만들었든 — 수학적으로 올바릅니다. 코드 리뷰처럼 "사람이 읽고 납득"할 필요가 없습니다. 실제로 이번 작업에서 증명 하나가 보통 60만 줄인데, 아무도 그걸 읽지 않습니다. 검사기가 읽습니다.</p>
+
+<figure class="fv-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="LLM이 내놓은 증명 시도 중 틀린 것들은 Rocq 검사기에서 거부되고, 통과한 증명만 보장이 되는 구조. 실패 신호는 다시 LLM에게 피드백으로 돌아간다">
+  <g font-size="15" font-weight="700">
+    <text x="150" y="30" text-anchor="middle" fill="var(--fv-violet)">신뢰하지 않는 생성기</text>
+    <text x="620" y="30" text-anchor="middle" fill="var(--fv-green)">신뢰하는 검사기</text>
+  </g>
+  <rect x="40" y="48" width="220" height="230" rx="14" fill="none" stroke="var(--fv-violet)" stroke-width="2.2" stroke-dasharray="9 6"/>
+  <text x="150" y="86" text-anchor="middle" font-size="16" font-weight="800" fill="var(--fv-violet)">LLM (Claude)</text>
+  <text x="150" y="110" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">환각할 수 있음 · 믿을 필요 없음</text>
+  <g font-size="13" font-weight="700">
+    <rect x="70" y="130" width="160" height="34" rx="8" fill="none" stroke="var(--fv-rose)" stroke-width="2"/>
+    <text x="150" y="152" text-anchor="middle" fill="var(--fv-rose)">증명 시도 #1</text>
+    <rect x="70" y="174" width="160" height="34" rx="8" fill="none" stroke="var(--fv-rose)" stroke-width="2"/>
+    <text x="150" y="196" text-anchor="middle" fill="var(--fv-rose)">증명 시도 #2</text>
+    <rect x="70" y="218" width="160" height="34" rx="8" fill="var(--fv-green)" opacity="0.25"/>
+    <rect x="70" y="218" width="160" height="34" rx="8" fill="none" stroke="var(--fv-green)" stroke-width="2.2"/>
+    <text x="150" y="240" text-anchor="middle" fill="var(--fv-green)">증명 시도 #3</text>
+  </g>
+  <!-- arrows to checker -->
+  <g stroke-width="2.4" fill="none">
+    <path d="M 230 147 C 350 147, 400 120, 490 120" stroke="var(--fv-rose)"/>
+    <path d="M 230 191 C 350 191, 400 165, 490 165" stroke="var(--fv-rose)"/>
+    <path d="M 230 235 C 350 235, 400 212, 490 212" stroke="var(--fv-green)"/>
+  </g>
+  <rect x="500" y="92" width="240" height="150" rx="14" fill="none" stroke="var(--fv-green)" stroke-width="3"/>
+  <text x="620" y="128" text-anchor="middle" font-size="16" font-weight="800" fill="var(--fv-green)">Rocq 검사기</text>
+  <text x="620" y="152" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">작고 · 기계적이고 · 감사 가능</text>
+  <text x="620" y="186" text-anchor="middle" font-size="14" fill="var(--fv-rose)">✗ 거부 — 23행에서 논리 비약</text>
+  <text x="620" y="212" text-anchor="middle" font-size="14" font-weight="700" fill="var(--fv-green)">✓ 통과 — 모든 단계 규칙 준수</text>
+  <!-- pass arrow -->
+  <path d="M 740 212 L 812 212" stroke="var(--fv-green)" stroke-width="3" fill="none"/>
+  <path d="M 812 212 l -13 -8 v 16 z" fill="var(--fv-green)"/>
+  <text x="788" y="240" text-anchor="end" font-size="13" font-weight="700" fill="var(--fv-green)">보장 성립</text>
+  <!-- feedback -->
+  <path d="M 500 260 C 420 300, 230 300, 152 282" stroke="var(--fv-amber)" stroke-width="2.2" fill="none" stroke-dasharray="7 5"/>
+  <path d="M 152 282 l 15 -2 l -8 13 z" fill="var(--fv-amber)"/>
+  <text x="330" y="318" text-anchor="middle" font-size="13" fill="var(--fv-amber)">거부 사유가 다음 시도의 피드백이 됨 — 완벽한 채점기가 있는 루프</text>
+</svg>
+<figcaption>생성은 어렵고 검사는 기계적이라는 비대칭. 틀린 증명은 전부 검사기에서 탈락하므로, 통과한 증명 하나의 올바름은 LLM의 신뢰도와 무관합니다.</figcaption>
+</figure>
+
+<p>이 구조는 LLM 입장에서도 최고의 작업 환경입니다. 에이전트 루프에서 늘 문제가 되는 게 "결과가 맞는지 누가 확인하나"였는데(<a href="/posts/parallel-agents-verification-bottleneck/" target="_blank" rel="noopener">검증 병목</a>, <a href="/posts/verifier-engineering-ai-output/" target="_blank" rel="noopener">검증기 엔지니어링</a> 글에서 다뤘습니다), 여기서는 <strong>완벽한 채점기가 공짜로 주어집니다</strong>. 증명이 틀리면 검사기가 어디서 왜 틀렸는지 즉시 알려주고, 모델은 그 피드백으로 다시 시도합니다. 성공 신호에 거짓 양성이 없으니 몇 번을 돌려도 결과가 오염되지 않습니다. 보상 신호가 완벽한 RL 환경과 같은 꼴입니다.</p>
+
+<div class="fv-note">
+<strong>Rocq가 뭔가요?</strong> 40년 역사의 증명 보조기 Coq가 2025년에 Rocq Prover로 이름을 바꿨습니다. 수학 정리와 프로그램 성질을 기계가 검사할 수 있는 형태로 쓰고 증명하는 도구로, 검증된 C 컴파일러 CompCert가 이걸로 만들어졌습니다. 비슷한 도구로 Lean, Isabelle, 그리고 Rust 코드 검증에 쓰는 Verus 등이 있습니다.
+</div>
+
+<h2 id="sec-4">4. 파이프라인 해부 — fuzz target이 공짜 스펙이 되기까지</h2>
+
+<p>2장에서 형식 검증의 비용이 "스펙 작성 + 증명 작성"이라고 했습니다. 증명 작성은 LLM이 맡는다 치고, 스펙은 어떻게 할까요? "이 라이브러리가 맞게 동작한다"를 수학으로 쓰는 일은 여전히 사람 몫 아닌가요?</p>
+
+<p>여기가 이 작업에서 가장 영리한 부분입니다. <strong>세상에는 이미 수십만 개의 실행 가능한 스펙이 있습니다 — 바로 fuzz target입니다.</strong> Google의 <a href="https://github.com/google/oss-fuzz" target="_blank" rel="noopener">OSS-Fuzz</a> 프로그램에 등록된 오픈소스 프로젝트들은 이런 모양의 진입점을 갖고 있습니다.</p>
+
+{{< highlight c >}}
+// 전형적인 fuzz target: "어떤 data가 와도 crash하면 안 된다"는 뜻
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+  my_image img;
+  if (decode_image(data, size, &img) == OK) {   // 임의 입력 파싱
+    encode_image(&img);                          // 파싱됐으면 재인코딩도 돼야 함
+    free_image(&img);
+  }
+  return 0;  // 여기까지 crash 없이 도달하는 것 자체가 성질(property)
+}
+{{< /highlight >}}
+
+<p>이 함수의 의미를 뒤집어 읽으면 그대로 형식 스펙이 됩니다. "모든 입력 <code>data</code>에 대해, 이 함수는 crash(메모리 안전성 위반, assertion 실패)하지 않는다." OSS-Fuzz는 C/C++ 코드를 AddressSanitizer(ASan, 잘못된 메모리 접근 시 즉시 crash시키는 계측 도구)와 함께 컴파일하므로, out-of-bounds 읽기/쓰기 같은 메모리 버그가 crash라는 관측 가능한 사건으로 바뀝니다. 개발자가 스펙을 한 줄도 새로 쓸 필요가 없습니다.</p>
+
+<p>전체 파이프라인은 이렇게 돌아갑니다.</p>
+
+<figure class="fv-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="fuzz target을 RISC-V 바이너리로 컴파일하고, 형식 의미론으로 스펙을 자동 생성한 뒤, Claude가 증명을 쓰고 Rocq가 검사하며, 도달 가능한 crash를 발견하면 패치 후 재증명하는 파이프라인">
+  <g font-size="14" font-weight="700">
+    <!-- step 1 -->
+    <rect x="30" y="40" width="240" height="78" rx="12" fill="none" stroke="var(--fv-sky)" stroke-width="2.4"/>
+    <text x="150" y="72" text-anchor="middle" fill="var(--fv-sky)">① fuzz target + 라이브러리</text>
+    <text x="150" y="98" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">OSS-Fuzz의 기존 자산 재활용</text>
+    <!-- step 2 -->
+    <rect x="310" y="40" width="240" height="78" rx="12" fill="none" stroke="var(--fv-sky)" stroke-width="2.4"/>
+    <text x="430" y="72" text-anchor="middle" fill="var(--fv-sky)">② RISC-V 정적 바이너리로 컴파일</text>
+    <text x="430" y="98" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">ASan 포함 · musl 정적 링크</text>
+    <!-- step 3 -->
+    <rect x="590" y="40" width="240" height="78" rx="12" fill="none" stroke="var(--fv-violet)" stroke-width="2.4"/>
+    <text x="710" y="66" text-anchor="middle" fill="var(--fv-violet)">③ 형식 스펙 자동 생성</text>
+    <text x="710" y="88" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">RISC-V·Linux 의미론 + no-crash 성질</text>
+    <text x="710" y="106" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">"64MB 이하 모든 입력에서 crash 없음"</text>
+    <!-- arrows row1 -->
+    <path d="M 270 79 L 306 79" stroke="var(--fv-slate)" stroke-width="2.4" fill="none"/>
+    <path d="M 306 79 l -12 -7 v 14 z" fill="var(--fv-slate)"/>
+    <path d="M 550 79 L 586 79" stroke="var(--fv-slate)" stroke-width="2.4" fill="none"/>
+    <path d="M 586 79 l -12 -7 v 14 z" fill="var(--fv-slate)"/>
+    <!-- down arrow -->
+    <path d="M 710 118 L 710 160" stroke="var(--fv-slate)" stroke-width="2.4" fill="none"/>
+    <path d="M 710 160 l -7 -12 h 14 z" fill="var(--fv-slate)"/>
+    <!-- step 4: proof loop -->
+    <rect x="310" y="166" width="520" height="108" rx="12" fill="none" stroke="var(--fv-amber)" stroke-width="2.4"/>
+    <text x="570" y="196" text-anchor="middle" fill="var(--fv-amber)">④ 증명 루프 — Claude가 쓰고, Rocq가 검사</text>
+    <text x="570" y="222" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">실패 → 거부 사유를 피드백으로 재시도 · 성공 → 증명 완료</text>
+    <text x="570" y="246" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">증명 하나가 보통 ~60만 줄 · 사람은 읽지 않음, 검사기가 읽음</text>
+    <!-- branch: success -->
+    <path d="M 830 220 L 830 220" stroke="none"/>
+    <path d="M 570 274 L 570 316" stroke="var(--fv-slate)" stroke-width="2.4" fill="none"/>
+    <path d="M 570 316 l -7 -12 h 14 z" fill="var(--fv-slate)"/>
+    <!-- success box -->
+    <rect x="450" y="322" width="380" height="72" rx="12" fill="var(--fv-green)" opacity="0.22"/>
+    <rect x="450" y="322" width="380" height="72" rx="12" fill="none" stroke="var(--fv-green)" stroke-width="2.6"/>
+    <text x="640" y="352" text-anchor="middle" fill="var(--fv-green)">✓ 보장: 64MB 이하 어떤 입력에도 crash 없음</text>
+    <text x="640" y="376" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">한도를 올리고 싶으면 파라미터만 바꾸고 재증명</text>
+    <!-- bug branch -->
+    <rect x="30" y="166" width="240" height="108" rx="12" fill="none" stroke="var(--fv-rose)" stroke-width="2.4"/>
+    <text x="150" y="196" text-anchor="middle" fill="var(--fv-rose)">⑤ 도달 가능한 crash 발견</text>
+    <text x="150" y="222" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">= 증명 불가의 반례 → 진짜 버그</text>
+    <text x="150" y="246" text-anchor="middle" font-size="12.5" fill="var(--fv-slate)">Claude가 패치 작성</text>
+    <path d="M 310 220 L 274 220" stroke="var(--fv-rose)" stroke-width="2.4" fill="none"/>
+    <path d="M 274 220 l 12 -7 v 14 z" fill="var(--fv-rose)"/>
+    <!-- patch loop back -->
+    <path d="M 150 166 C 150 120, 220 100, 270 100" stroke="var(--fv-rose)" stroke-width="2.2" fill="none" stroke-dasharray="7 5"/>
+    <path d="M 270 100 l -12 -7 v 14 z" fill="var(--fv-rose)"/>
+    <text x="118" y="140" text-anchor="middle" font-size="12.5" fill="var(--fv-rose)">패치 후 스펙 재생성 → 재증명</text>
+  </g>
+</svg>
+<figcaption>Anthropic×Theorem 파이프라인. 증명에 실패하는 지점이 곧 버그 후보라서, "증명 시도" 자체가 강력한 버그 탐지기이기도 합니다.</figcaption>
+</figure>
+
+<p>왜 소스 코드가 아니라 <strong>RISC-V 바이너리</strong>를 증명 대상으로 삼았을까요? 소스 수준에서 증명하면 "컴파일러가 소스의 의미를 보존했다"는 가정이 추가로 필요합니다. 컴파일러 버그나 C의 미정의 동작(undefined behavior)이 끼어들 틈이 생기죠. 기계어 수준에서 증명하면 실제로 실행되는 그 바이트들에 대한 보장이 되고, 믿어야 할 대상 목록(6장)에서 컴파일러가 빠집니다. RISC-V를 고른 건 명령어 집합이 단순해서 형식 의미론(semantics, 각 명령이 기계 상태를 어떻게 바꾸는지의 수학적 정의)을 만들기 좋기 때문입니다. Theorem이 이 의미론을 만들었고, <a href="https://github.com/theorem-labs/rocq-linux-process-semantics" target="_blank" rel="noopener">rocq-linux-process-semantics</a>로 공개돼 있습니다 — RV64GC 바이너리를 실행하는 Linux 프로세스(v6.18 기준, 시스템 콜별 명세 포함)의 Rocq 모델입니다.</p>
+
+<p>이렇게 해서 라이브러리 123개, fuzz 진입점 239개가 증명됐습니다. 바이너리 하나가 중앙값 1만 8천 개의 RISC-V 명령어이고, 증명 전체는 약 1억 8천만 줄. 성질은 "64MB 이하의 모든 입력에서 crash 없음"입니다. 64MB라는 한도가 아쉽게 들릴 수 있지만, 한도를 올리는 건 스펙의 파라미터 하나를 바꾸고 재증명을 돌리는 일이라 사람 노력이 거의 들지 않습니다. 참고로 퍼저들은 대부분 입력을 1MB 이하로 제한합니다.</p>
+
+<h2 id="sec-5">5. 결과 — 퍼저가 수년간 놓친 버그들</h2>
+
+<p>증명이 안 되는 지점은 둘 중 하나입니다. 증명 전략이 나빴거나, <strong>정말로 crash하는 입력이 존재하거나.</strong> 후자라면 그게 바로 버그입니다. 이번 작업에서 이렇게 찾은 버그가 수백 개인데, 몇 개를 보면 왜 퍼저가 못 찾았는지가 보입니다.</p>
+
+<table class="fv-table">
+  <tr><th>버그</th><th>내용</th><th>퍼저가 놓친 이유</th></tr>
+  <tr><td>압축 해제기 counter underflow</td><td>카운터가 0 아래로 내려가며 out-of-bounds 쓰기 발생</td><td>약 20MB짜리 입력 + 희귀한 내부 레이아웃이 필요 — 퍼저의 1MB 한도 밖</td></tr>
+  <tr><td>이미지 디코더 OOB 읽기</td><td>경계 밖 읽기</td><td>64MB 입력과 2GB 이상의 메모리가 필요</td></tr>
+  <tr><td>파일 핸들 OOB 읽기</td><td>같은 파일에 대한 두 핸들로 특정 순서의 호출을 해야 발생</td><td>커버리지 기반 탐색으로는 도달하기 힘든 상태 조합</td></tr>
+  <tr><td>libexpat CVE-2026-56132</td><td>깊게 중첩된 입력으로 유발 — 알려진 CVE를 독립적으로 재발견</td><td>증명 시도가 알려진 취약점을 그대로 찾아냄 (방법론 검증)</td></tr>
+</table>
+
+<p>흥미로운 건 crash 버그만 나온 게 아니라는 점입니다. "애플리케이션이 로드할 수 있는 파일을 제한하는 기능이 항상 강제되지는 않는다"는 <strong>로직 버그</strong>도 증명 과정에서 드러났습니다. 그리고 fuzz target이 단순 no-crash 이상을 검사하는 경우 — 압축했다 풀면 원본이 나와야 한다(round-trip), 두 구현의 출력이 같아야 한다(differential) 같은 assertion — 그 성질까지 통째로 증명됩니다. "이 테스트 스위트는 영원히 통과한다"가 증명되는 셈이니까요.</p>
+
+<p>난이도를 보여주는 사례 하나. HTTP 라이브러리 cpp-httplib의 증명에서는 <code>std::set</code> 소멸자의 재귀가 스택 오버플로를 일으키지 않음을 보여야 했는데, 그러려면 libc++ 레드-블랙 트리의 리밸런싱이 트리 깊이를 로그 수준으로 유지한다는 사실을 <strong>기계어 수준에서</strong> 증명해야 했습니다. 자료구조 교과서의 정리를 컴파일된 바이너리에 대고 다시 증명한 겁니다.</p>
+
+<p>본편 밖의 사이드 실험들도 시사점이 큽니다. Claude가 RFC 1950 (zlib 포맷)의 형식 스펙을 직접 쓰고 Linux 커널의 zlib을 x86 바이너리 수준에서 증명했고(이때 x86 의미론도 Claude가 생성), 비슷한 과정을 널리 쓰이는 라이브러리 6개 정도에 반복해 "이미 거의 완전히 올바르다"는 결론을 얻었습니다. 한 PDF 리더에 간단한 보안 성질 증명을 시도하자 <strong>일주일 만에 보통 1년 치로 보고되는 수준의 보안 버그</strong>가 나왔고, 10년 넘게 잠복해 있던 로직 버그도 찾았습니다. 모두 Anthropic의 자체 보고 수치라는 점은 감안해야 합니다.</p>
+
+<h2 id="sec-6">6. 그래서 무엇을 믿어야 하나 — TCB와 "증명됐다 ≠ 버그 없다"</h2>
+
+<p>"수학적으로 증명됐다"는 말은 강력하지만 공짜는 아닙니다. 모든 형식 검증에는 신뢰 컴퓨팅 기반(TCB, trusted computing base) — 증명 없이 그냥 믿어야 하는 최소한의 구성 요소 — 이 있습니다. 이번 작업의 TCB는 다음과 같습니다.</p>
+
+<table class="fv-table">
+  <tr><th>믿어야 하는 것</th><th>왜</th></tr>
+  <tr><td>RISC-V·Linux 프로세스의 형식 모델</td><td>모델이 실제 CPU·커널과 다르면 증명은 "다른 세계"에 대한 증명이 됨. Theorem 스스로 "증명은 모델만큼만 좋다"고 명시</td></tr>
+  <tr><td>증명된 정리 문장 그 자체</td><td>스펙이 내 의도와 다르면, 올바른 증명도 엉뚱한 보장. 검사기는 "스펙이 현실과 맞는지"는 검사하지 못함</td></tr>
+  <tr><td>Rocq 검사기</td><td>검사기 버그 가능성. 다만 수십 년 검증된 작은 코드이고, 검사기를 믿는다는 건 그 아래 하드웨어·OS·OCaml 컴파일러까지 믿는다는 뜻</td></tr>
+</table>
+
+<p>반대로 목록에 <strong>없는</strong> 것들이 핵심입니다. Claude도, 1억 8천만 줄의 증명 자체도, 컴파일러도 믿을 필요가 없습니다. 전부 검사기 뒤에 있으니까요.</p>
+
+<p>Hacker News 토론도 정확히 이 지점에 몰렸습니다. "검사기는 스펙이 현실과 일치하는지 알려주지 않는다"는 지적, 그리고 과거 LLM 증명 연구에서 논문 주장과 실제 증명 코드가 달랐던 사례를 들며 마케팅을 경계하는 목소리가 있었습니다. 타당한 경계입니다 — 그리고 Anthropic 글 자체도 한계를 길게 적어 뒀습니다.</p>
+
+<div class="fv-warn">
+<strong>"formally verified"가 보장하지 않는 것들.</strong> ① 증명 대상은 musl 정적 링크 RISC-V 단일 스레드 바이너리 — 실제 배포 환경(x86/ARM, glibc 동적 링크, 멀티스레드)은 모델 밖입니다. ② 모든 진입점이 검증된 게 아니고, 진입점 검증이 라이브러리 전체를 덮지도 않습니다. ③ ASan이 못 잡는 메모리 버그 유형이 있습니다. ④ 호출하는 쪽이 라이브러리를 잘못 쓰면(API 계약 위반) 여전히 메모리가 깨질 수 있습니다. 증명은 스펙에 적힌 것만, 모델이 맞는 만큼만 보장합니다.
+</div>
+
+<h2 id="sec-7">7. 엔지니어링 디테일 — 토큰 비용, 증명 재사용, reward hacking</h2>
+
+<p>"그래서 얼마 드는데?"가 다음 질문입니다. 증명 하나에 <strong>수억 토큰</strong>이 들 수 있습니다. 싸지 않죠. 다만 비용 곡선이 가파르게 내려가고 있다는 게 Anthropic의 포인트입니다. OSS-Fuzz 코드에서 뽑은 작은 과제 36개 실험에서, Opus 5.5는 절반을 증명하면서 Opus 5보다 토큰을 약 40% 덜 썼습니다. 모델 세대가 바뀔 때마다 증명 가능 범위는 넓어지고 단가는 떨어지는 구조입니다.</p>
+
+<p>구조적인 절감 장치도 있습니다. <strong>증명 재사용</strong>입니다. 에이전트 여러 개가 증명을 공유하는 작업 공간(shared workspace)을 쓰자 혼자 일할 때보다 토큰이 17% 줄었고, 혼자서는 못 끝내던 증명 2개도 완료됐습니다. 123개 라이브러리는 C 런타임 초기화나 ASan 코드처럼 공통 부분이 많아서, 한 팀이 끝낸 증명을 다른 팀이 복사해 자기 프로그램에 맞게 고치는 식으로 일했습니다. 수학계의 Lean 라이브러리 Mathlib이 700명 넘는 기여자의 정리 30만 개를 쌓아 올린 것처럼, 증명은 쌓일수록 다음 증명이 싸집니다. 소프트웨어 의존성은 파워 로(power law)를 따르므로 glibc·OpenSSL·cURL 같은 공유 라이브러리 소수만 검증해도 스택의 큰 부분이 열립니다 — Theorem이 Nix 생태계 검증 로드맵을 내놓은 이유입니다.</p>
+
+<p>마지막으로, 에이전트를 돌려 본 사람이라면 반드시 떠올릴 문제 — <strong>reward hacking</strong>은 어떻게 막았을까요? "어떤 입력에도 crash하지 않음을 증명하라 + 필요하면 패치해도 됨"이라는 과제에는 명백한 꼼수가 있습니다. 프로그램을 아무것도 안 하는 코드로 바꿔 버리면 증명이 쉬워지니까요. 대응은 세 겹입니다: 패치 자체에 페널티를 주고, "이 패치가 바꾸는 입력이 정확히 어떤 것들이고 얼마나 적은지"를 증명하면 가산점을 주고, 모든 패치를 로깅·감사했습니다. 완벽한 검증기가 있어도 <em>목표 설계</em>는 여전히 사람 몫이라는 좋은 사례입니다(<a href="/posts/agent-reward-hacking-evals/" target="_blank" rel="noopener">에이전트 reward hacking</a> 글 참고).</p>
+
+<h2 id="sec-8">8. 실전 — 내 프로젝트 검증 대상으로 올려보기</h2>
+
+<p>직접 증명을 쓸 필요는 없습니다. Theorem이 파이프라인을 서비스로 돌려 주는 <a href="https://github.com/theorem-labs/oss-verify" target="_blank" rel="noopener">OSS Verify</a> 프로그램을 공개했기 때문입니다. 오픈소스 메인테이너라면 프로젝트를 등록만 하면 됩니다. 조건은 네 가지 — OSI 승인 라이선스, 공개 git 저장소, fuzz target 1개 이상, 빌드 가능한 언어. 등록 절차는 PR 하나입니다.</p>
+
+{{< highlight bash >}}
+# 1) oss-verify를 포크하고 프로젝트 디렉터리를 만든다
+git clone https://github.com/<내계정>/oss-verify && cd oss-verify
+mkdir projects/myproject
+# projects/myproject/ 안에 템플릿을 참고해 세 파일을 만든다:
+#   project.yaml  — 메타데이터 (버그를 비공개로 통보받을 primary_contact 필수)
+#   Dockerfile    — 빌드 환경
+#   build.sh      — fuzz target 빌드 스크립트
+
+# 2) 로컬 검증 — 빌드가 재현 가능한지(두 번 빌드해 바이트 단위 동일) 확인
+python3 tools/validate.py
+tools/check --no-shell --twice myproject
+
+# 3) PR을 연다. 머지되면 Theorem이 타깃을 빌드해 SHA-256을 고정하고,
+#    바이너리에 대한 정리를 세워 증명한다. 발견된 버그는 primary_contact에게
+#    비공개로 전달된다.
+{{< /highlight >}}
+
+<p>요구 사양은 Linux x86-64 + Docker buildx + Python 3, 디스크 약 10GB입니다. 저장소에는 Claude Code로 등록 작업을 자동화하는 skill(<code>.claude/skills/add-project/</code>)도 들어 있습니다. 한 가지 주의 — <code>tools/check</code>는 해당 프로젝트의 Dockerfile을 네트워크가 열린 상태로 빌드하므로, 신뢰할 수 있는 프로젝트에만 돌리라고 README가 명시하고 있습니다.</p>
+
+<p>증명 쪽이 궁금하면 공개된 재료들을 직접 열어 볼 수 있습니다. <a href="https://github.com/theorem-labs/rocq-linux-process-semantics" target="_blank" rel="noopener">rocq-linux-process-semantics</a>(MIT)에는 RISC-V 명령 디코딩·의미론(<code>theories/Riscv/</code>)과 커널 소스 구조를 따라 배치한 시스템 콜별 명세(<code>theories/LinuxProcessSem/Sys/</code>), 그리고 작은 바이너리에 대한 예제 증명이 들어 있습니다. Rocq 9.2 이상과 opam 2로 빌드되고, 전체 빌드에 CPU 45분 정도 걸립니다. 완료된 증명의 일부는 <a href="https://github.com/theorem-labs/oss-verify-proofs" target="_blank" rel="noopener">oss-verify-proofs</a>에 공개돼 있습니다(미패치 버그가 드러나는 증명은 보류).</p>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"증명됐으니 끝"이라고 믿기.</strong> 증명은 스펙과 모델의 범위 안에서만 유효합니다. 6장의 TCB 표를 체크리스트로 쓰세요. 특히 "스펙이 내 의도를 담고 있는가"는 기계가 검사해 주지 않는, 끝까지 사람 몫인 질문입니다.</li>
+  <li><strong>LLM이 쓴 증명을 사람이 리뷰하려 들기.</strong> 방향이 반대입니다. 60만 줄짜리 증명은 읽는 게 아니라 검사기에 통과시키는 겁니다. 사람의 리뷰는 짧은 정리 문장(스펙)에 집중해야 합니다. 리뷰 대상을 "증명"에서 "명제"로 옮기는 것이 이 패러다임의 요점입니다.</li>
+  <li><strong>검증기가 없는 곳에서 같은 기대하기.</strong> 이 작업이 잘된 건 Rocq라는 완벽한 채점기가 있어서입니다. 일반 코드 생성에는 이런 채점기가 없으므로 "LLM이 알아서 맞게 했겠지"로 일반화하면 안 됩니다. 반대로, 여러분의 도메인에 기계적 검증기를 만들 수 있다면(타입 체커, 린터, 속성 기반 테스트, 시뮬레이터) LLM 산출물의 신뢰도를 같은 구조로 끌어올릴 수 있습니다.</li>
+  <li><strong>fuzz target 없이 검증부터 바라기.</strong> 이 파이프라인의 입장권은 fuzz target입니다. 아직 없다면 형식 검증 이전에 퍼징부터 붙이세요. 잘 쓴 fuzz target은 오늘은 퍼징 자산, 내일은 공짜 스펙이 됩니다. assertion을 풍부하게 넣을수록(round-trip, 불변식) 증명되는 성질도 강해집니다.</li>
+  <li><strong>에이전트에게 패치 권한을 줄 때 목표를 그대로 두기.</strong> "통과하게 만들어라"는 목표에 수정 권한이 붙으면 반드시 꼼수 경로가 생깁니다. 패치 페널티·영향 범위 증명·감사 로그라는 3중 장치를 그대로 벤치마킹할 만합니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Anthropic Frontier Red Team × Theorem이 Claude로 오픈소스 라이브러리 123개(fuzz 진입점 239개)의 RISC-V 바이너리에 대해 <strong>약 1억 8천만 줄의 Rocq 증명</strong>을 몇 주 만에 생성, "64MB 이하 어떤 입력에도 crash 없음"을 기계 검증했습니다. 이번 주 HN 457pt 토론의 주인공입니다.</li>
+  <li>환각하는 LLM을 믿을 수 있는 이유는 <strong>생성과 검사의 비대칭</strong>: 증명 생성은 어렵지만 검사는 기계적이라, 신뢰는 전부 작은 Rocq 검사기에 몰리고 LLM·증명·컴파일러는 TCB에서 빠집니다.</li>
+  <li>형식 검증의 두 비용 중 <strong>증명 노동은 LLM이, 스펙 작성은 기존 fuzz target의 재활용</strong>이 해결했습니다. 증명이 안 되는 지점이 곧 버그 후보라서, 퍼저가 수년간 놓친 버그 수백 개(20MB 입력 underflow, libexpat CVE 재발견 등)가 함께 나왔습니다.</li>
+  <li>단, <strong>"증명됐다 ≠ 버그 없다"</strong>: 보장은 스펙·모델(musl 정적 RISC-V 단일 스레드)의 범위 안에서만 유효하고, 스펙이 현실과 맞는지는 여전히 사람이 확인해야 합니다.</li>
+  <li>비용은 증명당 수억 토큰 수준이지만 모델 세대마다 급감 중이고(Opus 5.5가 토큰 40% 절감), 증명 공유 작업 공간(−17%)과 재사용으로 더 내려갑니다. reward hacking은 패치 페널티 + 영향 범위 증명 + 감사로 눌렀습니다.</li>
+  <li>메인테이너라면 <a href="https://github.com/theorem-labs/oss-verify" target="_blank" rel="noopener">oss-verify</a>에 PR 하나로 내 프로젝트를 검증 큐에 올릴 수 있습니다. 입장권은 fuzz target — 오늘 퍼징 자산이 내일 공짜 스펙이 됩니다.</li>
+</ul>
+
+<h2 id="sec-11">11. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.anthropic.com/research/formal-verification" target="_blank" rel="noopener">LLMs are making formal software verification feasible at a much larger scale — Anthropic (2026-10-22)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50202217" target="_blank" rel="noopener">Hacker News 토론 (457pt, 댓글 303개)</a></li>
+  <li><a href="https://github.com/theorem-labs/oss-verify" target="_blank" rel="noopener">theorem-labs/oss-verify — 프로젝트 등록용 저장소</a></li>
+  <li><a href="https://github.com/theorem-labs/oss-verify-proofs" target="_blank" rel="noopener">theorem-labs/oss-verify-proofs — 공개된 증명</a></li>
+  <li><a href="https://github.com/theorem-labs/rocq-linux-process-semantics" target="_blank" rel="noopener">theorem-labs/rocq-linux-process-semantics — RISC-V·Linux 프로세스 Rocq 의미론 (MIT)</a></li>
+  <li><a href="https://devops.com/claude-writes-180-million-lines-of-proofs-to-verify-123-open-source-libraries" target="_blank" rel="noopener">Claude Writes 180 Million Lines of Proofs to Verify 123 Open Source Libraries — DevOps.com</a></li>
+  <li><a href="https://www.unite.ai/anthropic-says-claude-proved-security-properties-across-123-libraries/" target="_blank" rel="noopener">Anthropic Says Claude Proved Security Properties Across 123 Libraries — Unite.AI</a></li>
+  <li><a href="https://trustworthy.systems/projects/OLD/l4.verified/numbers" target="_blank" rel="noopener">seL4 / L4.verified 증명 통계 — Trustworthy Systems</a></li>
+  <li><a href="https://rocq-prover.org/" target="_blank" rel="noopener">Rocq Prover (구 Coq) 공식 사이트</a></li>
+  <li><a href="https://github.com/google/oss-fuzz" target="_blank" rel="noopener">Google OSS-Fuzz</a></li>
+  <li>(한국어) <a href="/posts/verifier-engineering-ai-output/" target="_blank" rel="noopener">AI 출력 검증기 엔지니어링 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/parallel-agents-verification-bottleneck/" target="_blank" rel="noopener">병렬 에이전트와 검증 병목 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/agent-reward-hacking-evals/" target="_blank" rel="noopener">에이전트 reward hacking과 evals — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/nvidia-openshell-agent-runtime/" target="_blank" rel="noopener">NVIDIA 에이전트 런타임 OpenShell 해부 — 이 블로그</a></li>
+</ul>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="신뢰할 수 없는 LLM이 쓴 거대한 증명이 작고 신뢰된 Rocq 검사기를 통과해야만 '증명 완료' 도장을 받는 구조를 그린 그림">
+  <defs>
+    <linearGradient id="fvbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#14532d"/>
+    </linearGradient>
+    <linearGradient id="fv-green" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+    <linearGradient id="fv-violet" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#fvbg)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">환각하는 모델에게 증명을 맡겨도 되는 이유</text>
+  <text x="80" y="152" fill="#86efac" font-family="ui-sans-serif,system-ui,sans-serif" font-size="42" font-weight="800">LLM이 깨운 형식 검증의 시대</text>
+  <text x="80" y="200" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22">Claude가 쓴 Rocq 증명 1억 8천만 줄 — OSS 라이브러리 123개, Anthropic × Theorem</text>
+
+  <!-- LLM box (untrusted) -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="80" y="280" width="300" height="200" rx="16" fill="none" stroke="#a78bfa" stroke-width="3" stroke-dasharray="10 7"/>
+    <text x="230" y="322" text-anchor="middle" fill="#c4b5fd" font-size="24" font-weight="800">LLM (Claude)</text>
+    <text x="230" y="352" text-anchor="middle" fill="#94a3b8" font-size="17">신뢰하지 않아도 되는 생성기</text>
+    <rect x="110" y="376" width="240" height="74" rx="10" fill="url(#fv-violet)" opacity="0.85"/>
+    <text x="230" y="408" text-anchor="middle" fill="#0f172a" font-size="18" font-weight="800">증명 60만 줄</text>
+    <text x="230" y="432" text-anchor="middle" fill="#1e1b4b" font-size="15">환각이 섞여 있을 수도 있음</text>
+  </g>
+
+  <!-- arrow -->
+  <path d="M 400 380 L 490 380" stroke="#e2e8f0" stroke-width="4" fill="none"/>
+  <path d="M 490 380 l -16 -10 v 20 z" fill="#e2e8f0"/>
+
+  <!-- checker box (trusted) -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="510" y="300" width="250" height="160" rx="16" fill="none" stroke="#4ade80" stroke-width="4"/>
+    <text x="635" y="345" text-anchor="middle" fill="#86efac" font-size="24" font-weight="800">Rocq 검사기</text>
+    <text x="635" y="375" text-anchor="middle" fill="#94a3b8" font-size="17">작고, 기계적이고, 신뢰됨</text>
+    <text x="635" y="430" text-anchor="middle" fill="#e2e8f0" font-size="18" font-weight="700">틀린 증명은 여기서 전부 탈락</text>
+  </g>
+
+  <!-- arrow -->
+  <path d="M 780 380 L 870 380" stroke="#4ade80" stroke-width="4" fill="none"/>
+  <path d="M 870 380 l -16 -10 v 20 z" fill="#4ade80"/>
+
+  <!-- result -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <rect x="890" y="310" width="230" height="140" rx="16" fill="url(#fv-green)" opacity="0.92"/>
+    <text x="1005" y="368" text-anchor="middle" fill="#052e16" font-size="23" font-weight="800">✓ 증명 완료</text>
+    <text x="1005" y="400" text-anchor="middle" fill="#052e16" font-size="16">64MB 이하 어떤 입력에도</text>
+    <text x="1005" y="424" text-anchor="middle" fill="#052e16" font-size="16">crash 없음이 보장됨</text>
+  </g>
+
+  <text x="80" y="560" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19">테스트는 돌려 본 입력만 보장하지만, 증명은 모든 입력을 보장합니다</text>
+</svg>

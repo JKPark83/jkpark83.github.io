@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 510" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="510" fill="#ffffff"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-10-26</text>
+  <text x="400" y="58" text-anchor="middle" font-size="13" fill="#6b7280">키워드: 프런티어를 책상 위로 — 2비트 양자화, 33B 교사 모델, 하네스를 감싸는 클라이언트</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="80" width="360" height="185" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1d4ed8">모델 / 릴리즈</text>
+  <text x="50" y="134" font-size="13" fill="#111827">Nanbeige4.3-33B — Apache 2.0 교사 모델</text>
+  <text x="50" y="154" font-size="12" fill="#374151">· 33B · 512K ctx · Terminal-Bench 2.1 80.9(자체)</text>
+  <text x="50" y="172" font-size="12" fill="#374151">· agentic coding 특화 · 3B 증류판 예고</text>
+  <text x="50" y="198" font-size="13" fill="#111827">DeepSeek-V4.1-Flash-1017 2비트 GGUF</text>
+  <text x="50" y="218" font-size="12" fill="#374151">· ISTA-DASLab GSQ-RCO · 231~266GB</text>
+  <text x="50" y="236" font-size="12" fill="#374151">· IQ2_XXS가 기준 성능 100% 회복(자체)</text>
+
+  <!-- 논문 -->
+  <rect x="410" y="80" width="360" height="185" rx="10" fill="#fdf4ff" stroke="#a855f7"/>
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#7e22ce">논문</text>
+  <text x="430" y="134" font-size="13" fill="#111827">Agent Mosaic — 조합 유출 (2610.30418)</text>
+  <text x="430" y="154" font-size="12" fill="#374151">· 허용 문서들의 조합이 금지 결론을 만든다</text>
+  <text x="430" y="172" font-size="12" fill="#374151">· 가드 적용 후에도 유출 잔존, 거부도 샌다</text>
+  <text x="430" y="198" font-size="13" fill="#111827">Heartbeat Thinking (2610.26233)</text>
+  <text x="430" y="218" font-size="12" fill="#374151">· 말하는 동안 추론·툴 실행을 미리 진행</text>
+  <text x="430" y="236" font-size="12" fill="#374151">· 음성 에이전트 응답 지연 -36.4%(FDBench v3)</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="360" height="175" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="313" font-size="15" font-weight="700" fill="#15803d">오픈소스</text>
+  <text x="50" y="339" font-size="13" fill="#111827">Niko1221/Strata — 로컬 추론 엔진</text>
+  <text x="50" y="359" font-size="12" fill="#374151">· 12GB GPU + RAM + SSD로 V4.1-Flash 구동</text>
+  <text x="50" y="377" font-size="12" fill="#374151">· MIT · 설치형 · AGENTS.md로 에이전트 설치 유도</text>
+  <text x="50" y="403" font-size="13" fill="#111827">makecindy/cindy — 에이전트 클라이언트</text>
+  <text x="50" y="423" font-size="12" fill="#374151">· Claude Code/Codex 하네스를 한 앱에서 혼용</text>
+
+  <!-- 바이브코딩 -->
+  <rect x="410" y="285" width="360" height="175" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="430" y="313" font-size="15" font-weight="700" fill="#c2410c">바이브코딩</text>
+  <text x="430" y="339" font-size="13" fill="#111827">Codex: 트레이스에 턴·툴·스킬 어트리뷰션</text>
+  <text x="430" y="359" font-size="12" fill="#374151">· codex.turn_profile 이벤트 · 툴 소요시간 기록</text>
+  <text x="430" y="377" font-size="12" fill="#374151">· OTLP로 내보내 병목 추적 (10/23)</text>
+  <text x="430" y="403" font-size="13" fill="#111827">Claude Code: 내장 mod 4종 소스 공개 동기화</text>
+  <text x="430" y="423" font-size="12" fill="#374151">· mods/ 폴더 — diff·telemetry·agents-md·sec-default</text>
+  <text x="430" y="441" font-size="12" fill="#374151">· --plugin-dir로 실행, plugin test로 검증</text>
+
+  <text x="400" y="492" text-anchor="middle" font-size="12" fill="#9ca3af">관통 테마: 프런티어 모델과 하네스 내부가 전부 손에 잡히는 물건이 되고 있다 — 로컬로, 소스로</text>
+</svg>

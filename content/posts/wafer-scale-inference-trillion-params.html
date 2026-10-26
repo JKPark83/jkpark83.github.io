@@ -1,0 +1,342 @@
+---
+title: "GPU 없이 3조 파라미터를 서빙한다고? — 44GB 칩 59장에 Kimi K3를 올리는 Cerebras의 수학"
+date: 2026-10-27T07:30:00+09:00
+draft: false
+tags: ["AI", "추론", "inference", "서빙", "Cerebras", "wafer-scale", "WSE-3", "메모리 대역폭", "KV 캐시", "파이프라인 병렬화", "Kimi K3", "MoE", "quantization", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트 시대의 병목은 '모델이 얼마나 똑똑한가'만큼이나 '초당 몇 토큰을 뱉는가'입니다. 이번 주 Hacker News에서 화제가 된 Cerebras 엔지니어링 블로그는 도발적인 질문을 던집니다 — HBM도 GPU 클러스터도 없이, 온칩 SRAM 44GB짜리 웨이퍼 59장만으로 2.8조 파라미터 Kimi K3를 초당 1,000~2,000토큰으로 서빙할 수 있을까? 디코딩이 메모리 대역폭에 묶이는 근본 이유부터, 레이어를 웨이퍼에 배치하는 산수, RDMA 파이프라인, 그리고 독립 검증된 981 tok/s라는 숫자의 의미와 함정까지 — 주니어 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "wafer-scale-inference-trillion-params-cover.svg"
+  alt: "GPU 클러스터 대신 웨이퍼 스케일 칩 여러 장을 파이프라인으로 이어 3조 파라미터 모델을 서빙하는 모습을 단순화한 그림"
+  caption: "모델이 커지는 속도보다 중요한 것 — 그 모델이 토큰을 뱉는 속도. 추론 하드웨어의 수학을 알면 서빙 뉴스가 다르게 읽힙니다."
+  relative: false
+---
+
+<style>
+/* ── 웨이퍼 스케일 추론 포스트 전용 스타일 (wsi- 접두사) ── */
+.wsi-fig{
+  --wsi-green:#16a34a; --wsi-rose:#e11d48; --wsi-amber:#d97706; --wsi-sky:#0284c7;
+  --wsi-violet:#7c3aed; --wsi-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .wsi-fig{
+  --wsi-green:#4ade80; --wsi-rose:#fb7185; --wsi-amber:#fbbf24; --wsi-sky:#38bdf8;
+  --wsi-violet:#a78bfa; --wsi-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .wsi-fig{
+    --wsi-green:#4ade80; --wsi-rose:#fb7185; --wsi-amber:#fbbf24; --wsi-sky:#38bdf8;
+    --wsi-violet:#a78bfa; --wsi-slate:#94a3b8;
+  }
+}
+.wsi-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.wsi-fig text{font-family:inherit}
+.wsi-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.wsi-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.wsi-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.wsi-toc ol{margin:0;padding-left:1.25rem}
+.wsi-toc li{margin:.22rem 0;font-size:.95rem}
+.wsi-toc a{text-decoration:none}
+.wsi-toc a:hover{text-decoration:underline}
+.wsi-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.wsi-table th,.wsi-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.wsi-table th{background:var(--entry)}
+.wsi-note{border-left:4px solid var(--wsi-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.wsi-warn{border-left:4px solid var(--wsi-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="wsi-toc">
+  <div class="wsi-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 에이전트 시대, 토큰 속도가 곧 지능이다</a></li>
+    <li><a href="#sec-2">배경 — 디코딩이 느린 진짜 이유: 연산이 아니라 메모리</a></li>
+    <li><a href="#sec-3">WSE-3 — HBM을 버리고 SRAM 44GB를 칩 위에 박다</a></li>
+    <li><a href="#sec-4">본론 — 44GB × 59장에 2.8조 파라미터를 올리는 산수</a></li>
+    <li><a href="#sec-5">파이프라인 — 웨이퍼 사이를 건너는 것은 활성값뿐</a></li>
+    <li><a href="#sec-6">숫자 읽기 — 981 tok/s의 의미와 전제</a></li>
+    <li><a href="#sec-7">실전 — 내 워크로드의 '진짜 속도'를 재는 법</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 에이전트 시대, 토큰 속도가 곧 지능이다</h2>
+
+<p>코딩 에이전트를 돌려 본 적이 있다면 이런 경험이 있을 겁니다. 모델은 분명 똑똑한데, 턴 하나하나가 느려서 전체 작업이 한참 걸립니다. 에이전트 루프는 <strong>직렬</strong>입니다. 생각하고 → 도구를 부르고 → 결과를 읽고 → 다시 생각합니다. 턴이 30번이면 출력 속도의 차이가 30번 복리로 쌓입니다. 초당 50토큰과 초당 1,000토큰은 "조금 빠르다"가 아니라 <strong>3분짜리 작업과 1시간짜리 작업의 차이</strong>가 됩니다. reasoning 토큰까지 길게 뽑는 요즘 모델이라면 체감은 더 큽니다.</p>
+
+<p>그래서 이번 주 Hacker News 프런트페이지에 오른 Cerebras의 엔지니어링 글이 눈에 띄었습니다. 10월 22일경 공개된 <a href="https://www.cerebras.ai/blog/how-we-deploy-trillion-parameter-frontier-models-on-cerebras" target="_blank" rel="noopener">How we deploy trillion-parameter frontier models on Cerebras</a>는 <a href="https://news.ycombinator.com/item?id=50227356" target="_blank" rel="noopener">HN에서 약 350포인트</a>를 받으며 한 주 내내 서빙 쪽 화제의 중심이었습니다. 요지는 도발적입니다. <strong>GPU도, HBM도 없이</strong> 온칩 메모리 44GB짜리 웨이퍼 스케일 칩을 수십 장 이어서, 2.8조(2.8T) 파라미터짜리 오픈 모델 Kimi K3를 초당 1,000~2,000토큰 이상으로 서빙하겠다는 설계를 숫자와 함께 공개한 겁니다. 마침 같은 주 HN 1위가 Moonshot의 Kimi K3.1 Pro 공개 스레드(1,000포인트 이상)였으니, "조 단위 오픈 모델을 누가 얼마나 빠르게 서빙하느냐"가 한 주의 테마였던 셈입니다.</p>
+
+<p>이 글은 Cerebras 광고가 아닙니다. 이 블로그 포스트가 좋은 교재인 이유는, 따라가다 보면 <strong>LLM 추론의 제1원리 — 디코딩은 연산이 아니라 메모리 대역폭에 묶인다</strong> — 가 저절로 이해되기 때문입니다. 이 원리를 알면 vLLM 튜닝 글도, GPU 스펙시트도, 추론 전문 업체들의 속도 경쟁 뉴스도 전부 다르게 읽힙니다. 하나씩 뜯어봅시다.</p>
+
+<h2 id="sec-2">2. 배경 — 디코딩이 느린 진짜 이유: 연산이 아니라 메모리</h2>
+
+<p>먼저 3분 복습입니다. LLM 추론은 두 단계로 나뉩니다. 입력 프롬프트 전체를 한 번에 처리하는 <strong>프리필(prefill)</strong>과, 그 뒤에 토큰을 하나씩 만들어 내는 <strong>디코드(decode)</strong>입니다. 프리필은 수천 토큰을 병렬로 처리하니 GPU의 연산 능력을 꽉 채워 쓰는 <em>compute-bound</em> 작업입니다. 문제는 디코드입니다.</p>
+
+<p>디코드에서 토큰 1개를 만들려면, 모델의 <strong>활성 가중치 전부를 메모리에서 한 번씩 읽어 와야</strong> 합니다. 행렬 곱 자체는 토큰 하나 분량이라 금방 끝나는데, 그 곱에 쓸 수십~수백 GB의 가중치를 메모리에서 연산기까지 실어 나르는 시간이 발목을 잡습니다. 연산기는 대부분의 시간을 데이터를 기다리며 놉니다. 이것이 <em>memory-bound</em>, 흔히 말하는 <strong>메모리 장벽(memory wall)</strong>입니다.</p>
+
+<p>그래서 한 사용자가 체감하는 생성 속도의 상한은 대략 이렇게 어림할 수 있습니다.</p>
+
+{{< highlight text >}}
+사용자당 최대 생성 속도(tok/s) ≈ 메모리 대역폭(GB/s) ÷ 토큰당 읽어야 하는 바이트(GB)
+
+예) 활성 가중치 100GB(4-bit 양자화 후 ~50GB)를 HBM 대역폭 3.35TB/s로 읽으면
+    3,350 ÷ 50 ≈ 초당 67토큰이 이론 상한 (실제로는 이보다 낮음)
+{{< /highlight >}}
+
+<p>GPU 서빙이 이 한계를 우회하는 대표 기술이 <strong>배칭(batching)</strong>입니다. 가중치를 한 번 읽을 때 수십 개 요청의 토큰을 같이 계산하면, 읽기 비용이 분산돼 <em>전체 처리량</em>은 크게 오릅니다. 하지만 <em>한 사용자가 느끼는 속도</em>는 그대로입니다. 배칭은 식당이 테이블을 늘리는 것이지, 요리가 빨라지는 게 아니니까요. <a href="/posts/speculative-decoding/" target="_blank" rel="noopener">추측 디코딩(speculative decoding)</a> 같은 기법이 사용자당 속도를 몇 배 올려 주지만, 근본 상한은 여전히 "대역폭 ÷ 읽을 바이트"입니다.</p>
+
+<p>이 식에서 남은 변수는 둘뿐입니다. <strong>읽을 바이트를 줄이거나</strong>(양자화, MoE로 활성 파라미터 축소), <strong>대역폭을 키우거나</strong>. Cerebras의 접근은 후자를 극단까지 밀어붙인 쪽입니다.</p>
+
+<figure class="wsi-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="위쪽은 토큰 1개를 생성할 때마다 활성 가중치 전부를 메모리에서 읽어야 함을 보여주는 그림, 아래쪽은 H100 HBM 3.35TB/s, B200 HBM3e 8TB/s, WSE-3 온칩 SRAM 21PB/s의 메모리 대역폭을 로그 스케일 막대로 비교한 차트">
+  <text x="430" y="28" text-anchor="middle" fill="var(--wsi-slate)" font-size="15.5" font-weight="700">토큰 1개 = 활성 가중치 전부를 메모리에서 읽기</text>
+  <rect x="60" y="48" width="200" height="88" rx="12" fill="none" stroke="var(--wsi-violet)" stroke-width="2.5"/>
+  <text x="160" y="84" text-anchor="middle" fill="var(--wsi-violet)" font-size="14.5" font-weight="700">가중치 메모리</text>
+  <text x="160" y="106" text-anchor="middle" fill="var(--wsi-slate)" font-size="12.5">(수십~수백 GB)</text>
+  <line x1="260" y1="92" x2="400" y2="92" stroke="var(--wsi-amber)" stroke-width="3"/>
+  <polygon points="400,92 388,85 388,99" fill="var(--wsi-amber)"/>
+  <text x="330" y="78" text-anchor="middle" fill="var(--wsi-amber)" font-size="12.5" font-weight="700">대역폭 = 병목</text>
+  <rect x="402" y="48" width="170" height="88" rx="12" fill="none" stroke="var(--wsi-green)" stroke-width="2.5"/>
+  <text x="487" y="84" text-anchor="middle" fill="var(--wsi-green)" font-size="14.5" font-weight="700">연산기</text>
+  <text x="487" y="106" text-anchor="middle" fill="var(--wsi-slate)" font-size="12.5">(대부분 대기 중)</text>
+  <line x1="572" y1="92" x2="700" y2="92" stroke="var(--wsi-slate)" stroke-width="2" stroke-dasharray="6 5"/>
+  <polygon points="700,92 689,86 689,98" fill="var(--wsi-slate)"/>
+  <text x="745" y="97" fill="var(--wsi-slate)" font-size="13.5" font-weight="700">토큰 1개</text>
+
+  <text x="430" y="188" text-anchor="middle" fill="var(--wsi-slate)" font-size="15.5" font-weight="700">메모리 대역폭 비교 (로그 스케일)</text>
+  <g font-size="13.5">
+    <text x="178" y="232" text-anchor="end" fill="var(--wsi-slate)" font-weight="700">H100 (HBM3)</text>
+    <rect x="190" y="218" width="105" height="22" rx="5" fill="var(--wsi-slate)" opacity="0.75"/>
+    <text x="305" y="234" fill="var(--wsi-slate)" font-weight="700">3.35 TB/s</text>
+
+    <text x="178" y="284" text-anchor="end" fill="var(--wsi-sky)" font-weight="700">B200 (HBM3e)</text>
+    <rect x="190" y="270" width="160" height="22" rx="5" fill="var(--wsi-sky)" opacity="0.8"/>
+    <text x="360" y="286" fill="var(--wsi-sky)" font-weight="700">8 TB/s</text>
+
+    <text x="178" y="336" text-anchor="end" fill="var(--wsi-green)" font-weight="700">WSE-3 (온칩 SRAM)</text>
+    <rect x="190" y="322" width="600" height="22" rx="5" fill="var(--wsi-green)" opacity="0.85"/>
+    <text x="490" y="338" text-anchor="middle" fill="#0f172a" font-weight="800">21,000 TB/s (= 21 PB/s)</text>
+  </g>
+  <text x="430" y="392" text-anchor="middle" fill="var(--wsi-slate)" font-size="12.5">막대는 로그 스케일 — 선형으로 그리면 H100 막대는 1픽셀도 안 됩니다. 출처: NVIDIA·Cerebras 공식 스펙</text>
+</svg>
+<figcaption>그림 1. 디코드의 병목은 연산이 아니라 "가중치를 실어 나르는 속도"입니다. WSE-3는 메모리를 칩 바깥(HBM)이 아니라 칩 위(SRAM)에 둬서 대역폭 자체를 3자리수 배로 키웠습니다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. WSE-3 — HBM을 버리고 SRAM 44GB를 칩 위에 박다</h2>
+
+<p>Cerebras의 <strong>WSE-3(Wafer Scale Engine 3)</strong>는 이름 그대로 실리콘 웨이퍼 한 장을 통째로 칩 하나로 쓰는 프로세서입니다. 보통 웨이퍼 한 장에서 GPU 다이 수십 개를 잘라내는데, 이걸 자르지 않고 하나의 거대한 칩으로 만든 겁니다. 공개 스펙이 비현실적으로 들립니다. 면적 46,225mm²(H100의 약 57배), 트랜지스터 4조 개, 코어 90만 개. 그중 이 글의 주인공은 메모리입니다.</p>
+
+<p>WSE-3에는 HBM이 없습니다. 대신 <strong>SRAM 44GB가 90만 개 코어 옆에 분산 배치</strong>돼 있고(코어당 48KB), 합산 대역폭이 <strong>21PB/s</strong>입니다. H100의 HBM3(3.35TB/s)와 비교하면 세 자리수 배 차이입니다. 연산기 바로 옆 메모리라 "실어 나르는 시간"이 사실상 사라집니다. 앞 절의 식에 넣어 보면, 같은 모델이라도 사용자당 생성 속도의 이론 상한이 완전히 다른 차원으로 올라갑니다.</p>
+
+<p>물론 공짜가 아닙니다. SRAM은 HBM보다 훨씬 비싸고 집적도가 낮아서, 웨이퍼 한 장을 통째로 써도 <strong>44GB밖에</strong> 안 됩니다. H100 한 장(80GB)보다 적습니다. 그래서 바로 이런 질문이 나옵니다 — <em>"44GB짜리 칩으로 2.8조 파라미터를 어떻게 서빙하지?"</em> 이번 블로그 포스트가 답하는 질문이 정확히 이겁니다.</p>
+
+<div class="wsi-note">
+<strong>용어 정리:</strong> <strong>HBM(High Bandwidth Memory)</strong>은 GPU 패키지 옆에 쌓아 올리는 고대역폭 DRAM으로, 용량은 크지만(80~192GB) 칩 밖에 있어 대역폭에 물리적 한계가 있습니다. <strong>SRAM</strong>은 CPU 캐시에 쓰이는 초고속 메모리로, 연산기와 같은 실리콘 위에 있어 빠르지만 비싸고 용량을 키우기 어렵습니다. Cerebras 블로그는 최신 세대 웨이퍼를 WSE-3T로 표기하는데, 온칩 메모리 44GB라는 수치는 공개된 WSE-3 스펙과 같습니다.
+</div>
+
+<h2 id="sec-4">4. 본론 — 44GB × 59장에 2.8조 파라미터를 올리는 산수</h2>
+
+<p>블로그의 작업 예제(worked example)는 Moonshot AI의 <strong>Kimi K3</strong>입니다. 7월에 공개된 2.8T 파라미터짜리 역대 최대 오픈 가중치 MoE 모델로, 구조가 이 계산에 핵심적입니다. 총 93개 레이어 중 <strong>69개는 KDA(Kimi Delta Attention)라는 선형 어텐션(linear attention)</strong> 레이어이고, <strong>24개는 전체 어텐션(Gated MLA)</strong> 레이어입니다.</p>
+
+<p>왜 이 구분이 중요할까요? <strong>KV 캐시</strong> 때문입니다. 전체 어텐션 레이어는 지나온 모든 토큰의 key/value를 쌓아 두므로, 컨텍스트가 길수록 캐시가 커집니다. 반면 선형 어텐션은 과거를 <strong>고정 크기 상태(state)</strong>로 압축해 들고 가므로, 컨텍스트가 100만 토큰이어도 캐시가 자라지 않습니다. 즉 메모리 관점에서 69개 레이어는 "가중치만 있으면 되는" 가벼운 레이어이고, 24개 레이어는 "가중치 + 큰 KV 캐시"가 필요한 무거운 레이어입니다.</p>
+
+<p>블로그는 가중치 4-bit 양자화, KV 캐시 8-bit, 평균 요청 256K 토큰이라는 가정 아래 이렇게 배치합니다.</p>
+
+<ul>
+  <li><strong>선형 어텐션 레이어 69개</strong> — KV 캐시가 필요 없으니 웨이퍼 한 장(44GB)에 <strong>두 레이어씩</strong> 넣습니다. → 35장</li>
+  <li><strong>전체 어텐션 레이어 24개</strong> — KV 캐시 자리를 남겨야 하니 <strong>한 장에 한 레이어씩</strong> 넣습니다. → 24장</li>
+  <li>합계 <strong>59장</strong>. 온칩 SRAM 총합은 59 × 44GB ≈ <strong>2.6TB</strong>입니다.</li>
+</ul>
+
+<p>산수가 맞는지 어림해 봅시다. 2.8T 파라미터를 4-bit(0.5바이트)로 저장하면 가중치만 약 1.4TB입니다. 93개 레이어로 나누면 레이어당 평균 15GB 수준(MoE라 레이어마다 편차는 있습니다). 선형 레이어 둘이면 약 30GB — 44GB 웨이퍼에 들어갑니다. 전체 어텐션 레이어는 가중치 ~15GB를 빼고 남는 ~29GB가 KV 캐시 몫입니다. 숫자가 아귀가 맞습니다.</p>
+
+<figure class="wsi-fig">
+<svg viewBox="0 0 860 470" role="img" aria-label="Kimi K3의 93개 레이어를 59장의 웨이퍼에 배치한 모습. 선형 어텐션 레이어는 웨이퍼 한 장에 두 개씩 35장, 전체 어텐션 레이어는 KV 캐시 공간과 함께 한 장에 하나씩 24장을 쓰고, 웨이퍼 사이는 활성값만 RDMA로 건너간다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--wsi-slate)" font-size="15.5" font-weight="700">Kimi K3 (2.8T, 93 레이어) → 웨이퍼 59장 파이프라인</text>
+
+  <g font-size="12.5" font-weight="700">
+    <rect x="40" y="70" width="150" height="150" rx="14" fill="none" stroke="var(--wsi-sky)" stroke-width="2.5"/>
+    <text x="115" y="95" text-anchor="middle" fill="var(--wsi-sky)">웨이퍼 #1 (44GB)</text>
+    <rect x="55" y="110" width="120" height="42" rx="8" fill="var(--wsi-sky)" opacity="0.28"/>
+    <text x="115" y="136" text-anchor="middle" fill="var(--wsi-sky)">KDA 레이어 1</text>
+    <rect x="55" y="160" width="120" height="42" rx="8" fill="var(--wsi-sky)" opacity="0.28"/>
+    <text x="115" y="186" text-anchor="middle" fill="var(--wsi-sky)">KDA 레이어 2</text>
+
+    <rect x="240" y="70" width="150" height="150" rx="14" fill="none" stroke="var(--wsi-sky)" stroke-width="2.5"/>
+    <text x="315" y="95" text-anchor="middle" fill="var(--wsi-sky)">웨이퍼 #2</text>
+    <rect x="255" y="110" width="120" height="42" rx="8" fill="var(--wsi-sky)" opacity="0.28"/>
+    <text x="315" y="136" text-anchor="middle" fill="var(--wsi-sky)">KDA 레이어 3</text>
+    <rect x="255" y="160" width="120" height="42" rx="8" fill="var(--wsi-sky)" opacity="0.28"/>
+    <text x="315" y="186" text-anchor="middle" fill="var(--wsi-sky)">KDA 레이어 4</text>
+
+    <text x="445" y="150" text-anchor="middle" fill="var(--wsi-slate)" font-size="20">⋯</text>
+
+    <rect x="500" y="70" width="150" height="150" rx="14" fill="none" stroke="var(--wsi-amber)" stroke-width="2.5"/>
+    <text x="575" y="95" text-anchor="middle" fill="var(--wsi-amber)">웨이퍼 #36</text>
+    <rect x="515" y="110" width="120" height="42" rx="8" fill="var(--wsi-amber)" opacity="0.3"/>
+    <text x="575" y="136" text-anchor="middle" fill="var(--wsi-amber)">MLA 레이어 1</text>
+    <rect x="515" y="160" width="120" height="42" rx="8" fill="none" stroke="var(--wsi-amber)" stroke-width="2" stroke-dasharray="7 5"/>
+    <text x="575" y="186" text-anchor="middle" fill="var(--wsi-amber)">KV 캐시 자리</text>
+
+    <text x="700" y="150" text-anchor="middle" fill="var(--wsi-slate)" font-size="20">⋯</text>
+
+    <rect x="740" y="70" width="90" height="150" rx="14" fill="none" stroke="var(--wsi-amber)" stroke-width="2.5" opacity="0.7"/>
+    <text x="785" y="150" text-anchor="middle" fill="var(--wsi-amber)" font-size="12">#59</text>
+  </g>
+
+  <line x1="190" y1="145" x2="240" y2="145" stroke="var(--wsi-green)" stroke-width="3"/>
+  <polygon points="240,145 229,139 229,151" fill="var(--wsi-green)"/>
+  <line x1="390" y1="145" x2="420" y2="145" stroke="var(--wsi-green)" stroke-width="3"/>
+  <line x1="470" y1="145" x2="500" y2="145" stroke="var(--wsi-green)" stroke-width="3"/>
+  <polygon points="500,145 489,139 489,151" fill="var(--wsi-green)"/>
+  <line x1="650" y1="145" x2="680" y2="145" stroke="var(--wsi-green)" stroke-width="3"/>
+  <line x1="715" y1="145" x2="740" y2="145" stroke="var(--wsi-green)" stroke-width="3"/>
+  <polygon points="740,145 729,139 729,151" fill="var(--wsi-green)"/>
+
+  <text x="430" y="262" text-anchor="middle" fill="var(--wsi-green)" font-size="13.5" font-weight="700">→ 웨이퍼 사이를 건너는 것은 활성값(activation)뿐 — RDMA over Ethernet, 홉당 약 2µs</text>
+
+  <g font-size="13.5">
+    <rect x="60" y="300" width="350" height="120" rx="12" fill="none" stroke="var(--wsi-sky)" stroke-width="2"/>
+    <text x="235" y="328" text-anchor="middle" fill="var(--wsi-sky)" font-weight="700">선형 어텐션(KDA) 69개</text>
+    <text x="235" y="354" text-anchor="middle" fill="var(--wsi-slate)">고정 크기 상태 → KV 캐시 안 자람</text>
+    <text x="235" y="378" text-anchor="middle" fill="var(--wsi-slate)">한 장에 2개씩 → 35장</text>
+    <rect x="450" y="300" width="350" height="120" rx="12" fill="none" stroke="var(--wsi-amber)" stroke-width="2"/>
+    <text x="625" y="328" text-anchor="middle" fill="var(--wsi-amber)" font-weight="700">전체 어텐션(Gated MLA) 24개</text>
+    <text x="625" y="354" text-anchor="middle" fill="var(--wsi-slate)">256K 컨텍스트 KV 캐시 공간 확보</text>
+    <text x="625" y="378" text-anchor="middle" fill="var(--wsi-slate)">한 장에 1개씩 → 24장</text>
+  </g>
+  <text x="430" y="452" text-anchor="middle" fill="var(--wsi-slate)" font-size="12.5">가중치 4-bit · KV 캐시 8-bit · 평균 요청 256K 토큰 가정 (Cerebras 블로그의 설계 예시)</text>
+</svg>
+<figcaption>그림 2. 레이어의 성격이 배치를 결정합니다. KV 캐시가 없는 선형 어텐션은 빽빽하게, KV 캐시가 자라는 전체 어텐션은 여유 있게 — 그래서 35 + 24 = 59장입니다.</figcaption>
+</figure>
+
+<p>여기서 주니어에게 중요한 관찰 하나. <strong>모델 아키텍처가 서빙 하드웨어 소요량을 직접 결정합니다.</strong> Kimi K3가 93개 레이어 전부 전체 어텐션이었다면 93장이 필요했을 겁니다. 하이브리드 어텐션(선형 + 전체 혼합) 설계는 벤치마크 점수를 위한 선택이기도 하지만, 동시에 서빙 비용을 위한 선택이기도 합니다. "아키텍처 뉴스"를 읽을 때 KV 캐시 요구량을 같이 떠올리는 습관을 들이면, 뉴스가 훨씬 입체적으로 읽힙니다.</p>
+
+<h2 id="sec-5">5. 파이프라인 — 웨이퍼 사이를 건너는 것은 활성값뿐</h2>
+
+<p>59장을 잇는 방식은 <strong>파이프라인 병렬화(pipeline parallelism)</strong>입니다. 각 웨이퍼가 자기 레이어를 계산하고, 그 출력인 활성값(activation)을 다음 웨이퍼로 넘깁니다. 공장 조립 라인과 같습니다. 핵심은 <strong>웨이퍼 사이를 건너는 데이터가 활성값뿐</strong>이라는 점입니다. 활성값은 토큰당 수십 KB 수준으로, 수백 GB짜리 가중치에 비하면 먼지만 합니다. 블로그 기준 이 전송은 RDMA over Ethernet으로 이뤄지고 홉당 약 2µs입니다. 59홉을 다 건너도 100µs대 — 토큰 생성 주기(1,000 tok/s면 토큰당 1ms)에 비해 작은 비용입니다.</p>
+
+<p>GPU 클러스터에서 거대 모델을 서빙할 때 주로 쓰는 <strong>텐서 병렬화(tensor parallelism)</strong>와 대조해 볼 만합니다. 텐서 병렬화는 레이어 하나를 여러 GPU가 쪼개 계산하므로, <em>매 레이어마다</em> GPU들이 부분 결과를 교환(all-reduce)해야 합니다. 통신이 계산의 길목마다 끼어드는 구조라 인터커넥트(NVLink) 성능이 곧 속도입니다. 파이프라인 방식은 통신이 레이어 경계에서 한 방향으로만 일어나니 단순하지만, 대신 <strong>라인을 채울 동시 요청이 없으면 웨이퍼들이 놀게 됩니다</strong>. 그래서 이 설계의 동시 처리 가능 요청 수는 전체 어텐션 웨이퍼들에 남겨 둔 KV 캐시 공간이 상한을 정합니다. 요청이 많아 라인이 꽉 차면 효율적이고, 한가하면 세계에서 가장 비싼 유휴 장비가 됩니다.</p>
+
+<div class="wsi-warn">
+<strong>비용 감각:</strong> 웨이퍼 59장이면 랙 수십 개 규모의 초고가 시스템입니다. 같은 돈이면 GPU를 훨씬 많이 살 수 있고, 배칭을 극대화한 GPU 서빙이 <em>토큰당 비용</em>(처리량)에서는 보통 유리합니다. 이 설계가 파는 것은 처리량이 아니라 <strong>사용자당 속도(인터랙티브 레이턴시)</strong>입니다. "싸게 많이"와 "빠르게 하나"는 다른 상품이라는 걸 기억하세요.
+</div>
+
+<h2 id="sec-6">6. 숫자 읽기 — 981 tok/s의 의미와 전제</h2>
+
+<p>그래서 실제로 얼마나 빠를까요? 블로그의 1,000~2,000+ tok/s는 설계 목표치지만, 참고할 수 있는 실측이 있습니다. Cerebras는 올해 조 단위 파라미터 오픈 모델 <strong>Kimi K2.6</strong>을 프로덕션 서빙하면서, 독립 벤치마크 기관 <a href="https://artificialanalysis.ai/" target="_blank" rel="noopener">Artificial Analysis</a>의 측정으로 <strong>출력 981 tok/s</strong>를 기록했습니다. Cerebras 발표 기준으로 다음으로 빠른 GPU 클라우드의 <strong>6.7배</strong>, 중간값 프로바이더의 23배입니다. 역산하면 당시 가장 빠른 GPU 클라우드가 약 146 tok/s, 중간값이 약 43 tok/s였다는 뜻입니다. 체감 비교로는 입력 10,000토큰·출력 500토큰짜리 코딩 요청이 Cerebras에서 5.6초, Moonshot 공식 엔드포인트에서 163.7초 걸렸다는 자사 측정도 공개했습니다(이쪽은 독립 검증이 아닌 자사 수치입니다).</p>
+
+<figure class="wsi-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="Kimi K2.6 서빙 속도 비교 막대 차트. Cerebras 981 토큰/초, 다음으로 빠른 GPU 클라우드 약 146 토큰/초, 중간값 프로바이더 약 43 토큰/초">
+  <text x="430" y="30" text-anchor="middle" fill="var(--wsi-slate)" font-size="15.5" font-weight="700">Kimi K2.6 출력 속도 — 사용자당 tok/s (Artificial Analysis 측정 기준)</text>
+  <g font-size="13.5">
+    <text x="215" y="92" text-anchor="end" fill="var(--wsi-green)" font-weight="700">Cerebras (웨이퍼 스케일)</text>
+    <rect x="228" y="74" width="560" height="30" rx="6" fill="var(--wsi-green)" opacity="0.85"/>
+    <text x="508" y="95" text-anchor="middle" fill="#0f172a" font-weight="800">981 tok/s</text>
+
+    <text x="215" y="162" text-anchor="end" fill="var(--wsi-sky)" font-weight="700">최고속 GPU 클라우드</text>
+    <rect x="228" y="144" width="84" height="30" rx="6" fill="var(--wsi-sky)" opacity="0.85"/>
+    <text x="322" y="165" fill="var(--wsi-sky)" font-weight="700">≈146 tok/s (6.7배 차이에서 역산)</text>
+
+    <text x="215" y="232" text-anchor="end" fill="var(--wsi-slate)" font-weight="700">중간값 프로바이더</text>
+    <rect x="228" y="214" width="25" height="30" rx="6" fill="var(--wsi-slate)" opacity="0.8"/>
+    <text x="263" y="235" fill="var(--wsi-slate)" font-weight="700">≈43 tok/s (23배 차이에서 역산)</text>
+  </g>
+  <text x="430" y="296" text-anchor="middle" fill="var(--wsi-slate)" font-size="12.5">981 tok/s는 Artificial Analysis 독립 측정 · 배수는 Cerebras 발표 · GPU 측 절대값은 배수에서 역산한 근사치</text>
+</svg>
+<figcaption>그림 3. 같은 모델, 같은 API 규격이라도 서빙 하드웨어에 따라 사용자당 속도는 20배 이상 벌어질 수 있습니다.</figcaption>
+</figure>
+
+<p>이 숫자들을 공정하게 읽는 법도 함께 챙깁시다.</p>
+
+<ul>
+  <li><strong>981은 K2.6, 1,000~2,000+는 K3 설계 목표.</strong> 둘은 다른 모델입니다. K3(2.8T)가 실서빙에서 어느 수치를 찍는지는 지켜봐야 합니다.</li>
+  <li><strong>사용자당 속도이지 처리량이 아닙니다.</strong> GPU 클라우드는 배칭으로 전체 처리량과 토큰 단가에서 앞설 수 있습니다. 비교 축이 다릅니다.</li>
+  <li><strong>4-bit 가중치·8-bit KV는 설계 가정입니다.</strong> 양자화는 품질에 영향을 줄 수 있고, 프로덕션 설정이 어떤지는 블로그가 못 박지 않습니다. <a href="/posts/llm-quantization-fp8-int4-fp4/" target="_blank" rel="noopener">양자화 포맷별 트레이드오프</a>는 예전 글을 참고하세요. (Kimi K3는 애초에 MXFP4 양자화 인지 학습으로 배포돼 이 가정이 자연스러운 편입니다.)</li>
+  <li><strong>HN 스레드의 회의론도 유효합니다.</strong> 금싸라기 SRAM에 KV 캐시를 두는 게 맞느냐(더 싼 DRAM으로 뺄 수 없느냐), 수요가 라인을 못 채우면 경제성이 무너지지 않느냐 같은 지적이 나왔습니다. 벤더 블로그는 가장 유리한 조명 아래의 사진이라는 걸 잊지 마세요.</li>
+</ul>
+
+<h2 id="sec-7">7. 실전 — 내 워크로드의 '진짜 속도'를 재는 법</h2>
+
+<p>웨이퍼를 살 일은 없어도, 오늘 바로 가져갈 수 있는 실전 기술이 있습니다. <strong>프로바이더가 광고하는 속도 말고, 내 워크로드에서의 속도를 직접 재는 것</strong>입니다. 요즘은 같은 오픈 모델을 수십 개 업체가 서빙하므로(OpenRouter 등에서 선택 가능), 이 측정 하나로 에이전트 체감 속도가 몇 배 달라질 수 있습니다. 볼 지표는 세 개입니다.</p>
+
+<ul>
+  <li><strong>TTFT(Time To First Token)</strong> — 첫 토큰까지의 시간. 프리필 성능 + 큐 대기를 반영합니다. 챗봇 체감에 중요합니다.</li>
+  <li><strong>출력 tok/s</strong> — 첫 토큰 이후의 생성 속도. 디코드 성능, 즉 이 글 내내 다룬 그 병목입니다. 긴 출력·에이전트 루프에 중요합니다.</li>
+  <li><strong>E2E(요청 완료까지 총 시간)</strong> — 결국 사용자가 기다리는 시간. 에이전트라면 "턴당 E2E × 턴 수"가 작업 시간입니다.</li>
+</ul>
+
+<p>OpenAI 호환 API라면 스트리밍으로 셋 다 한 번에 잴 수 있습니다.</p>
+
+{{< highlight python >}}
+import time, httpx
+
+def measure(base_url: str, api_key: str, model: str, prompt: str):
+    t0 = time.perf_counter()
+    ttft, n_tokens = None, 0
+    with httpx.stream(
+        "POST", f"{base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": model, "stream": True, "max_tokens": 500,
+              "messages": [{"role": "user", "content": prompt}]},
+        timeout=120,
+    ) as r:
+        for line in r.iter_lines():
+            if not line.startswith("data: ") or line == "data: [DONE]":
+                continue
+            if ttft is None:
+                ttft = time.perf_counter() - t0   # 첫 청크 도착 = TTFT
+            n_tokens += 1                          # 근사치: 청크 ≈ 토큰
+    e2e = time.perf_counter() - t0
+    decode_tps = n_tokens / (e2e - ttft)           # 첫 토큰 이후 생성 속도
+    return {"ttft_s": round(ttft, 2), "e2e_s": round(e2e, 2),
+            "output_tok_s": round(decode_tps, 1)}
+
+# 같은 모델을 서빙하는 프로바이더 2~3곳에, 실제 워크로드와 비슷한
+# 프롬프트(짧은 질문 말고 실제 길이의 컨텍스트!)로 각 5회 이상 돌려 비교
+{{< /highlight >}}
+
+<p>측정할 때는 꼭 <strong>실제 워크로드와 비슷한 입력 길이</strong>로 재세요. 10토큰짜리 인사말로 재면 프리필 비용이 안 보이고, 에이전트처럼 수만 토큰 컨텍스트를 보내는 워크로드의 병목을 놓칩니다. 직접 만들기 귀찮다면 <a href="https://artificialanalysis.ai/" target="_blank" rel="noopener">Artificial Analysis</a>가 프로바이더별 TTFT·출력 속도를 상시 측정해 공개하니, 1차 스크리닝은 거기서 하고 최종 결정만 자체 측정으로 하는 것도 좋은 전략입니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>처리량(throughput)과 사용자당 속도를 혼동하기.</strong> "이 시스템은 초당 10만 토큰"이라는 말은 배치 전체 얘기일 수 있습니다. 내 요청 하나가 빠르다는 뜻이 아닙니다. 벤치마크를 볼 때 항상 "per user인가, aggregate인가"부터 확인하세요.</li>
+  <li><strong>속도를 품질로 착각하기.</strong> 981 tok/s는 Kimi K2.6을 <em>빠르게</em> 서빙한다는 뜻이지 더 <em>똑똑하게</em> 만드는 게 아닙니다. 다만 같은 시간에 더 많은 reasoning 토큰·더 많은 에이전트 턴을 돌릴 수 있으니, 속도가 간접적으로 결과 품질을 끌어올리는 경로는 있습니다.</li>
+  <li><strong>벤더 수치와 독립 검증을 구분하지 않기.</strong> 이 글에서도 981 tok/s(독립 측정)와 5.6초 vs 163.7초(자사 측정)는 신뢰 등급이 다릅니다. 글을 쓰거나 의사결정을 할 때 이 구분을 유지하는 습관이 생각보다 큰 차이를 만듭니다.</li>
+  <li><strong>양자화 설정을 안 보고 속도만 비교하기.</strong> 같은 모델이라도 프로바이더마다 FP8/4-bit 등 서빙 양자화가 다를 수 있고, 속도 차이의 일부는 거기서 옵니다. 속도 비교에는 품질 스팟 체크(동일 프롬프트 몇 개로 출력 비교)를 곁들이세요.</li>
+  <li><strong>에이전트 지연을 모델 탓만 하기.</strong> 턴당 E2E에는 프리필(컨텍스트 재전송)도 큽니다. 출력 속도를 아무리 올려도 매 턴 50만 토큰을 재프리필하면 느립니다. <a href="/posts/prompt-caching-cache-aware-agents/" target="_blank" rel="noopener">프롬프트 캐싱</a>과 이번 글의 디코드 속도는 둘 다 챙겨야 하는 별개의 축입니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>이번 주 HN을 달군 <strong>Cerebras 블로그</strong>: 온칩 SRAM 44GB짜리 웨이퍼 스케일 칩(WSE-3 세대) <strong>59장</strong>을 파이프라인으로 이어 <strong>2.8T 파라미터 Kimi K3</strong>를 1,000~2,000+ tok/s로 서빙하는 설계를 공개했습니다.</li>
+  <li>근본 원리: <strong>디코드는 메모리 대역폭에 묶입니다.</strong> 토큰 1개 = 활성 가중치 전부 읽기. 사용자당 속도 상한 ≈ 대역폭 ÷ 토큰당 읽을 바이트. WSE-3의 온칩 21PB/s는 H100 HBM(3.35TB/s)의 세 자리수 배입니다.</li>
+  <li>배치의 핵심 산수: KV 캐시가 안 자라는 <strong>선형 어텐션(KDA) 69개 레이어는 웨이퍼당 2개(35장)</strong>, KV 캐시가 자라는 <strong>전체 어텐션 24개 레이어는 웨이퍼당 1개(24장)</strong>. 웨이퍼 사이는 활성값만 RDMA(~2µs/hop)로 건넙니다. <strong>모델 아키텍처가 곧 서빙 비용</strong>입니다.</li>
+  <li>실측 근거: Kimi K2.6을 <strong>981 tok/s</strong>로 서빙(Artificial Analysis 독립 측정, 당시 최고속 GPU 클라우드 대비 6.7배). 단, 이 설계가 파는 건 토큰 단가가 아니라 <strong>사용자당 속도</strong>이고, 동시성 상한은 KV 캐시 공간이 정합니다.</li>
+  <li>오늘 가져갈 것: 프로바이더를 고를 때 <strong>TTFT · 출력 tok/s · E2E</strong>를 내 워크로드 길이의 프롬프트로 직접 재세요. 에이전트 루프는 직렬이라 출력 속도가 턴 수만큼 복리로 쌓입니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.cerebras.ai/blog/how-we-deploy-trillion-parameter-frontier-models-on-cerebras" target="_blank" rel="noopener">How we deploy trillion-parameter frontier models on Cerebras — Cerebras Blog</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50227356" target="_blank" rel="noopener">HN 토론 스레드 — Cerebras Deploys Trillion-Parameter AI Models</a></li>
+  <li><a href="https://www.cerebras.ai/blog/cerebras-kimi-k2-Enterprise" target="_blank" rel="noopener">Kimi K2.6: Fast Trillion-Parameter Inference — Cerebras Blog (981 tok/s)</a></li>
+  <li><a href="https://venturebeat.com/technology/cerebras-says-its-chips-run-a-trillion-parameter-ai-model-nearly-7-times-faster-than-gpu-clouds" target="_blank" rel="noopener">Cerebras says its chips run a trillion-parameter AI model nearly 7x faster than GPU clouds — VentureBeat</a></li>
+  <li><a href="https://artificialanalysis.ai/" target="_blank" rel="noopener">Artificial Analysis — 프로바이더별 독립 속도 벤치마크</a></li>
+  <li><a href="https://hc2024.hotchips.org/assets/program/conference/day2/72_HC2024.Cerebras.Sean.v03.final.pdf" target="_blank" rel="noopener">Cerebras Wafer-Scale AI — Hot Chips 2024 발표 자료 (WSE-3 스펙)</a></li>
+  <li><a href="https://arxiv.org/abs/2503.11698" target="_blank" rel="noopener">A Comparison of the Cerebras Wafer-Scale Integration Technology with Nvidia GPU-based Systems — arXiv:2503.11698</a></li>
+  <li><a href="https://arxiv.org/abs/2409.00287" target="_blank" rel="noopener">Benchmarking the Performance of LLMs on the Cerebras Wafer Scale Engine — arXiv:2409.00287</a></li>
+  <li><a href="https://www.tomshardware.com/tech-industry/artificial-intelligence/moonshot-releases-2-8-trillion-parameter-kimi-k3" target="_blank" rel="noopener">Moonshot releases 2.8-trillion-parameter Kimi K3 — Tom's Hardware</a></li>
+  <li><a href="https://www.morphllm.com/kimi-k3" target="_blank" rel="noopener">Kimi K3: 2.8T Parameters, 104B Active, 1M Context — morphllm (모델 스펙 정리)</a></li>
+  <li><a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener">NVIDIA H100 공식 스펙 (HBM3 3.35TB/s)</a></li>
+  <li>(한국어) <a href="/posts/llm-serving-engine-internals/" target="_blank" rel="noopener">LLM 서빙 엔진 내부 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/speculative-decoding/" target="_blank" rel="noopener">추측 디코딩(speculative decoding) — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/moe-serving-expert-parallelism/" target="_blank" rel="noopener">MoE 서빙과 expert parallelism — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/llm-quantization-fp8-int4-fp4/" target="_blank" rel="noopener">LLM 양자화: FP8/INT4/FP4 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/prompt-caching-cache-aware-agents/" target="_blank" rel="noopener">Prompt caching과 캐시 친화적 에이전트 설계 — 이 블로그</a></li>
+</ul>

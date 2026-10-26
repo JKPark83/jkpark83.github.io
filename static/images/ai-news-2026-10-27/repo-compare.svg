@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 330" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="330" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">오늘의 오픈소스 2종 — 무엇이 다른가</text>
+
+  <!-- ThinkRail -->
+  <rect x="30" y="55" width="360" height="240" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#15803d">JetBrains/thinkrail</text>
+  <text x="50" y="104" font-size="11" fill="#6b7280">TypeScript · Apache 2.0 · JetBrains 인큐베이터</text>
+  <text x="50" y="130" font-size="12" font-weight="700" fill="#111827">정체: 에이전트 중심 IDE</text>
+  <text x="50" y="150" font-size="12" fill="#374151">· pi 코딩 에이전트를 감싼 데스크톱/CLI</text>
+  <text x="50" y="168" font-size="12" fill="#374151">· living spec으로 프로젝트 지식을 축적</text>
+  <text x="50" y="186" font-size="12" fill="#374151">· 재사용 스킬 + 워크스페이스 격리</text>
+  <text x="50" y="210" font-size="12" font-weight="700" fill="#111827">이런 팀에:</text>
+  <text x="50" y="228" font-size="12" fill="#374151">"에이전트가 프로젝트를 기억 못 한다"가</text>
+  <text x="50" y="246" font-size="12" fill="#374151">불만인 팀 — spec/스킬 축적형 워크플로 실험</text>
+  <text x="50" y="272" font-size="11" fill="#6b7280">10/26에도 커밋: pi 설정 폴더·env 지정, 압축 캡 제거</text>
+
+  <!-- dsh -->
+  <rect x="410" y="55" width="360" height="240" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1d4ed8">deepseek-ai/deepseek-harness</text>
+  <text x="430" y="104" font-size="11" fill="#6b7280">TypeScript · MIT · 0.1.6-alpha → 0.2.1-rc.3 (한 달 새)</text>
+  <text x="430" y="130" font-size="12" font-weight="700" fill="#111827">정체: 플러그인 전부주의 에이전트 하네스</text>
+  <text x="430" y="150" font-size="12" fill="#374151">· Cordis 커널 위에 everything-is-a-plugin</text>
+  <text x="430" y="168" font-size="12" fill="#374151">· npx @deepseek-ai/dsh web → 로컬 웹 UI</text>
+  <text x="430" y="186" font-size="12" fill="#374151">· 0.2.1: 일반 fork가 완전 독립 세션으로</text>
+  <text x="430" y="210" font-size="12" font-weight="700" fill="#111827">이런 팀에:</text>
+  <text x="430" y="228" font-size="12" fill="#374151">하네스 내부(세션 포맷·툴 파이프라인)를</text>
+  <text x="430" y="246" font-size="12" fill="#374151">뜯어 쓰는 팀 — 단, 호환성 파괴 변경 상시</text>
+  <text x="430" y="272" font-size="11" fill="#6b7280">버전별 업그레이드 가이드 문서가 모범 사례급</text>
+
+  <text x="400" y="318" text-anchor="middle" font-size="11" fill="#9ca3af">두 저장소 모두 클론으로 검증(10/27) · 스타 수는 세션 API 제한으로 미확인</text>
+</svg>

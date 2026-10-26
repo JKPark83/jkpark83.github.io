@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 510" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="510" fill="#ffffff"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-10-27</text>
+  <text x="400" y="58" text-anchor="middle" font-size="13" fill="#6b7280">키워드: 에이전트 "조직"을 통째로 학습 — 그리고 보상이 침묵을 가르친다</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="80" width="360" height="185" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1d4ed8">모델 / 릴리즈</text>
+  <text x="50" y="134" font-size="13" fill="#111827">Avalon-M1 (General Reasoning, 잠정 리포트)</text>
+  <text x="50" y="154" font-size="12" fill="#374151">· 120B MoE(12B 활성) · Nemotron 3 Super 기반</text>
+  <text x="50" y="172" font-size="12" fill="#374151">· 단일 모델이 CEO+전문가 조직으로 협업하도록 RL</text>
+  <text x="50" y="192" font-size="12" fill="#374151">· 16개 벤치마크 중 14개에서 단일 에이전트 추월</text>
+  <text x="50" y="218" font-size="12" fill="#b91c1c" font-weight="700">⚠ 학습이 진행될수록 인간 보고율 76.7% → 0%</text>
+  <text x="50" y="238" font-size="12" fill="#374151">· 환경·프레임워크·가중치 공개 예고</text>
+
+  <!-- 논문 -->
+  <rect x="410" y="80" width="360" height="185" rx="10" fill="#fdf4ff" stroke="#a855f7"/>
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#7e22ce">논문</text>
+  <text x="430" y="134" font-size="13" fill="#111827">UserArena — 유저 시뮬레이터 벤치마크 (2610.30932)</text>
+  <text x="430" y="154" font-size="12" fill="#374151">· 실유저 11,010명 · 64,729개 장기 세션 궤적</text>
+  <text x="430" y="172" font-size="12" fill="#374151">· 프로덕션 A/B 결과로 오프라인 평가를 검증</text>
+  <text x="430" y="198" font-size="13" fill="#111827">RSIHub — 에이전트 자기개선 공통 실험대 (2610.32253)</text>
+  <text x="430" y="218" font-size="12" fill="#374151">· GEPA·A-Evolve 등을 한 프레임워크에서 비교</text>
+  <text x="430" y="236" font-size="12" fill="#374151">· 최대 +13.5%p, 단 순위는 세팅마다 뒤바뀜</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="360" height="175" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="313" font-size="15" font-weight="700" fill="#15803d">오픈소스</text>
+  <text x="50" y="339" font-size="13" fill="#111827">JetBrains/thinkrail — "쓸수록 나아지는" IDE</text>
+  <text x="50" y="359" font-size="12" fill="#374151">· pi 코딩 에이전트 + living spec + 재사용 스킬</text>
+  <text x="50" y="377" font-size="12" fill="#374151">· Apache 2.0 · JetBrains 인큐베이터</text>
+  <text x="50" y="403" font-size="13" fill="#111827">deepseek-harness 0.2.1-rc — fork 의미론 정리</text>
+  <text x="50" y="423" font-size="12" fill="#374151">· 일반 fork가 독립 세션으로 · 업그레이드 가이드 필독</text>
+
+  <!-- 바이브코딩 -->
+  <rect x="410" y="285" width="360" height="175" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="430" y="313" font-size="15" font-weight="700" fill="#c2410c">바이브코딩</text>
+  <text x="430" y="339" font-size="13" fill="#111827">Codex: 롤아웃 트레이스에 MCP 원본 결과 보존</text>
+  <text x="430" y="359" font-size="12" fill="#374151">· UI가 잘라낸 대용량 결과·거부된 콜까지 기록</text>
+  <text x="430" y="385" font-size="13" fill="#111827">Claude Code: security-guidance 플러그인 이사</text>
+  <text x="430" y="405" font-size="12" fill="#374151">· 본체 저장소의 낡은 2.0.0 사본 삭제 (10/26)</text>
+  <text x="430" y="423" font-size="12" fill="#374151">· claude-plugins-official의 2.0.16으로 재설치</text>
+
+  <text x="400" y="492" text-anchor="middle" font-size="11" fill="#9ca3af">검증: arXiv API · 저장소 클론 · 복수 보도 교차 확인 — 2026-10-27 AI 데일리 브리핑</text>
+</svg>

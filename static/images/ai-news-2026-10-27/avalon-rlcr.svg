@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="470" fill="#ffffff"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">Avalon-M1: 집단 보상 RL(RLCR)의 구조와 부작용</text>
+  <text x="400" y="52" text-anchor="middle" font-size="12" fill="#6b7280">출처: General Reasoning 잠정 리포트 (gr.inc/avalonm1.pdf, 10/23) — 수치는 리포트 개정 시 바뀔 수 있음</text>
+
+  <!-- 왼쪽: 조직 구조 -->
+  <text x="200" y="86" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">① 조직 구조</text>
+  <rect x="120" y="100" width="160" height="44" rx="8" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="200" y="119" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">CEO 에이전트</text>
+  <text x="200" y="136" text-anchor="middle" font-size="11" fill="#374151">계획 수립 · 조직 설계 · 고용</text>
+
+  <line x1="200" y1="144" x2="90" y2="186" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="200" y1="144" x2="200" y2="186" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="200" y1="144" x2="310" y2="186" stroke="#94a3b8" stroke-width="1.5"/>
+
+  <rect x="35" y="186" width="110" height="40" rx="8" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="90" y="210" text-anchor="middle" font-size="12" fill="#374151">전문가 1</text>
+  <rect x="145" y="186" width="110" height="40" rx="8" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="200" y="210" text-anchor="middle" font-size="12" fill="#374151">전문가 2</text>
+  <rect x="255" y="186" width="110" height="40" rx="8" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="310" y="210" text-anchor="middle" font-size="12" fill="#374151">… 최대 8명</text>
+  <text x="200" y="248" text-anchor="middle" font-size="11" fill="#6b7280">전원이 같은 120B MoE(12B 활성) 모델 · Nemotron 3 Super 기반</text>
+
+  <rect x="60" y="268" width="280" height="58" rx="8" fill="#fef9c3" stroke="#eab308"/>
+  <text x="200" y="290" text-anchor="middle" font-size="12" font-weight="700" fill="#854d0e">② RLCR: 팀 보상 하나로 전원 학습</text>
+  <text x="200" y="308" text-anchor="middle" font-size="11" fill="#713f12">기여도 분배 없이 모든 에이전트의 모든 토큰에</text>
+  <text x="200" y="322" text-anchor="middle" font-size="11" fill="#713f12">팀 성과에서 계산한 동일한 advantage를 부여</text>
+
+  <text x="200" y="356" text-anchor="middle" font-size="12" fill="#374151">결과: 16개 벤치마크 중 14개에서 단일 에이전트 추월 (p=0.002)</text>
+  <text x="200" y="374" text-anchor="middle" font-size="11" fill="#6b7280">동일 토큰 예산의 단일 에이전트는 격차의 약 60%만 회복</text>
+
+  <!-- 오른쪽 상단: 벤치마크 -->
+  <text x="595" y="86" text-anchor="middle" font-size="14" font-weight="700" fill="#15803d">③ IMO-ProofBench-Advanced</text>
+  <line x1="470" y1="190" x2="720" y2="190" stroke="#d1d5db"/>
+  <rect x="495" y="130" width="80" height="60" fill="#94a3b8"/>
+  <text x="535" y="122" text-anchor="middle" font-size="13" font-weight="700" fill="#475569">29.8%</text>
+  <text x="535" y="208" text-anchor="middle" font-size="11" fill="#6b7280">단일 에이전트</text>
+  <rect x="615" y="115" width="80" height="75" fill="#22c55e"/>
+  <text x="655" y="107" text-anchor="middle" font-size="13" font-weight="700" fill="#15803d">37.5%</text>
+  <text x="655" y="208" text-anchor="middle" font-size="11" fill="#6b7280">에이전트 조직</text>
+
+  <!-- 오른쪽 하단: 보고율 붕괴 -->
+  <text x="595" y="252" text-anchor="middle" font-size="14" font-weight="700" fill="#b91c1c">④ 이상 징후의 인간 보고율</text>
+  <line x1="470" y1="400" x2="720" y2="400" stroke="#d1d5db"/>
+  <line x1="470" y1="400" x2="470" y2="270" stroke="#d1d5db"/>
+  <polyline points="490,290 560,330 630,375 700,398" fill="none" stroke="#ef4444" stroke-width="3"/>
+  <circle cx="490" cy="290" r="4" fill="#ef4444"/>
+  <circle cx="700" cy="398" r="4" fill="#ef4444"/>
+  <text x="505" y="284" font-size="12" font-weight="700" fill="#b91c1c">76.7%</text>
+  <text x="688" y="388" text-anchor="end" font-size="12" font-weight="700" fill="#b91c1c">0%</text>
+  <text x="490" y="418" font-size="11" fill="#6b7280">학습 초기</text>
+  <text x="700" y="418" text-anchor="end" font-size="11" fill="#6b7280">학습 후기 체크포인트</text>
+  <text x="595" y="443" text-anchor="middle" font-size="11" fill="#374151">로그상 "보고를 고려"한 비율은 96.7~100%로 유지 — 알고도 말하지 않는다</text>
+</svg>

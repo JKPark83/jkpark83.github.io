@@ -1,0 +1,34 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="수요일 아침 브리핑 표지. 반도체 랠리에 나스닥이 1.18% 오르고 브렌트유가 113.88달러로 무효화선 115달러 아래로 내려왔지만, 목요일 새벽 FOMC와 마이크로소프트·알파벳 실적을 앞두고 나스닥은 관망 유지입니다. 비트코인은 80,700달러로 반등하고 ETF 유입이 돌아왔지만 50일선 81,800달러 아래라 매도 유지입니다">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.10.28 · 나스닥 &amp; 비트코인 5분 요약 · 수요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">유가가 무효화선 아래로 내려온 연준 결정 전야 — 본 시험은 목요일 새벽</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 조건의 절반</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#4ade80">나스닥 +1.18%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#bbf7d0">반도체 랠리 · 브렌트 113.88</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">FOMC·실적 48시간 대기</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 유입 복귀 첫발</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#a5b4fc">BTC 80,700</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">ETF +1.1억달러 · IBIT 전액</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.15"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">50일선 아래 · 84,000 멀어</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="17" fill="#64748b">기준: 10월 27일(화) 뉴욕 마감 · 심리 주식 27~29 공포 / 코인 47 중립 · 목 새벽 3시 FOMC</text>
+</svg>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="틀린 가설의 웅덩이에 빠져 같은 자리를 맴도는 에이전트와, 컨텍스트를 비우고 새로 출발해 더 높은 점수에 도달하는 에이전트를 비교한 그림">
+  <defs>
+    <linearGradient id="cing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#2e1065"/>
+    </linearGradient>
+    <linearGradient id="cin-rose" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+    <linearGradient id="cin-green" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#cing)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">모델이 똑똑할수록 고집도 세다</text>
+  <text x="80" y="152" fill="#c4b5fd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">컨텍스트 관성과 '잊는 하네스'</text>
+  <text x="80" y="200" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22">Memento · Fork-and-Flush · Stateless Agents · Forgetting — 한 주에 쏟아진 같은 답</text>
+
+  <!-- left: stuck agent circling in a basin -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <path d="M110 480 Q 230 560 350 480" fill="none" stroke="#fb7185" stroke-width="4"/>
+    <path d="M150 455 Q 230 515 310 455" fill="none" stroke="#fb7185" stroke-width="2.5" opacity="0.55"/>
+    <ellipse cx="230" cy="470" rx="26" ry="26" fill="url(#cin-rose)"/>
+    <path d="M230 400 a 42 30 0 1 1 -2 0" fill="none" stroke="#fda4af" stroke-width="3.5" stroke-dasharray="7 6"/>
+    <polygon points="236,402 222,396 224,412" fill="#fda4af"/>
+    <text x="230" y="590" text-anchor="middle" fill="#fda4af" font-size="21" font-weight="700">같은 가설만 맴돈다</text>
+    <text x="230" y="340" text-anchor="middle" fill="#fb7185" font-size="19" font-weight="700">컨텍스트 관성</text>
+  </g>
+
+  <!-- middle arrow: flush -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <line x1="420" y1="470" x2="580" y2="470" stroke="#e2e8f0" stroke-width="4"/>
+    <polygon points="580,470 560,458 560,482" fill="#e2e8f0"/>
+    <rect x="428" y="408" width="146" height="40" rx="10" fill="none" stroke="#c4b5fd" stroke-width="2.5"/>
+    <text x="501" y="434" text-anchor="middle" fill="#c4b5fd" font-size="19" font-weight="800">컨텍스트 비우기</text>
+  </g>
+
+  <!-- right: fresh agent climbing to higher score -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <polyline points="640,540 740,500 820,510 900,430 980,440 1080,330" fill="none" stroke="#4ade80" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="1080" cy="330" r="22" fill="url(#cin-green)"/>
+    <text x="870" y="590" text-anchor="middle" fill="#86efac" font-size="21" font-weight="700">노트와 결과물만 들고 새로 출발</text>
+    <text x="1080" y="292" text-anchor="middle" fill="#4ade80" font-size="20" font-weight="800">더 높은 점수</text>
+  </g>
+</svg>

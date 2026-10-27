@@ -1,0 +1,422 @@
+---
+title: "모델이 똑똑할수록 고집도 세다 — 컨텍스트 관성(context inertia)과 '잊어야 이기는' 하네스 설계"
+date: 2026-10-28T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "context engineering", "컨텍스트 관성", "context inertia", "하네스", "harness", "Memento", "Fork-and-Flush", "stateless agents", "컨텍스트 엔지니어링", "장기 실행 에이전트", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "에이전트가 틀린 가설 하나를 붙잡고 몇 시간을 허비하는 모습, 본 적 있으신가요? 이번 주 컨텍스트 엔지니어링 담론의 중심은 '컨텍스트 관성(context inertia)'이었습니다 — 모델이 컨텍스트 안의 가설·목표에 과몰입해 멈춰야 할 때를 지나쳐도 계속 밀어붙이는 실패 모드입니다. 흥미로운 건 10월 한 달 사이 Anthropic, Microsoft Research, Stanford, UC Berkeley 네 곳이 서로 독립적으로 같은 처방에 도달했다는 사실입니다 — 요약하지 말고, 버려라. Memento·Fork-and-Flush·Stateless Agents·주기적 망각까지, '잊는 하네스' 4종의 메커니즘과 숫자를 주니어 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "context-inertia-forgetting-harness-cover.svg"
+  alt: "틀린 가설의 웅덩이에 빠져 맴도는 에이전트와, 컨텍스트를 비우고 노트만 들고 새로 출발해 더 높은 점수에 도달하는 에이전트를 비교한 그림"
+  caption: "컨텍스트는 자산이기만 한 게 아닙니다. 어느 순간부터는 에이전트를 틀린 방향으로 끌고 가는 관성이 됩니다."
+  relative: false
+---
+
+<style>
+/* ── 컨텍스트 관성 포스트 전용 스타일 (cin- 접두사) ── */
+.cin-fig{
+  --cin-green:#16a34a; --cin-rose:#e11d48; --cin-amber:#d97706; --cin-sky:#0284c7;
+  --cin-violet:#7c3aed; --cin-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .cin-fig{
+  --cin-green:#4ade80; --cin-rose:#fb7185; --cin-amber:#fbbf24; --cin-sky:#38bdf8;
+  --cin-violet:#a78bfa; --cin-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .cin-fig{
+    --cin-green:#4ade80; --cin-rose:#fb7185; --cin-amber:#fbbf24; --cin-sky:#38bdf8;
+    --cin-violet:#a78bfa; --cin-slate:#94a3b8;
+  }
+}
+.cin-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.cin-fig text{font-family:inherit}
+.cin-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.cin-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.cin-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.cin-toc ol{margin:0;padding-left:1.25rem}
+.cin-toc li{margin:.22rem 0;font-size:.95rem}
+.cin-toc a{text-decoration:none}
+.cin-toc a:hover{text-decoration:underline}
+.cin-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.cin-table th,.cin-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.cin-table th{background:var(--entry)}
+.cin-note{border-left:4px solid var(--cin-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.cin-warn{border-left:4px solid var(--cin-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="cin-toc">
+  <div class="cin-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 네 팀이 열흘 사이에 같은 답을 내놨다</a></li>
+    <li><a href="#sec-2">배경 — context rot과는 다른 병: 컨텍스트 관성</a></li>
+    <li><a href="#sec-3">왜 생기나 — 컨텍스트는 증거처럼 작동한다</a></li>
+    <li><a href="#sec-4">'잊는 하네스' 4종 해부</a></li>
+    <li><a href="#sec-5">공통 패턴 — 상태는 환경에, 가설은 버린다</a></li>
+    <li><a href="#sec-6">실전 — Memento 패턴을 직접 만들어 보기</a></li>
+    <li><a href="#sec-7">왜 요약(compaction)으로는 안 될까</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 네 팀이 열흘 사이에 같은 답을 내놨다</h2>
+
+<p>코딩 에이전트를 오래 돌려 본 적이 있다면 이런 장면이 낯설지 않을 겁니다. 에이전트가 "이 버그는 패키지 버전 문제다"라고 초반에 결론을 내리더니, 그 뒤로 몇 시간 동안 버전을 올렸다 내렸다만 반복합니다. 진짜 원인은 전혀 다른 곳에 있는데도요. 중간에 반증이 쌓여도 멈추지 않습니다. 오히려 더 정교한 방법으로 같은 가설을 밀어붙입니다.</p>
+
+<p>이 실패 모드에 이번 달 이름이 붙었습니다. <strong>컨텍스트 관성(context inertia)</strong> — 컨텍스트 엔지니어링 분야에서 가장 널리 읽히는 저자 중 한 명인 Drew Breunig가 10월 14일 글 <a href="https://www.dbreunig.com/2026/10/14/context-inertia.html" target="_blank" rel="noopener">Context Inertia: When Agents Won't Let Go</a>에서 제안한 용어로, <strong>모델이 컨텍스트 안의 가설·하위 작업·목표에 과몰입(hyper-focus)해서, 그만둬야 할 시점이 지나도 계속 추적하는 현상</strong>을 가리킵니다.</p>
+
+<p>이것만이라면 "또 하나의 블로그 용어"로 끝났을지도 모릅니다. 그런데 Breunig가 10월 24일 후속 글 <a href="https://www.dbreunig.com/2026/10/24/the-state-of-context-engineering.html" target="_blank" rel="noopener">The State of Context Engineering</a>에서 짚었듯, 10월 초·중순 열흘 남짓한 사이에 <strong>서로 독립적인 네 팀이 같은 문제를 발견하고, 놀랍도록 비슷한 처방에 도달</strong>했습니다. 이 글이 지난주 해외 개발자 커뮤니티에 돌면서 컨텍스트 관성이 이번 주 컨텍스트 엔지니어링 담론의 중심이 됐습니다.</p>
+
+<ul>
+  <li><strong>Anthropic</strong> Frontier Red Team — 10/12 연구 글의 <strong>Memento</strong> 하네스: 타임아웃마다 에이전트를 통째로 갈아 끼우고 노트만 물려줍니다.</li>
+  <li><strong>Microsoft Research</strong> — <strong>Fork-and-Flush</strong>(arXiv:2610.07447, 10/5): 워크스페이스는 복제하고 대화 컨텍스트는 비운 브랜치 여러 개를 주기적으로 띄워, 제일 잘한 브랜치만 이어 갑니다.</li>
+  <li><strong>Stanford</strong> — <strong>Stateless Language Agents</strong>(arXiv:2610.07625, 10/6): 에이전트는 호출 사이에 아무 기억도 갖지 않고, 상태는 전부 하네스가 보관합니다.</li>
+  <li><strong>UC Berkeley 등</strong> — <strong>Scaling Discovery Requires Forgetting</strong>(arXiv:2610.20563, 10/14): 에이전트 팀의 세션과 탐색 히스토리를 주기적으로 전부 폐기하고, 최고 성과물에서 다시 출발합니다.</li>
+</ul>
+
+<p>네 팀의 결론을 한 문장으로 줄이면 이렇습니다. <strong>"컨텍스트를 요약해서 이어 가지 말고, 주기적으로 버려라. 단, 결과물과 교훈은 컨텍스트 밖에 남겨라."</strong> 지난 2년간 "컨텍스트를 어떻게 더 잘 채울까"를 고민해 온 분야가, "어떻게 잘 비울까"로 방향을 트는 순간입니다. 왜 이런 결론이 나왔는지, 각 하네스는 정확히 어떻게 동작하는지 하나씩 뜯어봅시다.</p>
+
+<h2 id="sec-2">2. 배경 — context rot과는 다른 병: 컨텍스트 관성</h2>
+
+<p>먼저 기존에 알려진 장기 실행 에이전트의 컨텍스트 문제와 구분해야 합니다. 이 블로그에서도 다룬 적 있는 <a href="/posts/context-rot-long-context-degradation/" target="_blank" rel="noopener">컨텍스트 부패(context rot)</a>는 <strong>능력의 문제</strong>입니다. 컨텍스트가 길어질수록 오래된 정보·중복·모순이 쌓여 모델이 중요한 내용을 찾지 못하고, 응답 품질이 떨어집니다. 처방도 정보 관리입니다 — 요약(compaction), 트리밍, 검색으로 "좋은 정보만 남기기"죠.</p>
+
+<p>컨텍스트 관성은 결이 다릅니다. 이쪽은 <strong>행동의 문제</strong>입니다. 모델이 컨텍스트를 못 읽어서가 아니라, 너무 잘 읽고 거기에 <strong>충실해서</strong> 생기는 실패입니다. 컨텍스트에 쌓인 자신의 과거 추론이 일종의 증거가 되어, 모델을 한 방향으로 계속 끌고 갑니다. Breunig는 최신 프런티어 모델일수록 이 문제가 <strong>더 심해진다</strong>고 지적합니다. 요즘 모델은 장시간 과제를 끈질기게 물고 늘어지도록 훈련받았는데, 그 끈기(persistence)가 틀린 가설에도 똑같이 적용되기 때문입니다. 똑똑할수록, 오래 달릴수록, 고집도 셉니다.</p>
+
+<figure class="cin-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="context rot과 context inertia를 비교한 다이어그램. 왼쪽은 컨텍스트가 길어지며 정보가 흐려져 응답 품질이 떨어지는 모습, 오른쪽은 초기의 틀린 가설이 증거처럼 쌓여 에이전트가 같은 방향으로만 가는 모습">
+  <text x="215" y="34" text-anchor="middle" fill="var(--cin-sky)" font-size="16" font-weight="800">context rot — 능력의 문제</text>
+  <rect x="55" y="56" width="320" height="52" rx="10" fill="none" stroke="var(--cin-sky)" stroke-width="2.5"/>
+  <text x="215" y="88" text-anchor="middle" fill="var(--cin-sky)" font-size="13.5">중요 정보 · 중복 · 모순 · 낡은 로그 …</text>
+  <line x1="215" y1="108" x2="215" y2="150" stroke="var(--cin-slate)" stroke-width="2.5"/>
+  <polygon points="215,150 208,138 222,138" fill="var(--cin-slate)"/>
+  <text x="215" y="178" text-anchor="middle" fill="var(--cin-slate)" font-size="13.5">길어질수록 신호가 묻힌다</text>
+  <text x="215" y="210" text-anchor="middle" fill="var(--cin-rose)" font-size="14" font-weight="700">→ 찾아야 할 것을 못 찾음</text>
+  <text x="215" y="252" text-anchor="middle" fill="var(--cin-slate)" font-size="13">처방: 요약 · 트리밍 · 검색</text>
+  <text x="215" y="274" text-anchor="middle" fill="var(--cin-slate)" font-size="13">"좋은 정보만 남기기"</text>
+
+  <line x1="430" y1="30" x2="430" y2="370" stroke="var(--cin-slate)" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.5"/>
+
+  <text x="645" y="34" text-anchor="middle" fill="var(--cin-violet)" font-size="16" font-weight="800">context inertia — 행동의 문제</text>
+  <rect x="490" y="56" width="90" height="40" rx="8" fill="var(--cin-rose)" opacity="0.22"/>
+  <rect x="490" y="56" width="90" height="40" rx="8" fill="none" stroke="var(--cin-rose)" stroke-width="2.5"/>
+  <text x="535" y="81" text-anchor="middle" fill="var(--cin-rose)" font-size="12.5" font-weight="700">가설 A</text>
+  <rect x="592" y="56" width="90" height="40" rx="8" fill="none" stroke="var(--cin-rose)" stroke-width="2"/>
+  <text x="637" y="81" text-anchor="middle" fill="var(--cin-rose)" font-size="12.5">A 시도 1</text>
+  <rect x="694" y="56" width="90" height="40" rx="8" fill="none" stroke="var(--cin-rose)" stroke-width="2"/>
+  <text x="739" y="81" text-anchor="middle" fill="var(--cin-rose)" font-size="12.5">A 시도 2</text>
+  <rect x="490" y="108" width="294" height="36" rx="8" fill="none" stroke="var(--cin-amber)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="637" y="131" text-anchor="middle" fill="var(--cin-amber)" font-size="12.5">반증 (A가 아니라는 신호)</text>
+  <line x1="637" y1="152" x2="637" y2="192" stroke="var(--cin-slate)" stroke-width="2.5"/>
+  <polygon points="637,192 630,180 644,180" fill="var(--cin-slate)"/>
+  <text x="637" y="220" text-anchor="middle" fill="var(--cin-slate)" font-size="13.5">과거 추론이 '증거'처럼 쌓인다</text>
+  <text x="637" y="252" text-anchor="middle" fill="var(--cin-rose)" font-size="14" font-weight="700">→ 반증을 보고도 A 시도 3으로</text>
+  <text x="637" y="294" text-anchor="middle" fill="var(--cin-slate)" font-size="13">처방: 요약으로는 부족 —</text>
+  <text x="637" y="316" text-anchor="middle" fill="var(--cin-green)" font-size="13.5" font-weight="700">컨텍스트를 버리고 새로 출발</text>
+
+  <text x="430" y="368" text-anchor="middle" fill="var(--cin-slate)" font-size="12.5">둘 다 "긴 컨텍스트의 병"이지만 원인도 처방도 다릅니다</text>
+</svg>
+<figcaption>그림 1. context rot은 정보가 흐려져 생기는 능력의 문제, context inertia는 과거 추론이 증거처럼 작동해 생기는 행동의 문제입니다.</figcaption>
+</figure>
+
+<p>구체적인 사례 하나를 보죠. Anthropic Frontier Red Team이 10월 12일 공개한 연구 글(<a href="https://www.anthropic.com/research/self-replicating-ai" target="_blank" rel="noopener">AI models may be capable of self-replicating without access to a datacenter</a>)에는, 낯선 하드웨어에 추론 환경을 구축하던 Qwen 기반 에이전트가 <strong>패키지 버전 문제라는 가설에 꽂혀 몇 시간을 소모</strong>한 장면이 나옵니다. 실제 원인은 채점기 API와 호환되지 않는 엔드포인트였는데도요. 사람이라면 "버전을 세 번 바꿔도 안 되네? 다른 원인이겠다"라고 가설을 갈아탔을 상황입니다.</p>
+
+<h2 id="sec-3">3. 왜 생기나 — 컨텍스트는 증거처럼 작동한다</h2>
+
+<p>원리는 LLM의 기본 동작에서 나옵니다. 모델은 매 턴 <strong>컨텍스트 전체를 조건으로 다음 행동을 샘플링</strong>합니다. 컨텍스트에 "이 버그는 버전 문제로 보인다"라는 자신의 과거 발화가 있으면, 다음 토큰 분포는 그 서사를 이어 가는 쪽으로 기웁니다. 턴이 반복될수록 같은 가설을 지지하는 텍스트가 더 쌓이고, 분포는 더 기울어집니다. 눈덩이처럼요.</p>
+
+<p>탐색 문제의 언어로 바꾸면 이해가 더 쉽습니다. Microsoft Research의 Fork-and-Flush 논문은 이를 <strong>아이디어 웅덩이(idea basin)</strong>라고 부릅니다. 자동 연구 에이전트(autoresearch agent)는 해법을 제안하고 → 실험하고 → 피드백으로 다음 실험을 정하는 루프를 도는데, 저자들이 같은 에이전트를 같은 과제에 독립적으로 여러 번 돌려 보니 <strong>실행마다 서로 다른 점수에서 정체(plateau)</strong>했습니다. 컴퓨트를 한참 더 부어도 그 격차가 안 좁혀졌고요. 각 실행이 초반에 잡은 아이디어 주변의 국소 최적점, 즉 서로 다른 웅덩이에 빠진 겁니다. 컨텍스트에 쌓인 히스토리가 웅덩이 벽 역할을 해서, 에이전트는 벽 바깥의 아이디어를 샘플링하지 못합니다.</p>
+
+<div class="cin-note">
+<strong>참고:</strong> 멀티턴 대화에서 모델이 자신의 이전 응답에 과하게 주의(attention)를 주는 현상은 올해 2월 arXiv:2602.03664에서 <em>conversational inertia</em>라는 이름으로 분석된 적이 있습니다. 컨텍스트 관성은 이와 맞닿아 있지만, 장기 실행 에이전트의 가설·목표 고착이라는 더 넓은 행동 패턴을 가리키는 말로 쓰입니다.
+</div>
+
+<h2 id="sec-4">4. '잊는 하네스' 4종 해부</h2>
+
+<p>이제 네 팀의 처방을 하나씩 봅시다. 네 가지 모두 하네스(harness) — 모델 바깥에서 에이전트 루프를 감싸고 컨텍스트·도구·상태를 관리하는 코드 — 수준의 해법이라는 점이 중요합니다. 모델을 재훈련하는 게 아니라, <strong>지금 쓰는 모델 그대로 루프 구조만 바꿔서</strong> 문제를 완화합니다.</p>
+
+<h3>4-1. Memento (Anthropic) — 릴레이 주자처럼 갈아 끼우기</h3>
+
+<p>위에서 소개한 Anthropic 글의 부록에 나오는 하네스입니다. 영화 <em>메멘토</em>의 주인공처럼, 에이전트는 기억을 유지하지 못하는 대신 메모를 남깁니다.</p>
+
+<ol>
+  <li>에이전트 인스턴스가 제한 시간(실험에서는 반복당 1.5시간, 전체 6시간)까지 과제를 수행합니다.</li>
+  <li>작업 중 간단한 노트를 유지하다가, 타임아웃이 되면 <strong>시도한 전략·실패한 것·성공했다면 성능</strong>을 짧은 요약으로 남깁니다.</li>
+  <li>새 인스턴스가 <strong>이전 인스턴스의 코드베이스와 환경, 그리고 그 노트만</strong> 들고 처음부터 시작합니다. 대화 히스토리는 물려받지 않습니다.</li>
+</ol>
+
+<p>오픈소스 코딩 에이전트 Pi 위에 구현했고, 효과는 수치로 확인됩니다. 추론 환경 구축 과제에서 Qwen3.5-9B의 성공률이 1세대 45%에서, 노트를 물려받은 후속 세대에서는 61~84%까지 올랐습니다. 핵심 관찰이 흥미롭습니다. 틀린 가설은 대화 컨텍스트에 살지, 코드베이스에 살지 않습니다. 그러니 <strong>컨텍스트만 버리면 가설은 리셋되고, 진짜 진척(코드·환경·교훈)은 남습니다.</strong> 저자들은 Memento가 "보편적으로 강한 하네스는 아니다"라고 선을 긋지만, 장기 과제의 신뢰성을 올리는 데는 분명히 효과가 있었다고 보고합니다.</p>
+
+<h3>4-2. Fork-and-Flush (Microsoft Research) — 웅덩이에서 네 갈래로 튀어나오기</h3>
+
+<p><a href="https://arxiv.org/abs/2610.07447" target="_blank" rel="noopener">arXiv:2610.07447</a>(10/5 공개, Ziyang Cai, Christos Ziakas 외). Memento가 직렬 릴레이라면, 이쪽은 병렬 분기입니다. 이름 그대로 두 동작의 반복입니다.</p>
+
+<ul>
+  <li><strong>Fork:</strong> 주기적으로 현재까지의 워크스페이스(코드·실험 결과물)를 여러 브랜치로 복제합니다.</li>
+  <li><strong>Flush:</strong> 각 브랜치의 <strong>대화 컨텍스트는 비웁니다.</strong> 같은 결과물에서 출발하되 서로 다른 fresh context로 탐색하게 한 뒤, 평가 점수가 가장 좋은 브랜치만 이어 갑니다.</li>
+</ul>
+
+<p>같은 웅덩이에서 출발한 네 명이 각자 다른 방향으로 벽을 넘어 보는 셈입니다. 13개 장기 연구·엔지니어링 과제에서, <strong>동일 컴퓨트 예산</strong>으로 단일 실행 대비 상대 66.0%, best-of-N(여러 번 독립 실행 후 최고 선택) 대비 44.4% 높은 정규화 평균 점수를 기록했습니다. best-of-N을 이겼다는 점이 포인트입니다. 처음부터 N번 따로 도는 것보다, <strong>진척을 공유하면서 컨텍스트만 주기적으로 버리는 쪽</strong>이 같은 비용에서 더 멀리 갑니다.</p>
+
+<h3>4-3. Stateless Language Agents (Stanford) — 아예 기억을 설계에서 빼기</h3>
+
+<p><a href="https://arxiv.org/abs/2610.07625" target="_blank" rel="noopener">arXiv:2610.07625</a>(10/6 공개, Qizheng Zhang 외). 앞의 둘이 "쌓인 컨텍스트를 주기적으로 버리는" 접근이라면, 이 논문은 한발 더 나가 <strong>처음부터 쌓지 않습니다.</strong> 에이전트는 호출 사이에 아무 기억도 유지하지 않고(stateless), 연구 상태 — 후보 해법들과 측정된 결과 — 는 전부 하네스가 구조화된 형태로 보관합니다. 매 호출마다 하네스가 그 역할에 필요한 만큼만 추려서 fresh context를 조립해 줍니다. 상태 없는 Advisor가 탐색 방향별로 요약된 증거를 읽고 병렬 Worker들에게 구체적 실험을 할당하는 구조입니다.</p>
+
+<p>웹 서버를 떠올리면 익숙한 패턴입니다. 세션 상태를 서버 메모리가 아니라 DB에 두면 서버를 아무 때나 갈아 끼울 수 있듯이, 상태를 컨텍스트가 아니라 하네스에 두면 에이전트 호출을 아무 때나 새로 시작할 수 있습니다. 관성이 생길 컨텍스트 자체가 없는 거죠. 보고된 결과로는 커널 최적화 과제에서 최강 베이스라인 수준의 최종 성능을 <strong>84% 이상 적은 토큰</strong>으로 달성했고, 장기 SWE 과제에서는 토큰 예산이 커질수록(700M 토큰 구간) 베이스라인을 역전했습니다. 다만 방법당 1회 실행 기준 결과라는 점은 저자들도 명시한 한계입니다.</p>
+
+<h3>4-4. Scaling Discovery Requires Forgetting (UC Berkeley 등) — 팀 전체가 주기적으로 기억상실</h3>
+
+<p><a href="https://arxiv.org/abs/2610.20563" target="_blank" rel="noopener">arXiv:2610.20563</a>(10/14 공개, Shangyin Tan 외, UC Berkeley·Stanford·Bespoke Labs). 제목부터 결론입니다 — "발견을 스케일하려면 망각이 필요하다". 에이전트 4개가 소통하며 탐색하는 팀 구성에서, 주기적으로 <strong>모든 에이전트의 세션과 후보 히스토리를 통째로 폐기</strong>하고, 팀이 그때까지 찾은 <strong>최고 후보 하나에서 빈 컨텍스트로 재출발</strong>시킵니다.</p>
+
+<p>단일 에이전트든 병렬 에이전트든 히스토리가 쌓이면 결국 정체한다는 관찰이 출발점입니다. 휴리스틱 프로그래밍·커널 최적화·모델 훈련을 포함한 4개 과제에서, 망각을 넣은 팀이 단일 에이전트 대비 최대 39%, 망각 없는 병렬 에이전트 팀 대비 최대 15% 높은 성과를 냈습니다. "지금까지의 1등 답안지 한 장만 남기고 전원 기억을 지운다" — 과격하게 들리지만, 1등 답안지가 곧 압축된 진척이기 때문에 성립하는 설계입니다.</p>
+
+<figure class="cin-fig">
+<svg viewBox="0 0 860 560" role="img" aria-label="네 가지 잊는 하네스를 2x2로 비교한 다이어그램. Memento는 직렬 릴레이로 노트를 물려주고, Fork-and-Flush는 워크스페이스를 복제해 fresh context 브랜치 중 최고를 선택하며, Stateless Agents는 하네스가 상태를 보관하고 매 호출 fresh context를 조립하고, Forgetting은 팀 전체가 최고 후보에서 재출발">
+  <text x="225" y="30" text-anchor="middle" fill="var(--cin-green)" font-size="15.5" font-weight="800">① Memento — 직렬 릴레이</text>
+  <g font-size="12">
+    <rect x="60" y="52" width="92" height="40" rx="8" fill="none" stroke="var(--cin-green)" stroke-width="2.5"/>
+    <text x="106" y="77" text-anchor="middle" fill="var(--cin-green)" font-weight="700">에이전트 1</text>
+    <rect x="178" y="52" width="92" height="40" rx="8" fill="none" stroke="var(--cin-green)" stroke-width="2.5"/>
+    <text x="224" y="77" text-anchor="middle" fill="var(--cin-green)" font-weight="700">에이전트 2</text>
+    <rect x="296" y="52" width="92" height="40" rx="8" fill="none" stroke="var(--cin-green)" stroke-width="2.5"/>
+    <text x="342" y="77" text-anchor="middle" fill="var(--cin-green)" font-weight="700">에이전트 3</text>
+    <line x1="152" y1="72" x2="178" y2="72" stroke="var(--cin-slate)" stroke-width="2"/>
+    <line x1="270" y1="72" x2="296" y2="72" stroke="var(--cin-slate)" stroke-width="2"/>
+    <text x="165" y="62" text-anchor="middle" fill="var(--cin-amber)" font-size="11">노트</text>
+    <text x="283" y="62" text-anchor="middle" fill="var(--cin-amber)" font-size="11">노트</text>
+    <text x="225" y="122" text-anchor="middle" fill="var(--cin-slate)" font-size="12">타임아웃마다 교체 · 코드베이스+환경+노트만 상속</text>
+    <text x="225" y="142" text-anchor="middle" fill="var(--cin-slate)" font-size="12">대화 히스토리는 폐기</text>
+  </g>
+
+  <text x="645" y="30" text-anchor="middle" fill="var(--cin-sky)" font-size="15.5" font-weight="800">② Fork-and-Flush — 병렬 분기</text>
+  <g font-size="12">
+    <rect x="590" y="48" width="110" height="36" rx="8" fill="none" stroke="var(--cin-sky)" stroke-width="2.5"/>
+    <text x="645" y="71" text-anchor="middle" fill="var(--cin-sky)" font-weight="700">워크스페이스</text>
+    <line x1="645" y1="84" x2="545" y2="112" stroke="var(--cin-slate)" stroke-width="2"/>
+    <line x1="645" y1="84" x2="612" y2="112" stroke="var(--cin-slate)" stroke-width="2"/>
+    <line x1="645" y1="84" x2="678" y2="112" stroke="var(--cin-slate)" stroke-width="2"/>
+    <line x1="645" y1="84" x2="745" y2="112" stroke="var(--cin-slate)" stroke-width="2"/>
+    <rect x="510" y="112" width="70" height="32" rx="7" fill="none" stroke="var(--cin-sky)" stroke-width="2"/>
+    <rect x="590" y="112" width="70" height="32" rx="7" fill="none" stroke="var(--cin-sky)" stroke-width="2"/>
+    <rect x="670" y="112" width="70" height="32" rx="7" fill="var(--cin-sky)" opacity="0.25"/>
+    <rect x="670" y="112" width="70" height="32" rx="7" fill="none" stroke="var(--cin-sky)" stroke-width="2.5"/>
+    <rect x="750" y="112" width="70" height="32" rx="7" fill="none" stroke="var(--cin-sky)" stroke-width="2"/>
+    <text x="545" y="133" text-anchor="middle" fill="var(--cin-sky)" font-size="11">fresh 1</text>
+    <text x="625" y="133" text-anchor="middle" fill="var(--cin-sky)" font-size="11">fresh 2</text>
+    <text x="705" y="133" text-anchor="middle" fill="var(--cin-sky)" font-size="11" font-weight="800">fresh 3 ★</text>
+    <text x="785" y="133" text-anchor="middle" fill="var(--cin-sky)" font-size="11">fresh 4</text>
+    <text x="645" y="172" text-anchor="middle" fill="var(--cin-slate)" font-size="12">결과물은 복제, 컨텍스트는 flush</text>
+    <text x="645" y="192" text-anchor="middle" fill="var(--cin-slate)" font-size="12">최고 브랜치(★)만 계속</text>
+  </g>
+
+  <line x1="60" y1="222" x2="800" y2="222" stroke="var(--cin-slate)" stroke-width="1" stroke-dasharray="4 6" opacity="0.5"/>
+
+  <text x="225" y="258" text-anchor="middle" fill="var(--cin-violet)" font-size="15.5" font-weight="800">③ Stateless Agents — 상태는 하네스에</text>
+  <g font-size="12">
+    <rect x="135" y="278" width="180" height="42" rx="9" fill="var(--cin-violet)" opacity="0.18"/>
+    <rect x="135" y="278" width="180" height="42" rx="9" fill="none" stroke="var(--cin-violet)" stroke-width="2.5"/>
+    <text x="225" y="304" text-anchor="middle" fill="var(--cin-violet)" font-weight="700">하네스 (후보 + 측정 결과)</text>
+    <line x1="160" y1="320" x2="120" y2="356" stroke="var(--cin-slate)" stroke-width="2"/>
+    <line x1="225" y1="320" x2="225" y2="356" stroke="var(--cin-slate)" stroke-width="2"/>
+    <line x1="290" y1="320" x2="330" y2="356" stroke="var(--cin-slate)" stroke-width="2"/>
+    <rect x="80" y="356" width="80" height="34" rx="7" fill="none" stroke="var(--cin-violet)" stroke-width="2"/>
+    <rect x="185" y="356" width="80" height="34" rx="7" fill="none" stroke="var(--cin-violet)" stroke-width="2"/>
+    <rect x="290" y="356" width="80" height="34" rx="7" fill="none" stroke="var(--cin-violet)" stroke-width="2"/>
+    <text x="120" y="378" text-anchor="middle" fill="var(--cin-violet)" font-size="11">Worker</text>
+    <text x="225" y="378" text-anchor="middle" fill="var(--cin-violet)" font-size="11">Advisor</text>
+    <text x="330" y="378" text-anchor="middle" fill="var(--cin-violet)" font-size="11">Worker</text>
+    <text x="225" y="420" text-anchor="middle" fill="var(--cin-slate)" font-size="12">호출 사이 기억 없음 · 매 호출마다</text>
+    <text x="225" y="440" text-anchor="middle" fill="var(--cin-slate)" font-size="12">역할별 fresh context를 조립해 전달</text>
+  </g>
+
+  <text x="645" y="258" text-anchor="middle" fill="var(--cin-amber)" font-size="15.5" font-weight="800">④ Forgetting — 팀 단위 재시작</text>
+  <g font-size="12">
+    <rect x="520" y="278" width="58" height="32" rx="7" fill="none" stroke="var(--cin-amber)" stroke-width="2"/>
+    <rect x="586" y="278" width="58" height="32" rx="7" fill="none" stroke="var(--cin-amber)" stroke-width="2"/>
+    <rect x="652" y="278" width="58" height="32" rx="7" fill="none" stroke="var(--cin-amber)" stroke-width="2"/>
+    <rect x="718" y="278" width="58" height="32" rx="7" fill="none" stroke="var(--cin-amber)" stroke-width="2"/>
+    <text x="549" y="299" text-anchor="middle" fill="var(--cin-amber)" font-size="11">A1</text>
+    <text x="615" y="299" text-anchor="middle" fill="var(--cin-amber)" font-size="11">A2</text>
+    <text x="681" y="299" text-anchor="middle" fill="var(--cin-amber)" font-size="11">A3</text>
+    <text x="747" y="299" text-anchor="middle" fill="var(--cin-amber)" font-size="11">A4</text>
+    <line x1="648" y1="318" x2="648" y2="348" stroke="var(--cin-rose)" stroke-width="2.5"/>
+    <polygon points="648,348 641,336 655,336" fill="var(--cin-rose)"/>
+    <text x="718" y="340" fill="var(--cin-rose)" font-size="12" font-weight="700">전원 세션 폐기</text>
+    <rect x="575" y="352" width="146" height="36" rx="8" fill="var(--cin-green)" opacity="0.2"/>
+    <rect x="575" y="352" width="146" height="36" rx="8" fill="none" stroke="var(--cin-green)" stroke-width="2.5"/>
+    <text x="648" y="375" text-anchor="middle" fill="var(--cin-green)" font-weight="700">최고 후보 1개</text>
+    <line x1="648" y1="388" x2="648" y2="414" stroke="var(--cin-slate)" stroke-width="2"/>
+    <polygon points="648,414 641,402 655,402" fill="var(--cin-slate)"/>
+    <text x="645" y="440" text-anchor="middle" fill="var(--cin-slate)" font-size="12">빈 컨텍스트의 새 팀이 여기서 재출발</text>
+  </g>
+
+  <text x="430" y="500" text-anchor="middle" fill="var(--cin-slate)" font-size="13.5" font-weight="700">넷의 공통분모: 대화 컨텍스트(가설)는 버리고, 결과물(진척)만 물려준다</text>
+  <text x="430" y="528" text-anchor="middle" fill="var(--cin-slate)" font-size="12.5">Memento: 45%→61~84% · Fork-and-Flush: 단일 실행 대비 +66% · Forgetting: 단일 대비 최대 +39%</text>
+</svg>
+<figcaption>그림 2. 열흘 사이에 나온 네 가지 '잊는 하네스'. 직렬 릴레이, 병렬 분기, 무상태 설계, 팀 단위 망각 — 형태는 달라도 버리는 것과 남기는 것이 같습니다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 공통 패턴 — 상태는 환경에, 가설은 버린다</h2>
+
+<p>네 설계를 겹쳐 보면 하나의 원칙이 남습니다. 에이전트가 가진 것을 두 종류로 나누는 겁니다.</p>
+
+<table class="cin-table">
+  <thead>
+    <tr><th></th><th>진척 (버리면 안 되는 것)</th><th>가설 (주기적으로 버려야 하는 것)</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>무엇</strong></td>
+      <td>코드베이스, 환경, 실험 결과물, 최고 후보, "시도한 것·실패한 것" 노트</td>
+      <td>대화 히스토리, 중간 추론, 현재 쫓고 있는 가설과 그 정당화</td>
+    </tr>
+    <tr>
+      <td><strong>어디에</strong></td>
+      <td>컨텍스트 <strong>밖</strong> — 파일시스템, git, 하네스의 상태 저장소</td>
+      <td>컨텍스트 <strong>안</strong> — 그래서 컨텍스트만 비우면 함께 사라짐</td>
+    </tr>
+    <tr>
+      <td><strong>성질</strong></td>
+      <td>검증된 사실. 다음 주자에게 그대로 도움</td>
+      <td>미검증 추측. 오래 끌수록 관성으로 변질</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>이 분해가 되면 "잊기"가 무섭지 않습니다. 잊는 건 <strong>미검증 추측뿐</strong>이고, 검증된 진척은 전부 환경에 남아 있으니까요. 거꾸로 말하면, 잊는 하네스가 동작하려면 <strong>진척이 컨텍스트 밖에 쌓이도록 에이전트를 설계해 두는 것</strong>이 선행 조건입니다. 결과물을 파일로 쓰게 하고, 실험 결과를 구조화된 형식으로 기록하게 하고, 교훈 노트를 강제하는 것 — 전부 이 조건을 만드는 작업입니다.</p>
+
+<h2 id="sec-6">6. 실전 — Memento 패턴을 직접 만들어 보기</h2>
+
+<p>네 가지 중 가장 만들기 쉬운 건 Memento 패턴입니다. 헤드리스 모드를 지원하는 코딩 에이전트 CLI만 있으면 셸 루프로 충분합니다. Claude Code를 예로 들면 이렇게 생겼습니다.</p>
+
+{{< highlight bash >}}
+#!/usr/bin/env bash
+# memento.sh — 세대마다 fresh context로 재시작하는 릴레이 루프
+TASK="테스트 스위트가 전부 통과하도록 버그를 수정하라"
+
+for gen in 1 2 3 4; do
+  # claude -p 는 매번 새 세션 = 빈 컨텍스트로 시작합니다.
+  # 이전 세대의 흔적은 작업 디렉터리(코드)와 NOTES.md뿐입니다.
+  claude -p "$(cat <<EOF
+${TASK}
+
+먼저 NOTES.md를 읽어라. 이전 작업자가 시도한 전략과 실패가 적혀 있다.
+이미 실패한 접근은 반복하지 말 것.
+종료 전에 반드시 NOTES.md에 추가하라:
+- 이번에 세운 가설과 시도한 전략
+- 실패한 것과 실패 이유
+- 다음 작업자에게 남기는 제안
+EOF
+)" --max-turns 80
+
+  # 검증이 통과하면 릴레이 종료
+  if npm test --silent; then
+    echo "세대 ${gen}에서 성공"; break
+  fi
+done
+{{< /highlight >}}
+
+<p>핵심은 세 가지입니다. 첫째, <strong>세대 사이에 대화를 이어 주지 않습니다.</strong> <code>--resume</code> 같은 옵션을 쓰는 순간 관성도 같이 상속됩니다. 둘째, <code>NOTES.md</code>에는 결론이 아니라 <strong>시도와 실패</strong>를 적게 합니다. "원인은 버전 문제로 추정"이라고 적으면 노트가 관성의 전달 통로가 됩니다. "버전 교체를 3회 시도했으나 전부 실패"라고 적어야 다음 세대가 다른 가설을 잡습니다. 셋째, <strong>종료 조건은 외부 검증기</strong>(여기서는 테스트)가 판정합니다. 에이전트의 자체 보고를 믿으면 안 됩니다.</p>
+
+<p>Fork-and-Flush도 같은 재료로 확장할 수 있습니다. <code>git worktree</code>로 워크스페이스를 K개 복제해 각각 fresh context로 돌리고, 점수가 가장 좋은 워크트리를 다음 라운드의 베이스로 삼으면 됩니다. 실제로 논문 공개 직후 Claude Code·Codex용 커뮤니티 구현(<a href="https://github.com/hetankevin/fork-and-flush" target="_blank" rel="noopener">hetankevin/fork-and-flush</a>)이 나왔는데, 구조가 정확히 이것입니다 — 같은 워크스페이스에서 fresh context 에이전트 여러 개를 돌리고, 평가 후 최고 브랜치를 이어 갑니다.</p>
+
+{{< highlight text >}}
+라운드 r:
+  1. base 워크스페이스를 K개 워크트리로 복제        (fork)
+  2. 각 워크트리에서 빈 컨텍스트의 에이전트 실행      (flush)
+  3. 외부 검증기로 K개 결과를 채점
+  4. 최고 점수 워크트리 → 다음 라운드의 base
+반복: 예산 소진 또는 목표 달성까지
+{{< /highlight >}}
+
+<h2 id="sec-7">7. 왜 요약(compaction)으로는 안 될까</h2>
+
+<p>여기서 자연스러운 반론이 나옵니다. "컨텍스트가 문제라면, 이미 다들 쓰고 있는 자동 요약으로 줄이면 되지 않나?" 이 블로그에서도 <a href="/posts/context-compaction-long-horizon-agents/" target="_blank" rel="noopener">컨텍스트 압축(compaction)</a>을 다뤘죠. 하지만 Breunig의 지적처럼, <strong>요약은 컨텍스트 관성을 고치지 못합니다.</strong> 이유는 간단합니다. 요약은 "지금까지의 서사"를 충실히 압축하는데, <strong>현재 가설이 바로 그 서사의 주인공</strong>이기 때문입니다. "버전 문제를 조사 중"이라는 문장은 어떤 요약에서도 살아남아 새 컨텍스트의 첫 줄에 앉습니다. 관성이 압축만 된 채 그대로 전달되는 겁니다.</p>
+
+<figure class="cin-fig">
+<svg viewBox="0 0 860 360" role="img" aria-label="요약은 가설을 압축해 그대로 물려주지만, 리셋은 가설을 폐기하고 검증된 진척만 물려준다는 것을 보여주는 비교 다이어그램">
+  <text x="225" y="32" text-anchor="middle" fill="var(--cin-rose)" font-size="15.5" font-weight="800">요약(compaction)</text>
+  <g font-size="12.5">
+    <rect x="75" y="54" width="300" height="60" rx="10" fill="none" stroke="var(--cin-slate)" stroke-width="2"/>
+    <text x="225" y="80" text-anchor="middle" fill="var(--cin-slate)">긴 컨텍스트</text>
+    <text x="225" y="100" text-anchor="middle" fill="var(--cin-rose)" font-weight="700">… 가설 A를 조사 중 …</text>
+    <line x1="225" y1="114" x2="225" y2="152" stroke="var(--cin-slate)" stroke-width="2.5"/>
+    <polygon points="225,152 218,140 232,140" fill="var(--cin-slate)"/>
+    <text x="285" y="138" fill="var(--cin-slate)" font-size="12">압축</text>
+    <rect x="125" y="152" width="200" height="50" rx="10" fill="none" stroke="var(--cin-slate)" stroke-width="2"/>
+    <text x="225" y="174" text-anchor="middle" fill="var(--cin-slate)">짧아진 컨텍스트</text>
+    <text x="225" y="193" text-anchor="middle" fill="var(--cin-rose)" font-weight="700">"가설 A 조사 중" 생존</text>
+    <text x="225" y="240" text-anchor="middle" fill="var(--cin-rose)" font-size="13.5" font-weight="700">관성이 압축된 채 그대로 상속</text>
+    <text x="225" y="266" text-anchor="middle" fill="var(--cin-slate)" font-size="12.5">서사의 주인공(가설)은 요약에서 살아남는다</text>
+  </g>
+
+  <line x1="430" y1="28" x2="430" y2="330" stroke="var(--cin-slate)" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.5"/>
+
+  <text x="645" y="32" text-anchor="middle" fill="var(--cin-green)" font-size="15.5" font-weight="800">리셋 + 외부 상태</text>
+  <g font-size="12.5">
+    <rect x="495" y="54" width="300" height="60" rx="10" fill="none" stroke="var(--cin-slate)" stroke-width="2"/>
+    <text x="645" y="80" text-anchor="middle" fill="var(--cin-slate)">긴 컨텍스트</text>
+    <text x="645" y="100" text-anchor="middle" fill="var(--cin-rose)" font-weight="700">… 가설 A를 조사 중 …</text>
+    <line x1="580" y1="114" x2="545" y2="152" stroke="var(--cin-rose)" stroke-width="2.5"/>
+    <text x="520" y="140" fill="var(--cin-rose)" font-size="12" font-weight="700">폐기</text>
+    <line x1="710" y1="114" x2="745" y2="152" stroke="var(--cin-green)" stroke-width="2.5"/>
+    <polygon points="745,152 731,148 740,138" fill="var(--cin-green)"/>
+    <text x="780" y="140" text-anchor="middle" fill="var(--cin-green)" font-size="12" font-weight="700">보존</text>
+    <text x="545" y="176" text-anchor="middle" fill="var(--cin-rose)" font-size="13">✕ 대화 · 추론 · 가설</text>
+    <rect x="650" y="155" width="190" height="72" rx="10" fill="var(--cin-green)" opacity="0.15"/>
+    <rect x="650" y="155" width="190" height="72" rx="10" fill="none" stroke="var(--cin-green)" stroke-width="2.5"/>
+    <text x="745" y="180" text-anchor="middle" fill="var(--cin-green)" font-weight="700">코드 · 환경 · 노트</text>
+    <text x="745" y="200" text-anchor="middle" fill="var(--cin-green)" font-size="12">"시도 A 3회 전부 실패"</text>
+    <text x="745" y="218" text-anchor="middle" fill="var(--cin-slate)" font-size="11.5">(결론이 아니라 기록)</text>
+    <text x="645" y="266" text-anchor="middle" fill="var(--cin-green)" font-size="13.5" font-weight="700">새 에이전트는 가설 없이, 기록만 보고 출발</text>
+  </g>
+  <text x="430" y="330" text-anchor="middle" fill="var(--cin-slate)" font-size="12.5">요약은 '무엇을 믿고 있었는지'까지 물려주고, 리셋은 '무엇을 확인했는지'만 물려줍니다</text>
+</svg>
+<figcaption>그림 3. 요약은 가설을 압축해 상속시키지만, 리셋은 가설을 폐기하고 검증된 기록만 남깁니다. 컨텍스트 관성에는 이 차이가 결정적입니다.</figcaption>
+</figure>
+
+<p>한 가지 더 — 이 처방은 <strong>모델에 따라 조정이 필요합니다.</strong> Anthropic의 하네스 설계 글(<a href="https://www.anthropic.com/research/harness-design-long-running-apps" target="_blank" rel="noopener">Harness design for long-running application development</a>)에는 흥미로운 전후 기록이 있습니다. Sonnet 4.5 시절에는 컨텍스트가 차오르면 모델이 일을 서둘러 마무리하는 "context anxiety" 때문에 구조화된 핸드오프와 함께 컨텍스트 리셋을 하네스에 넣었는데, Opus 4.5에서는 그 증상이 거의 사라져 <strong>리셋을 다시 걷어냈다</strong>는 겁니다. 하네스의 각 장치는 특정 모델의 약점에 대한 보정이고, 모델이 바뀌면 보정도 재검토해야 합니다. 컨텍스트 관성 대응도 마찬가지일 겁니다 — 지금 쓰는 모델과 과제에서 관성이 실제로 관측될 때 넣는 장치이지, 무조건 켜 두는 기본값이 아닙니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>검증기 없이 "최고 후보에서 재시작"을 흉내 내기.</strong> Fork-and-Flush와 Berkeley 방식은 브랜치·후보를 <em>객관적으로 채점할 수단</em>이 있어야 성립합니다. 테스트, 벤치마크 점수, 수치 지표가 없다면 "최고"를 고를 수 없고, LLM에게 자기 결과를 채점시키면 관성이 심사위원석에 앉는 꼴입니다.</li>
+  <li><strong>노트에 가설을 적게 하기.</strong> 핸드오프 노트는 사실(무엇을 시도했고 무엇이 실패했나) 중심으로 강제하세요. "원인은 X로 추정됨" 같은 문장은 다음 세대에게 관성을 주사하는 것과 같습니다.</li>
+  <li><strong>모든 작업에 잊는 하네스를 씌우기.</strong> 리셋은 공짜가 아닙니다. 새 인스턴스는 코드베이스 파악부터 다시 하므로 토큰과 시간이 듭니다. 30분짜리 단일 세션 작업에는 과잉 설계입니다. 수 시간~수일짜리 탐색형 과제, 그리고 "에이전트가 한 가설에 꽂혀 맴도는" 증상이 실제로 보일 때 꺼내는 도구입니다.</li>
+  <li><strong>리셋과 <a href="/posts/prompt-caching-cache-aware-agents/" target="_blank" rel="noopener">프롬프트 캐시</a>의 상호작용 잊기.</strong> 컨텍스트를 비우면 당연히 캐시도 처음부터 다시 쌓입니다. 리셋 주기가 너무 짧으면 캐시 적중률이 떨어져 비용이 뜁니다. 타임아웃 기반(Memento의 1.5시간처럼)이나 정체 감지 기반으로 주기를 잡고, 매 턴 리셋 같은 극단은 피하세요.</li>
+  <li><strong>진척을 컨텍스트에만 쌓는 에이전트에 리셋 적용하기.</strong> 결과물이 파일·git·상태 저장소에 남지 않는 구조라면, 리셋은 망각이 아니라 삭제입니다. 5절의 분해(진척은 환경에, 가설은 컨텍스트에)를 먼저 만들어 두세요.</li>
+  <li><strong>"더 좋은 모델이면 해결되겠지"라고 미루기.</strong> 방향이 반대일 수 있습니다. 끈기 있게 훈련된 최신 모델일수록 틀린 가설도 끈기 있게 뭅니다. 모델 업그레이드가 context rot은 완화해도 context inertia는 오히려 키울 수 있다는 게 이 논의의 출발점이었습니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>컨텍스트 관성(context inertia)</strong>: 모델이 컨텍스트 안의 가설·목표에 과몰입해 멈춰야 할 때를 지나도 계속 밀어붙이는 실패 모드. 정보가 흐려지는 context rot과 달리, 과거 추론이 증거처럼 작동해 생기는 <strong>행동의 문제</strong>입니다.</li>
+  <li>10월 초·중순 열흘 사이에 <strong>Anthropic(Memento), Microsoft Research(Fork-and-Flush), Stanford(Stateless Agents), UC Berkeley 등(Forgetting)</strong> 네 팀이 독립적으로 같은 처방에 도달했습니다 — 요약하지 말고 버려라.</li>
+  <li>숫자: Memento는 환경 구축 성공률 45%→61~84%, Fork-and-Flush는 동일 컴퓨트에서 단일 실행 대비 +66%·best-of-N 대비 +44%, Berkeley 팀 망각은 단일 에이전트 대비 최대 +39%.</li>
+  <li>공통 원칙: <strong>진척(코드·결과물·노트)은 컨텍스트 밖에, 가설은 컨텍스트 안에.</strong> 그래야 컨텍스트를 버려도 잃는 건 미검증 추측뿐입니다. 요약(compaction)은 가설까지 압축해 물려주므로 관성을 못 고칩니다.</li>
+  <li>실전: 헤드리스 CLI + 노트 파일 + 외부 검증기면 Memento 릴레이를 셸 루프로 만들 수 있습니다. 노트에는 결론이 아니라 <strong>시도와 실패</strong>를 적게 하세요.</li>
+  <li>단, 하네스 장치는 모델 보정입니다. 관성이 실제로 관측되는 장기 탐색형 과제에 선택적으로 적용하고, 모델이 바뀌면 재검토하세요.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.dbreunig.com/2026/10/14/context-inertia.html" target="_blank" rel="noopener">Context Inertia: When Agents Won't Let Go — Drew Breunig (2026-10-14)</a></li>
+  <li><a href="https://www.dbreunig.com/2026/10/24/the-state-of-context-engineering.html" target="_blank" rel="noopener">The State of Context Engineering — Drew Breunig (2026-10-24)</a></li>
+  <li><a href="https://www.anthropic.com/research/self-replicating-ai" target="_blank" rel="noopener">AI models may be capable of self-replicating without access to a datacenter — Anthropic Frontier Red Team (2026-10-12, Memento 하네스는 부록)</a></li>
+  <li><a href="https://arxiv.org/abs/2610.07447" target="_blank" rel="noopener">Fork-and-Flush: Escaping Idea Basins in Autoresearch Agents — arXiv:2610.07447 (Microsoft Research)</a></li>
+  <li><a href="https://arxiv.org/abs/2610.07625" target="_blank" rel="noopener">Stateless Language Agents: Scaling Long-Horizon Automated Research — arXiv:2610.07625 (Stanford)</a></li>
+  <li><a href="https://arxiv.org/abs/2610.20563" target="_blank" rel="noopener">Scaling Discovery Requires Forgetting — arXiv:2610.20563 (UC Berkeley·Stanford·Bespoke Labs)</a></li>
+  <li><a href="https://www.anthropic.com/research/harness-design-long-running-apps" target="_blank" rel="noopener">Harness design for long-running application development — Anthropic Engineering (context anxiety와 리셋 제거 사례)</a></li>
+  <li><a href="https://www.anthropic.com/research/effective-harnesses-for-long-running-agents" target="_blank" rel="noopener">Effective harnesses for long-running agents — Anthropic Engineering</a></li>
+  <li><a href="https://arxiv.org/abs/2602.03664" target="_blank" rel="noopener">Mitigating Conversational Inertia in Multi-Turn Agents — arXiv:2602.03664 (관련 선행 개념)</a></li>
+  <li><a href="https://github.com/hetankevin/fork-and-flush" target="_blank" rel="noopener">hetankevin/fork-and-flush — Claude Code·Codex용 커뮤니티 구현</a></li>
+  <li>(한국어) <a href="/posts/context-rot-long-context-degradation/" target="_blank" rel="noopener">컨텍스트 부패(context rot) — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/context-compaction-long-horizon-agents/" target="_blank" rel="noopener">장기 실행 에이전트의 컨텍스트 압축 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/less-context-better-agents/" target="_blank" rel="noopener">컨텍스트는 적을수록 좋다 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/cache-engineering-agents-akv/" target="_blank" rel="noopener">에이전트 캐시 엔지니어링(AKV) — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/prompt-caching-cache-aware-agents/" target="_blank" rel="noopener">Prompt caching과 캐시 친화적 에이전트 설계 — 이 블로그</a></li>
+</ul>

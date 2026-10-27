@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 340" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="340" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">에이전트 데스크톱 앱, 두 갈래 — 클라우드 프런티어 vs 온디바이스</text>
+
+  <!-- Craft Agents -->
+  <rect x="25" y="55" width="365" height="235" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="45" y="85" font-size="15" font-weight="700" fill="#15803d">craft-ai-agents/craft-agents-oss</text>
+  <text x="45" y="106" font-size="12" fill="#6b7280">TypeScript (Bun) · Apache 2.0 · v0.15.6 (10/23)</text>
+  <text x="45" y="134" font-size="12" fill="#374151">· Craft(craft.do)가 만든 문서 중심 에이전트 워크스페이스</text>
+  <text x="45" y="154" font-size="12" fill="#374151">· Claude Agent SDK + Pi SDK를 나란히 사용</text>
+  <text x="45" y="174" font-size="12" fill="#374151">· "Linear를 소스로 추가해줘" → 에이전트가 API 문서를</text>
+  <text x="45" y="192" font-size="12" fill="#374151">  읽고 자격증명·MCP 설정까지 스스로 구성</text>
+  <text x="45" y="212" font-size="12" fill="#374151">· Claude Code 스킬·MCP 임포트, 세션 공유</text>
+  <text x="45" y="240" font-size="12" font-weight="700" fill="#15803d">쓸 곳: 비 CLI 멀티태스킹 워크스페이스가 필요한 팀,</text>
+  <text x="45" y="258" font-size="12" font-weight="700" fill="#15803d">Agent Native 앱 설계 참고 소스로도 가치</text>
+
+  <!-- Hob -->
+  <rect x="410" y="55" width="365" height="235" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="430" y="85" font-size="15" font-weight="700" fill="#1d4ed8">FrigadeHQ/hob</text>
+  <text x="430" y="106" font-size="12" fill="#6b7280">TypeScript · MIT · 0.2.2 (10/27) · Show HN 상위</text>
+  <text x="430" y="134" font-size="12" fill="#374151">· 전부 로컬에서 도는 Claude/ChatGPT 대안 데스크톱 앱</text>
+  <text x="430" y="154" font-size="12" fill="#374151">· 하드웨어를 보고 맞는 오픈 웨이트 모델을 자동 선택</text>
+  <text x="430" y="174" font-size="12" fill="#374151">  (카탈로그: Qwen3, Gemma 4 계열 등 GGUF 빌드)</text>
+  <text x="430" y="194" font-size="12" fill="#374151">· PDF 작성·문서 작업 오프라인 처리, 무료·프라이빗</text>
+  <text x="430" y="212" font-size="12" fill="#374151">· 코드 실행은 채팅 폴더로 샌드박싱 (보도 기준)</text>
+  <text x="430" y="240" font-size="12" font-weight="700" fill="#1d4ed8">쓸 곳: 데이터가 밖으로 못 나가는 환경의 문서 에이전트,</text>
+  <text x="430" y="258" font-size="12" font-weight="700" fill="#1d4ed8">LFM3 같은 소형 모델의 배포 형태 참고</text>
+
+  <text x="400" y="322" text-anchor="middle" font-size="11" fill="#9ca3af">두 저장소 모두 클론으로 직접 검증 · 스타 수는 GitHub API 차단으로 미확인 — 2026-10-28 AI 데일리 브리핑</text>
+</svg>

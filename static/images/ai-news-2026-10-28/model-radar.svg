@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">모델 레이더 — 같은 날, 두 방향의 원가 절감</text>
+
+  <!-- 왼쪽: Terra 가격 -->
+  <rect x="25" y="55" width="365" height="330" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="45" y="83" font-size="14" font-weight="700" fill="#1d4ed8">GPT-6.1 Terra — API 단가 ($/1M 토큰)</text>
+
+  <text x="45" y="116" font-size="12" font-weight="700" fill="#374151">입력</text>
+  <text x="45" y="138" font-size="11" fill="#374151">Terra</text>
+  <rect x="95" y="128" width="26" height="13" fill="#3b82f6"/>
+  <text x="127" y="139" font-size="11" fill="#111827">$1</text>
+  <text x="45" y="158" font-size="11" fill="#374151">Sol</text>
+  <rect x="95" y="148" width="52" height="13" fill="#94a3b8"/>
+  <text x="153" y="159" font-size="11" fill="#111827">$2</text>
+
+  <text x="45" y="192" font-size="12" font-weight="700" fill="#374151">출력</text>
+  <text x="45" y="214" font-size="11" fill="#374151">Terra</text>
+  <rect x="95" y="204" width="130" height="13" fill="#3b82f6"/>
+  <text x="231" y="215" font-size="11" fill="#111827">$5</text>
+  <text x="45" y="234" font-size="11" fill="#374151">Sol</text>
+  <rect x="95" y="224" width="260" height="13" fill="#94a3b8"/>
+  <text x="361" y="235" font-size="11" fill="#111827">$10</text>
+
+  <text x="45" y="272" font-size="12" fill="#374151">· 캐시 입력 $0.05/1M · 컨텍스트 약 1M (보도 기준)</text>
+  <text x="45" y="292" font-size="12" fill="#374151">· OSWorld 2.1: 74.2% (max effort) — Sol보다 낮지만</text>
+  <text x="45" y="310" font-size="12" fill="#374151">  태스크당 비용이 크게 저렴하다는 포지션</text>
+  <text x="45" y="330" font-size="12" fill="#374151">· API `gpt-6.1-terra` · ChatGPT·Codex 제공</text>
+  <text x="45" y="360" font-size="11" fill="#9ca3af">수치: 복수 보도 교차 확인 (공식 페이지 접근 불가 세션)</text>
+
+  <!-- 오른쪽: LFM3 -->
+  <rect x="410" y="55" width="365" height="330" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="430" y="83" font-size="14" font-weight="700" fill="#0f766e">LFM3-1.7B — 툴콜링 벤치마크 (0~100)</text>
+
+  <text x="430" y="112" font-size="11" fill="#374151">ToolSandbox</text>
+  <rect x="520" y="102" width="201" height="13" fill="#14b8a6"/>
+  <text x="727" y="113" font-size="11" fill="#111827">80.4</text>
+
+  <text x="430" y="138" font-size="11" fill="#374151">BFCL V4</text>
+  <rect x="520" y="128" width="178" height="13" fill="#14b8a6"/>
+  <text x="704" y="139" font-size="11" fill="#111827">71.4</text>
+
+  <text x="430" y="164" font-size="11" fill="#374151">τ³-bench 평균</text>
+  <rect x="520" y="154" width="170" height="13" fill="#14b8a6"/>
+  <text x="696" y="165" font-size="11" fill="#111827">68.0</text>
+
+  <text x="430" y="190" font-size="11" fill="#374151">LiveClaw</text>
+  <rect x="520" y="180" width="114" height="13" fill="#5eead4"/>
+  <text x="640" y="191" font-size="11" fill="#111827">45.6</text>
+
+  <text x="430" y="216" font-size="11" fill="#374151">MCP-Atlas</text>
+  <rect x="520" y="206" width="81" height="13" fill="#5eead4"/>
+  <text x="607" y="217" font-size="11" fill="#111827">32.6</text>
+
+  <text x="430" y="252" font-size="12" font-weight="700" fill="#374151">종합 평균 (벤더 보고)</text>
+  <text x="430" y="274" font-size="12" fill="#111827">LFM3-1.7B 49.4 &gt; Qwen3.5-9B 47.2 &gt; Qwen3.5-4B 39.3</text>
+
+  <text x="430" y="304" font-size="12" fill="#374151">· 4bit 양자화 시 메모리 약 1GB · 256K ctx</text>
+  <text x="430" y="322" font-size="12" fill="#374151">· 16개 언어 (한국어 포함) · LFM Open License v1.0</text>
+  <text x="430" y="340" font-size="12" fill="#374151">· VL-2B / Audio-2B / Omni-2B 멀티모달 동반 공개</text>
+  <text x="430" y="360" font-size="11" fill="#9ca3af">수치: Hugging Face 모델 카드 (벤더 자체 보고치)</text>
+
+  <text x="400" y="420" text-anchor="middle" font-size="12" fill="#6b7280">클라우드 쪽은 "같은 일을 절반 가격에", 엣지 쪽은 "툴콜링을 1GB 메모리에" — 에이전트 추론 원가가 양쪽에서 내려간 하루</text>
+  <text x="400" y="444" text-anchor="middle" font-size="11" fill="#9ca3af">2026-10-28 AI 데일리 브리핑</text>
+</svg>

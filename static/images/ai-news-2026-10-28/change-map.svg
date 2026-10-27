@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 510" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="510" fill="#ffffff"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-10-28</text>
+  <text x="400" y="58" text-anchor="middle" font-size="13" fill="#6b7280">키워드: 에이전트 추론 원가 절감 — 클라우드는 반값, 엣지는 1GB</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="80" width="360" height="185" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1d4ed8">모델 / 릴리즈</text>
+  <text x="50" y="134" font-size="13" fill="#111827">GPT-6.1 Terra (OpenAI, 10/26)</text>
+  <text x="50" y="154" font-size="12" fill="#374151">· 컴퓨터 유즈·비주얼 추론 특화 · $1/$5 (Sol의 절반)</text>
+  <text x="50" y="172" font-size="12" fill="#374151">· OSWorld 2.1 74.2% (max effort, 보도 기준)</text>
+  <text x="50" y="198" font-size="13" fill="#111827">LFM3 패밀리 (Liquid AI, 10/27)</text>
+  <text x="50" y="218" font-size="12" fill="#374151">· 1.7B~2B 오픈 웨이트 · 256K ctx · 4bit ≈ 1GB</text>
+  <text x="50" y="236" font-size="12" fill="#374151">· 로컬 에이전트·툴콜링 겨냥 포스트트레이닝</text>
+
+  <!-- 논문 -->
+  <rect x="410" y="80" width="360" height="185" rx="10" fill="#fdf4ff" stroke="#a855f7"/>
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#7e22ce">논문</text>
+  <text x="430" y="134" font-size="13" fill="#111827">Trial by Trace — 하네스 신뢰성 벤치 (2610.32285)</text>
+  <text x="430" y="154" font-size="12" fill="#374151">· 하네스 4종 × 모델 9종 × 3,420런 추적 평가</text>
+  <text x="430" y="172" font-size="12" fill="#b91c1c" font-weight="700">· 성공 런의 31.1%가 하네스 기준은 위반</text>
+  <text x="430" y="198" font-size="13" fill="#111827">DynaFlow — 워크플로를 "생성"하는 조율 (2610.34467)</text>
+  <text x="430" y="218" font-size="12" fill="#374151">· 메인 에이전트만 학습, 서브는 고정</text>
+  <text x="430" y="236" font-size="12" fill="#374151">· 6개 벤치 88.08%, 최강 베이스라인 +10.9%p</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="360" height="175" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="313" font-size="15" font-weight="700" fill="#15803d">오픈소스</text>
+  <text x="50" y="339" font-size="13" fill="#111827">craft-agents-oss — 문서 중심 에이전트 워크스페이스</text>
+  <text x="50" y="359" font-size="12" fill="#374151">· Claude Agent SDK + Pi SDK 병용 · Apache 2.0</text>
+  <text x="50" y="377" font-size="12" fill="#374151">· "소스 추가"를 에이전트가 직접 설정</text>
+  <text x="50" y="403" font-size="13" fill="#111827">FrigadeHQ/hob — 온디바이스 AI 데스크톱 앱</text>
+  <text x="50" y="423" font-size="12" fill="#374151">· 하드웨어에 맞는 오픈 웨이트 모델 자동 선택 · MIT</text>
+
+  <!-- 바이브코딩 -->
+  <rect x="410" y="285" width="360" height="175" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="430" y="313" font-size="15" font-weight="700" fill="#c2410c">바이브코딩</text>
+  <text x="430" y="339" font-size="13" fill="#111827">Codex: 스킬 카탈로그에서 설명문 생략 플래그</text>
+  <text x="430" y="359" font-size="12" fill="#374151">· omit_skill_descriptions — 이름·위치만 남겨 토큰 절약</text>
+  <text x="430" y="385" font-size="13" fill="#111827">Claude Code 2.1.312: 서브에이전트 압축 창 제어</text>
+  <text x="430" y="405" font-size="12" fill="#374151">· autoCompactWindow가 전역 env 값보다 낮출 수 있게</text>
+  <text x="430" y="423" font-size="12" fill="#374151">· 대량 툴 출력 서브에이전트의 컨텍스트 관리에 유용</text>
+
+  <text x="400" y="492" text-anchor="middle" font-size="11" fill="#9ca3af">검증: arXiv API · 저장소 클론 · HF 모델 카드 · 복수 보도 교차 확인 — 2026-10-28 AI 데일리 브리핑</text>
+</svg>

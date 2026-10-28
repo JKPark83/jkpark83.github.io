@@ -1,0 +1,372 @@
+---
+title: "'OpenAI 호환'은 어떻게 진짜 표준이 됐나 — Open Responses 스펙 해부"
+date: 2026-10-29T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "Open Responses", "Responses API", "Chat Completions", "LLM API", "API 표준", "AAIF", "Agentic AI Foundation", "스트리밍", "tool calling", "reasoning", "vLLM", "Ollama", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "로컬 서빙 툴을 띄우면 왜 전부 'OpenAI 호환 서버'일까요? 한 회사의 사설 API가 업계의 사실상 표준 노릇을 하던 시대가 이번 주에 한 단계 넘어갔습니다. 10월 22일 OpenAI가 Responses API의 공개 스펙인 Open Responses를 Linux Foundation 산하 Agentic AI Foundation에 기부하면서, AWS·Hugging Face·Ollama·OpenRouter·Databricks가 함께 관리하는 '진짜 표준'이 됐습니다. Chat Completions가 에이전트 시대에 삐걱대는 지점부터, item·시맨틱 스트리밍·previous_response_id·allowed_tools 같은 스펙의 핵심 설계, 그리고 compliance 테스트까지 — 주니어 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "open-responses-llm-api-standard-cover.svg"
+  alt: "여러 LLM 프로바이더마다 다른 어댑터를 붙이던 구조가 Open Responses라는 하나의 공개 스펙으로 수렴하는 그림"
+  caption: "N개의 앱 × M개의 프로바이더 = N×M개의 어댑터. 공개 스펙 하나면 N+M이면 됩니다."
+  relative: false
+---
+
+<style>
+/* ── Open Responses 포스트 전용 스타일 (orx- 접두사) ── */
+.orx-fig{
+  --orx-teal:#0d9488; --orx-rose:#e11d48; --orx-amber:#d97706; --orx-sky:#0284c7;
+  --orx-violet:#7c3aed; --orx-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .orx-fig{
+  --orx-teal:#2dd4bf; --orx-rose:#fb7185; --orx-amber:#fbbf24; --orx-sky:#38bdf8;
+  --orx-violet:#a78bfa; --orx-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .orx-fig{
+    --orx-teal:#2dd4bf; --orx-rose:#fb7185; --orx-amber:#fbbf24; --orx-sky:#38bdf8;
+    --orx-violet:#a78bfa; --orx-slate:#94a3b8;
+  }
+}
+.orx-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.orx-fig text{font-family:inherit}
+.orx-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.orx-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.orx-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.orx-toc ol{margin:0;padding-left:1.25rem}
+.orx-toc li{margin:.22rem 0;font-size:.95rem}
+.orx-toc a{text-decoration:none}
+.orx-toc a:hover{text-decoration:underline}
+.orx-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.orx-table th,.orx-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.orx-table th{background:var(--entry)}
+.orx-note{border-left:4px solid var(--orx-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.orx-warn{border-left:4px solid var(--orx-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="orx-toc">
+  <div class="orx-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 사설 API가 공개 표준이 된 날</a></li>
+    <li><a href="#sec-2">배경 — 'OpenAI 호환'의 역사</a></li>
+    <li><a href="#sec-3">Chat Completions가 에이전트 시대에 삐걱대는 세 곳</a></li>
+    <li><a href="#sec-4">해부 ① — item: 컨텍스트의 원자 단위</a></li>
+    <li><a href="#sec-5">해부 ② — 시맨틱 스트리밍과 상태 머신</a></li>
+    <li><a href="#sec-6">해부 ③ — 에이전트를 위한 손잡이들</a></li>
+    <li><a href="#sec-7">실전 — 같은 코드로 여러 프로바이더 호출하기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 사설 API가 공개 표준이 된 날</h2>
+
+<p>vLLM, Ollama, LM Studio… 로컬에서 모델을 서빙해 본 적이 있다면 이상한 공통점을 눈치챘을 겁니다. 전부 자기를 <strong>"OpenAI 호환(OpenAI-compatible) 서버"</strong>라고 소개합니다. 경쟁사의 모델을 돌리는 도구조차 한 회사의 API 모양을 그대로 흉내 냅니다. HTTP에 W3C가 있고 언어에 ISO가 있는 것과 달리, LLM API의 표준은 지금까지 <strong>어느 날 한 회사가 정한 JSON 모양</strong>이었습니다. 스펙 문서도, 중립적인 관리 주체도, 준수 여부를 검사할 테스트도 없이요.</p>
+
+<p>이 어색한 상태가 지난주에 한 단계 정리됐습니다. 10월 22일(현지 시각), San Jose에서 열린 AGNTCon + MCPCon에서 Linux Foundation 산하 <strong>Agentic AI Foundation(AAIF)</strong>이 신규 프로젝트 4개를 발표했습니다. Anthropic의 <strong>Agent Skills</strong>, Hugging Face의 <strong>OpenEnv</strong>, Alibaba의 <strong>OpenSandbox</strong>, 그리고 OpenAI의 <strong>Open Responses</strong> — Responses API를 벤더 중립 스펙으로 정리한 프로젝트입니다. 전날인 10월 21일에는 Open Responses의 기술 헌장(technical charter)이 채택됐고, 운영위원회(TSC)에는 OpenAI뿐 아니라 Amazon, Databricks, Hugging Face, Ollama, OpenRouter, Ramp의 엔지니어가 이름을 올렸습니다.</p>
+
+<p>"재단에 기부했다"는 뉴스 자체는 거버넌스 이야기지만, 그 밑에 깔린 질문은 순수하게 엔지니어링입니다. <strong>에이전트 시대의 LLM API는 어떤 모양이어야 하는가?</strong> Open Responses 스펙은 이 질문에 대한 현재 업계의 합의안이고, 분량도 핵심만 보면 하루에 다 읽을 수 있는 수준입니다. 이번 글에서는 이 스펙을 처음부터 끝까지 뜯어봅니다. 다 읽고 나면 "왜 다들 Chat Completions를 버리고 이쪽으로 가는지"가 구조적으로 이해될 겁니다.</p>
+
+<h2 id="sec-2">2. 배경 — 'OpenAI 호환'의 역사</h2>
+
+<p>먼저 어쩌다 한 회사의 API가 사실상 표준이 됐는지 짚고 갑시다. 2023년 3월, OpenAI가 <code>gpt-3.5-turbo</code>와 함께 <strong>Chat Completions API</strong>(<code>POST /v1/chat/completions</code>)를 공개했습니다. <code>messages</code> 배열에 <code>role</code>과 <code>content</code>를 담아 보내면 응답이 오는 단순한 구조였고, ChatGPT 붐과 함께 순식간에 생태계의 공용어가 됐습니다. 이후 등장한 거의 모든 서빙 도구와 라우터가 이 모양을 복제했습니다. 클라이언트 입장에서 <code>base_url</code>만 바꾸면 어디든 붙을 수 있다는 건 강력한 네트워크 효과였으니까요.</p>
+
+<p>그런데 2025년 3월 11일, 정작 OpenAI가 후속작을 내놓습니다. <strong>Responses API</strong>(<code>POST /v1/responses</code>)입니다. 에이전트와 리즈닝 모델(reasoning model, 답을 내기 전에 내부 추론 토큰을 생성하는 모델)을 위해 처음부터 다시 설계한 API였고, OpenAI는 기존의 Assistants API를 단계적으로 폐기하고 이쪽으로 통합하겠다고 예고했습니다. 문제는 이게 다시 <strong>한 회사의 사설 API</strong>라는 점이었습니다. 생태계가 또 한 번 그대로 복제하기 시작하면, "버전 관리도 안 되는 비공식 표준"이라는 상황이 반복됩니다.</p>
+
+<p>그래서 나온 게 <strong>Open Responses</strong>입니다. 2026년 1월 15일 첫 스펙 릴리스로 공개됐고, Responses API에서 출발하되 특정 벤더 종속 없이 요청/응답 모델·스트리밍 의미론·도구 호출 패턴을 정의합니다. TypeSpec 소스에서 OpenAPI 문서를 생성하고, 날짜 버전(<code>2026-01-15</code>, <code>2026-04-24</code>)으로 릴리스하며, 한번 릴리스된 버전은 불변(immutable)입니다. 라이선스는 Apache 2.0, 스펙 준수 여부를 검사하는 compliance 테스트(웹 UI와 CLI)까지 함께 제공합니다. 프로젝트 사이트에는 OpenAI 외에 AWS, NVIDIA, Hugging Face, Databricks, Red Hat, Vercel(AI SDK), OpenRouter, Ollama, LM Studio, vLLM, Llama Stack이 참여사로 올라 있습니다. 그리고 지난주, 이 스펙의 소유권이 AAIF로 넘어가면서 '한 회사의 제안'이 아니라 '공동 관리 표준'이 된 것입니다.</p>
+
+<div class="orx-note">
+<strong>AAIF가 뭔가요?</strong> 2025년 12월 9일 Linux Foundation이 설립한 에이전트 기술 전용 재단입니다. 창립 프로젝트가 MCP(Anthropic), goose(Block), AGENTS.md(OpenAI)였고, 이번 4개가 합류하며 호스팅 프로젝트는 총 10개가 됐습니다. 플래티넘 멤버는 AWS·Anthropic·Block·Bloomberg·Cloudflare·Google·Microsoft·OpenAI. 에이전트 스택의 '표준 기구' 역할이 이 재단으로 모이는 중입니다.
+</div>
+
+<h2 id="sec-3">3. Chat Completions가 에이전트 시대에 삐걱대는 세 곳</h2>
+
+<p>새 스펙을 이해하는 가장 빠른 길은 옛 스펙이 깨지는 지점을 보는 겁니다. Chat Completions는 "메시지를 보내면 메시지가 온다"는 챗봇 시대의 모델입니다. 에이전트 시대에는 세 군데서 삐걱댑니다.</p>
+
+<p><strong>첫째, 응답이 '메시지 하나'가 아닙니다.</strong> 요즘 모델의 한 턴은 내부 추론 → 도구 호출 → 도구 결과 반영 → 또 추론 → 최종 답변처럼 여러 종류의 산출물이 섞인 시퀀스입니다. Chat Completions는 이걸 <code>choices[0].message</code> 하나에 욱여넣느라 <code>tool_calls</code> 필드를 덧대고, 추론은 벤더마다 제각각의 비표준 필드로 노출했습니다.</p>
+
+<p><strong>둘째, 리즈닝 상태가 턴 사이에 유실됩니다.</strong> 리즈닝 모델은 도구 호출 전에 쌓은 추론을 도구 결과가 돌아온 뒤에도 이어 가야 하는데, Chat Completions에는 추론 상태를 다음 요청으로 돌려보낼 표준 통로가 없습니다. 모델 입장에서는 도구 결과가 돌아올 때마다 기억 상실에 걸리는 셈입니다. OpenAI는 같은 GPT-5를 Responses API로 돌리면 추론 보존 덕에 TAU-Bench 점수가 5% 오르고, 내부 벤치마크 기준 캐시 활용률이 40~80% 개선됐다고 보고합니다(자사 수치이니 참고용으로만).</p>
+
+<p><strong>셋째, 스트리밍이 '텍스트 조각'입니다.</strong> Chat Completions의 스트림은 사실상 <code>content</code> 문자열의 델타 나열이라, 도구 호출 인자와 추론과 본문이 섞이기 시작하면 클라이언트가 "지금 내가 받는 조각이 뭐의 일부인지"를 추측해야 합니다. 벤더마다 추측 규칙이 달라서, 멀티 프로바이더 클라이언트는 스트리밍 파서를 프로바이더 수만큼 들고 다니게 됩니다.</p>
+
+<p>Open Responses는 이 세 문제에 각각 답을 내놓습니다 — item, reasoning item, 시맨틱 이벤트입니다. 하나씩 봅시다.</p>
+
+<h2 id="sec-4">4. 해부 ① — item: 컨텍스트의 원자 단위</h2>
+
+<p>스펙의 중심 개념은 <strong>item(아이템)</strong>입니다. 메시지의 자리를 item이 대신합니다. item은 모델 출력·도구 호출·추론 상태를 담는 원자 단위이고, <strong>양방향</strong>입니다 — 모델의 출력으로 받을 수도 있고, 다음 요청의 입력으로 그대로 돌려보낼 수도 있습니다. 대화 컨텍스트란 결국 item의 목록입니다.</p>
+
+<p>item에는 네 가지 성질이 있습니다.</p>
+
+<p><strong>다형적(polymorphic)입니다.</strong> <code>type</code> 필드로 구분되는 여러 모양이 있습니다. 공통 타입으로 <code>message</code>, <code>function_call</code>, <code>function_call_output</code>, <code>reasoning</code> 등이 정의돼 있고, 각 타입은 자기 목적에 맞는 스키마를 가집니다.</p>
+
+{{< highlight json >}}
+// 한 응답(response)의 output — 서로 다른 타입의 item이 순서대로 쌓인다
+[
+  {
+    "type": "reasoning",
+    "status": "completed",
+    "summary": [{ "type": "summary_text", "text": "환율 조회가 필요하다고 판단" }],
+    "content": [],                  // 원문 추론: 프로바이더가 숨길 수 있음
+    "encrypted_content": "gAAAA..." // 암호화 추론: 클라이언트는 불투명하게 취급
+  },
+  {
+    "type": "function_call",
+    "id": "fc_001",
+    "call_id": "call_123",
+    "name": "get_exchange_rate",
+    "arguments": "{\"base\":\"USD\",\"quote\":\"KRW\"}"
+  }
+]
+{{< /highlight >}}
+
+<p><strong>상태 머신(state machine)입니다.</strong> 모든 item은 <code>in_progress</code>(모델이 토큰을 뱉는 중) → <code>completed</code>(완료) 또는 <code>incomplete</code>(토큰 예산 소진)라는 생명주기를 가집니다. <code>incomplete</code>은 종료 상태라서, 어떤 item이 이 상태로 끝나면 그 item이 마지막이어야 하고 응답 전체도 <code>incomplete</code>이어야 한다 — 이런 규칙까지 스펙에 못 박혀 있습니다. "응답이 중간에 잘렸는지 어떻게 아나요?" 같은, 지금까지 벤더마다 답이 다르던 질문에 표준 답이 생긴 겁니다.</p>
+
+<p><strong>스트리밍 가능(streamable)합니다.</strong> item이 생기고 자라고 완료되는 과정이 모두 이벤트로 중계됩니다(다음 절에서 자세히).</p>
+
+<p><strong>확장 가능(extensible)합니다.</strong> 프로바이더는 스펙에 없는 자기만의 item 타입을 추가할 수 있는데, 반드시 <code>openai:web_search_call</code>처럼 <strong>프로바이더 슬러그를 접두사</strong>로 붙여야 합니다. 핵심 스키마를 깨지 않으면서 벤더 고유 기능이 공존하는 통로입니다. 클라이언트는 모르는 타입의 item을 만나도 죽지 않고 통과시키도록 작성하면 됩니다.</p>
+
+<p>세 번째 문제였던 리즈닝 유실은 <code>reasoning</code> item이 해결합니다. 필드가 세 개인데 전부 선택(optional)입니다 — <code>content</code>(원문 추론, 공개 여부는 프로바이더 재량), <code>encrypted_content</code>(원문을 숨기면서도 다음 요청에 왕복시킬 수 있는 암호화 페이로드), <code>summary</code>(사용자에게 보여줘도 안전한 요약). 프로바이더는 자기 정책에 맞는 조합을 고르면 되고, 클라이언트는 <strong>받은 reasoning item을 다음 요청에 그대로 돌려보내기만 하면</strong> 모델이 추론을 이어 갑니다. 추론 상태의 보존을 '벤더 내부 구현'에서 '스펙의 계약'으로 끌어올린 설계입니다.</p>
+
+<figure class="orx-fig">
+<svg viewBox="0 0 860 420" role="img" aria-label="Chat Completions의 단일 메시지 응답과 Open Responses의 item 목록 응답을 비교한 다이어그램. 오른쪽에는 item의 상태 머신(in_progress에서 completed 또는 incomplete로)도 표시">
+  <text x="200" y="32" text-anchor="middle" fill="var(--orx-rose)" font-size="16" font-weight="800">Chat Completions</text>
+  <rect x="60" y="52" width="280" height="56" rx="10" fill="none" stroke="var(--orx-rose)" stroke-width="2.5"/>
+  <text x="200" y="78" text-anchor="middle" fill="var(--orx-rose)" font-size="13.5">choices[0].message</text>
+  <text x="200" y="98" text-anchor="middle" fill="var(--orx-slate)" font-size="12">content + tool_calls + 비표준 필드…</text>
+  <text x="200" y="138" text-anchor="middle" fill="var(--orx-slate)" font-size="12.5">응답 = 메시지 하나 (전부 욱여넣기)</text>
+
+  <text x="200" y="196" text-anchor="middle" fill="var(--orx-teal)" font-size="16" font-weight="800">Open Responses</text>
+  <rect x="60" y="216" width="280" height="42" rx="9" fill="var(--orx-violet)" opacity="0.14"/>
+  <rect x="60" y="216" width="280" height="42" rx="9" fill="none" stroke="var(--orx-violet)" stroke-width="2.5"/>
+  <text x="200" y="242" text-anchor="middle" fill="var(--orx-violet)" font-size="13">reasoning (추론 상태)</text>
+  <rect x="60" y="268" width="280" height="42" rx="9" fill="none" stroke="var(--orx-amber)" stroke-width="2.5"/>
+  <text x="200" y="294" text-anchor="middle" fill="var(--orx-amber)" font-size="13">function_call (도구 호출)</text>
+  <rect x="60" y="320" width="280" height="42" rx="9" fill="none" stroke="var(--orx-teal)" stroke-width="2.5"/>
+  <text x="200" y="346" text-anchor="middle" fill="var(--orx-teal)" font-size="13">message (최종 답변)</text>
+  <text x="200" y="392" text-anchor="middle" fill="var(--orx-slate)" font-size="12.5">응답 = item 목록, 각 item은 입력으로 되돌릴 수 있음</text>
+
+  <line x1="430" y1="30" x2="430" y2="400" stroke="var(--orx-slate)" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.5"/>
+
+  <text x="645" y="32" text-anchor="middle" fill="var(--orx-sky)" font-size="16" font-weight="800">item의 상태 머신</text>
+  <rect x="545" y="70" width="200" height="50" rx="25" fill="none" stroke="var(--orx-sky)" stroke-width="2.5"/>
+  <text x="645" y="101" text-anchor="middle" fill="var(--orx-sky)" font-size="14" font-weight="700">in_progress</text>
+  <line x1="600" y1="120" x2="560" y2="200" stroke="var(--orx-teal)" stroke-width="2.5"/>
+  <polygon points="556,208 554,194 568,198" fill="var(--orx-teal)"/>
+  <line x1="690" y1="120" x2="730" y2="200" stroke="var(--orx-rose)" stroke-width="2.5"/>
+  <polygon points="734,208 722,198 736,194" fill="var(--orx-rose)"/>
+  <rect x="470" y="212" width="180" height="50" rx="25" fill="var(--orx-teal)" opacity="0.14"/>
+  <rect x="470" y="212" width="180" height="50" rx="25" fill="none" stroke="var(--orx-teal)" stroke-width="2.5"/>
+  <text x="560" y="243" text-anchor="middle" fill="var(--orx-teal)" font-size="14" font-weight="700">completed</text>
+  <rect x="660" y="212" width="180" height="50" rx="25" fill="none" stroke="var(--orx-rose)" stroke-width="2.5"/>
+  <text x="750" y="243" text-anchor="middle" fill="var(--orx-rose)" font-size="14" font-weight="700">incomplete</text>
+  <text x="560" y="290" text-anchor="middle" fill="var(--orx-slate)" font-size="12">정상 완료 (종료 상태)</text>
+  <text x="750" y="290" text-anchor="middle" fill="var(--orx-slate)" font-size="12">토큰 예산 소진 (종료 상태)</text>
+  <text x="655" y="330" text-anchor="middle" fill="var(--orx-slate)" font-size="12.5">incomplete으로 끝난 item은 반드시 마지막 item이고,</text>
+  <text x="655" y="350" text-anchor="middle" fill="var(--orx-slate)" font-size="12.5">응답 전체 상태도 incomplete이어야 한다 (스펙 규칙)</text>
+</svg>
+<figcaption>그림 1. 왼쪽: 응답의 단위가 '메시지 하나'에서 'item 목록'으로 바뀝니다. 오른쪽: 모든 item은 동일한 상태 머신을 따르므로 "잘렸는지"를 표준 방법으로 판별할 수 있습니다.</figcaption>
+</figure>
+
+<h2 id="sec-5">5. 해부 ② — 시맨틱 스트리밍과 상태 머신</h2>
+
+<p>스트리밍도 다시 설계됐습니다. 원칙은 한 문장입니다. <strong>스트림은 텍스트 델타의 나열이 아니라, 의미 있는 사건(semantic event)의 나열이다.</strong> 모든 이벤트는 두 종류 중 하나입니다.</p>
+
+<ul>
+  <li><strong>델타 이벤트</strong> — 객체에 생긴 변화: <code>response.output_item.added</code>(새 item 추가), <code>response.output_text.delta</code>(본문 텍스트 추가), <code>response.function_call_arguments.delta</code>(도구 인자 추가), <code>response.content_part.done</code>(한 콘텐츠 조각 완결)…</li>
+  <li><strong>상태 머신 이벤트</strong> — 객체의 상태 전이: <code>response.in_progress</code>, <code>response.completed</code>, <code>response.failed</code>, <code>response.incomplete</code>…</li>
+</ul>
+
+<p>전송은 평범한 SSE(Server-Sent Events)지만 규칙이 명확합니다. 스트림은 반드시 종결 이벤트(<code>response.completed</code>/<code>failed</code>/<code>incomplete</code>)로 끝나야 하고, 그 뒤의 <code>[DONE]</code> 문자열은 보내도 되고 안 보내도 됩니다(클라이언트는 둘 다 수용해야 합니다). 각 이벤트에는 <code>sequence_number</code>가 붙어 순서 검증과 재연결 복구에 쓸 수 있습니다. item이 처음 등장할 때는 반드시 <code>response.output_item.added</code>가 먼저 오고, 그 시점에 알 수 있는 필드(메시지면 최소 <code>role</code>, 도구 호출이면 최소 <code>name</code>)가 채워져 있어야 합니다.</p>
+
+<figure class="orx-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="Open Responses 스트리밍 이벤트의 타임라인. response.created부터 output_item.added, output_text.delta 반복, output_item.done을 거쳐 response.completed까지의 흐름">
+  <line x1="60" y1="165" x2="800" y2="165" stroke="var(--orx-slate)" stroke-width="2.5"/>
+  <polygon points="812,165 792,156 792,174" fill="var(--orx-slate)"/>
+  <g font-size="12.5">
+    <circle cx="100" cy="165" r="7" fill="var(--orx-sky)"/>
+    <text x="100" y="130" text-anchor="middle" fill="var(--orx-sky)" font-weight="700">response.created</text>
+    <text x="100" y="200" text-anchor="middle" fill="var(--orx-slate)">응답 생성</text>
+
+    <circle cx="240" cy="165" r="7" fill="var(--orx-violet)"/>
+    <text x="240" y="108" text-anchor="middle" fill="var(--orx-violet)" font-weight="700">output_item.added</text>
+    <text x="240" y="128" text-anchor="middle" fill="var(--orx-violet)">(type: message, role 포함)</text>
+    <text x="240" y="200" text-anchor="middle" fill="var(--orx-slate)">새 item 등장</text>
+
+    <circle cx="410" cy="165" r="7" fill="var(--orx-teal)"/>
+    <circle cx="440" cy="165" r="7" fill="var(--orx-teal)"/>
+    <circle cx="470" cy="165" r="7" fill="var(--orx-teal)"/>
+    <text x="440" y="130" text-anchor="middle" fill="var(--orx-teal)" font-weight="700">output_text.delta × N</text>
+    <text x="440" y="200" text-anchor="middle" fill="var(--orx-slate)">본문이 자라는 델타</text>
+
+    <circle cx="610" cy="165" r="7" fill="var(--orx-amber)"/>
+    <text x="610" y="108" text-anchor="middle" fill="var(--orx-amber)" font-weight="700">output_item.done</text>
+    <text x="610" y="128" text-anchor="middle" fill="var(--orx-amber)">(item → completed)</text>
+    <text x="610" y="200" text-anchor="middle" fill="var(--orx-slate)">item 완결</text>
+
+    <circle cx="745" cy="165" r="8" fill="var(--orx-rose)"/>
+    <text x="745" y="130" text-anchor="middle" fill="var(--orx-rose)" font-weight="700">response.completed</text>
+    <text x="745" y="200" text-anchor="middle" fill="var(--orx-slate)">종결 이벤트 (필수)</text>
+  </g>
+  <text x="430" y="255" text-anchor="middle" fill="var(--orx-slate)" font-size="13">모든 이벤트에 sequence_number — 순서 검증·재연결 복구용</text>
+  <text x="430" y="280" text-anchor="middle" fill="var(--orx-slate)" font-size="13">델타 이벤트(무엇이 자랐나) + 상태 머신 이벤트(상태가 바뀌었나), 두 종류뿐</text>
+  <text x="430" y="305" text-anchor="middle" fill="var(--orx-slate)" font-size="13">도구 호출 item이면 output_text.delta 자리에 function_call_arguments.delta가 흐른다</text>
+</svg>
+<figcaption>그림 2. 시맨틱 스트리밍의 한 턴. 클라이언트는 문자열을 추측으로 짜 맞추는 대신 이벤트 <code>type</code>으로 분기하면 됩니다. 프로바이더가 달라도 파서는 하나면 충분합니다.</figcaption>
+</figure>
+
+<p>이 설계의 수혜자는 UI를 만드는 사람입니다. "추론 중입니다" 스피너, 도구 호출 카드, 본문 타이핑 효과를 이벤트 타입별 분기로 깔끔하게 구현할 수 있고, 그 코드가 OpenAI든 vLLM이든 Ollama든 동일하게 동작합니다. 참고로 2026-04-24 릴리스에서는 같은 이벤트 모델을 그대로 쓰는 <strong>WebSocket 전송</strong>도 추가됐습니다. 연결당 동시 응답은 1개, 연결 수명은 최대 60분, 턴 시작은 <code>response.create</code> 메시지로 — 장시간 에이전트 세션을 위한 저지연 통로입니다.</p>
+
+<h2 id="sec-6">6. 해부 ③ — 에이전트를 위한 손잡이들</h2>
+
+<p>스펙 후반부에는 에이전트 루프 운영에 필요한 손잡이들이 모여 있습니다. 네 가지만 추리면 이렇습니다.</p>
+
+<p><strong><code>previous_response_id</code> — 대화를 서버에 이어 붙이기.</strong> 매 턴 전체 히스토리를 재전송하는 대신, 직전 응답의 ID와 새 입력만 보내면 서버가 <code>이전 입력 → 이전 출력 → 새 입력</code> 순서로 컨텍스트를 이어 붙입니다. 이 순서 보존은 MUST 규칙입니다. 도구 호출 루프라면 <code>function_call_output</code> item과 다음 사용자 메시지만 보내면 되니 페이로드가 확 줄고, 서버는 캐시를 그대로 재사용할 수 있습니다. 단, 서버 저장을 끈 <code>store=false</code>에서는 영속 폴백이 없다는 점을 기억하세요(8절에서 다시).</p>
+
+<p><strong><code>allowed_tools</code> — 캐시를 깨지 않는 도구 제한.</strong> 도구 목록(<code>tools</code>)을 요청마다 고치면 시스템 프롬프트와 도구 스키마의 프롬프트 캐시가 통째로 무효화됩니다. 대신 <code>tools</code>는 고정해 두고 <code>allowed_tools</code>로 "이번 턴에 실제 호출 가능한 부분집합"만 좁히는 설계입니다. 서버는 이걸 강제 규칙(hard constraint)으로 집행해야 합니다 — 목록 밖 도구 호출은 거부되거나 억제됩니다. 테넌트별 권한, 사용자 역할, 기능 플래그 같은 요청 단위 도구 거버넌스를 캐시 손실 없이 구현하는 통로입니다.</p>
+
+<p><strong><code>truncation</code> — 컨텍스트 초과 시의 계약.</strong> <code>"auto"</code>면 서버가 오래된 턴부터 알아서 잘라 창에 맞추고, <code>"disabled"</code>면 자르는 대신 요청을 실패시켜야 합니다. "조용히 앞부분이 잘려 나갔는데 아무도 몰랐다"는 사고를 계약 수준에서 막을 수 있습니다.</p>
+
+<p><strong><code>POST /v1/responses/compact</code> — 압축의 표준화.</strong> 2026-04-24 릴리스에 추가된 엔드포인트로, 긴 대화를 압축한 입력 윈도우로 바꿔 돌려줍니다. 이 블로그에서 여러 번 다룬 컨텍스트 압축(compaction)이 벤더 공통 API 표면으로 올라온 셈입니다. 압축 후에는 <code>previous_response_id</code> 없이 압축 결과를 새 <code>input</code>의 바탕으로 깔고 새 응답을 시작합니다.</p>
+
+<h2 id="sec-7">7. 실전 — 같은 코드로 여러 프로바이더 호출하기</h2>
+
+<p>스펙의 약속이 실감 나는 건 역시 코드를 볼 때입니다. 아래는 도구 호출 루프 한 바퀴를 도는 최소 클라이언트입니다. 포인트는 딱 하나 — <strong><code>BASE_URL</code>만 바꾸면 OpenAI, vLLM(0.10 이상이 <code>/v1/responses</code>를 지원합니다), Ollama 어디에든 붙습니다.</strong></p>
+
+{{< highlight python >}}
+import json, requests
+
+BASE_URL = "http://localhost:8000/v1"   # vLLM이든 OpenAI든 여기만 교체
+HEADERS = {"Authorization": "Bearer sk-...", "Content-Type": "application/json"}
+
+tools = [{
+    "type": "function",
+    "name": "get_exchange_rate",
+    "description": "기준 통화 대비 환율을 조회한다",
+    "parameters": {
+        "type": "object",
+        "properties": {"base": {"type": "string"}, "quote": {"type": "string"}},
+        "required": ["base", "quote"],
+    },
+}]
+
+# ① 첫 턴: 질문과 도구 목록을 보낸다
+r1 = requests.post(f"{BASE_URL}/responses", headers=HEADERS, json={
+    "model": "gpt-openresponses-1",
+    "input": [{"type": "message", "role": "user",
+               "content": "지금 1달러가 몇 원이야?"}],
+    "tools": tools,
+}).json()
+
+# ② 출력은 '메시지 하나'가 아니라 item 목록 — 타입으로 분기한다
+outputs = {}
+for item in r1["output"]:
+    if item["type"] == "function_call":
+        args = json.loads(item["arguments"])
+        outputs[item["call_id"]] = my_get_exchange_rate(**args)  # 직접 실행
+    # reasoning 등 모르는 타입은 그냥 통과 (전방 호환)
+
+# ③ 둘째 턴: 전체 히스토리 대신 previous_response_id + 도구 결과만
+r2 = requests.post(f"{BASE_URL}/responses", headers=HEADERS, json={
+    "model": "gpt-openresponses-1",
+    "previous_response_id": r1["id"],   # 서버가 이전 입력+출력을 이어 붙인다
+    "input": [{"type": "function_call_output",
+               "call_id": cid, "output": str(out)}
+              for cid, out in outputs.items()],
+    "tools": tools,                     # 도구 목록은 고정 (캐시 보존)
+}).json()
+
+print(r2["output_text"])  # 최종 답변 텍스트 헬퍼
+{{< /highlight >}}
+
+<p>내 서버(혹은 내가 만든 프록시)가 스펙을 제대로 지키는지는 공식 compliance 테스트로 확인할 수 있습니다. 스펙 저장소를 받아 CLI로 돌리면 됩니다.</p>
+
+{{< highlight bash >}}
+git clone https://github.com/openresponses/openresponses
+cd openresponses && bun install
+
+# 내 엔드포인트에 스펙 준수 테스트 실행 (요청당 30초 데드라인)
+bun run test:compliance --base-url http://localhost:8000/v1 --api-key $API_KEY
+
+# 특정 테스트만 골라서
+bun run test:compliance --base-url http://localhost:8000/v1 \
+  --api-key $API_KEY --filter basic-response,streaming-response
+{{< /highlight >}}
+
+<p>웹 UI 버전도 <a href="https://www.openresponses.org/compliance" target="_blank" rel="noopener">openresponses.org/compliance</a>에 있습니다. "우리 게이트웨이는 OpenAI 호환입니다"라는 말이 이제 <strong>돌려서 검증 가능한 주장</strong>이 된 겁니다 — 이게 공개 스펙과 비공식 호환의 결정적 차이입니다.</p>
+
+<figure class="orx-fig">
+<svg viewBox="0 0 860 300" role="img" aria-label="previous_response_id의 의미론. 서버가 이전 응답의 입력과 출력 뒤에 새 입력을 이어 붙여 모델에 전달하는 구조">
+  <text x="430" y="30" text-anchor="middle" fill="var(--orx-teal)" font-size="16" font-weight="800">previous_response_id의 계약 — 서버가 이어 붙이는 순서</text>
+  <rect x="60" y="60" width="210" height="64" rx="10" fill="var(--orx-sky)" opacity="0.12"/>
+  <rect x="60" y="60" width="210" height="64" rx="10" fill="none" stroke="var(--orx-sky)" stroke-width="2.5"/>
+  <text x="165" y="88" text-anchor="middle" fill="var(--orx-sky)" font-size="13.5" font-weight="700">previous_response.input</text>
+  <text x="165" y="110" text-anchor="middle" fill="var(--orx-slate)" font-size="12">지난 턴에 보낸 전체 입력</text>
+  <line x1="270" y1="92" x2="320" y2="92" stroke="var(--orx-slate)" stroke-width="2.5"/>
+  <polygon points="328,92 314,85 314,99" fill="var(--orx-slate)"/>
+  <rect x="330" y="60" width="210" height="64" rx="10" fill="var(--orx-violet)" opacity="0.12"/>
+  <rect x="330" y="60" width="210" height="64" rx="10" fill="none" stroke="var(--orx-violet)" stroke-width="2.5"/>
+  <text x="435" y="88" text-anchor="middle" fill="var(--orx-violet)" font-size="13.5" font-weight="700">previous_response.output</text>
+  <text x="435" y="110" text-anchor="middle" fill="var(--orx-slate)" font-size="12">모델이 만든 item들 (추론 포함)</text>
+  <line x1="540" y1="92" x2="590" y2="92" stroke="var(--orx-slate)" stroke-width="2.5"/>
+  <polygon points="598,92 584,85 584,99" fill="var(--orx-slate)"/>
+  <rect x="600" y="60" width="200" height="64" rx="10" fill="var(--orx-teal)" opacity="0.14"/>
+  <rect x="600" y="60" width="200" height="64" rx="10" fill="none" stroke="var(--orx-teal)" stroke-width="2.5"/>
+  <text x="700" y="88" text-anchor="middle" fill="var(--orx-teal)" font-size="13.5" font-weight="700">input (이번 턴)</text>
+  <text x="700" y="110" text-anchor="middle" fill="var(--orx-slate)" font-size="12">도구 결과 + 새 메시지만</text>
+
+  <line x1="430" y1="140" x2="430" y2="178" stroke="var(--orx-slate)" stroke-width="2.5"/>
+  <polygon points="430,186 423,174 437,174" fill="var(--orx-slate)"/>
+  <rect x="280" y="190" width="300" height="48" rx="10" fill="none" stroke="var(--orx-amber)" stroke-width="2.5"/>
+  <text x="430" y="220" text-anchor="middle" fill="var(--orx-amber)" font-size="14" font-weight="700">모델 샘플링 (순서 보존은 MUST)</text>
+  <text x="430" y="268" text-anchor="middle" fill="var(--orx-slate)" font-size="12.5">클라이언트는 히스토리 전체를 재전송하지 않는다 → 페이로드 절감 + 서버 캐시 재사용</text>
+  <text x="430" y="290" text-anchor="middle" fill="var(--orx-rose)" font-size="12.5">단, store=false면 서버에 영속 저장이 없어 이 연결 고리가 쉽게 끊어진다 (8절)</text>
+</svg>
+<figcaption>그림 3. <code>previous_response_id</code>가 주어지면 서버는 이전 입력 → 이전 출력 → 새 입력 순서로 컨텍스트를 재구성해야 합니다. 리즈닝 item도 이 경로로 보존됩니다.</figcaption>
+</figure>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong><code>output[0]</code>이 메시지라고 가정하지 마세요.</strong> Chat Completions에서 넘어올 때 가장 흔한 버그입니다. 출력의 첫 item은 <code>reasoning</code>일 수도, <code>function_call</code>일 수도 있습니다. 반드시 <code>type</code>으로 분기하고, 최종 텍스트만 필요하면 <code>output_text</code> 헬퍼를 쓰세요.</li>
+  <li><strong>모르는 item·이벤트 타입에서 죽지 않게.</strong> 프로바이더 확장은 <code>벤더슬러그:타입</code> 형태로 언제든 끼어듭니다. 파서의 기본 동작은 '무시하고 통과'여야 전방 호환이 됩니다.</li>
+  <li><strong><code>store=false</code>와 <code>previous_response_id</code>의 조합을 조심하세요.</strong> 서버 저장을 끄면 이전 응답을 복원할 영속 상태가 없습니다. WebSocket에서는 연결-로컬 메모리로 직전 응답에 한해 이어 갈 수 있지만, 연결이 끊기거나 60분 한도에 걸리면 <code>previous_response_not_found</code>를 받습니다. 이때는 전체 컨텍스트를 다시 보내거나 <code>/responses/compact</code> 결과로 새 응답을 시작하는 복구 경로를 미리 코드에 넣어 두세요.</li>
+  <li><strong>reasoning item은 버리지 말고 되돌려 보내세요.</strong> 도구 호출 루프에서 <code>encrypted_content</code>가 달린 reasoning item을 다음 요청 입력에 포함하지 않으면, 모델은 도구 결과가 올 때마다 추론을 처음부터 다시 합니다. 내용이 안 보여도(암호화) 왕복은 됩니다.</li>
+  <li><strong>도구를 끄고 싶으면 <code>tools</code>를 고치지 말고 <code>allowed_tools</code>를 쓰세요.</strong> <code>tools</code> 배열을 수정하면 프롬프트 캐시가 깨집니다. 전체 목록은 고정하고 호출 가능 부분집합만 좁히는 게 스펙이 의도한 사용법입니다.</li>
+  <li><strong>컨텍스트가 길어질 서비스라면 <code>truncation</code>을 명시하세요.</strong> 기본 동작에 기대면 "언제부턴가 모델이 앞부분을 모른다"는 미스터리 버그로 돌아옵니다. 자를 거면 <code>auto</code>를 의식적으로, 못 자르게 할 거면 <code>disabled</code>로 실패를 받으세요.</li>
+  <li><strong>버전은 날짜로 고정하세요.</strong> 릴리스(<code>2026-01-15</code>, <code>2026-04-24</code>)는 불변입니다. 게이트웨이나 SDK를 만든다면 "우리는 2026-04-24 스펙 준수"처럼 날짜를 박고, compliance 테스트를 CI에 넣어 두면 스펙 업데이트 때 깨지는 지점이 바로 보입니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>10월 22일, OpenAI가 Open Responses를 Linux Foundation 산하 AAIF에 기부했습니다.</strong> Agent Skills(Anthropic)·OpenEnv(Hugging Face)·OpenSandbox(Alibaba)와 함께였고, 이로써 'OpenAI 호환'이라는 비공식 관행이 Amazon·Databricks·Hugging Face·Ollama·OpenRouter가 함께 관리하는 공개 표준이 됐습니다.</li>
+  <li><strong>왜 새 API인가:</strong> Chat Completions는 응답이 '메시지 하나'라는 챗봇 시대 가정 위에 서 있습니다. 에이전트 시대의 한 턴은 추론·도구 호출·답변이 섞인 시퀀스라 <strong>item 목록</strong>이 맞는 모양이고, 리즈닝 상태는 <code>reasoning</code> item(원문/암호화/요약)으로 턴 사이를 왕복합니다.</li>
+  <li><strong>스트리밍은 시맨틱 이벤트</strong>(델타 + 상태 전이) 두 종류로 통일됐습니다. 이벤트 <code>type</code>으로 분기하는 파서 하나로 모든 준수 프로바이더를 처리할 수 있습니다.</li>
+  <li><strong>에이전트용 손잡이:</strong> <code>previous_response_id</code>(히스토리 재전송 없는 연속), <code>allowed_tools</code>(캐시를 안 깨는 도구 제한), <code>truncation</code>(자를지 실패할지의 계약), <code>/responses/compact</code>(압축의 표준화), WebSocket 전송(60분, 턴당 <code>response.create</code>).</li>
+  <li><strong>검증 가능성이 핵심 차이:</strong> 날짜 버전 릴리스는 불변이고, compliance 테스트(웹/CLI)로 "호환"이라는 주장을 실제로 돌려 확인할 수 있습니다. 내 게이트웨이를 만들면 CI에 넣으세요.</li>
+  <li>수치는 출처를 가려 읽으세요 — "TAU-Bench +5%, 캐시 활용률 40~80% 개선"은 OpenAI 자사 벤치마크 수치입니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.openresponses.org/" target="_blank" rel="noopener">Open Responses — 공식 사이트 (스펙·레퍼런스·compliance 테스트)</a></li>
+  <li><a href="https://github.com/openresponses/openresponses" target="_blank" rel="noopener">openresponses/openresponses — 스펙 저장소 (TypeSpec 소스·OpenAPI·CHANGELOG·기술 헌장)</a></li>
+  <li><a href="https://www.linuxfoundation.org/press/agentic-ai-foundation-announces-four-new-projects-agent-skills-open-responses-openenv-and-opensandbox" target="_blank" rel="noopener">AAIF Announces Four New Projects: Agent Skills, Open Responses, OpenEnv, OpenSandbox — Linux Foundation (2026-10-22)</a></li>
+  <li><a href="https://thenewstack.io/openai-donates-open-responses/" target="_blank" rel="noopener">OpenAI donates Open Responses to the Agentic AI Foundation — The New Stack</a></li>
+  <li><a href="https://siliconangle.com/2026/10/22/agentic-ai-foundation-adds-four-more-open-source-ai-tools/" target="_blank" rel="noopener">Agentic AI Foundation adds four more open source AI tools — SiliconANGLE (2026-10-22)</a></li>
+  <li><a href="https://aws.amazon.com/blogs/opensource/open-responses-joins-aaif-with-aws-support/" target="_blank" rel="noopener">Open Responses Joins AAIF with AWS Support — AWS Open Source Blog</a></li>
+  <li><a href="https://developers.openai.com/blog/responses-api" target="_blank" rel="noopener">Why we built the Responses API — OpenAI (TAU-Bench +5%·캐시 활용률 수치의 출처)</a></li>
+  <li><a href="https://openai.com/index/new-tools-and-features-in-the-responses-api" target="_blank" rel="noopener">New tools and features in the Responses API — OpenAI</a></li>
+  <li><a href="https://simonwillison.net/2025/Mar/11/responses-vs-chat-completions/" target="_blank" rel="noopener">OpenAI API: Responses vs. Chat Completions — Simon Willison (2025-03-11)</a></li>
+  <li><a href="https://www.linuxfoundation.org/press/linux-foundation-announces-the-formation-of-the-agentic-ai-foundation" target="_blank" rel="noopener">Linux Foundation Announces the Formation of the Agentic AI Foundation (2025-12-09)</a></li>
+  <li><a href="https://developers.openai.com/cookbook/articles/gpt-oss/run-vllm" target="_blank" rel="noopener">How to run gpt-oss with vLLM — vLLM의 /v1/responses 엔드포인트</a></li>
+  <li>(한국어) <a href="https://discuss.pytorch.kr/t/aaif-agent-skills-open-responses-openenv-opensandbox-10/12275" target="_blank" rel="noopener">AAIF 신규 프로젝트 4종 소개 — 파이토치 한국 사용자 모임</a></li>
+  <li>(한국어) <a href="/posts/reasoning-block-state-agent-loop/" target="_blank" rel="noopener">에이전트 루프의 추론 상태 관리 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/agents-api-managed-harness/" target="_blank" rel="noopener">하네스의 상품화 — OpenAI Agents API 해부 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/agent-token-economics/" target="_blank" rel="noopener">에이전트 토큰 이코노믹스 — 이 블로그</a></li>
+  <li>(한국어) <a href="/posts/context-compaction-long-horizon-agents/" target="_blank" rel="noopener">장기 실행 에이전트의 컨텍스트 압축 — 이 블로그</a></li>
+</ul>

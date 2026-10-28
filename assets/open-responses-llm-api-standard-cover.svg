@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="여러 LLM 프로바이더마다 다른 어댑터를 붙이던 구조가 Open Responses라는 하나의 공개 스펙으로 수렴하는 모습을 그린 커버 이미지">
+  <defs>
+    <linearGradient id="orxg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#042f2e"/>
+    </linearGradient>
+    <linearGradient id="orx-teal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+    <linearGradient id="orx-rose" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#orxg)"/>
+
+  <text x="80" y="98" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">LLM API에도 '진짜 표준'이 생겼다</text>
+  <text x="80" y="156" fill="#5eead4" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">Open Responses 스펙 해부</text>
+  <text x="80" y="204" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22">Chat Completions(2023) → Responses API(2025) → AAIF 공개 표준(2026)</text>
+
+  <!-- left: adapter chaos -->
+  <text x="255" y="270" text-anchor="middle" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="700">프로바이더마다 다른 API</text>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="16">
+    <rect x="100" y="300" width="130" height="44" rx="10" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+    <text x="165" y="328" text-anchor="middle" fill="#fda4af">앱 A</text>
+    <rect x="100" y="364" width="130" height="44" rx="10" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+    <text x="165" y="392" text-anchor="middle" fill="#fda4af">앱 B</text>
+    <rect x="100" y="428" width="130" height="44" rx="10" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+    <text x="165" y="456" text-anchor="middle" fill="#fda4af">앱 C</text>
+    <rect x="320" y="300" width="130" height="44" rx="10" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+    <text x="385" y="328" text-anchor="middle" fill="#fda4af">모델 1</text>
+    <rect x="320" y="364" width="130" height="44" rx="10" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+    <text x="385" y="392" text-anchor="middle" fill="#fda4af">모델 2</text>
+    <rect x="320" y="428" width="130" height="44" rx="10" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+    <text x="385" y="456" text-anchor="middle" fill="#fda4af">모델 3</text>
+    <g stroke="url(#orx-rose)" stroke-width="2" opacity="0.8">
+      <line x1="230" y1="322" x2="320" y2="322"/><line x1="230" y1="322" x2="320" y2="386"/><line x1="230" y1="322" x2="320" y2="450"/>
+      <line x1="230" y1="386" x2="320" y2="322"/><line x1="230" y1="386" x2="320" y2="386"/><line x1="230" y1="386" x2="320" y2="450"/>
+      <line x1="230" y1="450" x2="320" y2="322"/><line x1="230" y1="450" x2="320" y2="386"/><line x1="230" y1="450" x2="320" y2="450"/>
+    </g>
+  </g>
+  <text x="275" y="520" text-anchor="middle" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18">어댑터 3 × 3 = 9개</text>
+
+  <!-- arrow -->
+  <line x1="505" y1="390" x2="585" y2="390" stroke="#5eead4" stroke-width="5"/>
+  <polygon points="615,390 580,372 580,408" fill="#5eead4"/>
+
+  <!-- right: one spec -->
+  <text x="885" y="270" text-anchor="middle" fill="#2dd4bf" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="700">하나의 공개 스펙</text>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="16">
+    <rect x="660" y="300" width="130" height="44" rx="10" fill="none" stroke="#5eead4" stroke-width="2.5"/>
+    <text x="725" y="328" text-anchor="middle" fill="#99f6e4">앱 A</text>
+    <rect x="660" y="364" width="130" height="44" rx="10" fill="none" stroke="#5eead4" stroke-width="2.5"/>
+    <text x="725" y="392" text-anchor="middle" fill="#99f6e4">앱 B</text>
+    <rect x="660" y="428" width="130" height="44" rx="10" fill="none" stroke="#5eead4" stroke-width="2.5"/>
+    <text x="725" y="456" text-anchor="middle" fill="#99f6e4">앱 C</text>
+    <rect x="830" y="352" width="160" height="68" rx="14" fill="url(#orx-teal)" opacity="0.25"/>
+    <rect x="830" y="352" width="160" height="68" rx="14" fill="none" stroke="#2dd4bf" stroke-width="3"/>
+    <text x="910" y="381" text-anchor="middle" fill="#5eead4" font-weight="800" font-size="17">Open</text>
+    <text x="910" y="404" text-anchor="middle" fill="#5eead4" font-weight="800" font-size="17">Responses</text>
+    <rect x="1030" y="300" width="130" height="44" rx="10" fill="none" stroke="#5eead4" stroke-width="2.5"/>
+    <text x="1095" y="328" text-anchor="middle" fill="#99f6e4">모델 1</text>
+    <rect x="1030" y="364" width="130" height="44" rx="10" fill="none" stroke="#5eead4" stroke-width="2.5"/>
+    <text x="1095" y="392" text-anchor="middle" fill="#99f6e4">모델 2</text>
+    <rect x="1030" y="428" width="130" height="44" rx="10" fill="none" stroke="#5eead4" stroke-width="2.5"/>
+    <text x="1095" y="456" text-anchor="middle" fill="#99f6e4">모델 3</text>
+    <g stroke="#2dd4bf" stroke-width="2.5" opacity="0.9">
+      <line x1="790" y1="322" x2="830" y2="372"/><line x1="790" y1="386" x2="830" y2="386"/><line x1="790" y1="450" x2="830" y2="400"/>
+      <line x1="990" y1="372" x2="1030" y2="322"/><line x1="990" y1="386" x2="1030" y2="386"/><line x1="990" y1="400" x2="1030" y2="450"/>
+    </g>
+  </g>
+  <text x="910" y="520" text-anchor="middle" fill="#2dd4bf" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18">변환 3 + 3 = 6개, 스펙은 하나</text>
+
+  <text x="80" y="590" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19">2026-10-22, OpenAI가 Responses API 스펙을 Linux Foundation 산하 AAIF에 기부했습니다</text>
+</svg>

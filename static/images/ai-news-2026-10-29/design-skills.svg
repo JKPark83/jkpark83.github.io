@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="470" fill="#ffffff"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#111827">디자인 스킬 전쟁 — impeccable vs hallmark</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#6b7280">공통 목표: 코딩 에이전트 결과물의 "AI 생성 티" 제거 · 둘 다 anthropics/skills frontend-design 계보</text>
+
+  <!-- impeccable -->
+  <rect x="30" y="80" width="360" height="300" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="110" font-size="16" font-weight="700" fill="#15803d">pbakaus/impeccable</text>
+  <text x="50" y="130" font-size="11" fill="#6b7280">TypeScript + Rust · 커밋 10/28</text>
+  <text x="50" y="158" font-size="12.5" fill="#111827">· 스킬 1개 + 커맨드 24개 (/impeccable …)</text>
+  <text x="50" y="180" font-size="12.5" fill="#111827">· 결정론적 디텍터 룰 62개 — LLM·API 키 불필요</text>
+  <text x="50" y="202" font-size="12.5" fill="#111827">· PRODUCT.md(제품 사실) / DESIGN.md(비주얼) 분리</text>
+  <text x="50" y="224" font-size="12.5" fill="#111827">· 라이브 브라우저 반복: /impeccable live · generate</text>
+  <text x="50" y="246" font-size="12.5" fill="#111827">· CLI + 브라우저 확장으로 룰 검사 실행</text>
+  <text x="50" y="276" font-size="12" font-weight="700" fill="#15803d">쓰임새</text>
+  <text x="50" y="296" font-size="12" fill="#374151">기존 프로젝트의 디자인 품질 게이트를</text>
+  <text x="50" y="314" font-size="12" fill="#374151">CI처럼 결정론적으로 돌리고 싶을 때</text>
+  <text x="50" y="344" font-size="11.5" fill="#6b7280">npx impeccable install → /impeccable init</text>
+
+  <!-- hallmark -->
+  <rect x="410" y="80" width="360" height="300" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="430" y="110" font-size="16" font-weight="700" fill="#1d4ed8">Nutlope/hallmark (Together AI)</text>
+  <text x="430" y="130" font-size="11" fill="#6b7280">JavaScript + 스킬 마크다운 · v2 · 커밋 10/28</text>
+  <text x="430" y="158" font-size="12.5" fill="#111827">· 테마 50개 — 각각 8KB 이하 "재료" 파일 1개</text>
+  <text x="430" y="180" font-size="12.5" fill="#111827">· 3단 게이트: Floor(절대) / Reflex(기본) / Finish(마감)</text>
+  <text x="430" y="202" font-size="12.5" fill="#111827">· sloplint가 실제 브라우저 8개 폭에서 렌더 검사</text>
+  <text x="430" y="224" font-size="12.5" fill="#111827">· 마지막은 신선한 컨텍스트의 서브에이전트 리뷰</text>
+  <text x="430" y="246" font-size="12.5" fill="#111827">· 오픈 라이선스 사진 755장 · redesign / audit 커맨드</text>
+  <text x="430" y="276" font-size="12" font-weight="700" fill="#1d4ed8">쓰임새</text>
+  <text x="430" y="296" font-size="12" fill="#374151">랜딩·제품 페이지를 처음부터 뽑을 때,</text>
+  <text x="430" y="314" font-size="12" fill="#374151">페이지의 "할 일"(예약·구매) 중심 구성이 필요할 때</text>
+  <text x="430" y="344" font-size="11.5" fill="#6b7280">Claude Code · Codex · Cursor · OpenCode 지원</text>
+
+  <!-- bottom -->
+  <rect x="30" y="396" width="740" height="46" rx="8" fill="#fffbeb" stroke="#f59e0b"/>
+  <text x="400" y="415" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">관전 포인트: "스킬 = 프롬프트 모음"을 넘어, 결정론적 린터 + 브라우저 렌더 검증 + 신선한 리뷰어가 표준 구성이 되는 중</text>
+  <text x="400" y="433" text-anchor="middle" font-size="11" fill="#92400e">스타 수는 세션 API 제한으로 미확인 — 두 저장소 모두 클론으로 실존·활동 검증 (2026-10-29)</text>
+</svg>

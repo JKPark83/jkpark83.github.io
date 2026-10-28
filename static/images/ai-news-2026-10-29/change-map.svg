@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 510" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="510" fill="#ffffff"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#111827">오늘의 AI 변화 지도 — 2026-10-29</text>
+  <text x="400" y="58" text-anchor="middle" font-size="13" fill="#6b7280">키워드: Carbon 등장(단, API는 아직) · 디자인 스킬 전쟁 · effort는 아래에서 위로</text>
+
+  <!-- 모델 -->
+  <rect x="30" y="80" width="360" height="185" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1d4ed8">모델 / 릴리즈</text>
+  <text x="50" y="134" font-size="13" fill="#111827">Gemini 4 Carbon (Google DeepMind, 10/28)</text>
+  <text x="50" y="154" font-size="12" fill="#374151">· 17개 벤치 중 15개 1위(구글 자체 발표)</text>
+  <text x="50" y="172" font-size="12" fill="#b91c1c" font-weight="700">· 사이버 방어팀 우선 — 공개 API 아직 없음</text>
+  <text x="50" y="198" font-size="13" fill="#111827">Mac Studio M5 Ultra 512GB 판매 시작 (10/28)</text>
+  <text x="50" y="218" font-size="12" fill="#374151">· $22,299 · 2대 연결 = 1TB 통합 메모리</text>
+  <text x="50" y="236" font-size="12" fill="#374151">· Muse Spark Open 816B 로컬 구동 조건 완성</text>
+
+  <!-- 논문 -->
+  <rect x="410" y="80" width="360" height="185" rx="10" fill="#fdf4ff" stroke="#a855f7"/>
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#7e22ce">논문</text>
+  <text x="430" y="134" font-size="13" fill="#111827">MPO — 멀티스케일 정책 최적화 (2610.35013)</text>
+  <text x="430" y="154" font-size="12" fill="#374151">· 턴 단위 어드밴티지 + 토큰 단위 크레딧 배분</text>
+  <text x="430" y="172" font-size="12" fill="#374151">· 장기 에이전트 RL, HF 데일리 1위(316 업보트)</text>
+  <text x="430" y="198" font-size="13" fill="#111827">Reasoning Effort의 경제학 (2610.34491)</text>
+  <text x="430" y="218" font-size="12" fill="#b91c1c" font-weight="700">· 쉬운 작업에서 최고 effort는 최대 42배 비용</text>
+  <text x="430" y="236" font-size="12" fill="#374151">· "최저에서 시작, 검증된 실패 때만 상향"이 승자</text>
+
+  <!-- 오픈소스 -->
+  <rect x="30" y="285" width="360" height="175" rx="10" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="50" y="313" font-size="15" font-weight="700" fill="#15803d">오픈소스</text>
+  <text x="50" y="339" font-size="13" fill="#111827">pbakaus/impeccable — 디자인 스킬 + 24개 커맨드</text>
+  <text x="50" y="359" font-size="12" fill="#374151">· 결정론적 디텍터 62개 룰 — LLM 없이 "AI 티" 검출</text>
+  <text x="50" y="385" font-size="13" fill="#111827">Nutlope/hallmark — 50개 테마 디자인 스킬 (v2)</text>
+  <text x="50" y="405" font-size="12" fill="#374151">· Floor/Reflex/Finish 3단 게이트 + 신선한 컨텍스트 리뷰</text>
+  <text x="50" y="423" font-size="12" fill="#374151">· 둘 다 10/28 활발히 커밋 중 — 디자인 스킬 경쟁 가속</text>
+
+  <!-- 바이브코딩 -->
+  <rect x="410" y="285" width="360" height="175" rx="10" fill="#fff7ed" stroke="#f97316"/>
+  <text x="430" y="313" font-size="15" font-weight="700" fill="#c2410c">바이브코딩</text>
+  <text x="430" y="339" font-size="13" fill="#111827">Codex: resume/fork 시 reasoning 토큰 이중 집계 수정</text>
+  <text x="430" y="359" font-size="12" fill="#374151">· 조기 자동 컴팩션의 원인 — #57839로 해결</text>
+  <text x="430" y="385" font-size="13" fill="#111827">Claude Code: 플러그인 소스 일원화</text>
+  <text x="430" y="405" font-size="12" fill="#374151">· claude-code-plugins의 사본 전부 삭제(-28,652줄)</text>
+  <text x="430" y="423" font-size="12" fill="#374151">· 설치는 전부 claude-plugins-official에서</text>
+
+  <text x="400" y="492" text-anchor="middle" font-size="11" fill="#9ca3af">검증: arXiv API · 저장소 클론 · 복수 언론 교차 확인 (벤치마크는 벤더 자체 발표치)</text>
+</svg>

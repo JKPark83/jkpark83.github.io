@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#0f172a"/>
+  <text x="400" y="36" text-anchor="middle" fill="#f1f5f9" font-size="20" font-weight="700">gh-aw 보안 모델 — 마크다운에서 검증된 쓰기까지</text>
+
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <!-- step 1 -->
+  <rect x="40" y="80" width="200" height="90" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="140" y="108" text-anchor="middle" fill="#f59e0b" font-size="13.5" font-weight="700">1. 워크플로 정의</text>
+  <text x="140" y="130" text-anchor="middle" fill="#e2e8f0" font-size="12">마크다운 + YAML frontmatter</text>
+  <text x="140" y="150" text-anchor="middle" fill="#94a3b8" font-size="11.5">트리거·권한·엔진·safe-outputs 선언</text>
+
+  <!-- step 2 -->
+  <rect x="300" y="80" width="200" height="90" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="400" y="108" text-anchor="middle" fill="#38bdf8" font-size="13.5" font-weight="700">2. 컴파일</text>
+  <text x="400" y="130" text-anchor="middle" fill="#e2e8f0" font-size="12">gh aw compile</text>
+  <text x="400" y="150" text-anchor="middle" fill="#94a3b8" font-size="11.5">표준 Actions .lock.yml 생성</text>
+
+  <!-- step 3 -->
+  <rect x="560" y="80" width="200" height="90" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="660" y="104" text-anchor="middle" fill="#a78bfa" font-size="13.5" font-weight="700">3. 에이전트 잡 실행</text>
+  <text x="660" y="126" text-anchor="middle" fill="#e2e8f0" font-size="12">샌드박스 + 읽기 전용 GitHub 토큰</text>
+  <text x="660" y="146" text-anchor="middle" fill="#94a3b8" font-size="11.5">엔진: Copilot · Claude Code</text>
+  <text x="660" y="162" text-anchor="middle" fill="#94a3b8" font-size="11.5">Codex · Gemini · Pi</text>
+
+  <line x1="240" y1="125" x2="292" y2="125" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="500" y1="125" x2="552" y2="125" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- down arrow -->
+  <line x1="660" y1="170" x2="660" y2="215" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- step 4 -->
+  <rect x="430" y="225" width="330" height="80" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+  <text x="595" y="251" text-anchor="middle" fill="#34d399" font-size="13.5" font-weight="700">4. safe-outputs 잡 (별도 잡)</text>
+  <text x="595" y="273" text-anchor="middle" fill="#e2e8f0" font-size="12">에이전트가 버퍼에 쌓은 쓰기 요청을 검증</text>
+  <text x="595" y="292" text-anchor="middle" fill="#94a3b8" font-size="11.5">스코프 제한된 권한으로만 적용</text>
+
+  <line x1="430" y1="265" x2="378" y2="265" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- step 5 -->
+  <rect x="40" y="225" width="330" height="80" rx="10" fill="#1e293b" stroke="#f472b6" stroke-width="1.5"/>
+  <text x="205" y="251" text-anchor="middle" fill="#f472b6" font-size="13.5" font-weight="700">5. 실제 쓰기</text>
+  <text x="205" y="273" text-anchor="middle" fill="#e2e8f0" font-size="12">이슈 코멘트 · PR 생성 · 라벨 · 리포트</text>
+  <text x="205" y="292" text-anchor="middle" fill="#94a3b8" font-size="11.5">에이전트 본체는 쓰기 권한을 갖지 않음</text>
+
+  <text x="400" y="350" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">핵심: 추론(에이전트)과 쓰기(safe-outputs)의 권한 분리</text>
+  <text x="400" y="374" text-anchor="middle" fill="#94a3b8" font-size="12">자체 에이전트 파이프라인을 만들 때도 같은 패턴 적용 가능 —</text>
+  <text x="400" y="392" text-anchor="middle" fill="#94a3b8" font-size="12">에이전트는 제안만 쌓고, 검증·적용은 권한 분리된 별도 단계가 수행</text>
+  <text x="400" y="424" text-anchor="middle" fill="#64748b" font-size="11">출처: github/gh-aw README·아키텍처 문서 (v0.89.22, 클론 검증)</text>
+</svg>

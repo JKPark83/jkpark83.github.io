@@ -1,0 +1,472 @@
+---
+title: "에이전트를 코드처럼 리뷰하고, 테스트하고, 배포하라 — Cursor Agent SDK 해부"
+date: 2026-10-30T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "Cursor", "Agent SDK", "agents as code", "evals", "hillclimbing", "tool calling", "TypeScript", "zod", "MCP", "CI", "배포", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "데모에서 잘 돌던 에이전트가 운영에 들어가면 왜 망가질까요? 프롬프트가 대시보드에, 도구 설정이 채팅 기록에 흩어져 있어서 아무도 리뷰하지 못하고, 어떤 변경이 무엇을 깨뜨렸는지 아무도 모르기 때문입니다. 지난주 GA로 공개된 Cursor Agent SDK는 여기에 정면으로 답합니다. 에이전트 하나가 폴더 하나 — 프롬프트는 Markdown, 도구는 TypeScript, 평가는 evals/ 디렉터리의 테스트 코드입니다. Bugbot과 Security Review를 움직이던 엔진이 어떻게 생겼는지, '측정하며 고치는' 힐클라이밍 루프까지 — 주니어 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "cursor-agent-sdk-agents-as-code-cover.svg"
+  alt: "Markdown 프롬프트와 TypeScript 도구가 든 폴더 하나가 git 리뷰와 eval 테스트를 거쳐 배포된 에이전트가 되는 그림"
+  caption: "에이전트 = 폴더 하나. 리뷰하고, 테스트하고, 배포하는 대상이 됩니다."
+  relative: false
+---
+
+<style>
+/* ── Cursor Agent SDK 포스트 전용 스타일 (cas- 접두사) ── */
+.cas-fig{
+  --cas-teal:#0d9488; --cas-rose:#e11d48; --cas-amber:#d97706; --cas-sky:#0284c7;
+  --cas-violet:#7c3aed; --cas-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .cas-fig{
+  --cas-teal:#2dd4bf; --cas-rose:#fb7185; --cas-amber:#fbbf24; --cas-sky:#38bdf8;
+  --cas-violet:#a78bfa; --cas-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .cas-fig{
+    --cas-teal:#2dd4bf; --cas-rose:#fb7185; --cas-amber:#fbbf24; --cas-sky:#38bdf8;
+    --cas-violet:#a78bfa; --cas-slate:#94a3b8;
+  }
+}
+.cas-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.cas-fig text{font-family:inherit}
+.cas-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.cas-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.cas-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.cas-toc ol{margin:0;padding-left:1.25rem}
+.cas-toc li{margin:.22rem 0;font-size:.95rem}
+.cas-toc a{text-decoration:none}
+.cas-toc a:hover{text-decoration:underline}
+.cas-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.cas-table th,.cas-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.cas-table th{background:var(--entry)}
+.cas-note{border-left:4px solid var(--cas-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.cas-warn{border-left:4px solid var(--cas-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="cas-toc">
+  <div class="cas-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 채팅으로 만든 에이전트는 채팅과 함께 사라진다</a></li>
+    <li><a href="#sec-2">배경 — 'agents as code'가 해결하려는 문제</a></li>
+    <li><a href="#sec-3">해부 ① — 에이전트는 폴더다: 경로가 곧 설정</a></li>
+    <li><a href="#sec-4">해부 ② — 판단은 모델에게, 계산은 코드에게</a></li>
+    <li><a href="#sec-5">해부 ③ — 채널: 에이전트가 사는 곳</a></li>
+    <li><a href="#sec-6">해부 ④ — evals와 힐클라이밍: 감이 아니라 측정으로</a></li>
+    <li><a href="#sec-7">배포 — 맡기거나, 직접 돌리거나</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 채팅으로 만든 에이전트는 채팅과 함께 사라진다</h2>
+
+<p>팀에서 PR 리뷰 봇을 하나 만들었다고 해봅시다. 프롬프트는 누군가 대시보드 텍스트 상자에 붙여 넣었고, 도구 연결은 설정 화면에서 클릭으로 맞췄습니다. 석 달 뒤 봇이 이상한 승인을 내기 시작합니다. 누가, 언제, 프롬프트의 어느 문장을 바꿨을까요? 기록이 없습니다. 고치기 전 상태로 되돌릴 수도, "이 변경이 기존 동작을 깨뜨리지 않는다"는 사실을 테스트로 확인할 수도 없습니다.</p>
+
+<p>일반 코드라면 상상도 못 할 일입니다. 코드는 git으로 버전을 관리하고, PR로 리뷰받고, CI가 테스트를 돌립니다. 그런데 정작 코드보다 예측하기 어려운 에이전트는 대시보드와 채팅 기록 속에 흩어진 채 운영되는 경우가 많습니다.</p>
+
+<p>지난주 이 문제에 정면으로 답하는 도구가 나왔습니다. Cursor가 10월 20일 체인지로그로 공개하고 10월 25일 0.3.0 버전으로 GA(정식 출시)한 <a href="https://cursor.com/docs/agent-sdk" target="_blank" rel="noopener">Agent SDK</a>입니다. 한 문장으로 요약하면 이렇습니다. <strong>에이전트 하나는 폴더 하나다.</strong> 프롬프트는 Markdown 파일로, 도구는 TypeScript 파일로, 평가는 <code>evals/</code> 디렉터리의 테스트 코드로 저장소에 들어갑니다. 그래서 에이전트도 코드처럼 리뷰받고, 테스트되고, 배포됩니다.</p>
+
+<p>흥미로운 점은 이게 새로 설계한 제품이 아니라는 사실입니다. 패키지 README의 첫 문단이 밝히듯, Agent SDK는 Cursor가 자사 봇들 — PR에서 버그를 찾는 Bugbot, 취약점을 찾는 Security Review, Approval Bot, Rollouts — 을 만들 때 쓰는 엔진을 그대로 오픈한 것입니다. 발표 직후 Hacker News에서 100포인트 안팎, 댓글 110여 개의 토론이 붙었고, "에이전트를 git으로 버전 관리한다"는 콘셉트 자체가 X(트위터)에서도 한 주 내내 회자됐습니다. 이번 글에서는 이 SDK를 뼈대부터 뜯어보면서, 제품과 무관하게 들고 갈 수 있는 설계 원칙 — <strong>agents as code</strong> — 를 정리합니다.</p>
+
+<h2 id="sec-2">2. 배경 — 'agents as code'가 해결하려는 문제</h2>
+
+<p>따라오는 데 필요한 배경은 두 가지입니다.</p>
+
+<p>첫째, <strong>에이전트 루프</strong>입니다. 에이전트는 "모델에게 상황을 보여주고 → 모델이 도구 호출을 고르고 → 코드가 도구를 실행해 결과를 돌려주고 → 다시 모델에게"를 반복하는 프로그램입니다. 이 루프를 돌려주는 바깥 구조를 하네스(harness)라고 부릅니다. 하네스가 성능을 얼마나 좌우하는지는 <a href="/posts/harness-engineering/">하네스 엔지니어링</a> 글에서 다뤘습니다.</p>
+
+<p>둘째, <strong>선언적 에이전트</strong>라는 흐름입니다. 에이전트를 코드 안에 while 루프로 직접 짜는 대신, "이 에이전트는 이런 지시문과 이런 도구를 가진다"를 파일로 선언하면 런타임이 루프를 돌려주는 방식입니다. <a href="/posts/docker-agent-declarative-agents/">Docker Agent</a>가 컨테이너 세계에서 이 방향을 보여줬다면, Cursor Agent SDK는 여기에 한 가지를 더 얹습니다. 바로 <strong>테스트 가능성</strong>입니다.</p>
+
+<p>비유하자면 인프라 엔지니어링이 겪은 전환과 같습니다. 서버를 콘솔에서 클릭으로 만들던 시절에는 "지금 운영 서버가 왜 이 상태인지" 아무도 설명하지 못했습니다. Terraform 같은 IaC(Infrastructure as Code)가 등장하면서 인프라는 리뷰와 diff와 롤백이 가능한 대상이 됐습니다. agents as code는 같은 전환을 에이전트에 적용합니다. 대시보드의 텍스트 상자에 있던 프롬프트가 <code>instructions.md</code>가 되는 순간, 프롬프트 수정은 PR이 되고, 동작 변화는 diff로 남고, 사고가 나면 <code>git revert</code>로 돌아갈 수 있습니다.</p>
+
+<div class="cas-note">
+<strong>용어 정리:</strong> 이 글에서 '봇'과 '에이전트'를 섞어 씁니다. Agent SDK 문서도 둘을 구분하지 않습니다. PR 이벤트나 Slack 멘션에 반응해 모델 판단으로 일하는 프로그램이라는 뜻으로 읽으면 됩니다.
+</div>
+
+<h2 id="sec-3">3. 해부 ① — 에이전트는 폴더다: 경로가 곧 설정</h2>
+
+<p>시작은 세 줄입니다. Node 22.13 이상이 필요하고, 모델 호출에 Cursor 로그인을 씁니다.</p>
+
+{{< highlight bash >}}
+npm install -g @grok/agent-sdk   # 패키지 이름이 @cursor/...가 아닙니다. 8절에서 설명
+agent-sdk init ./my-bot          # 프로젝트 스캐폴드 생성
+cd my-bot && agent-sdk dev       # 로컬 개발 서버 + 플레이그라운드
+{{< /highlight >}}
+
+<p><code>init</code>이 만들어 주는 프로젝트의 전체 구조입니다.</p>
+
+{{< highlight text >}}
+my-bot/
+├── package.json        # 이름·의존성 (일반 npm 프로젝트)
+├── bot/                # 에이전트 본체
+│   ├── agent.ts        #   defineAgent({...}) — 모델, 호스팅 설정
+│   ├── instructions.md #   항상 적용되는 시스템 프롬프트 (필수)
+│   ├── tools/          #   파일 하나 = 도구 하나, 파일명 = 도구 이름
+│   ├── skills/         #   필요할 때만 로드되는 절차 문서
+│   ├── mcp-connections/#   모델에게 노출할 MCP 서버
+│   ├── subagents/      #   하위 에이전트 (각자 agent.ts + instructions.md)
+│   ├── channels/       #   이벤트 입구 — GitHub, Slack, webhook
+│   ├── hooks/          #   관찰 전용 이벤트 구독 (감사 로그 등)
+│   ├── schedules/      #   cron 기반 정기 실행
+│   └── lib/            #   공유 코드 — 여기만 자동 로드 안 됨
+└── evals/              # 평가 스위트 (bot/ 밖!)
+    ├── evals.config.ts
+    └── readiness.eval.ts
+{{< /highlight >}}
+
+<p>핵심 규칙은 하나입니다. <strong>파일의 경로가 그 파일의 역할을 정합니다.</strong> <code>bot/tools/inspect_pr.ts</code>를 만들면 모델에게 <code>inspect_pr</code>이라는 도구가 생깁니다. 설정 파일에 도구 목록을 등록하는 단계가 없습니다. YAML 매니페스트도 없습니다. 디렉터리 구조 자체가 매니페스트입니다.</p>
+
+<p>이 설계가 주는 실익은 셋입니다. 먼저 <strong>리뷰어가 diff만 보고 동작 변화를 압니다.</strong> <code>tools/</code>에 파일이 추가된 PR은 "에이전트가 할 수 있는 일이 하나 늘었다"는 뜻이고, <code>instructions.md</code>의 한 줄 수정은 "판단 기준이 바뀌었다"는 뜻입니다. 둘째, <strong>코딩 에이전트가 에이전트를 만들 수 있습니다.</strong> 전부 평범한 Markdown과 TypeScript라서 Cursor나 Claude Code에게 "승인 도구 추가해 줘"라고 시키면 됩니다. 실제로 공식 퀵스타트 문서는 사람이 따라 하는 절차와 함께, 코딩 에이전트에게 통째로 붙여 넣는 프롬프트를 같이 제공합니다. 셋째, <strong>검증이 명령 하나입니다.</strong></p>
+
+{{< highlight bash >}}
+agent-sdk validate --dir .   # 구조 진단 — 오류가 있으면 종료 코드 non-zero
+agent-sdk info --dir .       # 런타임이 실제로 발견한 도구·채널·스킬 목록
+{{< /highlight >}}
+
+<p>도구를 만들었는데 <code>info</code> 출력에 없다면, 파일이 엉뚱한 디렉터리에 있거나 확장자가 틀린 것입니다. 디버깅이 "왜 안 되지"가 아니라 "목록에 있나 없나"로 줄어듭니다.</p>
+
+<figure class="cas-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="왼쪽에 bot 폴더의 파일 트리, 오른쪽에 에이전트 런타임. 각 파일·폴더가 런타임의 시스템 프롬프트, 도구 목록, 이벤트 입구, 평가 하네스로 연결되는 다이어그램">
+  <g font-size="15" font-family="ui-monospace,Menlo,monospace">
+    <rect x="20" y="20" width="300" height="390" rx="12" fill="none" stroke="var(--cas-slate)" stroke-width="1.6"/>
+    <text x="40" y="52" fill="var(--cas-slate)" font-weight="700" font-family="inherit">my-bot/ (git 저장소)</text>
+    <rect x="40" y="70" width="260" height="40" rx="8" fill="none" stroke="var(--cas-teal)" stroke-width="2"/>
+    <text x="54" y="96" fill="var(--cas-teal)">bot/instructions.md</text>
+    <rect x="40" y="124" width="260" height="40" rx="8" fill="none" stroke="var(--cas-amber)" stroke-width="2"/>
+    <text x="54" y="150" fill="var(--cas-amber)">bot/tools/*.ts</text>
+    <rect x="40" y="178" width="260" height="40" rx="8" fill="none" stroke="var(--cas-sky)" stroke-width="2"/>
+    <text x="54" y="204" fill="var(--cas-sky)">bot/channels/*.ts</text>
+    <rect x="40" y="232" width="260" height="40" rx="8" fill="none" stroke="var(--cas-violet)" stroke-width="2"/>
+    <text x="54" y="258" fill="var(--cas-violet)">bot/skills/ · subagents/</text>
+    <rect x="40" y="286" width="260" height="40" rx="8" fill="none" stroke="var(--cas-rose)" stroke-width="2"/>
+    <text x="54" y="312" fill="var(--cas-rose)">evals/*.eval.ts</text>
+    <rect x="40" y="340" width="260" height="40" rx="8" fill="none" stroke="var(--cas-slate)" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="54" y="366" fill="var(--cas-slate)">bot/lib/ (자동 로드 안 됨)</text>
+  </g>
+  <g stroke-width="2" fill="none">
+    <path d="M300 90 C 400 90 400 120 480 120" stroke="var(--cas-teal)"/>
+    <path d="M300 144 C 400 144 400 175 480 175" stroke="var(--cas-amber)"/>
+    <path d="M300 198 C 390 198 390 65 480 65" stroke="var(--cas-sky)"/>
+    <path d="M300 252 C 400 252 400 230 480 230" stroke="var(--cas-violet)"/>
+    <path d="M300 306 C 400 306 400 330 480 330" stroke="var(--cas-rose)"/>
+  </g>
+  <g font-size="15">
+    <rect x="480" y="40" width="350" height="50" rx="10" fill="none" stroke="var(--cas-sky)" stroke-width="2.2"/>
+    <text x="500" y="70" fill="var(--cas-sky)" font-weight="700">이벤트 입구 — PR·Slack·webhook·cron</text>
+    <rect x="480" y="100" width="350" height="155" rx="10" fill="none" stroke="var(--cas-slate)" stroke-width="2.2"/>
+    <text x="500" y="128" fill="var(--cas-slate)" font-weight="700">에이전트 루프 (SDK가 실행)</text>
+    <text x="500" y="155" fill="var(--cas-teal)">시스템 프롬프트 ← instructions.md</text>
+    <text x="500" y="182" fill="var(--cas-amber)">도구 목록 ← tools/의 파일명들</text>
+    <text x="500" y="209" fill="var(--cas-violet)">온디맨드 지식·하위 에이전트</text>
+    <text x="500" y="236" fill="var(--cas-slate)" opacity=".75">모델 판단 → 도구 실행 → 반복</text>
+    <rect x="480" y="300" width="350" height="60" rx="10" fill="none" stroke="var(--cas-rose)" stroke-width="2.2"/>
+    <text x="500" y="326" fill="var(--cas-rose)" font-weight="700">평가 하네스 — 같은 에이전트를</text>
+    <text x="500" y="348" fill="var(--cas-rose)">고정 입력으로 돌려 행동을 단언</text>
+  </g>
+</svg>
+<figcaption>그림 1 — 경로 기반 디스커버리. 폴더 구조가 곧 에이전트 설정이고, 런타임은 각 경로를 정해진 역할로 로드합니다. <code>lib/</code>만 예외로, 도구로 노출하지 않을 공유 코드를 두는 곳입니다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 해부 ② — 판단은 모델에게, 계산은 코드에게</h2>
+
+<p>공식 퀵스타트의 PR 리뷰어를 따라가 보면, 이 SDK의 설계 철학이 또렷하게 드러납니다. README의 표현을 빌리면 <strong>"모델의 판단과 결정적(deterministic) 코드를 결합한다"</strong>입니다.</p>
+
+<p>리뷰어의 동작 규칙은 <code>bot/instructions.md</code>에 Markdown으로 적습니다.</p>
+
+{{< highlight markdown >}}
+# PR reviewer
+
+PR을 판단하기 전에 반드시 `inspect_pr`을 호출하고,
+돌려받은 complexity에 따라 행동하세요:
+
+- `trivial`: diff가 제목과 일치하고 위험해 보이는 곳이 없으면
+  `submit_review`로 승인.
+- `moderate`: 모든 패치를 이해했고 위험이 없을 때만 승인.
+  아니면 사람 리뷰를 요청하고 걱정되는 파일을 지목.
+- `large`: 즉시 사람 리뷰를 요청하고 가장 큰 파일을 알려줄 것.
+
+draft는 절대 승인하지 마세요. 마지막은 판정과 이유 한 문장으로 끝내세요.
+{{< /highlight >}}
+
+<p>그런데 여기서 질문 하나. PR이 <code>trivial</code>인지 <code>large</code>인지는 누가 정할까요? 모델에게 "diff를 보고 복잡도를 판단해"라고 시킬 수도 있습니다. 하지만 그러면 실행마다 결과가 흔들리고, 토큰도 낭비됩니다. 줄 수 세기는 판단이 아니라 계산이니까요. 그래서 복잡도 산정은 도구 안의 평범한 함수가 맡습니다.</p>
+
+{{< highlight typescript >}}
+// bot/tools/inspect_pr.ts — 파일명이 곧 도구 이름
+import { defineTool } from "@grok/agent-sdk/tools";
+import { z } from "zod";
+import { parsePrUrl } from "../lib/github.js";
+
+// 복잡도는 모델이 아니라 코드가 계산 — 항상 같은 입력엔 같은 답
+function rateComplexity(linesChanged: number, changedFiles: number) {
+  if (linesChanged <= 25 && changedFiles <= 2) return "trivial";
+  if (linesChanged <= 400 && changedFiles <= 15) return "moderate";
+  return "large";
+}
+
+export default defineTool({
+  description: "Fetch a pull request's title, patches, and complexity.",
+  inputSchema: z.object({ prUrl: z.string().describe("GitHub pull request URL") }),
+  async execute({ prUrl }, ctx) {
+    const pull = parsePrUrl(prUrl);
+    const octokit = await ctx.host.github.getOctokit(); // 런타임이 주는 인증된 클라이언트
+    const { data: pr } = await octokit.rest.pulls.get(pull);
+    const { data: files } = await octokit.rest.pulls.listFiles({ ...pull, per_page: 100 });
+    const complexity = rateComplexity(pr.additions + pr.deletions, pr.changed_files);
+
+    return {
+      title: pr.title,
+      draft: pr.draft ?? false,
+      complexity,
+      files: files.map((file) => ({
+        path: file.filename,
+        additions: file.additions,
+        deletions: file.deletions,
+        // large PR이면 패치 본문 생략, 아니면 3,000자로 제한 — 컨텍스트 식단 관리
+        patch: complexity === "large" ? undefined : file.patch?.slice(0, 3000),
+      })),
+    };
+  },
+});
+{{< /highlight >}}
+
+<p>짧은 코드지만 눌러 볼 지점이 많습니다.</p>
+
+<ul>
+<li><strong>zod 스키마가 도구의 계약입니다.</strong> <code>inputSchema</code>를 zod로 쓰면 SDK가 입력을 검증하고 TypeScript 타입까지 추론해 줍니다. 모델이 이상한 인자를 보내면 <code>execute</code>에 닿기 전에 걸러집니다. 도구 호출 설계의 기본기는 <a href="/posts/tool-calling-design-agents/">도구 호출 설계</a> 글에서 다뤘는데, 그 원칙이 그대로 타입 시스템에 올라탄 모양새입니다.</li>
+<li><strong>도구가 모델의 컨텍스트 식단을 관리합니다.</strong> 패치를 3,000자로 자르고, large PR이면 아예 빼는 코드가 도구 안에 있습니다. "모델에게 무엇을 보여줄지"를 모델 바깥의 코드가 결정하는 것 — 컨텍스트 엔지니어링이 도구 구현의 일부가 된 모습입니다.</li>
+<li><strong><code>ctx.host</code>로 인증을 받습니다.</strong> GitHub 토큰을 코드에 심지 않고, 런타임이 주입하는 인증된 octokit을 받아 씁니다.</li>
+<li><strong><code>lib/</code>는 의도적인 사각지대입니다.</strong> URL 파서처럼 두 도구가 공유하지만 모델에게 노출할 필요 없는 코드는 <code>bot/lib/</code>에 둡니다. 디스커버리가 거기만 안 보기 때문입니다.</li>
+</ul>
+
+<p>그리고 도구는 모델 없이 단독으로 실행해 볼 수 있습니다. 함수를 유닛 테스트하듯이요.</p>
+
+{{< highlight bash >}}
+# 모델 턴 없이 도구만 호출 — "complexity": "trivial"이 나오는지 확인
+agent-sdk tool call inspect_pr --dir . \
+  --input '{"prUrl":"https://github.com/facebook/react/pull/35623"}'
+{{< /highlight >}}
+
+<h2 id="sec-5">5. 해부 ③ — 채널: 에이전트가 사는 곳</h2>
+
+<p>지금까지의 에이전트는 CLI로 말을 걸어야 움직입니다. 실전 봇은 이벤트에 반응해야 합니다. 그 입구가 <code>bot/channels/</code>입니다. PR이 열리면 리뷰를 시작하는 GitHub 채널은 이렇게 생겼습니다.</p>
+
+{{< highlight typescript >}}
+// bot/channels/github.ts
+import { defaultGitHubAuth, githubChannel } from "@grok/agent-sdk/channels/github";
+
+const REVIEW_ACTIONS = new Set(["opened", "reopened", "ready_for_review"]);
+
+export default githubChannel({
+  botName: "agent-sdk-pr-reviewer",
+  cursorAccount: { repos: ["acme/checkout"] },
+  onPullRequest: (ctx, pr) => {
+    // 관심 없는 이벤트는 여기서 끝 — 모델 턴 자체가 시작되지 않음
+    if (!REVIEW_ACTIONS.has(pr.action) || pr.draft) return null;
+
+    return {
+      auth: defaultGitHubAuth(ctx),
+      title: `Review ${ctx.repository.fullName}#${pr.number}`,
+      context: [`Review ${pr.url}.`],  // 이 문장이 세션의 첫 입력이 됨
+    };
+  },
+});
+{{< /highlight >}}
+
+<p>주목할 부분은 <code>return null</code>입니다. 어떤 이벤트에 반응할지는 결정적 코드가 먼저 거릅니다. draft PR, 봇 자신의 코멘트, 관심 없는 액션은 모델 턴이 열리기 전에 버려집니다. 모델은 비싸고 느린 자원이니, 입구에서 싸고 빠른 코드가 문지기를 서는 구조입니다. 같은 방식으로 Slack 스레드, 임의의 webhook, <code>schedules/</code>의 cron 정기 실행이 전부 세션의 입구가 될 수 있습니다.</p>
+
+<p>개발 중에 실제 PR 이벤트를 기다릴 필요도 없습니다. 과거 이벤트를 다시 쏘는 replay가 있습니다.</p>
+
+{{< highlight bash >}}
+# dev 서버가 떠 있는 상태에서, 실제 PR의 webhook 이벤트를 재생
+agent-sdk github replay https://github.com/acme/checkout/pull/42 \
+  --dir . --action opened
+
+# 이벤트 payload를 파일로 저장해 두면 평가용 픽스처가 됨
+agent-sdk github replay https://github.com/acme/checkout/pull/42 \
+  --events '*' --dry-run --fixtures-dir fixtures/github
+{{< /highlight >}}
+
+<figure class="cas-fig">
+<svg viewBox="0 0 860 310" role="img" aria-label="GitHub PR 이벤트가 채널 코드의 필터를 통과해 에이전트 세션이 되고, 세션이 도구를 거쳐 GitHub에 리뷰를 남기는 흐름. replay 명령이 같은 입구로 과거 이벤트를 다시 넣을 수 있음을 보여주는 다이어그램">
+  <g font-size="15">
+    <rect x="20" y="40" width="150" height="88" rx="10" fill="none" stroke="var(--cas-slate)" stroke-width="2.2"/>
+    <text x="95" y="76" text-anchor="middle" fill="var(--cas-slate)" font-weight="700">GitHub</text>
+    <text x="95" y="102" text-anchor="middle" fill="var(--cas-slate)">PR opened</text>
+    <rect x="240" y="40" width="190" height="88" rx="10" fill="none" stroke="var(--cas-sky)" stroke-width="2.2"/>
+    <text x="335" y="70" text-anchor="middle" fill="var(--cas-sky)" font-weight="700">channels/github.ts</text>
+    <text x="335" y="94" text-anchor="middle" fill="var(--cas-sky)">코드 필터 (draft? 액션?)</text>
+    <text x="335" y="116" text-anchor="middle" fill="var(--cas-rose)">null → 무시</text>
+    <rect x="500" y="40" width="170" height="88" rx="10" fill="none" stroke="var(--cas-violet)" stroke-width="2.2"/>
+    <text x="585" y="76" text-anchor="middle" fill="var(--cas-violet)" font-weight="700">에이전트 세션</text>
+    <text x="585" y="102" text-anchor="middle" fill="var(--cas-violet)">모델 판단 루프</text>
+    <rect x="710" y="40" width="130" height="88" rx="10" fill="none" stroke="var(--cas-amber)" stroke-width="2.2"/>
+    <text x="775" y="70" text-anchor="middle" fill="var(--cas-amber)" font-weight="700">tools/</text>
+    <text x="775" y="94" text-anchor="middle" fill="var(--cas-amber)">inspect_pr</text>
+    <text x="775" y="116" text-anchor="middle" fill="var(--cas-amber)">submit_review</text>
+    <g stroke="var(--cas-slate)" stroke-width="2" fill="none">
+      <path d="M170 84 h62"/><path d="M232 84 l-11 -7 v14 z" fill="var(--cas-slate)"/>
+      <path d="M430 84 h62"/><path d="M492 84 l-11 -7 v14 z" fill="var(--cas-slate)"/>
+      <path d="M670 84 h32"/><path d="M702 84 l-11 -7 v14 z" fill="var(--cas-slate)"/>
+    </g>
+    <path d="M775 128 C 775 210 200 210 100 140" stroke="var(--cas-teal)" stroke-width="2" fill="none" stroke-dasharray="6 5"/>
+    <path d="M100 140 l3 13 10 -9 z" fill="var(--cas-teal)"/>
+    <text x="430" y="232" text-anchor="middle" fill="var(--cas-teal)" font-size="14">리뷰 코멘트가 GitHub으로 — 외부에 쓰는 일은 전부 도구를 거침</text>
+    <rect x="240" y="252" width="190" height="44" rx="10" fill="none" stroke="var(--cas-rose)" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="335" y="280" text-anchor="middle" fill="var(--cas-rose)" font-size="14">agent-sdk github replay</text>
+    <path d="M335 252 v-110" stroke="var(--cas-rose)" stroke-width="2" fill="none" stroke-dasharray="5 4"/>
+    <path d="M335 142 l-7 11 h14 z" fill="var(--cas-rose)"/>
+  </g>
+</svg>
+<figcaption>그림 2 — 이벤트에서 액션까지. 싼 코드가 입구를 거르고, 모델은 통과한 이벤트에만 쓰입니다. <code>replay</code>는 같은 입구에 과거 이벤트를 다시 밀어 넣어, 라이브 트래픽 없이 전체 경로를 시험하게 해 줍니다.</figcaption>
+</figure>
+
+<h2 id="sec-6">6. 해부 ④ — evals와 힐클라이밍: 감이 아니라 측정으로</h2>
+
+<p>여기까지는 "잘 만든 에이전트 프레임워크"입니다. 이 SDK를 이번 주의 화제로 만든 건 다음 질문에 대한 답입니다. <strong>프롬프트를 고쳤을 때, 무엇이 좋아지고 무엇이 깨졌는지 어떻게 아는가?</strong></p>
+
+<p>답은 eval(평가)입니다. eval은 고정된 입력을 진짜 에이전트에게 보내고, 어떤 도구가 호출됐는지와 답이 어떤 모양인지를 단언(assert)하는 테스트입니다. 에이전트 평가의 일반론은 <a href="/posts/agent-evals-reliability/">에이전트 평가와 신뢰성</a>에서 다뤘는데, Agent SDK는 그걸 유닛 테스트만큼 가깝게 가져왔습니다. 별도 설정 언어 없이, <code>evals/</code> 디렉터리의 평범한 TypeScript입니다.</p>
+
+{{< highlight typescript >}}
+// evals/readiness.eval.ts
+import { defineEval, includes } from "@grok/agent-sdk/evals";
+
+export default defineEval({
+  tags: ["smoke"],
+  async test(t) {
+    await t.send("Is https://github.com/acme/checkout/pull/42 ready to approve?");
+
+    t.succeeded();                   // 턴이 정상 종료했는가
+    t.calledTool("inspect_pr");      // 판단 전에 조사부터 했는가
+    t.notCalledTool("approve_pr");   // 질문만 했는데 승인해 버리지 않았는가
+    t.check(t.reply, includes(/ready|blocked|approve/i));
+  },
+});
+{{< /highlight >}}
+
+<p>단언의 결이 흥미롭습니다. "정답 문자열과 일치하는가"가 아니라 <strong>"행동이 올바른가"</strong>를 묻습니다. 모델 출력은 실행마다 문장이 달라지니 문자열 비교는 애초에 무의미하고, 대신 도구 호출 순서·출력의 형태(zod <code>matches</code>)·의미(LLM 심판 <code>t.judge.factuality(...).atLeast(0.8)</code>)의 세 층으로 검사합니다. LLM을 심판으로 쓸 때의 함정은 <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-Judge</a> 글을 참고하세요.</p>
+
+<p>실전에서 중요한 디테일 하나. eval은 진짜 도구를 실행하므로, 그대로 두면 평가를 돌릴 때마다 GitHub에 리뷰가 달립니다. 그래서 세션에는 <code>purpose</code>가 붙어 있고, 쓰기 도구는 이를 확인해야 합니다.</p>
+
+{{< highlight typescript >}}
+async execute({ findings }, ctx) {
+  // eval 세션이면 결정만 돌려주고 외부 액션은 생략
+  if (ctx.session.purpose === "eval") {
+    return { posted: false, reason: "eval", count: findings.length };
+  }
+  return await postFindings(findings);
+}
+{{< /highlight >}}
+
+<p>도구 호출 자체는 트래젝토리(trajectory, 실행 기록)에 남으니, "에이전트가 포스팅을 선택했는가"는 여전히 단언할 수 있습니다. 실행은 <code>agent-sdk eval --dir . --tag smoke</code>이고, <code>--junit</code>·<code>--json</code> 플래그로 CI에 바로 물립니다. PR마다 smoke 태그를 돌리고 전체 스위트는 스케줄로 돌리는, 일반 테스트와 똑같은 운영이 됩니다.</p>
+
+<h3>힐클라이밍 — 한 번에 하나씩, 측정하며 오르기</h3>
+
+<p>문서에서 가장 눈여겨볼 부분은 eval API가 아니라, eval을 어떻게 쓰라는 작업 방식입니다. 이름은 힐클라이밍(hillclimbing) — 언덕을 오르듯 측정값이 좋아지는 방향으로 한 걸음씩 가는 최적화를 말합니다.</p>
+
+<ol>
+<li>입력을 고정합니다(저장한 PR 픽스처 1~3개). 지표와 "바뀌면 안 되는 것"(출력 형태, 사이드 이펙트, 기존 eval)도 먼저 합의합니다.</li>
+<li>에이전트를 돌리고 트래젝토리를 읽고, <strong>주된 실패를 한 문장으로</strong> 적습니다.</li>
+<li>레버 하나만 바꿉니다.</li>
+<li>같은 픽스처로 다시 돌려 전후를 비교합니다.</li>
+<li>좋아졌으면 유지하고, <strong>그 개선이 없었다면 실패했을 eval을 추가해 잠급니다.</strong> 아니면 되돌립니다.</li>
+</ol>
+
+<p>"레버 하나"의 순서에도 지침이 있습니다. 지시문부터 고치고 싶겠지만, 문서는 반대로 가라고 합니다. <strong>가장 이른 지점부터</strong> — ① 턴이 시작되기 전에 호스트 코드가 증거를 준비하고, ② 그 증거의 형태를 바꾸고, ③ 그다음에야 instructions와 skills를 고치고, ④ 배회를 부르는 도구를 빼거나 잠그고, ⑤ 프레임워크 수정은 맨 마지막. 모델이 근거를 찾아 헤매지 않게 만들면 품질과 지연이 같이 좋아지는 경우가 많기 때문입니다. 문서의 예시 수치가 감을 줍니다: 증거 준비를 턴 앞으로 옮긴 뒤 도구 호출 14회 → 5회, 92초 → 31초.</p>
+
+<figure class="cas-fig">
+<svg viewBox="0 0 860 360" role="img" aria-label="힐클라이밍 루프. 입력 고정, 실행과 실패 관찰, 레버 하나 변경, 같은 픽스처 재실행, 비교 후 유지 또는 되돌림. 유지할 때는 eval을 추가해 잠근다는 순환 다이어그램">
+  <g font-size="15">
+    <rect x="330" y="20" width="200" height="56" rx="12" fill="none" stroke="var(--cas-sky)" stroke-width="2.2"/>
+    <text x="430" y="44" text-anchor="middle" fill="var(--cas-sky)" font-weight="700">① 입력·지표 고정</text>
+    <text x="430" y="64" text-anchor="middle" fill="var(--cas-sky)">픽스처 1~3개, 동결 목록</text>
+    <rect x="620" y="110" width="210" height="56" rx="12" fill="none" stroke="var(--cas-amber)" stroke-width="2.2"/>
+    <text x="725" y="134" text-anchor="middle" fill="var(--cas-amber)" font-weight="700">② 실행 → 트래젝토리 읽기</text>
+    <text x="725" y="154" text-anchor="middle" fill="var(--cas-amber)">실패를 한 문장으로</text>
+    <rect x="620" y="240" width="210" height="56" rx="12" fill="none" stroke="var(--cas-violet)" stroke-width="2.2"/>
+    <text x="725" y="264" text-anchor="middle" fill="var(--cas-violet)" font-weight="700">③ 레버 하나만 변경</text>
+    <text x="725" y="284" text-anchor="middle" fill="var(--cas-violet)">증거 → 지시문 → 도구 순</text>
+    <rect x="330" y="290" width="200" height="56" rx="12" fill="none" stroke="var(--cas-teal)" stroke-width="2.2"/>
+    <text x="430" y="314" text-anchor="middle" fill="var(--cas-teal)" font-weight="700">④ 같은 픽스처 재실행</text>
+    <text x="430" y="334" text-anchor="middle" fill="var(--cas-teal)">정확도·효율·계약 비교</text>
+    <rect x="40" y="170" width="230" height="76" rx="12" fill="none" stroke="var(--cas-rose)" stroke-width="2.2"/>
+    <text x="155" y="196" text-anchor="middle" fill="var(--cas-rose)" font-weight="700">⑤ 유지 or 되돌림</text>
+    <text x="155" y="218" text-anchor="middle" fill="var(--cas-rose)">유지하면 → 그 개선이 없었다면</text>
+    <text x="155" y="236" text-anchor="middle" fill="var(--cas-rose)">실패했을 eval 추가로 잠금</text>
+    <g stroke="var(--cas-slate)" stroke-width="2" fill="none">
+      <path d="M530 55 C 650 60 700 80 722 106"/><path d="M722 106 l-12 -5 3 13 z" fill="var(--cas-slate)"/>
+      <path d="M725 166 v70"/><path d="M725 236 l-7 -11 h14 z" fill="var(--cas-slate)"/>
+      <path d="M620 285 C 580 300 560 305 534 310"/><path d="M534 310 l13 5 -2 -13 z" fill="var(--cas-slate)"/>
+      <path d="M330 318 C 240 315 190 280 162 250"/><path d="M162 250 l3 13 9 -9 z" fill="var(--cas-slate)"/>
+      <path d="M155 170 C 170 100 260 60 326 48" stroke-dasharray="6 5"/><path d="M326 48 l-12 -6 1 13 z" fill="var(--cas-slate)"/>
+    </g>
+    <text x="195" y="92" fill="var(--cas-slate)" font-size="14">다음 라운드 (새 실패로)</text>
+  </g>
+</svg>
+<figcaption>그림 3 — 힐클라이밍 루프. 라운드 중에 픽스처를 바꾸면 비교가 무의미해지고, 새 변경을 통과시키려고 기존 eval을 느슨하게 풀면 회귀를 스스로 가리는 셈입니다.</figcaption>
+</figure>
+
+<div class="cas-note">
+<strong>이게 왜 중요한가:</strong> 에이전트 개선이 실패하는 전형적인 패턴은 "프롬프트를 이것저것 고쳤더니 좋아진 것 같다"입니다. 무엇이 효과였는지 모르니 재현도, 유지도 안 됩니다. 힐클라이밍은 과학 실험의 통제 변인 개념을 에이전트 개발에 가져온 것이고, eval은 그 실험 결과를 회귀 테스트로 동결하는 장치입니다. 이 루프 자체는 Agent SDK가 없어도 오늘부터 적용할 수 있습니다.
+</div>
+
+<h2 id="sec-7">7. 배포 — 맡기거나, 직접 돌리거나</h2>
+
+<p>배포는 git 기준입니다. 커밋하고 푸시한 ref를 <code>agent-sdk deploy</code>가 빌드해서 Cursor 관리형 호스팅에 올리고, 대시보드의 Deployed Agents에서 관리합니다. 커밋 안 된 변경은 배포되지 않습니다 — "지금 운영 중인 에이전트 = 특정 커밋"이라는 등식이 강제되는 셈입니다. 자체 인프라에서 <code>agent-sdk serve</code>로 직접 돌리는 self-hosting도 지원합니다.</p>
+
+<p>운영 관점에서 돋보이는 디테일은 egress(외부로 나가는 트래픽) 선언입니다.</p>
+
+{{< highlight typescript >}}
+// bot/agent.ts
+import { defineAgent } from "@grok/agent-sdk";
+
+export default defineAgent({
+  hosting: {
+    egressDomains: ["api.weather.example.com"],  // 이 도메인 밖으로는 못 나감
+    secretNames: ["WEATHER_API_KEY"],            // 시크릿은 이름만 커밋, 값은 따로
+  },
+});
+{{< /highlight >}}
+
+<p>도구 코드가 호출할 호스트와 필요한 시크릿 이름을 코드에 선언하고, 값은 <code>agent-sdk secret set</code>으로 배포 후에 넣습니다. 에이전트가 선언 밖의 네트워크로 나가는 것을 플랫폼이 막는 구조 — <a href="/posts/nvidia-openshell-agent-runtime/">OpenShell 해부</a>에서 본 "에이전트에게 일은 시키되 열쇠는 주지 않는다"는 원칙이 여기서도 반복됩니다. 자율적인 프로그램의 권한 경계를 코드로 선언하고 리뷰 대상에 포함시키는 것은 이제 에이전트 플랫폼의 공통 문법이 되어 가는 듯합니다.</p>
+
+<p>참고로 어디까지 Agent SDK로 가야 하는지는 공식 문서의 포지셔닝 표가 명확합니다. 프롬프트와 트리거만으로 되는 반복 작업은 대시보드에서 만드는 Automations로, 커스텀 코드·통합·테스트·배포 선택이 필요해지는 순간 Agent SDK로 가라는 안내입니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+<li><strong>패키지 이름에 당황하지 마세요.</strong> npm 패키지는 <code>@grok/agent-sdk</code>입니다(이전 이름 <code>@cursor/bdk</code>, GA 시점에 개명). 헷갈리기 쉬운 <code>@cursor/sdk</code>는 별개의 저수준 TypeScript SDK로, Agent SDK가 내부에서 사용하는 기반입니다. 또 Claude Agent SDK(<code>@anthropic-ai/claude-agent-sdk</code>)나 OpenAI Agents SDK와도 다른 물건입니다 — 이름이 전부 'Agent SDK'라 생태계 전체가 혼란스러운 건 사실입니다.</li>
+<li><strong>도구가 안 보이면 경로부터 확인하세요.</strong> 디스커버리는 정해진 폴더만 봅니다. <code>bot/tools/</code> 밖의 <code>defineTool</code>은 조용히 무시됩니다. <code>agent-sdk info --dir .</code> 출력에 없으면 위치나 확장자 문제입니다.</li>
+<li><strong>eval에 사이드 이펙트 가드를 빼먹지 마세요.</strong> eval은 진짜 도구를 실행합니다. 쓰기 도구에 <code>ctx.session.purpose === "eval"</code> 분기가 없으면, 평가를 돌릴 때마다 실제 GitHub에 리뷰가 달리는 사고가 납니다.</li>
+<li><strong>라운드 중에 픽스처를 바꾸지 마세요.</strong> 비교 기준이 흔들리면 그 라운드의 결론은 전부 무효입니다. 새 변경을 통과시키려고 기존 eval을 느슨하게 푸는 것도 금물 — 오래된 eval이 깨졌다면 변경이 뭔가를 부순 것입니다.</li>
+<li><strong>버전을 고정하고 체인지로그를 읽으세요.</strong> GA 직후인데도 사흘 만에 0.3.0 → 0.4.0 → 0.5.0으로 올라가며 도구 결과 형식 같은 파괴적 변경이 들어왔습니다. HN 토론에서도 문서가 아직 얇고 빠르게 움직인다는 지적이 많았습니다. <code>package.json</code>에 정확한 버전을 박아 두는 편이 안전합니다.</li>
+<li><strong>신뢰하지 않는 체크아웃을 작업 공간으로 삼지 마세요.</strong> 0.5.0부터 작업 공간의 <code>AGENTS.md</code>와 <code>.cursor/rules/</code>가 프로젝트 규칙으로 자동 로드됩니다. 낯선 저장소를 그대로 물리면 그 저장소의 파일이 에이전트의 지시문이 되는 프롬프트 인젝션 경로가 열립니다. 공식 문서도 이를 명시적으로 경고합니다.</li>
+<li><strong>Node 22.13 이상이 필요합니다.</strong> 오래된 LTS에서 수수께끼 같은 오류를 만나면 Node 버전부터 확인하세요.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+<li>Cursor Agent SDK(10/25 GA, npm <code>@grok/agent-sdk</code>)는 Bugbot·Security Review·Rollouts를 움직이던 엔진의 공개판입니다. 핵심 아이디어는 <strong>에이전트 = 폴더 하나</strong>: 프롬프트는 <code>instructions.md</code>, 도구는 <code>tools/*.ts</code>, 평가는 <code>evals/*.eval.ts</code>.</li>
+<li>경로가 곧 설정입니다. 파일을 올바른 폴더에 두면 등록 절차 없이 로드되고, <code>validate</code>·<code>info</code>로 디스커버리 결과를 확인합니다.</li>
+<li>설계 철학은 <strong>판단은 모델에게, 계산은 코드에게</strong>. 복잡도 산정·이벤트 필터링·컨텍스트 다이어트는 결정적 코드가, 승인 여부 판단은 모델이 맡습니다.</li>
+<li>eval은 행동을 단언합니다 — 어떤 도구를 (안) 불렀는지, 출력이 계약(zod)에 맞는지, 의미가 맞는지(LLM 심판). <code>purpose: "eval"</code> 가드로 사이드 이펙트를 막습니다.</li>
+<li><strong>힐클라이밍</strong>: 입력 고정 → 실패 한 문장 → 레버 하나 변경 → 같은 픽스처 재실행 → 유지한 개선은 eval로 동결. 이 루프는 SDK 없이도 오늘부터 쓸 수 있는 방법론입니다.</li>
+<li>배포는 git ref 단위(관리형 또는 self-host), egress 도메인과 시크릿 이름은 코드에 선언해 리뷰 대상에 포함시킵니다.</li>
+<li>GA 직후라 빠르게 움직입니다(사흘간 세 릴리스, 파괴적 변경 포함). 버전 고정과 체인지로그 구독은 필수입니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+<li><a href="https://cursor.com/changelog/agent-sdk" target="_blank" rel="noopener">Cursor Changelog — Agent SDK</a> (공식 발표, 2026-10-20)</li>
+<li><a href="https://cursor.com/docs/agent-sdk" target="_blank" rel="noopener">Agent SDK 공식 문서</a> — 퀵스타트·프로젝트 레이아웃·Tools·Evals·Hillclimbing·Deployment (이 글의 코드 예제 출처)</li>
+<li><a href="https://www.npmjs.com/package/@grok/agent-sdk" target="_blank" rel="noopener">npm — @grok/agent-sdk</a> (버전 이력·README·번들 문서)</li>
+<li><a href="https://www.npmjs.com/package/@cursor/sdk" target="_blank" rel="noopener">npm — @cursor/sdk</a> (기반이 되는 저수준 TypeScript SDK)</li>
+<li><a href="https://x.com/cursor_ai/status/2114793714531102901" target="_blank" rel="noopener">Cursor 공식 X 발표</a> · <a href="https://x.com/AGTPinsights/status/2114890282101817499" target="_blank" rel="noopener">AGTP의 해설 스레드</a></li>
+<li><a href="https://github.com/845421145-lang/agents-radar/issues/682" target="_blank" rel="noopener">HN AI Digest 2026-10-29</a> · <a href="https://github.com/kouweizhu/agents-radar/issues/678" target="_blank" rel="noopener">2026-10-27</a> (주간 반응·토론 지표)</li>
+<li><a href="https://dev.to/piekwerk/cursors-agent-sdk-is-ga-your-agent-is-a-folder-of-markdown-and-typescript-1jh8" target="_blank" rel="noopener">DEV Community — Cursor's Agent SDK is GA</a> · <a href="https://alphasignal.ai/news/cursor-s-agent-sdk-lets-developers-build-and-version-bots-like-code" target="_blank" rel="noopener">AlphaSignal 해설</a> (2차 분석)</li>
+<li>관련 글(한국어, 이 블로그): <a href="/posts/docker-agent-declarative-agents/">선언적 에이전트와 Docker Agent</a> · <a href="/posts/harness-engineering/">하네스 엔지니어링</a> · <a href="/posts/agent-evals-reliability/">에이전트 평가와 신뢰성</a> · <a href="/posts/llm-as-a-judge-evals/">LLM-as-a-Judge</a> · <a href="/posts/tool-calling-design-agents/">도구 호출 설계</a> · <a href="/posts/nvidia-openshell-agent-runtime/">NVIDIA OpenShell 해부</a></li>
+</ul>

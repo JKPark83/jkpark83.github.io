@@ -1,0 +1,34 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="토요일 아침 브리핑 표지. 바이낸스 해킹이 역대 최대인 63억달러로 확정돼 출금이 중단됐고, 인텔은 1974년 이후 최악의 하루로 28.6퍼센트 급락했습니다. 나스닥은 2.9퍼센트 내려 10월을 2025년 3월 이후 최악의 달로 마감했습니다. 나스닥 관망, 비트코인 매도 유지입니다">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.10.31 · 나스닥 &amp; 비트코인 5분 요약 · 토요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">역대 최대 해킹 63억달러 확정, 인텔은 52년 만의 최악 — 10월이 거칠게 끝났습니다</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 극단 공포 복귀</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">인텔 -28.6%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">1974년 이후 최악의 하루</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">-2.9% · 손절 규칙 발동</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 출금 재개가 분수령</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#a5b4fc">해킹 63억$ 확정</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">SAFU로 전액 보상 약속</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.15"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">BTC 77,000 · 하단 시험 중</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">기준: 10/30(금) 뉴욕 마감 · KST 10/31(토) 아침 집계 — 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

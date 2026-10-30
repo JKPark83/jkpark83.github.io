@@ -1,0 +1,374 @@
+---
+title: "LLM은 왜 '잠'이 필요한가 — 배운 걸 잊지 않고 계속 배우는 sleep framework 해부"
+date: 2026-10-31T07:30:00+09:00
+draft: false
+tags: ["AI", "sleep framework", "continual learning", "catastrophic forgetting", "기억 공고화", "dreaming", "MoE", "LoRA", "on-policy distillation", "Titans", "Nested Learning", "SEAL", "Cartridges", "Google Research", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "파인튜닝으로 새 지식을 넣으면 이전에 배운 걸 까먹는 catastrophic forgetting — LLM이 '지식 컷오프'에 갇혀 사는 근본 이유입니다. 10월 27일 Google Research가 여기에 생물학의 답을 가져왔습니다. 깨어 있는 동안은 빠른 메모리에 쌓기만 하고, '자는 동안' 느린 가중치로 옮겨 적고(기억 공고화), 스스로 만든 데이터로 복습하는(dreaming) sleep framework입니다. 모델은 왜 까먹는지부터, wake/sleep 사이클의 구조, Titans→Hope→Sleep으로 이어지는 계보, 그리고 오늘 당장 흉내 낼 수 있는 패턴까지 — 주니어 눈높이에서 쉽고 자세하게 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "llm-sleep-framework-continual-learning-cover.svg"
+  alt: "낮에는 빠른 메모리에 정보를 쌓고 밤에는 가중치로 옮겨 적는 LLM의 수면 사이클을 그린 커버 이미지"
+  caption: "깨어 있는 동안 쌓고, 자는 동안 옮겨 적는다 — LLM 버전의 기억 공고화"
+  relative: false
+---
+
+<style>
+/* ── sleep framework 포스트 전용 스타일 (slp- 접두사) ── */
+.slp-fig{
+  --slp-teal:#0d9488; --slp-rose:#e11d48; --slp-amber:#d97706; --slp-sky:#0284c7;
+  --slp-violet:#7c3aed; --slp-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .slp-fig{
+  --slp-teal:#2dd4bf; --slp-rose:#fb7185; --slp-amber:#fbbf24; --slp-sky:#38bdf8;
+  --slp-violet:#a78bfa; --slp-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .slp-fig{
+    --slp-teal:#2dd4bf; --slp-rose:#fb7185; --slp-amber:#fbbf24; --slp-sky:#38bdf8;
+    --slp-violet:#a78bfa; --slp-slate:#94a3b8;
+  }
+}
+.slp-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.slp-fig text{font-family:inherit}
+.slp-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.slp-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.slp-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.slp-toc ol{margin:0;padding-left:1.25rem}
+.slp-toc li{margin:.22rem 0;font-size:.95rem}
+.slp-toc a{text-decoration:none}
+.slp-toc a:hover{text-decoration:underline}
+.slp-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.slp-table th,.slp-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.slp-table th{background:var(--entry)}
+.slp-note{border-left:4px solid var(--slp-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.slp-warn{border-left:4px solid var(--slp-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="slp-toc">
+  <div class="slp-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 모델은 어제 배운 걸 오늘 까먹는다</a></li>
+    <li><a href="#sec-2">배경 — catastrophic forgetting과 세 가지 우회로</a></li>
+    <li><a href="#sec-3">뇌는 이 문제를 어떻게 풀었나</a></li>
+    <li><a href="#sec-4">해부 ① — wake: 빠른 메모리에 쌓기만 한다</a></li>
+    <li><a href="#sec-5">해부 ② — sleep: 기억 공고화와 시냅스 가지치기</a></li>
+    <li><a href="#sec-6">해부 ③ — dreaming: 스스로 만든 데이터로 복습하기</a></li>
+    <li><a href="#sec-7">숫자 확인 — 저자들이 보고한 결과</a></li>
+    <li><a href="#sec-8">실전 — 오늘 흉내 낼 수 있는 것</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-11">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 모델은 어제 배운 걸 오늘 까먹는다</h2>
+
+<p>LLM을 쓰다 보면 한 번쯤 이런 생각이 듭니다. "어제 알려준 걸 왜 또 모르지?" 컨텍스트는 대화가 끝나면 사라지고, 모델 자체는 학습이 끝난 시점(knowledge cutoff) 이후로 아무것도 배우지 못합니다. "그럼 새 지식으로 파인튜닝하면 되잖아요?"라고 하기엔, 파인튜닝에는 악명 높은 부작용이 있습니다. <strong>새 걸 배우면 옛 걸 잊습니다.</strong> 이걸 <strong>파국적 망각(catastrophic forgetting)</strong>이라고 부르고, 신경망 연구가 시작된 이래 수십 년째 풀리지 않은 문제입니다.</p>
+
+<p>그런데 사람은 매일 새로운 걸 배우면서도 구구단을 까먹지 않습니다. 비결 중 하나가 <strong>잠</strong>입니다. 10월 27일 Google Research가 블로그에 올린 <a href="https://research.google/blog/the-sleep-framework-a-new-way-for-llms-to-retain-knowledge-in-continual-learning/" target="_blank" rel="noopener">The sleep framework</a>는 이 아이디어를 그대로 LLM에 이식합니다. 깨어 있는 동안(wake)은 새 정보를 빠른 임시 메모리에 쌓기만 하고, 입력을 끊은 '수면' 단계에서 그 정보를 선별해 가중치에 옮겨 적고(기억 공고화), 심지어 '꿈(dreaming)'을 꾸면서 스스로 만든 데이터로 복습까지 합니다.</p>
+
+<p>공개 직후 <a href="https://x.com/GoogleResearch/status/2115136620446019795" target="_blank" rel="noopener">Google Research의 X 포스트</a>가 돌았고, <a href="https://news.ycombinator.com/item?id=50272479" target="_blank" rel="noopener">Hacker News</a>에 오르내렸으며, 해외 테크 매체들이 일제히 받아썼습니다. 재미있는 건 이게 뜬금없는 단발 연구가 아니라는 점입니다. Titans → Nested Learning(Hope)으로 이어져 온 Google의 '계속 배우는 모델' 연구 라인의 다음 수입니다. 이번 글에서는 모델이 왜 까먹는지부터 sleep framework의 구조, 그리고 우리가 오늘 당장 가져다 쓸 수 있는 교훈까지 차근차근 뜯어봅니다.</p>
+
+<h2 id="sec-2">2. 배경 — catastrophic forgetting과 세 가지 우회로</h2>
+
+<p>먼저 왜 까먹는지부터 봅시다. 신경망의 지식은 가중치(weight)라는 수백억 개의 숫자에 분산 저장돼 있습니다. 어떤 지식 하나가 어느 가중치에 있는지 특정할 수 없고, 하나의 가중치가 수많은 지식에 동시에 기여합니다. 그래서 새 데이터로 경사하강(gradient descent)을 돌리면, 새 지식에 맞게 가중치가 이동하면서 <strong>옛 지식이 기대고 있던 가중치도 함께 덮어써집니다</strong>. 공책에 비유하면, 새 내용을 빈 페이지에 쓰는 게 아니라 이미 쓰여 있는 글자 위에 겹쳐 쓰는 셈입니다.</p>
+
+<p>그래서 실무에서는 가중치를 건드리지 않는 우회로를 씁니다. 크게 세 가지입니다.</p>
+
+<ul>
+  <li><strong>RAG(검색 증강 생성)</strong> — 지식을 외부 DB에 두고 필요할 때 검색해서 컨텍스트로 넣습니다. 지식이 아무리 늘어도 모델은 그대로지만, 검색이 놓치면 끝이고 매 요청마다 검색 비용·컨텍스트 비용을 다시 냅니다.</li>
+  <li><strong>메모리 파일</strong> — 에이전트가 <code>CLAUDE.md</code> 같은 파일에 배운 걸 적어 두고 매번 읽습니다. 사람이 읽을 수 있어 디버깅은 쉽지만, 결국 컨텍스트 창 용량과의 싸움이고 '모델이 배운 것'은 아닙니다.</li>
+  <li><strong>파인튜닝</strong> — 진짜로 가중치에 새기지만, 앞서 본 망각 문제와 정면으로 부딪힙니다.</li>
+</ul>
+
+<p>이 지형을 한 축으로 정리하면 <strong>'얼마나 자주 갱신되는 메모리인가'</strong>라는 주파수 스펙트럼이 됩니다. 컨텍스트는 매 토큰 갱신되는 초고주파 메모리, 사전학습 가중치는 사실상 갱신 주파수 0인 영구 메모리입니다. 문제는 그 사이, "시간 단위~일 단위로 갱신되면서도 안전하게 축적되는 메모리"가 비어 있다는 점입니다. sleep framework가 겨냥하는 자리가 바로 여기입니다.</p>
+
+<figure class="slp-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="메모리 갱신 주파수 스펙트럼. 왼쪽 끝은 매 토큰 갱신되는 컨텍스트, 오른쪽 끝은 갱신되지 않는 사전학습 가중치. 중간의 '시간에서 일 단위로 안전하게 갱신되는 메모리' 자리가 비어 있고 sleep framework가 그 자리를 겨냥한다">
+  <line x1="60" y1="150" x2="800" y2="150" stroke="var(--slp-slate)" stroke-width="2.5"/>
+  <polygon points="812,150 792,141 792,159" fill="var(--slp-slate)"/>
+  <text x="60" y="110" fill="var(--slp-sky)" font-size="14" font-weight="700">갱신 잦음 (고주파)</text>
+  <text x="800" y="110" text-anchor="end" fill="var(--slp-rose)" font-size="14" font-weight="700">갱신 없음 (저주파)</text>
+
+  <circle cx="130" cy="150" r="8" fill="var(--slp-sky)"/>
+  <text x="130" y="185" text-anchor="middle" fill="var(--slp-sky)" font-size="13.5" font-weight="700">컨텍스트</text>
+  <text x="130" y="205" text-anchor="middle" fill="var(--slp-slate)" font-size="12">매 토큰 갱신</text>
+  <text x="130" y="223" text-anchor="middle" fill="var(--slp-slate)" font-size="12">대화 끝나면 증발</text>
+
+  <circle cx="300" cy="150" r="8" fill="var(--slp-teal)"/>
+  <text x="300" y="185" text-anchor="middle" fill="var(--slp-teal)" font-size="13.5" font-weight="700">RAG · 메모리 파일</text>
+  <text x="300" y="205" text-anchor="middle" fill="var(--slp-slate)" font-size="12">수시 갱신 가능</text>
+  <text x="300" y="223" text-anchor="middle" fill="var(--slp-slate)" font-size="12">모델 밖의 외부 저장소</text>
+
+  <rect x="430" y="118" width="190" height="64" rx="12" fill="var(--slp-violet)" opacity="0.14"/>
+  <rect x="430" y="118" width="190" height="64" rx="12" fill="none" stroke="var(--slp-violet)" stroke-width="2.5" stroke-dasharray="7 6"/>
+  <text x="525" y="145" text-anchor="middle" fill="var(--slp-violet)" font-size="14" font-weight="800">비어 있던 자리</text>
+  <text x="525" y="168" text-anchor="middle" fill="var(--slp-violet)" font-size="12.5">시간~일 단위로 축적되는 가중치</text>
+  <text x="525" y="215" text-anchor="middle" fill="var(--slp-violet)" font-size="13" font-weight="700">← sleep framework가 겨냥하는 곳</text>
+
+  <circle cx="700" cy="150" r="8" fill="var(--slp-amber)"/>
+  <text x="700" y="185" text-anchor="middle" fill="var(--slp-amber)" font-size="13.5" font-weight="700">파인튜닝</text>
+  <text x="700" y="205" text-anchor="middle" fill="var(--slp-slate)" font-size="12">가끔 갱신</text>
+  <text x="700" y="223" text-anchor="middle" fill="var(--slp-rose)" font-size="12">망각 위험</text>
+
+  <circle cx="790" cy="150" r="8" fill="var(--slp-rose)"/>
+  <text x="790" y="256" text-anchor="middle" fill="var(--slp-rose)" font-size="13.5" font-weight="700">사전학습 가중치</text>
+  <text x="790" y="276" text-anchor="middle" fill="var(--slp-slate)" font-size="12">컷오프 이후 동결</text>
+
+  <text x="430" y="306" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">지식이 '얼마나 자주 갱신되는 메모리'에 사는가 — 중간 대역이 비어 있었습니다</text>
+</svg>
+<figcaption>그림 1. 메모리 갱신 주파수 스펙트럼. 컨텍스트(매 토큰)와 사전학습 가중치(동결) 사이의 중간 대역 — 수시로 배우되 안전하게 축적되는 메모리 — 이 지금까지 비어 있었습니다.</figcaption>
+</figure>
+
+<p>"모델이 스스로 가중치를 고치게 하자"는 시도가 없었던 건 아닙니다. MIT의 <a href="https://arxiv.org/abs/2506.10943" target="_blank" rel="noopener">SEAL(Self-Adapting Language Models)</a>은 모델이 자기 파인튜닝 데이터와 학습 지시문(self-edit)을 직접 생성하게 했고, Stanford의 <a href="https://arxiv.org/abs/2506.06266" target="_blank" rel="noopener">Cartridges</a>는 긴 코퍼스를 작은 KV 캐시로 미리 압축해 두는 self-study를 제안했습니다. 그런데 SEAL 저자들조차 논문에서 가장 큰 남은 과제로 catastrophic forgetting을 꼽았습니다. 순차적으로 self-edit를 적용할수록 이전 태스크 성능이 깎인다는 겁니다. <strong>'스스로 배우는 모델'의 병목이 '배우는 능력'이 아니라 '잊지 않는 능력'이었던 셈입니다.</strong> sleep framework는 정확히 이 지점을 공략합니다.</p>
+
+<h2 id="sec-3">3. 뇌는 이 문제를 어떻게 풀었나</h2>
+
+<p>신경과학에는 오래된 정설이 있습니다. 뇌는 저장소를 둘로 나눠 씁니다. 낮 동안의 경험은 일단 <strong>해마(hippocampus)</strong>라는 빠르지만 용량이 작은 임시 저장소에 기록됩니다. 그리고 자는 동안 그 기억이 재생(replay)되면서, 중요한 것만 선별돼 <strong>신피질(neocortex)</strong>이라는 느리지만 거대한 장기 저장소로 옮겨집니다. 이 과정이 <strong>기억 공고화(memory consolidation)</strong>입니다. 덜 중요한 연결은 끊어 버리는 <strong>시냅스 가지치기(synaptic pruning)</strong>도 수면 중에 일어납니다.</p>
+
+<p>핵심 통찰은 이겁니다. <strong>쓰는 속도가 다른 메모리를 분리하면, 새 기억이 옛 기억을 덮어쓰지 않는다.</strong> 새 정보는 빠른 쪽에만 쓰고, 느린 쪽(장기 기억)은 입력이 끊긴 안전한 시간에, 통제된 방식으로만 갱신하는 겁니다. 들어오는 정보에 실시간으로 반응하면서 동시에 장기 기억을 고치려는 시도 자체가 망각의 원인이라는 거죠.</p>
+
+<p>이 아이디어를 LLM에 가져오려는 흐름은 몇 년 전부터 쌓여 왔습니다. Google의 <a href="https://arxiv.org/abs/2501.00663" target="_blank" rel="noopener">Titans</a>(2025)는 추론 중에 파라미터에 기억을 써 넣는 신경 장기 기억 모듈을 붙였고, NeurIPS 2025의 <a href="https://neurips.cc/virtual/2025/loc/san-diego/poster/116123" target="_blank" rel="noopener">Nested Learning</a>(Hope 아키텍처)은 한발 더 나가 <strong>서로 다른 주파수로 갱신되는 메모리 모듈의 스펙트럼(Continuum Memory System)</strong>을 제안했습니다. 이번 sleep framework는 같은 저자(Ali Behrouz)가 이끄는 연구 라인의 세 번째 수로, Google Research와 Cornell의 공동 연구이며 논문 제목부터 노골적입니다 — <a href="https://arxiv.org/abs/2606.03979" target="_blank" rel="noopener">"Language Models Need Sleep: Learning to Self-Modify and Consolidate Memories"</a>(arXiv:2606.03979).</p>
+
+<figure class="slp-fig">
+<svg viewBox="0 0 860 300" role="img" aria-label="Titans에서 Nested Learning(Hope)을 거쳐 sleep framework로 이어지는 Google의 continual learning 연구 계보 타임라인">
+  <line x1="70" y1="150" x2="790" y2="150" stroke="var(--slp-slate)" stroke-width="2.5"/>
+  <polygon points="802,150 782,141 782,159" fill="var(--slp-slate)"/>
+
+  <circle cx="160" cy="150" r="9" fill="var(--slp-sky)"/>
+  <text x="160" y="90" text-anchor="middle" fill="var(--slp-sky)" font-size="15" font-weight="800">Titans</text>
+  <text x="160" y="112" text-anchor="middle" fill="var(--slp-slate)" font-size="12">2025.01 · arXiv:2501.00663</text>
+  <text x="160" y="190" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">추론 중 파라미터에 기억을 쓰는</text>
+  <text x="160" y="208" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">신경 장기 기억 모듈</text>
+
+  <circle cx="430" cy="150" r="9" fill="var(--slp-teal)"/>
+  <text x="430" y="90" text-anchor="middle" fill="var(--slp-teal)" font-size="15" font-weight="800">Nested Learning (Hope)</text>
+  <text x="430" y="112" text-anchor="middle" fill="var(--slp-slate)" font-size="12">NeurIPS 2025</text>
+  <text x="430" y="190" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">갱신 주파수가 다른 메모리 모듈의</text>
+  <text x="430" y="208" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">스펙트럼 (Continuum Memory System)</text>
+
+  <circle cx="700" cy="150" r="11" fill="var(--slp-violet)"/>
+  <text x="700" y="90" text-anchor="middle" fill="var(--slp-violet)" font-size="15" font-weight="800">sleep framework</text>
+  <text x="700" y="112" text-anchor="middle" fill="var(--slp-slate)" font-size="12">2026.10 · arXiv:2606.03979</text>
+  <text x="700" y="190" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">빠른/느린 메모리 사이의 이동을</text>
+  <text x="700" y="208" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">wake/sleep 사이클로 운영</text>
+
+  <text x="430" y="262" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">공통 질문: "추론이 끝난 뒤에도 계속 배우는 모델을 어떻게 만들 것인가" — 같은 연구 라인의 세 번째 수</text>
+</svg>
+<figcaption>그림 2. Titans → Nested Learning(Hope) → sleep framework로 이어지는 계보. '갱신 속도가 다른 메모리를 계층화한다'는 아이디어가 점점 운영 가능한 사이클로 구체화됩니다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 해부 ① — wake: 빠른 메모리에 쌓기만 한다</h2>
+
+<p>이제 프레임워크의 동작을 단계별로 봅시다. 전제가 하나 있습니다. 모델의 메모리를 <strong>빠른 블록(고주파)</strong>과 <strong>느린 블록(저주파)</strong>으로 나눕니다. 빠른 블록은 임시 저장용으로 자주 갱신되고, 느린 블록은 장기 기억으로 평소에는 잠겨 있습니다. 해마와 신피질의 역할 분담 그대로입니다.</p>
+
+<p><strong>깨어 있는 동안(wake 단계)</strong> 모델은 평소처럼 입력을 처리합니다. 새로 만난 정보 — 새 문서, 사용자와의 상호작용, 도구 호출 결과 — 는 빠른 블록의 임시 메모리에 흡수됩니다. 중요한 건 <strong>이 단계에서 장기 기억(느린 블록)은 건드리지 않는다</strong>는 점입니다. 느린 블록에 반영할 갱신은 계산해 두되 바로 적용하지 않고 보류(pending)합니다. 실시간으로 쏟아지는 노이즈 섞인 정보가 장기 기억을 직접 덮어쓰는 길을 원천 차단하는 겁니다.</p>
+
+<p>비유하면 회의 중에 노트에 미친 듯이 메모만 하는 상태입니다. 메모를 하면서 동시에 머릿속 지식 체계를 재정리하려 들면 둘 다 망가지니까, 일단 받아 적기만 하고 정리는 나중으로 미루는 거죠.</p>
+
+<h2 id="sec-5">5. 해부 ② — sleep: 기억 공고화와 시냅스 가지치기</h2>
+
+<p><strong>수면 단계</strong>에 들어가면 먼저 입력을 끊습니다. 외부 정보가 더 들어오지 않는 안전한 상태에서 두 가지 일이 벌어집니다.</p>
+
+<p><strong>첫째, 기억 공고화(consolidation)입니다.</strong> 느린 블록 안에 미리 할당해 둔 <strong>저랭크(low-rank) expert</strong> — MoE(Mixture-of-Experts, 입력마다 일부 전문가 서브네트워크만 활성화하는 구조)의 추가 전문가 슬롯이라고 생각하면 됩니다 — 를 잠금 해제하고, 깨어 있는 동안 빠른 메모리에 쌓인 지식을 여기에 옮겨 넣습니다. 옮기는 방법이 흥미로운데, 단순 복사가 아니라 <strong>증류(distillation)</strong>입니다. 빠른 메모리를 품은 기존 모델(before 상태)을 교사로 세우고, 새 expert가 포함된 모델이 그 행동을 모방하도록 on-policy distillation(학생 모델이 직접 생성한 출력 위에서 교사와의 차이를 줄이는 증류)과 RL 기반 모방 학습으로 훈련합니다. "임시 메모리에 있던 지식을, 장기 기억 전용 슬롯이 자기 방식으로 다시 배우게 한다"는 겁니다.</p>
+
+<p><strong>둘째, 시냅스 가지치기(synaptic pruning)입니다.</strong> 공고화가 끝나면 보류해 뒀던 갱신을 적용하고, 빠른 블록의 임시 expert들을 리셋해서 재사용 가능한 빈 슬롯으로 되돌립니다. 뇌가 수면 중에 불필요한 시냅스를 정리해 다음 날 배울 공간을 확보하는 것과 같은 역할입니다. 이 리셋 덕분에 사이클을 무한히 반복해도 빠른 메모리가 포화되지 않습니다.</p>
+
+<p>왜 이 구조가 망각을 막을까요? 포인트는 세 가지입니다. <strong>(1) 새 지식은 새 슬롯(새 expert)에 들어갑니다.</strong> 기존 가중치 위에 겹쳐 쓰지 않으니 옛 지식이 깔고 앉은 가중치가 보존됩니다. <strong>(2) 갱신이 일어나는 시점이 통제됩니다.</strong> 입력이 끊긴 상태에서만 장기 기억을 고치므로, 실시간 노이즈가 장기 기억을 오염시키지 않습니다. <strong>(3) 증류가 완충재 역할을 합니다.</strong> 그라디언트가 원본 데이터에서 장기 기억으로 직행하는 게 아니라, "공고화 직전 모델의 행동"이라는 검증된 기준을 거쳐 전달됩니다.</p>
+
+<figure class="slp-fig">
+<svg viewBox="0 0 860 560" role="img" aria-label="sleep framework의 전체 사이클. wake 단계에서는 빠른 블록에 새 정보를 쌓고 느린 블록은 잠겨 있다. sleep 단계에서는 입력을 끊고 느린 블록의 저랭크 expert에 증류로 공고화한 뒤 빠른 블록을 리셋한다. dreaming 단계에서는 비표준 라우팅으로 합성 데이터를 만들어 선별 후 복습한다">
+  <!-- wake -->
+  <text x="150" y="36" text-anchor="middle" fill="var(--slp-amber)" font-size="16" font-weight="800">① wake (깨어 있음)</text>
+  <rect x="40" y="56" width="220" height="64" rx="10" fill="var(--slp-amber)" opacity="0.12"/>
+  <rect x="40" y="56" width="220" height="64" rx="10" fill="none" stroke="var(--slp-amber)" stroke-width="2.5"/>
+  <text x="150" y="83" text-anchor="middle" fill="var(--slp-amber)" font-size="13" font-weight="700">빠른 블록 (임시 메모리)</text>
+  <text x="150" y="104" text-anchor="middle" fill="var(--slp-slate)" font-size="12">새 정보를 계속 흡수</text>
+  <rect x="40" y="136" width="220" height="64" rx="10" fill="none" stroke="var(--slp-slate)" stroke-width="2.5" stroke-dasharray="6 5"/>
+  <text x="150" y="163" text-anchor="middle" fill="var(--slp-slate)" font-size="13" font-weight="700">느린 블록 (장기 기억) 🔒</text>
+  <text x="150" y="184" text-anchor="middle" fill="var(--slp-slate)" font-size="12">갱신은 계산만 하고 보류</text>
+  <text x="150" y="226" text-anchor="middle" fill="var(--slp-slate)" font-size="12">문서 · 대화 · 도구 결과 →</text>
+
+  <!-- 화살표 wake → sleep -->
+  <line x1="290" y1="128" x2="360" y2="128" stroke="var(--slp-slate)" stroke-width="2.5"/>
+  <polygon points="372,128 354,120 354,136" fill="var(--slp-slate)"/>
+  <text x="331" y="112" text-anchor="middle" fill="var(--slp-slate)" font-size="11.5">입력 차단</text>
+
+  <!-- sleep -->
+  <text x="520" y="36" text-anchor="middle" fill="var(--slp-violet)" font-size="16" font-weight="800">② sleep (수면: 공고화)</text>
+  <rect x="400" y="56" width="240" height="64" rx="10" fill="none" stroke="var(--slp-amber)" stroke-width="2.5"/>
+  <text x="520" y="83" text-anchor="middle" fill="var(--slp-amber)" font-size="13" font-weight="700">빠른 블록 = 교사</text>
+  <text x="520" y="104" text-anchor="middle" fill="var(--slp-slate)" font-size="12">공고화 직전 모델의 행동이 기준</text>
+  <rect x="400" y="136" width="240" height="88" rx="10" fill="var(--slp-violet)" opacity="0.12"/>
+  <rect x="400" y="136" width="240" height="88" rx="10" fill="none" stroke="var(--slp-violet)" stroke-width="2.5"/>
+  <text x="520" y="163" text-anchor="middle" fill="var(--slp-violet)" font-size="13" font-weight="700">느린 블록 🔓</text>
+  <text x="520" y="184" text-anchor="middle" fill="var(--slp-slate)" font-size="12">저랭크 expert 슬롯을 열고</text>
+  <text x="520" y="203" text-anchor="middle" fill="var(--slp-slate)" font-size="12">on-policy distillation으로 흡수</text>
+  <line x1="520" y1="120" x2="520" y2="136" stroke="var(--slp-violet)" stroke-width="2.5"/>
+  <polygon points="520,134 513,122 527,122" fill="var(--slp-violet)" transform="rotate(180 520 128)"/>
+  <text x="700" y="140" text-anchor="start" fill="var(--slp-slate)" font-size="12">공고화 후:</text>
+  <text x="700" y="160" text-anchor="start" fill="var(--slp-slate)" font-size="12">보류한 갱신 적용,</text>
+  <text x="700" y="180" text-anchor="start" fill="var(--slp-slate)" font-size="12">임시 expert 리셋</text>
+  <text x="700" y="200" text-anchor="start" fill="var(--slp-teal)" font-size="12" font-weight="700">(시냅스 가지치기)</text>
+
+  <!-- dreaming -->
+  <text x="430" y="300" text-anchor="middle" fill="var(--slp-sky)" font-size="16" font-weight="800">③ dreaming (꿈: 자가 복습)</text>
+  <rect x="60" y="322" width="230" height="78" rx="10" fill="none" stroke="var(--slp-sky)" stroke-width="2.5"/>
+  <text x="175" y="349" text-anchor="middle" fill="var(--slp-sky)" font-size="13" font-weight="700">비표준 라우팅 탐색</text>
+  <text x="175" y="370" text-anchor="middle" fill="var(--slp-slate)" font-size="12">평소와 다른 expert 조합으로</text>
+  <text x="175" y="389" text-anchor="middle" fill="var(--slp-slate)" font-size="12">합성 후보 데이터 생성</text>
+  <line x1="300" y1="361" x2="350" y2="361" stroke="var(--slp-slate)" stroke-width="2.5"/>
+  <polygon points="362,361 344,353 344,369" fill="var(--slp-slate)"/>
+  <rect x="372" y="322" width="210" height="78" rx="10" fill="none" stroke="var(--slp-teal)" stroke-width="2.5"/>
+  <text x="477" y="349" text-anchor="middle" fill="var(--slp-teal)" font-size="13" font-weight="700">중요도 선별</text>
+  <text x="477" y="370" text-anchor="middle" fill="var(--slp-slate)" font-size="12">그라디언트 기반 점수로</text>
+  <text x="477" y="389" text-anchor="middle" fill="var(--slp-slate)" font-size="12">쓸 만한 것만 통과</text>
+  <line x1="592" y1="361" x2="642" y2="361" stroke="var(--slp-slate)" stroke-width="2.5"/>
+  <polygon points="654,361 636,353 636,369" fill="var(--slp-slate)"/>
+  <rect x="664" y="322" width="160" height="78" rx="10" fill="var(--slp-sky)" opacity="0.12"/>
+  <rect x="664" y="322" width="160" height="78" rx="10" fill="none" stroke="var(--slp-sky)" stroke-width="2.5"/>
+  <text x="744" y="349" text-anchor="middle" fill="var(--slp-sky)" font-size="13" font-weight="700">SFT + RL 복습</text>
+  <text x="744" y="370" text-anchor="middle" fill="var(--slp-slate)" font-size="12">선별된 데이터로</text>
+  <text x="744" y="389" text-anchor="middle" fill="var(--slp-slate)" font-size="12">자기 자신을 갱신</text>
+
+  <!-- 순환 -->
+  <path d="M 744 410 C 744 480 180 500 150 420 C 142 400 142 320 150 250" stroke="var(--slp-teal)" stroke-width="2.5" fill="none" stroke-dasharray="8 7" opacity="0.8"/>
+  <polygon points="150,240 142,258 159,257" fill="var(--slp-teal)"/>
+  <text x="430" y="486" text-anchor="middle" fill="var(--slp-teal)" font-size="13" font-weight="700">아침이 오면 다시 ① wake로 — 빈 임시 메모리로 새로 배울 준비 완료</text>
+  <text x="430" y="530" text-anchor="middle" fill="var(--slp-slate)" font-size="12.5">새 지식은 '새 expert 슬롯'에, 갱신은 '입력이 끊긴 시간'에, 전달은 '증류'로 — 망각을 막는 세 겹의 방어</text>
+</svg>
+<figcaption>그림 3. sleep framework의 전체 사이클. 깨어서 쌓고(①), 자면서 옮겨 적고 비우고(②), 꿈꾸며 복습합니다(③).</figcaption>
+</figure>
+
+<h2 id="sec-6">6. 해부 ③ — dreaming: 스스로 만든 데이터로 복습하기</h2>
+
+<p>수면 단계의 두 번째 축이 <strong>dreaming</strong>입니다. 공고화가 "밖에서 들어온 지식을 옮겨 적기"라면, dreaming은 <strong>이미 아는 것들을 재조합해서 스스로 학습 데이터를 만드는 과정</strong>입니다. 사람의 꿈이 낮의 경험을 뒤섞어 재생하면서 기억을 강화하는 것에 빗댄 이름입니다.</p>
+
+<p>동작은 이렇습니다. MoE 모델에서 평소에는 라우터가 입력마다 '정석' expert 조합을 고르는데, dreaming 중에는 <strong>일부러 평소와 다른, 비표준 경로로 라우팅</strong>해서 출력을 생성합니다. 서로 다른 지식 조각이 우연히 만나게 강제하는 겁니다. 이렇게 생성된 합성 후보들을 그라디언트 기반 중요도 점수로 선별하고 — 아무 꿈이나 배우면 헛소리까지 강화되니 선별이 필수입니다 — 통과한 데이터로 SFT와 RL을 돌려 자신을 다듬습니다.</p>
+
+<p>이게 왜 중요할까요? continual learning의 숨은 난제는 "새 지식을 넣는 것"만이 아니라 <strong>"새 지식을 기존 지식과 연결하는 것"</strong>이기 때문입니다. 어제 배운 API 스펙과 재작년에 배운 설계 원칙이 연결돼야 응용이 가능해집니다. dreaming은 그 연결을 외부 데이터 없이, 모델 내부의 재조합만으로 만들어 내려는 장치입니다. 뒤에서 보겠지만 ablation(구성 요소를 하나씩 빼 보는 실험)에서 dreaming을 제거하면 점수가 크게 빠집니다.</p>
+
+<div class="slp-note">
+<strong>용어 정리.</strong> 논문에는 <strong>knowledge seeding</strong>이라는 장치도 나옵니다. 작은 모델(작은 자아)이 쌓은 기억을 더 큰 네트워크로 상향 증류해서, 지식은 보존하면서 수용 용량을 키우는 단계입니다. 요약하면 공고화 계열 메커니즘의 하나로, "기억을 더 큰 그릇으로 옮겨 담는 법"에 해당합니다.
+</div>
+
+<h2 id="sec-7">7. 숫자 확인 — 저자들이 보고한 결과</h2>
+
+<p>논문이 보고한 결과 중 눈에 띄는 것들을 추리면 이렇습니다. 전부 <strong>저자 측정치</strong>이고 아직 독립 재현은 없다는 점을 먼저 깔아 둡니다.</p>
+
+<p><strong>순차 학습에서의 망각.</strong> 가장 상징적인 실험은 저자원 언어 번역입니다. 만주어(Manchu), 칼라망어(Kalamang)처럼 모델이 사전학습에서 본 적 없는 언어를 <strong>순서대로 하나씩</strong> 가르치면서, 앞서 배운 언어의 번역 성능이 유지되는지 측정했습니다(칼라망어는 "문법책 한 권으로 번역을 배우는" MTOB 벤치마크로 유명한 그 언어입니다). in-context learning, <a href="https://arxiv.org/abs/2506.06266" target="_blank" rel="noopener">Cartridges</a>, 일반 SFT 같은 베이스라인들은 다음 언어를 배우는 사이 앞 언어 성능이 크게 무너진 반면, sleep framework는 <strong>여러 단계를 거쳐도 성능 하락이 거의 0에 가까웠다</strong>고 보고합니다.</p>
+
+<p><strong>추론 능력 자가 개선.</strong> Qwen3-8B에 적용해 dreaming 사이클을 돌린 실험에서는 AIME-24(수학 경시 벤치마크) 79.2점으로, on-policy self-distillation 베이스라인(76.6점)을 앞섰다고 보고합니다. 외부에서 새 데이터를 공급하지 않고 자기 재조합 복습만으로 얻은 개선이라는 점이 포인트입니다.</p>
+
+<p><strong>지식 주입과 ablation.</strong> 지식 주입(knowledge incorporation) 계열 평가에서는 sleep 구성이 46.2로 <a href="https://arxiv.org/abs/2506.10943" target="_blank" rel="noopener">SEAL</a>(43.2)을 앞섰고, dreaming을 빼면 36.2까지 떨어졌다는 수치가 보고됩니다. dreaming이 장식이 아니라 성능의 상당 부분을 떠받치는 기둥이라는 뜻입니다.</p>
+
+<table class="slp-table">
+  <thead><tr><th>실험</th><th>sleep framework</th><th>베이스라인</th><th>해석</th></tr></thead>
+  <tbody>
+    <tr><td>저자원 언어 순차 학습 (만주어·칼라망어 번역)</td><td>성능 하락 거의 0</td><td>ICL·Cartridges·SFT는 큰 폭 망각</td><td>공고화가 순차 학습의 망각을 막음</td></tr>
+    <tr><td>AIME-24 (Qwen3-8B + dreaming)</td><td>79.2</td><td>on-policy self-distillation 76.6</td><td>외부 데이터 없이 자가 복습으로 개선</td></tr>
+    <tr><td>지식 주입 평가</td><td>46.2 (dreaming 제거 시 36.2)</td><td>SEAL 43.2</td><td>dreaming이 성능의 핵심 기둥</td></tr>
+  </tbody>
+</table>
+
+<div class="slp-warn">
+<strong>주의해서 읽어야 할 부분.</strong> 셋 다 저자 보고 수치이고, 2026년 10월 말 기준 독립 재현 결과는 없습니다. <a href="https://news.ycombinator.com/item?id=50272479" target="_blank" rel="noopener">HN 스레드</a>에서도 "유망하지만 검증이 필요한 초기 연구"라는 반응과 함께, 운영 관점의 날카로운 질문이 나왔습니다 — <em>"모델이 자다가 스스로 바뀌면, 언제 무엇이 왜 바뀌었는지 누가 추적하나?"</em> 가중치가 고정된 모델은 버전 관리가 쉽지만, 매일 밤 달라지는 모델은 감사(audit)·롤백·평가 체계를 전부 다시 설계해야 합니다. 공개된 구현 코드도 아직 없으므로, 현시점에서는 '아키텍처 방향 제시'로 읽는 게 안전합니다.
+</div>
+
+<h2 id="sec-8">8. 실전 — 오늘 흉내 낼 수 있는 것</h2>
+
+<p>sleep framework 자체는 아직 가져다 쓸 수 없지만, 설계 원리는 지금의 스택으로도 흉내 낼 수 있습니다. 두 가지를 해 봅시다.</p>
+
+<p><strong>먼저 망각을 눈으로 확인합니다.</strong> continual learning을 논하려면 "우리 파인튜닝이 뭘 깎아 먹는지"부터 측정할 수 있어야 합니다. 작은 모델로 10분이면 재현됩니다.</p>
+
+{{< highlight python >}}
+# catastrophic forgetting 미니 재현: 태스크 A → 태스크 B 순차 파인튜닝
+from peft import LoraConfig, get_peft_model
+
+model = load_base_model("Qwen/Qwen3-0.6B")          # 작은 모델이면 충분
+eval_a = make_eval(task_a)                            # 태스크 A 평가셋 고정
+eval_b = make_eval(task_b)
+
+# 1) 태스크 A 학습 → A 점수 기록
+model_a = finetune(model, data_a)
+print("A after A:", eval_a(model_a))                  # 예: 0.85
+
+# 2) 같은 가중치에 이어서 태스크 B 학습
+model_ab = finetune(model_a, data_b)                  # ← 여기가 사고 지점
+print("B after B:", eval_b(model_ab))                 # B는 오른다
+print("A after B:", eval_a(model_ab))                 # A가 무너지는 걸 확인
+
+# 3) 완화책: 태스크별로 LoRA 어댑터를 분리하면
+#    base 가중치는 동결되고 새 지식은 '새 슬롯'에만 쌓인다
+lora_b = get_peft_model(model_a, LoraConfig(r=16))    # sleep framework의
+model_ab2 = finetune(lora_b, data_b)                  # 'expert 슬롯 추가'의 축소판
+{{< /highlight >}}
+
+<p>3번이 핵심입니다. <strong>"새 지식은 새 파라미터 슬롯에, 기존 가중치는 동결"</strong> — sleep framework가 저랭크 expert로 하는 일의 가장 단순한 축소판이 태스크별 LoRA 분리입니다. 어댑터를 라우팅하는 게이트만 붙이면 '가난한 자의 Continuum Memory System'이 됩니다.</p>
+
+<p><strong>다음으로 wake/sleep 사이클을 운영 패턴으로 옮겨 봅니다.</strong> 에이전트 시스템이라면 이미 재료가 다 있습니다. 낮 동안의 상호작용 로그가 '빠른 메모리'이고, 트래픽이 빠지는 새벽 배치가 '수면'입니다.</p>
+
+{{< highlight python >}}
+# '수면 사이클'을 운영 패턴으로 옮긴 의사코드
+def nightly_sleep_cycle(day_logs, model):
+    # ① 공고화 후보 선별 — 아무거나 다 배우면 노이즈까지 새긴다
+    candidates = extract_lessons(day_logs)            # 해결된 이슈, 교정된 답변 등
+    curated = [c for c in candidates if importance(c) > THRESHOLD]
+
+    # ② 공고화 — 기존 가중치가 아니라 '새 어댑터'에 학습
+    adapter = train_new_adapter(model, curated)       # base는 동결
+
+    # ③ 복습(dreaming의 아주 약한 버전) — 기존 평가셋과 섞어 리그레션 확인
+    score_new = evaluate(model + adapter, new_evals(curated))
+    score_old = evaluate(model + adapter, FROZEN_EVAL_SUITE)  # ← 망각 감시
+
+    # ④ 게이트 — 옛 능력이 깎였으면 배포하지 않는다
+    if score_old < BASELINE - EPSILON:
+        rollback(adapter); alert("forgetting detected")
+    else:
+        deploy(adapter, version=today())              # 버전 기록 필수 (감사 대비)
+{{< /highlight >}}
+
+<p>이 패턴의 교훈은 프레임워크 없이도 성립합니다. <strong>배움은 실시간이 아니라 배치로, 새 지식은 분리된 슬롯에, 반영 전에 반드시 옛 능력 리그레션 테스트를.</strong> 모델 가중치 대신 메모리 파일이나 프롬프트를 갱신하는 시스템이라도 똑같이 적용되는 원칙입니다 — 에이전트가 세션 중에 메모리 파일을 마구 덮어쓰게 두지 말고, 세션이 끝난 뒤 선별·정리 단계를 거쳐 반영하는 것도 일종의 수면 사이클입니다.</p>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"파인튜닝하면 모델이 똑똑해진다"는 기대.</strong> 측정 없이 순차 파인튜닝을 반복하면 거의 확실히 무언가를 잃습니다. 파인튜닝 파이프라인에는 <strong>새 태스크 평가셋과 함께 '기존 능력 평가셋'을 반드시 고정</strong>해 두세요. 망각은 측정하지 않으면 보이지 않습니다.</li>
+  <li><strong>망각을 '데이터를 더 넣어서' 풀려는 시도.</strong> 옛 데이터를 섞어 다시 학습하는 replay는 유효한 완화책이지만, 옛 데이터 전체를 섞을수록 비용이 늘고 사전학습 데이터는 애초에 구할 수도 없습니다. 구조적 분리(어댑터·expert 슬롯)가 더 싸게 먹히는 경우가 많습니다.</li>
+  <li><strong>자가 생성 데이터를 선별 없이 학습.</strong> dreaming의 절반은 생성이 아니라 <strong>선별</strong>입니다. 모델이 만든 데이터를 거르지 않고 다시 먹이면 오류가 복리로 증폭됩니다(model collapse 계열 문제). 중요도 점수든 검증기든, 게이트 없는 self-training은 하지 마세요.</li>
+  <li><strong>스스로 바뀌는 시스템에 버전 관리 없음.</strong> HN의 질문 그대로입니다 — "언제, 무엇이, 왜 바뀌었나?" 매일 갱신되는 어댑터·메모리·프롬프트에는 커밋에 준하는 기록(스냅샷, 변경 사유, 롤백 경로)을 남기세요. 이게 없으면 장애 원인 분석이 불가능해집니다.</li>
+  <li><strong>'메모리 파일이 있으니 continual learning은 해결됐다'는 착각.</strong> 메모리 파일은 컨텍스트 대역의 해법이고, 컨텍스트 예산과 검색 품질에 묶여 있습니다. 지식이 수만 건 규모로 쌓이는 시스템이라면 가중치 대역으로 내려보낼 방법이 결국 필요해집니다. 그 길목에 있는 연구가 이번 sleep framework입니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>LLM이 지식 컷오프에 갇힌 근본 원인은 <strong>catastrophic forgetting</strong> — 새 학습이 옛 지식이 기대던 가중치를 덮어쓰기 때문입니다. RAG·메모리 파일은 이를 우회할 뿐, 모델이 배우는 건 아닙니다.</li>
+  <li>10월 27일 공개된 Google Research의 <strong>sleep framework</strong>(arXiv:2606.03979)는 뇌의 수면 기억 공고화를 본떴습니다. <strong>wake</strong>에서는 빠른 임시 메모리에 쌓기만 하고, <strong>sleep</strong>에서 입력을 끊은 채 느린 블록의 저랭크 expert로 증류(공고화)한 뒤 임시 메모리를 리셋합니다(시냅스 가지치기).</li>
+  <li><strong>dreaming</strong>은 비표준 MoE 라우팅으로 아는 것을 재조합해 합성 데이터를 만들고, 선별을 거쳐 SFT+RL로 복습하는 자가 개선 장치입니다. ablation에서 빼면 점수가 크게 빠집니다.</li>
+  <li>저자 보고 기준, 저자원 언어 순차 학습에서 망각이 거의 0이었고(베이스라인은 큰 폭 하락), AIME-24에서 자가 복습만으로 베이스라인을 앞섰습니다. 단, <strong>독립 재현은 아직 없고 코드도 미공개</strong>입니다.</li>
+  <li>오늘 가져갈 교훈: <strong>배움은 배치로, 새 지식은 분리된 슬롯(LoRA 어댑터)에, 반영 전 옛 능력 리그레션 게이트, 그리고 스스로 바뀌는 모든 것에 버전 기록.</strong></li>
+</ul>
+
+<h2 id="sec-11">11. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://research.google/blog/the-sleep-framework-a-new-way-for-llms-to-retain-knowledge-in-continual-learning/" target="_blank" rel="noopener">The sleep framework: A new way for LLMs to retain knowledge in continual learning — Google Research Blog (2026-10-27)</a></li>
+  <li><a href="https://arxiv.org/abs/2606.03979" target="_blank" rel="noopener">Language Models Need Sleep: Learning to Self-Modify and Consolidate Memories — arXiv:2606.03979</a></li>
+  <li><a href="https://huggingface.co/papers/2606.03979" target="_blank" rel="noopener">Hugging Face Papers — Language Models Need Sleep</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50272479" target="_blank" rel="noopener">Hacker News 토론 — Sleep framework</a></li>
+  <li><a href="https://x.com/GoogleResearch/status/2115136620446019795" target="_blank" rel="noopener">Google Research 공식 X 포스트</a></li>
+  <li><a href="https://www.emergentmind.com/papers/2606.03979" target="_blank" rel="noopener">LLMs Need Sleep: Memory &amp; Self-Modification — Emergent Mind 논문 해설</a></li>
+  <li><a href="https://dataphoenix.info/news/google-sleep-continual-learning-framework" target="_blank" rel="noopener">Google proposes wake-sleep cycle for continual-learning LLMs — Data Phoenix</a></li>
+  <li><a href="https://gigazine.net/gsc_news/en/20261030-ai-sleep-knowledge/" target="_blank" rel="noopener">Google announces 'sleep phase' research for AI — GIGAZINE (2026-10-30)</a></li>
+  <li><a href="https://arxiv.org/abs/2501.00663" target="_blank" rel="noopener">Titans: Learning to Memorize at Test Time — arXiv:2501.00663</a></li>
+  <li><a href="https://neurips.cc/virtual/2025/loc/san-diego/poster/116123" target="_blank" rel="noopener">Nested Learning: The Illusion of Deep Learning Architectures — NeurIPS 2025 (Hope)</a></li>
+  <li><a href="https://www.cognitiverevolution.ai/nested-learning-ali-behrouz-on-the-quest-for-continual-learning-illusion-of-ai-architectures/" target="_blank" rel="noopener">Nested Learning: Ali Behrouz on the Quest for Continual Learning — Cognitive Revolution 팟캐스트</a></li>
+  <li><a href="https://arxiv.org/abs/2506.10943" target="_blank" rel="noopener">SEAL: Self-Adapting Language Models — arXiv:2506.10943 (MIT)</a></li>
+  <li><a href="https://arxiv.org/abs/2506.06266" target="_blank" rel="noopener">Cartridges: Lightweight and general-purpose long context representations via self-study — arXiv:2506.06266 (Stanford, ICLR 2026)</a></li>
+  <li><a href="https://hazyresearch.stanford.edu/blog/2025-06-08-cartridges" target="_blank" rel="noopener">Cartridges: Storing long contexts in tiny caches with self-study — Hazy Research Blog</a></li>
+  <li>🇰🇷 <a href="https://www.digitaltoday.co.kr/en/view/121904/google-proposes-sleep-framework-to-help-ai-retain-knowledge-while-learning-new-information" target="_blank" rel="noopener">구글, AI가 잊지 않고 배우게 하는 'sleep framework' 제안 — 디지털투데이</a></li>
+</ul>

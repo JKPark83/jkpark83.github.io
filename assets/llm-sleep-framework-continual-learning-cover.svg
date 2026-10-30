@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="낮에는 빠른 메모리에 정보를 쌓고 밤에는 가중치로 옮겨 적는 LLM의 수면 사이클을 그린 커버 이미지">
+  <defs>
+    <linearGradient id="slpg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="slp-sun" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#d97706"/></linearGradient>
+    <linearGradient id="slp-moon" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#slpg)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">LLM은 왜 '잠'이 필요한가</text>
+  <text x="80" y="154" fill="#a78bfa" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">Google의 sleep framework 해부</text>
+  <text x="80" y="200" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24">배운 걸 잊지 않고 계속 배우는 모델 — 기억 공고화와 dreaming의 엔지니어링</text>
+
+  <!-- 낮: wake 단계 -->
+  <circle cx="265" cy="330" r="34" fill="url(#slp-sun)"/>
+  <g stroke="#fbbf24" stroke-width="5" stroke-linecap="round">
+    <line x1="265" y1="276" x2="265" y2="258"/><line x1="265" y1="384" x2="265" y2="402"/>
+    <line x1="211" y1="330" x2="193" y2="330"/><line x1="319" y1="330" x2="337" y2="330"/>
+    <line x1="227" y1="292" x2="214" y2="279"/><line x1="303" y1="368" x2="316" y2="381"/>
+    <line x1="303" y1="292" x2="316" y2="279"/><line x1="227" y1="368" x2="214" y2="381"/>
+  </g>
+  <rect x="140" y="430" width="250" height="90" rx="14" fill="none" stroke="#fbbf24" stroke-width="3"/>
+  <text x="265" y="470" text-anchor="middle" fill="#fbbf24" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700">깨어 있는 동안</text>
+  <text x="265" y="500" text-anchor="middle" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18">빠른 메모리에 새 정보 축적</text>
+
+  <!-- 화살표 -->
+  <path d="M 420 475 C 500 475 520 475 580 475" stroke="#64748b" stroke-width="4" fill="none"/>
+  <polygon points="596,475 576,465 576,485" fill="#64748b"/>
+
+  <!-- 밤: sleep 단계 -->
+  <path d="M 790 296 a 38 38 0 1 0 30 62 a 30 30 0 1 1 -30 -62 z" fill="url(#slp-moon)" transform="translate(-22,0)"/>
+  <circle cx="830" cy="300" r="3.5" fill="#c4b5fd"/>
+  <circle cx="860" cy="330" r="2.5" fill="#c4b5fd"/>
+  <circle cx="845" cy="365" r="3" fill="#c4b5fd"/>
+  <rect x="630" y="430" width="250" height="90" rx="14" fill="none" stroke="#a78bfa" stroke-width="3"/>
+  <text x="755" y="470" text-anchor="middle" fill="#a78bfa" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700">자는 동안</text>
+  <text x="755" y="500" text-anchor="middle" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18">가중치로 공고화 + dreaming</text>
+
+  <!-- 순환 화살표 -->
+  <path d="M 880 400 C 1010 340 1010 250 930 210 C 870 180 760 180 700 200" stroke="#2dd4bf" stroke-width="4" fill="none" stroke-dasharray="10 8"/>
+  <polygon points="688,205 708,194 710,215" fill="#2dd4bf"/>
+  <text x="1010" y="310" fill="#2dd4bf" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19" font-weight="700">다시 wake로</text>
+  <text x="1010" y="336" fill="#5eead4" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16">망각 없이 반복</text>
+
+  <text x="80" y="590" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18">Google Research · arXiv:2606.03979 — Language Models Need Sleep</text>
+</svg>

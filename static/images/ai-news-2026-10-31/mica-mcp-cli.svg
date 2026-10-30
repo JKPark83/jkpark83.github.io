@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 410" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="410" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">MICA: 같은 기능, 다른 인터페이스 — 통제 비교 설계</text>
+
+  <!-- contract -->
+  <rect x="290" y="56" width="220" height="62" rx="10" fill="#fff" stroke="#888" stroke-width="1.5"/>
+  <text x="400" y="82" text-anchor="middle" font-size="14" font-weight="700" fill="#222">공유 시맨틱 액션 계약</text>
+  <text x="400" y="104" text-anchor="middle" font-size="12" fill="#555">동일한 연산 집합을 한 번만 정의</text>
+
+  <!-- arrows down -->
+  <path d="M352 118 L212 160" stroke="#888" stroke-width="2" fill="none" marker-end="url(#ah)"/>
+  <path d="M448 118 L588 160" stroke="#888" stroke-width="2" fill="none" marker-end="url(#ah)"/>
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#888"/>
+    </marker>
+  </defs>
+
+  <!-- MCP box -->
+  <rect x="60" y="164" width="300" height="88" rx="10" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="210" y="192" text-anchor="middle" font-size="14" font-weight="700" fill="#1f4e9c">MCP 렌더링</text>
+  <text x="210" y="214" text-anchor="middle" font-size="12" fill="#444">구조화된 툴 스키마 + JSON 인자</text>
+  <text x="210" y="234" text-anchor="middle" font-size="12" fill="#444">모델이 보는 것: 타입된 툴 목록</text>
+
+  <!-- CLI box -->
+  <rect x="440" y="164" width="300" height="88" rx="10" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="590" y="192" text-anchor="middle" font-size="14" font-weight="700" fill="#1e7a35">CLI 렌더링</text>
+  <text x="590" y="214" text-anchor="middle" font-size="12" fill="#444">셸 명령 문자열 + 플래그</text>
+  <text x="590" y="234" text-anchor="middle" font-size="12" fill="#444">모델이 보는 것: 명령어 사용법</text>
+
+  <!-- arrows to runtime -->
+  <path d="M210 252 L350 294" stroke="#888" stroke-width="2" fill="none" marker-end="url(#ah)"/>
+  <path d="M590 252 L450 294" stroke="#888" stroke-width="2" fill="none" marker-end="url(#ah)"/>
+
+  <!-- runtime -->
+  <rect x="290" y="298" width="220" height="54" rx="10" fill="#fff" stroke="#888" stroke-width="1.5"/>
+  <text x="400" y="322" text-anchor="middle" font-size="14" font-weight="700" fill="#222">동일 런타임 실행</text>
+  <text x="400" y="342" text-anchor="middle" font-size="12" fill="#555">6개 모델 × 3개 인터랙티브 환경</text>
+
+  <!-- result -->
+  <text x="400" y="382" text-anchor="middle" font-size="13" font-weight="600" fill="#9c2f2f">결과: 능력이 같아도 성공률·인터랙션 비용·실패 경로·복구 행동이 크게 달라짐</text>
+  <text x="400" y="402" text-anchor="middle" font-size="11" fill="#888">출처: arXiv 2610.34298 (MICA)</text>
+</svg>

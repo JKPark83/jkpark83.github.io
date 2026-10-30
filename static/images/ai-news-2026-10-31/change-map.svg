@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="480" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-10-31</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="190" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="190" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="262" width="360" height="190" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="262" width="360" height="190" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="112" font-size="14" font-weight="600" fill="#222">Mistral Large 4 가중치 공개</text>
+  <text x="50" y="134" font-size="12.5" fill="#444">~1T MoE · 활성 ~52B · 1M 컨텍스트</text>
+  <text x="50" y="154" font-size="12.5" fill="#444">수정 MIT 라이선스 (MaaS는 별도 계약)</text>
+  <text x="50" y="174" font-size="12.5" fill="#444">FP8 · NVFP4 · GGUF 체크포인트</text>
+  <text x="50" y="200" font-size="12.5" fill="#666">그 외 대형 모델 발표는 조용한 하루</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">MICA: MCP vs CLI 통제 비교</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">같은 기능도 인터페이스 따라 행동이 달라짐</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">벤치마크 = 난이도 분포</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">25개 벤치마크의 난이도 쏠림·공백 진단</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="290" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스</text>
+  <text x="50" y="318" font-size="14" font-weight="600" fill="#222">HKUDS/nanobot v0.4.0</text>
+  <text x="50" y="340" font-size="12.5" fill="#444">초경량 셀프호스팅 개인 에이전트 프레임워크</text>
+  <text x="50" y="368" font-size="14" font-weight="600" fill="#222">claude-mem v15.7.0</text>
+  <text x="50" y="390" font-size="12.5" fill="#444">Claude Code 세션 간 영속 메모리 압축</text>
+
+  <!-- 도구/팁 -->
+  <text x="430" y="290" font-size="15" font-weight="700" fill="#6a2f9c">🧑‍💻 도구 / 팁</text>
+  <text x="430" y="318" font-size="14" font-weight="600" fill="#222">Codex: deferred tool world state 기본 ON</text>
+  <text x="430" y="340" font-size="12.5" fill="#444">지연 로딩 MCP 네임스페이스가 컨텍스트에 노출</text>
+  <text x="430" y="368" font-size="14" font-weight="600" fill="#222">Claude Code 2.1.314</text>
+  <text x="430" y="390" font-size="12.5" fill="#444">작업 디렉터리 밖 쓰기 차단 권한 설정 추가</text>
+  <text x="430" y="410" font-size="12.5" fill="#444">유휴 시간 자동 컴팩션 (VS Code·Desktop)</text>
+
+  <text x="400" y="470" text-anchor="middle" font-size="11" fill="#888">출처: mistral.ai · arXiv · GitHub (각 항목 본문 링크 참고)</text>
+</svg>

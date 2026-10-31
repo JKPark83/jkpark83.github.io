@@ -1,0 +1,34 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="일요일 아침 브리핑 표지. 바이낸스가 도난 자산의 90퍼센트를 채워 넣고 오늘 출금 재개를 예고했습니다. 다만 금요일 비트코인 ETF에서 6.4억달러가 빠져나가 넉 달 만에 최대 유출이었습니다. 나스닥 관망, 비트코인 매도 유지입니다">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.01 · 나스닥 &amp; 비트코인 5분 요약 · 일요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">바이낸스는 90%를 메웠고, 기관은 6.4억달러를 뺐습니다 — 오늘 출금 재개가 시험대입니다</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 이벤트 주간 대기</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#a5b4fc">애플·선거·고용</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">사흘에 하나씩 몰린 한 주</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">심리 26 공포 · 25,000 주시</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 출금 재개 D-데이</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">ETF -6.4억$</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">넉 달 만에 최대 유출</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.15"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">BTC 77,000 · 90% 복구 확인</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">본 글은 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

@@ -1,0 +1,386 @@
+---
+title: "내 응답에 남의 프롬프트가 묻어나왔다 — Cloudflare KV 캐시 유출 사고로 배우는 멀티테넌트 LLM 서빙"
+date: 2026-11-01T07:30:00+09:00
+draft: false
+tags: ["AI", "KV cache", "멀티테넌트", "LLM 서빙", "SGLang", "vLLM", "PD 분리", "prefix caching", "cache_salt", "Cloudflare", "보안", "사이드채널", "RDMA", "인시던트 분석", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "10월 26일 Cloudflare가 보기 드문 보고서를 공개했습니다. Workers AI의 GLM-5.3 모델이 13일 동안 155개의 응답에 다른 고객의 데이터를 섞어 내보냈다는 내용입니다. 범인은 해커가 아니라 설정 불일치 하나와 SGLang의 버그 하나였습니다. 이 사고는 LLM 서빙의 핵심 최적화 — KV 캐시 페이지 풀, prefix caching, prefill-decode 분리 — 가 전부 '공유'에 기대고 있고, 공유는 곧 격리 실패의 위험이라는 걸 보여줍니다. 사고의 전개를 한 단계씩 재구성하면서, 내 서빙 스택에서 오늘 점검할 것들을 정리합니다."
+ShowToc: false
+cover:
+  image: "kv-cache-isolation-multitenant-serving-cover.svg"
+  alt: "공유 KV 캐시 페이지 풀에서 두 사용자의 데이터가 섞여 한 사용자의 응답에 다른 사용자의 프롬프트가 묻어나오는 모습을 그린 커버 이미지"
+  caption: "성능 최적화는 공유를 원하고, 보안은 격리를 원한다 — KV 캐시는 그 긴장의 한가운데에 있습니다"
+  relative: false
+---
+
+<style>
+/* ── KV 캐시 격리 포스트 전용 스타일 (kvi- 접두사) ── */
+.kvi-fig{
+  --kvi-teal:#0d9488; --kvi-rose:#e11d48; --kvi-amber:#d97706; --kvi-sky:#0284c7;
+  --kvi-violet:#7c3aed; --kvi-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .kvi-fig{
+  --kvi-teal:#2dd4bf; --kvi-rose:#fb7185; --kvi-amber:#fbbf24; --kvi-sky:#38bdf8;
+  --kvi-violet:#a78bfa; --kvi-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .kvi-fig{
+    --kvi-teal:#2dd4bf; --kvi-rose:#fb7185; --kvi-amber:#fbbf24; --kvi-sky:#38bdf8;
+    --kvi-violet:#a78bfa; --kvi-slate:#94a3b8;
+  }
+}
+.kvi-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.kvi-fig text{font-family:inherit}
+.kvi-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.kvi-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.kvi-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.kvi-toc ol{margin:0;padding-left:1.25rem}
+.kvi-toc li{margin:.22rem 0;font-size:.95rem}
+.kvi-toc a{text-decoration:none}
+.kvi-toc a:hover{text-decoration:underline}
+.kvi-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.kvi-table th,.kvi-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.kvi-table th{background:var(--entry)}
+.kvi-note{border-left:4px solid var(--kvi-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.kvi-warn{border-left:4px solid var(--kvi-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="kvi-toc">
+  <div class="kvi-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 155개의 응답에 남의 데이터가 섞였다</a></li>
+    <li><a href="#sec-2">배경 — KV 캐시, 페이지 풀, 그리고 PD 분리 3분 요약</a></li>
+    <li><a href="#sec-3">해부 ① — 첫 번째 구멍: 광고한 컨텍스트 창과 실제 KV 풀의 불일치</a></li>
+    <li><a href="#sec-4">해부 ② — 두 번째 구멍: 거부 경로가 만든 1토큰 placeholder</a></li>
+    <li><a href="#sec-5">해부 ③ — 덤으로 발견된 레이스: abort와 늦게 도착한 쓰기</a></li>
+    <li><a href="#sec-6">타임라인 — 스테일봇이 닫아버린 경고</a></li>
+    <li><a href="#sec-7">더 큰 그림 — 공유 캐시는 원래 새기 쉬운 구조다</a></li>
+    <li><a href="#sec-8">실전 — 내 서빙 스택 점검 체크리스트</a></li>
+    <li><a href="#sec-9">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-10">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-11">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 155개의 응답에 남의 데이터가 섞였다</h2>
+
+<p>LLM API를 호출했는데, 응답 안에 <strong>생전 처음 보는 다른 회사의 프롬프트 내용</strong>이 섞여 나온다면 어떨까요? 2026년 8월 27일부터 9월 9일까지 13일 동안, Cloudflare Workers AI에서 GLM-5.3 모델을 쓰던 고객들에게 실제로 일어난 일입니다. 10월 26일 Cloudflare가 공개한 <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/" target="_blank" rel="noopener">사고 보고서</a>에 따르면, 이 기간 동안 <strong>155개의 응답에 다른 고객 요청의 데이터가 포함</strong>됐습니다.</p>
+
+<p>범인은 해커가 아니었습니다. 프롬프트 인젝션도, 탈취된 API 키도 아니었습니다. <strong>설정 불일치 하나와 서빙 엔진(SGLang)의 버그 하나</strong>가 겹치자, GPU 메모리 안에서 요청 사이의 벽이 조용히 무너졌습니다. 공개 직후 이 보고서는 <a href="https://news.ycombinator.com/item?id=50252159" target="_blank" rel="noopener">Hacker News</a>에 올라 활발한 토론을 낳았고, SGLang을 만드는 <a href="https://lmsys.org/blog/2026-10-26-cf-security/" target="_blank" rel="noopener">LMSYS 팀도 같은 날 요청 격리 강화 포스트</a>를 함께 공개했습니다. 추론 인프라를 직접 운영하는 팀들 사이에서 "우리 스택은 괜찮나?"라는 질문이 한 주 내내 돌았던 이유입니다.</p>
+
+<p>이 사고가 흥미로운 건 단순히 '대형 업체의 장애'여서가 아닙니다. 현대 LLM 서빙의 성능을 떠받치는 세 가지 핵심 기법 — <strong>KV 캐시 페이지 풀, prefix caching, prefill-decode 분리</strong> — 이 전부 "여러 요청이 같은 메모리를 돌려 쓰는" 구조 위에 서 있고, 이번 사고는 그 구조가 어떤 식으로 실패하는지를 보여주는 교과서적 사례이기 때문입니다. 사고의 전개를 한 단계씩 재구성하면서, 멀티테넌트(multi-tenant, 여러 고객이 같은 인프라를 공유하는 구조) 서빙에서 무엇을 점검해야 하는지 정리해 보겠습니다.</p>
+
+<h2 id="sec-2">2. 배경 — KV 캐시, 페이지 풀, 그리고 PD 분리 3분 요약</h2>
+
+<p>사고를 이해하려면 세 가지 개념만 알면 됩니다. 이미 익숙하다면 다음 섹션으로 건너뛰어도 좋습니다.</p>
+
+<p><strong>① KV 캐시(KV cache)</strong>. 트랜스포머는 토큰을 하나 생성할 때마다 앞선 모든 토큰의 key/value 벡터를 참조(attention)합니다. 이걸 매번 다시 계산하면 낭비이므로, 한 번 계산한 key/value를 GPU 메모리에 저장해 두고 재사용합니다. 이 저장소가 KV 캐시입니다. 중요한 건 <strong>KV 캐시가 곧 프롬프트의 내용</strong>이라는 점입니다. 벡터로 바뀌어 있을 뿐, 모델은 이 벡터를 보고 응답을 만들어냅니다. 남의 KV 캐시 위에서 attention을 하면, 남의 프롬프트 내용이 응답에 배어 나올 수 있습니다.</p>
+
+<p><strong>② 페이지 풀(page pool)</strong>. vLLM의 PagedAttention 이후 대부분의 서빙 엔진은 KV 캐시를 운영체제의 가상 메모리처럼 관리합니다. GPU 메모리를 고정 크기 페이지로 잘라 풀에 넣어 두고, 요청이 들어오면 필요한 만큼 페이지를 빌려주고, 요청이 끝나면 반납받아 <strong>다음 요청에 다시 빌려줍니다</strong>. 성능을 위해 반납 시점에 페이지 내용을 지우지는 않습니다. "이 페이지는 곧 새 데이터로 덮어써질 테니까"라는 가정이죠. 이 가정이 이번 사고의 복선입니다.</p>
+
+<p><strong>③ PD 분리(prefill-decode disaggregation)</strong>. 추론은 프롬프트 전체를 한 번에 처리하는 prefill 단계와 토큰을 하나씩 생성하는 decode 단계로 나뉩니다. 두 단계는 하드웨어 특성이 달라서, 대규모 서빙에서는 아예 <strong>다른 GPU 노드</strong>에 맡기고 prefill이 만든 KV 캐시를 RDMA(원격 직접 메모리 접근)로 decode 노드에 전송합니다. 자세한 원리는 예전에 쓴 <a href="/posts/prefill-decode-disaggregation/">PD 분리 글</a>에서 다뤘습니다. 여기서 기억할 건 하나입니다. <strong>decode 노드는 "전송이 끝났다"는 신호를 받고 나서야 생성을 시작한다</strong>는 것, 그리고 그 신호를 믿는다는 것.</p>
+
+<p>Cloudflare의 GLM-5.3 배포는 이 세 가지를 모두 쓰는 전형적인 현대식 스택이었습니다. SGLang 엔진, PD 분리, 공유 페이지 풀. 그리고 1,048,576토큰(2<sup>20</sup>, 약 100만)이라는 긴 컨텍스트 창을 광고하고 있었습니다.</p>
+
+<h2 id="sec-3">3. 해부 ① — 첫 번째 구멍: 광고한 컨텍스트 창과 실제 KV 풀의 불일치</h2>
+
+<p>첫 번째 구멍은 허무할 정도로 단순합니다. 모델은 <strong>1,048,576토큰</strong>짜리 컨텍스트 창을 받는다고 설정돼 있었는데, prefill GPU의 KV 캐시 풀은 <strong>681,280토큰</strong>분량밖에 없었습니다. 입구에서는 100만 토큰까지 받아주는데, 안쪽 창고는 68만 토큰짜리였던 겁니다.</p>
+
+<p>왜 바로 안 터졌을까요? 68만 토큰을 넘는 프롬프트를 보내는 사용자가 드물었기 때문입니다. 짧은 요청만 오가는 동안 이 불일치는 아무 증상이 없습니다. 격리 실패 사고의 전형적인 패턴입니다. <strong>경계 조건은 평소엔 밟히지 않고, 밟히는 순간 이미 사고</strong>입니다.</p>
+
+<p>그런데 설정 불일치 자체는 데이터 유출이 아닙니다. 풀보다 큰 요청이 오면 거부하면 그만이니까요. 문제는 그 '거부'가 어떻게 처리되느냐였습니다.</p>
+
+<h2 id="sec-4">4. 해부 ② — 두 번째 구멍: 거부 경로가 만든 1토큰 placeholder</h2>
+
+<p>SGLang의 PD 분리 모드에서, 한도를 넘는 프롬프트가 들어오면 prefill 쪽에서 요청을 중단시킵니다. 그런데 당시 버전의 중단 처리에 버그가 있었습니다. 요청을 깔끔하게 끝내는 대신, <strong>프롬프트를 1토큰짜리 placeholder로 바꿔치기한 채 파이프라인을 계속 태웠습니다</strong>. 그 결과:</p>
+
+<ul>
+  <li>prefill은 placeholder <strong>1토큰분의 KV 캐시만</strong> 계산해서 decode 노드로 전송합니다.</li>
+  <li>decode 노드는 원래 프롬프트 길이(수십만 토큰)만큼 페이지를 할당해 둔 상태에서, "transfer complete(전송 완료)" 신호를 받습니다.</li>
+  <li>decode는 이 신호를 <strong>"내 페이지들이 이번 요청의 KV로 전부 덮어써졌다"는 뜻으로 해석</strong>합니다. 실제로 덮어써진 건 1토큰분뿐인데도요.</li>
+  <li>생성이 시작되고, 모델은 1토큰의 새 데이터와 <strong>수십만 토큰 분량의 이전 요청 잔해(stale pages)</strong> 위에서 attention을 수행합니다.</li>
+</ul>
+
+<p>앞서 "페이지는 반납할 때 지우지 않는다"고 했던 걸 기억하시나요? decode 노드의 그 페이지들에는 <strong>직전까지 다른 고객들의 요청이 남긴 KV 벡터</strong>가 그대로 들어 있었습니다. 모델 입장에서는 그게 유효한 컨텍스트인지 쓰레기인지 구분할 방법이 없습니다. 그냥 주어진 KV를 보고 성실하게 다음 토큰을 만들 뿐입니다. 그렇게 155개의 응답에 남의 데이터가 배어 나왔습니다.</p>
+
+<figure class="kvi-fig">
+<svg viewBox="0 0 860 600" role="img" aria-label="정상 경로와 사고 경로 비교 다이어그램. 정상 경로에서는 prefill이 프롬프트 전체의 KV를 계산해 decode의 페이지를 모두 새 데이터로 채운다. 사고 경로에서는 한도 초과 프롬프트가 1토큰 placeholder로 교체되어 1페이지만 전송되고, decode는 전송 완료 신호만 믿고 이전 요청의 잔해 페이지 위에서 생성을 시작한다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--kvi-teal)" font-size="15" font-weight="800">정상 경로</text>
+  <rect x="30" y="50" width="170" height="60" rx="10" fill="none" stroke="var(--kvi-slate)" stroke-width="2"/>
+  <text x="115" y="76" text-anchor="middle" fill="var(--kvi-slate)" font-size="13" font-weight="700">요청: 프롬프트 N토큰</text>
+  <text x="115" y="96" text-anchor="middle" fill="var(--kvi-slate)" font-size="12">(N ≤ KV 풀 용량)</text>
+  <line x1="200" y1="80" x2="250" y2="80" stroke="var(--kvi-slate)" stroke-width="2"/>
+  <polygon points="258,80 244,73 244,87" fill="var(--kvi-slate)"/>
+  <rect x="262" y="50" width="180" height="60" rx="10" fill="none" stroke="var(--kvi-teal)" stroke-width="2.5"/>
+  <text x="352" y="76" text-anchor="middle" fill="var(--kvi-teal)" font-size="13" font-weight="700">Prefill GPU</text>
+  <text x="352" y="96" text-anchor="middle" fill="var(--kvi-slate)" font-size="12">N토큰 전체 KV 계산</text>
+  <line x1="442" y1="80" x2="492" y2="80" stroke="var(--kvi-slate)" stroke-width="2"/>
+  <polygon points="500,80 486,73 486,87" fill="var(--kvi-slate)"/>
+  <text x="471" y="66" text-anchor="middle" fill="var(--kvi-sky)" font-size="11.5" font-weight="700">RDMA</text>
+  <rect x="504" y="42" width="330" height="86" rx="10" fill="none" stroke="var(--kvi-teal)" stroke-width="2.5"/>
+  <text x="669" y="66" text-anchor="middle" fill="var(--kvi-teal)" font-size="13" font-weight="700">Decode GPU — 페이지 전부 새 데이터</text>
+  <g>
+    <rect x="524" y="80" width="56" height="30" rx="6" fill="var(--kvi-teal)" opacity="0.8"/>
+    <rect x="588" y="80" width="56" height="30" rx="6" fill="var(--kvi-teal)" opacity="0.8"/>
+    <rect x="652" y="80" width="56" height="30" rx="6" fill="var(--kvi-teal)" opacity="0.8"/>
+    <rect x="716" y="80" width="56" height="30" rx="6" fill="var(--kvi-teal)" opacity="0.8"/>
+    <rect x="780" y="80" width="34" height="30" rx="6" fill="var(--kvi-teal)" opacity="0.8"/>
+  </g>
+  <text x="669" y="152" text-anchor="middle" fill="var(--kvi-teal)" font-size="12.5" font-weight="700">→ 정상 응답</text>
+
+  <line x1="30" y1="185" x2="834" y2="185" stroke="var(--kvi-slate)" stroke-width="1" stroke-dasharray="5 6" opacity="0.5"/>
+
+  <text x="430" y="218" text-anchor="middle" fill="var(--kvi-rose)" font-size="15" font-weight="800">사고 경로 (GLM-5.3, 2026-08-27 ~ 09-09)</text>
+  <rect x="30" y="240" width="170" height="74" rx="10" fill="none" stroke="var(--kvi-rose)" stroke-width="2.5"/>
+  <text x="115" y="266" text-anchor="middle" fill="var(--kvi-rose)" font-size="13" font-weight="700">요청: 681,280토큰 초과</text>
+  <text x="115" y="286" text-anchor="middle" fill="var(--kvi-slate)" font-size="12">컨텍스트 창 광고는</text>
+  <text x="115" y="303" text-anchor="middle" fill="var(--kvi-slate)" font-size="12">1,048,576토큰</text>
+  <line x1="200" y1="277" x2="250" y2="277" stroke="var(--kvi-slate)" stroke-width="2"/>
+  <polygon points="258,277 244,270 244,284" fill="var(--kvi-slate)"/>
+  <rect x="262" y="240" width="180" height="74" rx="10" fill="none" stroke="var(--kvi-amber)" stroke-width="2.5"/>
+  <text x="352" y="264" text-anchor="middle" fill="var(--kvi-amber)" font-size="13" font-weight="700">거부 경로의 버그</text>
+  <text x="352" y="284" text-anchor="middle" fill="var(--kvi-slate)" font-size="12">프롬프트를 1토큰</text>
+  <text x="352" y="301" text-anchor="middle" fill="var(--kvi-slate)" font-size="12">placeholder로 교체</text>
+  <line x1="442" y1="277" x2="492" y2="277" stroke="var(--kvi-slate)" stroke-width="2"/>
+  <polygon points="500,277 486,270 486,284" fill="var(--kvi-slate)"/>
+  <text x="471" y="263" text-anchor="middle" fill="var(--kvi-sky)" font-size="11.5" font-weight="700">1토큰만 전송</text>
+  <rect x="504" y="232" width="330" height="128" rx="10" fill="none" stroke="var(--kvi-rose)" stroke-width="2.5"/>
+  <text x="669" y="256" text-anchor="middle" fill="var(--kvi-rose)" font-size="13" font-weight="700">Decode GPU — 1페이지만 새 데이터</text>
+  <g>
+    <rect x="524" y="270" width="56" height="30" rx="6" fill="var(--kvi-teal)" opacity="0.8"/>
+    <rect x="588" y="270" width="56" height="30" rx="6" fill="var(--kvi-rose)" opacity="0.75"/>
+    <rect x="652" y="270" width="56" height="30" rx="6" fill="var(--kvi-rose)" opacity="0.75"/>
+    <rect x="716" y="270" width="56" height="30" rx="6" fill="var(--kvi-rose)" opacity="0.75"/>
+    <rect x="780" y="270" width="34" height="30" rx="6" fill="var(--kvi-rose)" opacity="0.75"/>
+  </g>
+  <text x="552" y="322" text-anchor="middle" fill="var(--kvi-teal)" font-size="11">새 KV</text>
+  <text x="700" y="322" text-anchor="middle" fill="var(--kvi-rose)" font-size="11.5" font-weight="700">이전 요청들의 잔해 (stale pages)</text>
+  <text x="669" y="348" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">"transfer complete" 신호 수신 → 전부 덮어써졌다고 가정</text>
+
+  <line x1="669" y1="360" x2="669" y2="400" stroke="var(--kvi-rose)" stroke-width="2"/>
+  <polygon points="669,408 662,394 676,394" fill="var(--kvi-rose)"/>
+  <rect x="474" y="412" width="390" height="78" rx="10" fill="var(--kvi-rose)" opacity="0.1"/>
+  <rect x="474" y="412" width="390" height="78" rx="10" fill="none" stroke="var(--kvi-rose)" stroke-width="2.5"/>
+  <text x="669" y="440" text-anchor="middle" fill="var(--kvi-rose)" font-size="13.5" font-weight="800">모델이 남의 KV 위에서 attention 수행</text>
+  <text x="669" y="462" text-anchor="middle" fill="var(--kvi-slate)" font-size="12.5">응답에 다른 고객의 프롬프트·생성 데이터가 섞여 나옴</text>
+  <text x="669" y="481" text-anchor="middle" fill="var(--kvi-slate)" font-size="12.5">13일간 155개 응답 오염</text>
+
+  <rect x="30" y="412" width="400" height="78" rx="10" fill="var(--kvi-sky)" opacity="0.08"/>
+  <rect x="30" y="412" width="400" height="78" rx="10" fill="none" stroke="var(--kvi-sky)" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="230" y="440" text-anchor="middle" fill="var(--kvi-sky)" font-size="13" font-weight="700">핵심: 페이지는 반납할 때 지워지지 않는다</text>
+  <text x="230" y="462" text-anchor="middle" fill="var(--kvi-slate)" font-size="12">"곧 덮어써질 것"이라는 가정이 깨지는 순간</text>
+  <text x="230" y="481" text-anchor="middle" fill="var(--kvi-slate)" font-size="12">공유 풀의 잔해가 그대로 노출된다</text>
+
+  <text x="430" y="560" text-anchor="middle" fill="var(--kvi-slate)" font-size="12.5">설정 불일치(입구)와 거부 경로 버그(처리)가 겹쳐야 터지는 사고 — 어느 한쪽만 있었다면 유출은 없었습니다</text>
+</svg>
+<figcaption>그림 1. 정상 경로 vs 사고 경로. 한도 초과 프롬프트가 1토큰 placeholder로 교체된 채 파이프라인을 통과하면서, decode 노드가 이전 요청들의 잔해 페이지 위에서 생성을 시작했습니다.</figcaption>
+</figure>
+
+<div class="kvi-note">
+<strong>왜 '쓰레기 출력'이 아니라 '데이터 유출'인가?</strong> 이 버그는 원래 2026년 7월 6일 SGLang 저장소에 <a href="https://github.com/sgl-project/sglang/issues/30233" target="_blank" rel="noopener">이슈 #30233</a>으로 신고됐습니다. 당시 제목은 "decode가 불완전한 KV 캐시에서 <em>쓰레기를</em> 생성한다"였죠. 같은 현상이라도 페이지에 남은 게 무의미한 값이면 품질 버그, <strong>다른 고객의 KV면 보안 사고</strong>가 됩니다. 증상의 심각도를 출력 품질로만 판단하면 안 되는 이유입니다.
+</div>
+
+<h2 id="sec-5">5. 해부 ③ — 덤으로 발견된 레이스: abort와 늦게 도착한 쓰기</h2>
+
+<p>Cloudflare와 SGLang 팀은 조사 과정에서 같은 계열의 레이스 컨디션(race condition, 실행 순서에 따라 결과가 달라지는 동시성 버그)을 하나 더 찾아냈습니다. 이번엔 전송 '도중'의 문제입니다.</p>
+
+<ol>
+  <li>prefill이 요청 A의 KV를 RDMA로 decode에 쓰는 도중, 요청 A가 중단(abort)됩니다.</li>
+  <li>이미 날아간 쓰기는 회수할 수 없습니다. RDMA는 상대 GPU 메모리에 직접 쓰는 방식이라, 보낸 패킷을 "취소"할 방법이 없습니다.</li>
+  <li>decode가 A의 페이지를 <strong>즉시 풀에 반납</strong>하면, 그 페이지는 바로 요청 B에 재할당될 수 있습니다.</li>
+  <li>뒤늦게 도착한 A의 쓰기가 <strong>이제는 B의 소유가 된 페이지에 착탄</strong>합니다. B의 KV 캐시가 A의 데이터로 오염됩니다.</li>
+</ol>
+
+<p>해법은 개념적으로 간단합니다. <strong>deferred KV release</strong> — 전송이 완전히 끝났다는 확인이 올 때까지 페이지 반납을 보류하는 겁니다. 네트워크 프로그래밍에서 소켓을 닫은 뒤에도 TIME_WAIT 상태로 잠시 붙잡아 두는 것과 같은 발상입니다. 떠돌아다니는 패킷이 남아 있을 수 있는 동안에는 자원을 재사용하지 않는다는 원칙이죠.</p>
+
+<h2 id="sec-6">6. 타임라인 — 스테일봇이 닫아버린 경고</h2>
+
+<p>이 사고에서 기술만큼 곱씹을 만한 게 타임라인입니다.</p>
+
+<figure class="kvi-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="사고 타임라인. 7월 6일 SGLang 이슈 신고, 8월 27일 GLM-5.3 출시와 함께 노출 시작, 9월 5일 스테일봇이 이슈를 자동으로 닫음, 9월 8일 외부 연구자가 HackerOne으로 신고, 9월 9일 재현 후 40분 내 모델 비공개 및 당일 복구, 10월 26일 공개 보고서 발행">
+  <rect x="330" y="80" width="186" height="34" rx="8" fill="var(--kvi-rose)" opacity="0.15"/>
+  <text x="423" y="102" text-anchor="middle" fill="var(--kvi-rose)" font-size="12" font-weight="700">노출 기간 13일 · 155개 응답</text>
+  <line x1="50" y1="150" x2="810" y2="150" stroke="var(--kvi-slate)" stroke-width="2.5"/>
+  <polygon points="822,150 802,141 802,159" fill="var(--kvi-slate)"/>
+  <rect x="330" y="142" width="186" height="16" rx="8" fill="var(--kvi-rose)" opacity="0.35"/>
+
+  <circle cx="110" cy="150" r="8" fill="var(--kvi-amber)"/>
+  <text x="110" y="185" text-anchor="middle" fill="var(--kvi-amber)" font-size="12.5" font-weight="700">7/6</text>
+  <text x="110" y="205" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">SGLang 이슈 #30233</text>
+  <text x="110" y="222" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">"불완전 KV로 쓰레기 생성"</text>
+
+  <circle cx="330" cy="150" r="8" fill="var(--kvi-rose)"/>
+  <text x="330" y="125" text-anchor="middle" fill="var(--kvi-rose)" font-size="12.5" font-weight="700">8/27</text>
+  <text x="330" y="185" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">GLM-5.3 출시</text>
+  <text x="330" y="202" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">노출 시작</text>
+
+  <circle cx="420" cy="150" r="8" fill="var(--kvi-violet)"/>
+  <text x="420" y="240" text-anchor="middle" fill="var(--kvi-violet)" font-size="12.5" font-weight="700">9/5</text>
+  <text x="420" y="260" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">스테일봇이 이슈를</text>
+  <text x="420" y="277" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">'비활성'으로 자동 close</text>
+
+  <circle cx="490" cy="150" r="8" fill="var(--kvi-sky)"/>
+  <text x="490" y="125" text-anchor="middle" fill="var(--kvi-sky)" font-size="12.5" font-weight="700">9/8</text>
+  <text x="490" y="185" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">외부 연구자</text>
+  <text x="490" y="202" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">HackerOne 신고</text>
+
+  <circle cx="570" cy="150" r="8" fill="var(--kvi-teal)"/>
+  <text x="570" y="240" text-anchor="middle" fill="var(--kvi-teal)" font-size="12.5" font-weight="700">9/9</text>
+  <text x="570" y="260" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">재현 → 인시던트 선언 →</text>
+  <text x="570" y="277" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">40분 내 모델 비공개 · 당일 복구</text>
+
+  <circle cx="760" cy="150" r="8" fill="var(--kvi-teal)"/>
+  <text x="760" y="125" text-anchor="middle" fill="var(--kvi-teal)" font-size="12.5" font-weight="700">10/26</text>
+  <text x="760" y="185" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">공개 보고서 +</text>
+  <text x="760" y="202" text-anchor="middle" fill="var(--kvi-slate)" font-size="11.5">SGLang 패치 권고</text>
+
+  <text x="430" y="315" text-anchor="middle" fill="var(--kvi-slate)" font-size="12.5">경고는 노출 시작 7주 전에 이미 올라와 있었고, 노출이 한창이던 9월 5일 봇이 조용히 닫았습니다</text>
+</svg>
+<figcaption>그림 2. 사고 타임라인. 같은 계열의 버그가 7월에 이미 신고됐지만 '품질 버그'로 분류된 채 묻혔고, 보안 사고라는 게 밝혀진 건 외부 연구자의 신고 이후였습니다.</figcaption>
+</figure>
+
+<p>짚어볼 지점이 세 개 있습니다.</p>
+
+<p><strong>첫째, 경고는 이미 있었습니다.</strong> 7월 6일 한 사용자가 GLM-5.2 환경에서 같은 계열의 버그(한도 초과 입력 → 1토큰 placeholder → decode가 불완전한 KV로 생성)를 신고했고, 패치 제안까지 이슈에 담았습니다. 하지만 '가끔 이상한 출력이 나온다'는 품질 문제로 읽혔고, 메인테이너의 응답 없이 머물다가 <strong>9월 5일 — Cloudflare에서 노출이 한창 진행 중이던 시점에 — 스테일봇(stale bot, 오래 방치된 이슈를 자동으로 닫는 봇)이 닫아버렸습니다</strong>.</p>
+
+<p><strong>둘째, 발견은 외부에서 왔습니다.</strong> 9월 8일 보안 연구자가 HackerOne 프로그램을 통해 신고했고, Cloudflare는 다음 날 아침 재현에 성공하자 인시던트를 선언하고 40분 안에 모델을 내렸습니다. 설정 수정과 엔진 패치를 거쳐 당일 저녁 서비스를 복구했습니다. 보고서에 따르면 의도적 악용의 흔적은 없었고, 영향받은 요청들은 평범한 롱 컨텍스트 사용으로 보였습니다.</p>
+
+<p><strong>셋째, 수정은 업스트림으로 돌아갔습니다.</strong> Cloudflare는 KV 풀을 설정에 맞게 키우고(보고서 기준 약 204만 토큰), 한도 초과 요청을 KV 전송이 시작되기 전 <strong>입구(admission)에서 거부</strong>하도록 바꿨습니다. SGLang 쪽 패치는 v0.5.20~v0.5.22에 걸쳐 릴리스됐습니다.</p>
+
+<table class="kvi-table">
+  <thead>
+    <tr><th>버전</th><th>수정 내용</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>v0.5.20</code></td><td>중단된 prefill 요청을 decode에 도달하기 전에 회수(retire)</td></tr>
+    <tr><td><code>v0.5.21</code></td><td>한도 초과 요청을 입구에서 거부, KV 체크섬 옵션 <code>--disaggregation-enable-kv-checksum</code> 추가, 라우터 레이스 수정</td></tr>
+    <tr><td><code>v0.5.22</code></td><td>후속 레이스 수정 — 운영 환경 권장 버전</td></tr>
+    <tr><td>구버전 임시 방어</td><td><code>v0.5.19~20</code>에서는 환경 변수 <code>SGLANG_DISAGGREGATION_DEFERRED_DECODE_KV_RELEASE=1</code>을 prefill·decode 양쪽에 설정</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-7">7. 더 큰 그림 — 공유 캐시는 원래 새기 쉬운 구조다</h2>
+
+<p>이번 사고를 "SGLang의 버그 하나"로 치부하면 절반만 배우는 겁니다. 한 걸음 물러서면, <strong>LLM 서빙의 캐시 계층 전체가 구조적으로 비슷한 긴장을 안고 있다</strong>는 게 보입니다.</p>
+
+<p>이미 알려진 사례가 있습니다. Stanford 연구진은 ICML 2025 논문 <a href="https://arxiv.org/abs/2502.07776" target="_blank" rel="noopener">Auditing Prompt Caching in Language Model APIs</a>에서 상용 API 17곳을 통계적으로 감사했는데, 8곳에서 prompt caching이 감지됐고 그중 7곳은 당시 <strong>캐시를 전체 사용자에 걸쳐 공유</strong>하고 있었습니다. 공유 캐시는 타이밍 사이드채널이 됩니다. 캐시에 있는 프롬프트는 첫 토큰이 눈에 띄게 빨리 나오므로, 비슷한 접두사를 보내 응답 시간을 재는 것만으로 <strong>"누군가 이 프롬프트를 최근에 보냈는가"를 알아낼 수 있기 때문입니다</strong>. 연구진은 공개 전에 해당 업체들과 조율해 수정을 이끌어냈습니다.</p>
+
+<p>Cloudflare 사고가 '캐시의 내용이 직접 새는' 극단적 사례라면, 타이밍 사이드채널은 '캐시의 존재 여부가 새는' 은근한 사례입니다. 두 사건의 공통 구조는 이렇습니다.</p>
+
+<div class="kvi-warn">
+<strong>성능 최적화는 공유를 원하고, 보안은 격리를 원합니다.</strong> KV 페이지 풀, prefix caching, PD 분리는 모두 "여러 요청이 자원을 돌려 쓰게 해서" 비용을 낮추는 기법입니다. 돌려 쓰는 모든 지점은 격리가 깨질 수 있는 지점이기도 합니다. 공유를 포기할 수는 없으니, <strong>공유의 경계마다 명시적인 방어 장치</strong>를 두는 수밖에 없습니다.
+</div>
+
+<p>서빙 엔진들도 이 방향으로 움직여 왔습니다. vLLM은 prefix cache의 블록 해시에 요청별 <a href="https://docs.vllm.ai/en/latest/design/prefix_caching/" target="_blank" rel="noopener"><code>cache_salt</code></a>를 섞을 수 있게 했습니다. 같은 salt를 쓰는 요청끼리만 캐시를 공유하므로, 테넌트마다 다른 salt를 주면 캐시 재사용의 경계가 테넌트 경계와 일치하게 됩니다. 블록 해시 함수도 충돌 가능성이 있는 내장 해시 대신 SHA-256을 기본값으로 바꿨습니다(v0.10.2부터). SGLang은 이번 사고를 계기로 KV 전송에 체크섬 검증을 넣었고요. 모두 같은 원칙의 변주입니다. <strong>"공유 자원의 내용이 맞다는 걸 가정하지 말고 검증하라."</strong></p>
+
+<h2 id="sec-8">8. 실전 — 내 서빙 스택 점검 체크리스트</h2>
+
+<p>직접 추론 서버를 운영한다면(사내 vLLM/SGLang 배포 포함), 이번 주말에 해볼 만한 점검 네 가지입니다.</p>
+
+<p><strong>점검 1 — 엔진 버전과 방어 플래그.</strong> PD 분리를 쓰는 SGLang 배포라면 v0.5.22 이상으로 올리고 체크섬 검증을 켭니다.</p>
+
+{{< highlight bash >}}
+# SGLang v0.5.22 이상 + KV 전송 체크섬 검증 (prefill·decode 양쪽에)
+python -m sglang.launch_server \
+  --model-path zai-org/GLM-5.3 \
+  --disaggregation-mode prefill \
+  --disaggregation-enable-kv-checksum \
+  ...
+
+# 당장 업그레이드가 어려운 v0.5.19~20이라면 임시 방어
+export SGLANG_DISAGGREGATION_DEFERRED_DECODE_KV_RELEASE=1
+{{< /highlight >}}
+
+<p><strong>점검 2 — 광고한 한도와 실제 풀의 정합성.</strong> Cloudflare의 첫 번째 구멍이 바로 이것이었습니다. 서버가 받아주는 컨텍스트 길이가 KV 풀 용량을 넘지 않는지 기동 시점에 확인합니다.</p>
+
+{{< highlight python >}}
+import requests
+
+# SGLang의 서버 정보 엔드포인트 (필드명은 버전에 따라 다를 수 있으니
+# 실제 응답 JSON을 먼저 확인하세요)
+info = requests.get("http://localhost:30000/get_server_info").json()
+
+kv_pool_tokens = info["max_total_num_tokens"]   # KV 풀이 담을 수 있는 토큰 수
+context_limit  = info["context_length"]         # 받아주는 컨텍스트 길이
+
+# 핵심 불변식: 입구에서 받아주는 길이 > 창고 용량이면 위험 신호
+assert context_limit <= kv_pool_tokens, (
+    f"컨텍스트 한도({context_limit:,})가 KV 풀({kv_pool_tokens:,})보다 큽니다. "
+    "한도 초과 요청의 거부 경로가 완벽하다는 데 베팅하는 설정입니다."
+)
+{{< /highlight >}}
+
+<p>이 검사를 배포 파이프라인에 넣어 두면, 모델을 바꾸거나 GPU 구성을 바꿀 때 불일치가 생겨도 운영 전에 잡힙니다. "거부 경로가 알아서 막아주겠지"가 아니라, <strong>애초에 거부가 필요 없는 설정</strong>이 안전합니다.</p>
+
+<p><strong>점검 3 — 테넌트 경계와 캐시 경계 일치시키기.</strong> vLLM에서 여러 고객의 요청을 한 서버로 받는다면, prefix caching의 공유 범위를 테넌트 단위로 제한합니다.</p>
+
+{{< highlight python >}}
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="-")
+
+resp = client.chat.completions.create(
+    model="my-model",
+    messages=[{"role": "user", "content": "..."}],
+    # 같은 salt를 쓰는 요청끼리만 KV 블록을 재사용한다
+    # → 테넌트 간 캐시 히트가 원천 차단되고, 타이밍 사이드채널도 막힌다
+    extra_body={"cache_salt": f"tenant-{tenant_id}"},
+)
+{{< /highlight >}}
+
+<p><strong>점검 4 — 경계 조건 canary 테스트.</strong> 사고의 방아쇠는 '한도 초과 요청'이라는 경계 조건이었습니다. 내 배포가 이 경계에서 깨끗하게 실패하는지 CI에서 상시 확인합니다. (당연히 <strong>내가 운영하는 배포에만</strong> 돌리세요. 남의 API에 이런 테스트를 하는 건 침해 행위입니다.)</p>
+
+{{< highlight python >}}
+import openai
+import pytest
+
+def test_oversized_prompt_fails_cleanly(client, context_limit):
+    """한도 초과 프롬프트는 '명시적 에러'여야 한다.
+    200 OK로 그럴듯한 응답이 오면 거부 경로 어딘가가 조용히 뚫린 것."""
+    oversized = "토큰 " * (context_limit + 10_000)   # 한도를 확실히 넘긴다
+    with pytest.raises(openai.BadRequestError):
+        client.chat.completions.create(
+            model="my-model",
+            messages=[{"role": "user", "content": oversized}],
+            max_tokens=16,
+        )
+{{< /highlight >}}
+
+<p>Cloudflare 사고에서 유출된 응답들은 에러가 아니라 <strong>정상처럼 보이는 200 응답</strong>이었습니다. 한도 초과 입력에 에러 대신 응답이 돌아온다면, 그 응답이 무엇으로 만들어졌는지 아무도 보장하지 못하는 상태라는 뜻입니다.</p>
+
+<h2 id="sec-9">9. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"전송 완료" 신호를 "상태 보장"으로 착각하기.</strong> 이번 사고의 심장부입니다. 분산 시스템에서 메시지는 "무언가 일어났다"는 통지일 뿐, "내가 기대하는 상태가 됐다"는 증명이 아닙니다. decode는 '전송 완료'를 받았지만, 전송된 건 1토큰이었습니다. 신호에 기대지 말고 내용을 검증하세요 — SGLang이 사후에 KV 체크섬을 추가한 이유입니다.</li>
+  <li><strong>해피 패스만 테스트하기.</strong> 정상 요청이 잘 처리되는지는 누구나 테스트합니다. 사고는 거부·중단·타임아웃 같은 <strong>실패 경로</strong>에서 납니다. 이번 버그도 '요청이 거부될 때'만 발동했습니다. 실패 경로야말로 격리 테스트가 필요한 곳입니다.</li>
+  <li><strong>광고 스펙과 리소스 설정을 따로 관리하기.</strong> 모델 카드에는 1M 컨텍스트라고 쓰고, 인프라 설정은 다른 파일에서 따로 관리하면 언젠가 어긋납니다. 한도는 한 곳에서 선언하고 나머지는 거기서 파생시키거나, 점검 2처럼 기동 시 불변식으로 검증하세요.</li>
+  <li><strong>스테일봇에 보안 예외 안 두기.</strong> 활동이 없다는 이유로 이슈를 자동으로 닫는 봇은 편리하지만, '증상이 수상한' 이슈까지 닫게 두면 이번처럼 경고가 사라집니다. crash·corruption·isolation 같은 라벨에는 자동 close 예외를 거는 게 좋습니다. 참고로 이 글을 쓰는 시점에도 SGLang에는 같은 계열(전송 타이밍과 캐시 상태의 불일치)의 <a href="https://github.com/sgl-project/sglang/issues/44070" target="_blank" rel="noopener">새 이슈 #44070</a>이 열려 있습니다. 버그 하나가 아니라 버그 '계열'이라는 증거입니다.</li>
+  <li><strong>"우리는 PD 분리 안 쓰니까 무관"이라고 넘기기.</strong> 단일 노드 배포도 페이지 풀과 prefix cache는 씁니다. 풀 재사용 + 미초기화 메모리 + 거부 경로의 조합은 어느 엔진에든 있을 수 있는 패턴입니다. 교훈은 스택 전체에 적용됩니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Cloudflare Workers AI의 GLM-5.3이 13일간(8/27~9/9) <strong>155개 응답에 다른 고객의 데이터</strong>를 섞어 내보냈습니다. 원인은 해킹이 아니라 설정 불일치 + 서빙 엔진 버그의 조합이었습니다.</li>
+  <li>구멍 ①: 컨텍스트 창은 1,048,576토큰으로 광고했는데 prefill KV 풀은 681,280토큰이었습니다. 구멍 ②: 한도 초과 요청의 거부 경로가 프롬프트를 1토큰 placeholder로 바꿔 파이프라인을 계속 태웠고, decode는 "전송 완료" 신호만 믿고 <strong>이전 요청들의 잔해 페이지 위에서 생성</strong>했습니다.</li>
+  <li>같은 계열의 버그가 <strong>7주 전에 이미 신고</strong>돼 있었지만 품질 버그로 읽혔고, 노출이 진행 중이던 시점에 스테일봇이 자동으로 닫았습니다. 증상이 '쓰레기 출력'인 버그가 사실은 격리 실패일 수 있습니다.</li>
+  <li>수정: SGLang v0.5.20~22(중단 요청 회수, 입구 거부, KV 체크섬), deferred KV release, Cloudflare의 풀 확대와 admission 거부. <strong>PD 분리 운영 중이라면 v0.5.22+와 체크섬 플래그가 권장</strong>입니다.</li>
+  <li>구조적 교훈: KV 페이지 풀·prefix caching·PD 분리는 전부 공유로 성능을 얻는 기법이고, <strong>공유의 경계마다 격리 장치가 필요</strong>합니다. 멀티테넌트라면 vLLM <code>cache_salt</code>처럼 캐시 경계를 테넌트 경계에 맞추세요.</li>
+  <li>오늘 할 일: 엔진 버전·플래그 점검, 컨텍스트 한도 ≤ KV 풀 불변식 검증, 테넌트별 cache salt, 그리고 <strong>한도 초과 입력이 깨끗한 에러로 끝나는지</strong> 확인하는 canary 테스트를 CI에 추가하기.</li>
+</ul>
+
+<h2 id="sec-11">11. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/" target="_blank" rel="noopener">Cross-request KV cache exposure in the GLM-5.3 Workers AI model, and our remediation with SGLang</a> — Cloudflare 공식 사고 보고서 (2026-10-26)</li>
+  <li><a href="https://lmsys.org/blog/2026-10-26-cf-security/" target="_blank" rel="noopener">SGLang security update: improving request isolation</a> — LMSYS(SGLang 팀)의 동시 공개 포스트</li>
+  <li><a href="https://github.com/sgl-project/sglang/issues/30233" target="_blank" rel="noopener">SGLang 이슈 #30233</a> — 7월 6일에 신고된 같은 계열의 버그 (PD 분리에서 중단된 prefill이 불완전한 KV로 생성)</li>
+  <li><a href="https://github.com/sgl-project/sglang/issues/44070" target="_blank" rel="noopener">SGLang 이슈 #44070</a> — 전송 타이밍과 캐시 상태 불일치 계열의 후속 이슈</li>
+  <li><a href="https://news.ycombinator.com/item?id=50252159" target="_blank" rel="noopener">Hacker News 토론</a> — 사고 보고서에 대한 커뮤니티 논의</li>
+  <li><a href="https://arxiv.org/abs/2502.07776" target="_blank" rel="noopener">Auditing Prompt Caching in Language Model APIs</a> (Gu et al., Stanford, ICML 2025) — 상용 API 17곳의 prompt cache 공유를 타이밍으로 감사한 연구</li>
+  <li><a href="https://docs.vllm.ai/en/latest/design/prefix_caching/" target="_blank" rel="noopener">vLLM Prefix Caching 설계 문서</a> — <code>cache_salt</code>와 SHA-256 블록 해시 등 멀티테넌트 격리 장치</li>
+  <li><a href="https://gigazine.net/gsc_news/en/20261028-kv-cache-exposure-remediation/" target="_blank" rel="noopener">GIGAZINE의 사고 해설</a> (영문판)</li>
+  <li>관련해서 함께 읽기 — <a href="/posts/prefill-decode-disaggregation/">PD 분리(prefill-decode disaggregation) 깊이 보기</a>, <a href="/posts/prompt-caching-cache-aware-agents/">prompt caching과 캐시 인지 에이전트 설계</a> (이 블로그, 한국어)</li>
+</ul>

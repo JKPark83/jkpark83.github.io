@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="멀티테넌트 LLM 서빙에서 공유 KV 캐시 페이지 풀의 격리가 깨져 한 사용자의 응답에 다른 사용자의 데이터가 섞이는 모습을 그린 커버 이미지">
+  <defs>
+    <linearGradient id="kvig" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#kvig)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">내 응답에 남의 프롬프트가 묻어나왔다</text>
+  <text x="80" y="154" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">KV 캐시 격리 실패 해부</text>
+  <text x="80" y="200" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24">Cloudflare GLM-5.3 사고로 배우는 멀티테넌트 LLM 서빙의 보안</text>
+
+  <!-- 왼쪽: 사용자 A / B 요청 -->
+  <rect x="80" y="280" width="200" height="70" rx="12" fill="none" stroke="#2dd4bf" stroke-width="3"/>
+  <text x="180" y="315" text-anchor="middle" fill="#2dd4bf" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700">사용자 A</text>
+  <text x="180" y="340" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">프롬프트</text>
+
+  <rect x="80" y="440" width="200" height="70" rx="12" fill="none" stroke="#fb7185" stroke-width="3"/>
+  <text x="180" y="475" text-anchor="middle" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="700">사용자 B</text>
+  <text x="180" y="500" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">프롬프트</text>
+
+  <g stroke="#64748b" stroke-width="3">
+    <line x1="280" y1="315" x2="380" y2="370"/>
+    <line x1="280" y1="475" x2="380" y2="420"/>
+  </g>
+
+  <!-- 가운데: 공유 KV 캐시 페이지 풀 -->
+  <rect x="390" y="270" width="380" height="260" rx="16" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+  <text x="580" y="305" text-anchor="middle" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="21" font-weight="700">공유 KV 캐시 페이지 풀</text>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="15">
+    <rect x="420" y="330" width="70" height="52" rx="8" fill="#2dd4bf" opacity="0.85"/>
+    <rect x="505" y="330" width="70" height="52" rx="8" fill="#2dd4bf" opacity="0.85"/>
+    <rect x="590" y="330" width="70" height="52" rx="8" fill="#fb7185" opacity="0.9"/>
+    <rect x="675" y="330" width="70" height="52" rx="8" fill="#2dd4bf" opacity="0.85"/>
+    <rect x="420" y="400" width="70" height="52" rx="8" fill="#fb7185" opacity="0.9"/>
+    <rect x="505" y="400" width="70" height="52" rx="8" fill="#fb7185" opacity="0.9"/>
+    <rect x="590" y="400" width="70" height="52" rx="8" fill="#2dd4bf" opacity="0.85"/>
+    <rect x="675" y="400" width="70" height="52" rx="8" fill="#fbbf24" opacity="0.9"/>
+    <text x="710" y="432" text-anchor="middle" fill="#0f172a" font-weight="800" font-size="19">?</text>
+  </g>
+  <text x="580" y="490" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">반납된 페이지가 지워지지 않은 채 재사용된다면?</text>
+
+  <!-- 오른쪽: 섞인 응답 -->
+  <line x1="770" y1="400" x2="880" y2="400" stroke="#64748b" stroke-width="3"/>
+  <rect x="890" y="330" width="230" height="140" rx="14" fill="none" stroke="#fbbf24" stroke-width="3"/>
+  <text x="1005" y="368" text-anchor="middle" fill="#fbbf24" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="700">사용자 B의 응답</text>
+  <rect x="915" y="390" width="180" height="16" rx="6" fill="#fb7185" opacity="0.85"/>
+  <rect x="915" y="416" width="180" height="16" rx="6" fill="#2dd4bf" opacity="0.85"/>
+  <text x="1005" y="455" text-anchor="middle" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16" font-weight="700">A의 데이터가 섞여 나옴</text>
+
+  <text x="80" y="590" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19">prefix caching · PD 분리 · 페이지 풀 — 성능 최적화가 보안 경계가 되는 순간</text>
+</svg>

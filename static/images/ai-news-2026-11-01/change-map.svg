@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="480" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-01</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="190" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="190" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="262" width="360" height="190" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="262" width="360" height="190" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="112" font-size="14" font-weight="600" fill="#222">Android Studio Rabbit 2 안정화</text>
+  <text x="50" y="134" font-size="12.5" fill="#444">BYOA: Claude Agent·Codex 등 40+ 에이전트</text>
+  <text x="50" y="154" font-size="12.5" fill="#444">ACP 프로토콜 · 에뮬레이터/빌드/Logcat 접근</text>
+  <text x="50" y="182" font-size="14" font-weight="600" fill="#222">Claude Code 2.1.316</text>
+  <text x="50" y="204" font-size="12.5" fill="#444">서브에이전트 effort 기본값 설정 추가</text>
+  <text x="50" y="230" font-size="12.5" fill="#666">새 모델 발표 없음 · Kimi K3.1 가중치 11/4 예고</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">Co-Design Bench</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">실사용자 요청 기반 멀티모달 코딩 에이전트 평가</text>
+  <text x="430" y="154" font-size="12.5" fill="#444">최강 모델도 태스크 완전 충족은 26.4%</text>
+  <text x="430" y="182" font-size="14" font-weight="600" fill="#222">WorkFactory</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">직업 의도 → 112,686개 실행 가능 태스크 합성</text>
+  <text x="430" y="224" font-size="12.5" fill="#444">에이전트 학습 데이터 파이프라인</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="290" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스</text>
+  <text x="50" y="318" font-size="14" font-weight="600" fill="#222">rudderlabs/devbox</text>
+  <text x="50" y="340" font-size="12.5" fill="#444">조직용 자율 엔지니어링 하네스 (셀프호스팅)</text>
+  <text x="50" y="368" font-size="14" font-weight="600" fill="#222">lwh0630/TokenBar</text>
+  <text x="50" y="390" font-size="12.5" fill="#444">Codex·Claude·Cursor 등 50개 서비스 쿼터 모니터</text>
+
+  <!-- 도구/팁 -->
+  <text x="430" y="290" font-size="15" font-weight="700" fill="#6a2f9c">🧑‍💻 도구 / 팁</text>
+  <text x="430" y="318" font-size="14" font-weight="600" fill="#222">Codex: 크로스 백엔드 세션 전환</text>
+  <text x="430" y="340" font-size="12.5" fill="#444">TUI 세션 피커에서 다른 백엔드 대화 재개</text>
+  <text x="430" y="368" font-size="14" font-weight="600" fill="#222">Claude Code: SUBAGENT_EFFORT</text>
+  <text x="430" y="390" font-size="12.5" fill="#444">메인 세션과 서브에이전트 effort 분리</text>
+  <text x="430" y="410" font-size="12.5" fill="#444">공통: judge-then-refute 평가 패턴</text>
+
+  <text x="400" y="470" text-anchor="middle" font-size="11" fill="#888">출처: developer.android.com · arXiv · GitHub (각 항목 본문 링크 참고)</text>
+</svg>

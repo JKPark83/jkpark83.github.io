@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">Co-Design Bench — 기준 통과율 vs 태스크 완전 충족률</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12.5" fill="#666">273개 실사용자 태스크 · 숨겨진 전문가 작성 수용 기준 2,331개 · 최고 성능 엔드포인트 기준 (논문 보고치)</text>
+
+  <!-- bars -->
+  <text x="70" y="106" font-size="13.5" font-weight="600" fill="#222">태스크당 수용 기준 평균 통과율</text>
+  <rect x="70" y="116" width="560" height="34" rx="6" fill="#e8edf5"/>
+  <rect x="70" y="116" width="391" height="34" rx="6" fill="#4a7fd4"/>
+  <text x="475" y="139" font-size="15" font-weight="700" fill="#1f4e9c">69.9%</text>
+
+  <text x="70" y="192" font-size="13.5" font-weight="600" fill="#222">모든 기준을 충족한 태스크 비율</text>
+  <rect x="70" y="202" width="560" height="34" rx="6" fill="#e8edf5"/>
+  <rect x="70" y="202" width="148" height="34" rx="6" fill="#d46a4a"/>
+  <text x="232" y="225" font-size="15" font-weight="700" fill="#a33c1e">26.4%</text>
+
+  <text x="70" y="268" font-size="12.5" fill="#555">→ 기준 하나하나는 꽤 맞추지만, 요청을 "끝까지" 완수하는 비율은 훨씬 낮다. 긴 수정일수록 격차가 커진다.</text>
+
+  <!-- judge-then-refute pipeline -->
+  <text x="70" y="312" font-size="14" font-weight="700" fill="#333">채점 프로토콜: judge-then-refute</text>
+  <rect x="70" y="328" width="200" height="72" rx="10" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="170" y="356" text-anchor="middle" font-size="13" font-weight="600" fill="#1f4e9c">LLM Judge</text>
+  <text x="170" y="376" text-anchor="middle" font-size="11.5" fill="#444">소스 + 브라우저 증거로</text>
+  <text x="170" y="392" text-anchor="middle" font-size="11.5" fill="#444">수용 기준별 채점</text>
+
+  <path d="M278 364 L322 364" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+
+  <rect x="330" y="328" width="200" height="72" rx="10" fill="#fff0ec" stroke="#eab9a8"/>
+  <text x="430" y="356" text-anchor="middle" font-size="13" font-weight="600" fill="#a33c1e">Refuter (별도 LLM)</text>
+  <text x="430" y="376" text-anchor="middle" font-size="11.5" fill="#444">"통과" 판정만 골라</text>
+  <text x="430" y="392" text-anchor="middle" font-size="11.5" fill="#444">반증 시도 → 거짓 통과 제거</text>
+
+  <path d="M538 364 L582 364" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+
+  <rect x="590" y="328" width="150" height="72" rx="10" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="665" y="360" text-anchor="middle" font-size="13" font-weight="600" fill="#1e7a35">최종 판정</text>
+  <text x="665" y="382" text-anchor="middle" font-size="11.5" fill="#444">gold 코드·스크린샷 불필요</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#888"/>
+    </marker>
+  </defs>
+
+  <text x="400" y="444" text-anchor="middle" font-size="11" fill="#888">출처: arXiv 2610.35138 (논문 보고 수치)</text>
+</svg>

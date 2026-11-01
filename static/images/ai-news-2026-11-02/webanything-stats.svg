@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a1a">WebAnything — 웹을 에이전트 환경으로 바꾼 규모 (논문 보고치)</text>
+
+  <!-- stat tiles -->
+  <rect x="35" y="60" width="230" height="100" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="150" y="105" text-anchor="middle" font-size="30" font-weight="700" fill="#1f4e9c">244개</text>
+  <text x="150" y="138" text-anchor="middle" font-size="13" fill="#444">재구축된 웹사이트 환경 (14개 도메인)</text>
+
+  <rect x="285" y="60" width="230" height="100" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="400" y="105" text-anchor="middle" font-size="30" font-weight="700" fill="#1e7a35">12,984개</text>
+  <text x="400" y="138" text-anchor="middle" font-size="13" fill="#444">실행·수용 완료된 태스크</text>
+
+  <rect x="535" y="60" width="230" height="100" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+  <text x="650" y="105" text-anchor="middle" font-size="30" font-weight="700" fill="#6a2f9c">12승 2무 0패</text>
+  <text x="650" y="138" text-anchor="middle" font-size="13" fill="#444">수작업 기반 WebHarbor와 블라인드 비교</text>
+
+  <!-- bar chart: fine-tune effect -->
+  <text x="35" y="205" font-size="14" font-weight="700" fill="#333">파인튜닝 효과: Qwen3.5-9B + 자체 생성 궤적 5,856개 (WebArena-Verified 전체 성공률)</text>
+
+  <!-- axis baseline -->
+  <line x1="150" y1="350" x2="700" y2="350" stroke="#ccc" stroke-width="1"/>
+
+  <!-- base bar (33.1 base unknown: use delta framing instead) -->
+  <rect x="150" y="250" width="240" height="40" rx="6" fill="#b9cdf2"/>
+  <text x="140" y="275" text-anchor="end" font-size="13" fill="#333">베이스 모델</text>
+  <text x="400" y="275" font-size="13" fill="#555">기준점</text>
+
+  <rect x="150" y="300" width="340" height="40" rx="6" fill="#1f4e9c"/>
+  <text x="140" y="325" text-anchor="end" font-size="13" fill="#333">파인튜닝 후</text>
+  <text x="500" y="325" font-size="13" font-weight="700" fill="#1f4e9c">+13.33%p</text>
+
+  <text x="400" y="384" text-anchor="middle" font-size="11" fill="#888">출처: arXiv 2610.37786 초록 보고치 · 막대는 상대 비교용 개념도</text>
+</svg>

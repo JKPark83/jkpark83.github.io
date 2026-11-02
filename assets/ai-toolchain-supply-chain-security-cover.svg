@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="개발자가 에디터 확장을 설치하는 순간 변조된 확장이 SSH 백도어를 심으려 하는 공급망 공격의 흐름을 그린 커버 이미지">
+  <defs>
+    <linearGradient id="scxg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#scxg)"/>
+
+  <text x="80" y="96" fill="#e2e8f0" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">에디터를 켠 순간 백도어가 심어졌다</text>
+  <text x="80" y="154" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="44" font-weight="800">AI 개발 도구 공급망 보안</text>
+  <text x="80" y="200" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="24">Claude Code 확장 트로이 사건 해부 — 마켓플레이스, 로더, 그리고 방어 5계층</text>
+
+  <!-- 왼쪽: 마켓플레이스 -->
+  <rect x="80" y="300" width="250" height="180" rx="16" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+  <text x="205" y="338" text-anchor="middle" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="700">확장 마켓플레이스</text>
+  <rect x="105" y="360" width="200" height="40" rx="8" fill="none" stroke="#2dd4bf" stroke-width="2.5"/>
+  <text x="205" y="386" text-anchor="middle" fill="#2dd4bf" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">2.1.311 (정상)</text>
+  <rect x="105" y="414" width="200" height="40" rx="8" fill="#fb7185" opacity="0.18" stroke="#fb7185" stroke-width="2.5"/>
+  <text x="205" y="440" text-anchor="middle" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17" font-weight="700">2.1.313 (변조)</text>
+
+  <!-- 화살표: 자동 업데이트 -->
+  <line x1="330" y1="434" x2="470" y2="434" stroke="#fb7185" stroke-width="4"/>
+  <polygon points="484,434 462,423 462,445" fill="#fb7185"/>
+  <text x="407" y="416" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">자동 업데이트</text>
+
+  <!-- 가운데: 개발 머신 -->
+  <rect x="490" y="290" width="330" height="200" rx="16" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+  <text x="655" y="328" text-anchor="middle" fill="#cbd5e1" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="700">개발 머신</text>
+  <rect x="515" y="348" width="280" height="38" rx="8" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+  <text x="655" y="373" text-anchor="middle" fill="#fbbf24" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16">extension.js 앞 66줄 로더 실행</text>
+  <rect x="515" y="398" width="280" height="38" rx="8" fill="none" stroke="#fb7185" stroke-width="2.5"/>
+  <text x="655" y="423" text-anchor="middle" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16">~/.ssh/authorized_keys 키 주입</text>
+  <text x="655" y="470" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15">시크릿 env 이름 수집 · 지속화 스크립트</text>
+
+  <!-- 화살표: 역방향 터널 -->
+  <line x1="820" y1="390" x2="960" y2="390" stroke="#a78bfa" stroke-width="4" stroke-dasharray="10 8"/>
+  <polygon points="974,390 952,379 952,401" fill="#a78bfa"/>
+  <text x="897" y="372" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">역방향 SSH</text>
+
+  <!-- 오른쪽: 공격자 -->
+  <rect x="980" y="330" width="150" height="120" rx="16" fill="#fb7185" opacity="0.14" stroke="#fb7185" stroke-width="2.5"/>
+  <text x="1055" y="382" text-anchor="middle" fill="#fb7185" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="700">공격자</text>
+  <text x="1055" y="412" text-anchor="middle" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="16">C2 서버</text>
+
+  <text x="80" y="560" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20">2026-10-29 · 정식 extension ID로 11시간 배포 · 최대 5,000명 노출 — "확장 삭제"는 치료가 아닙니다</text>
+</svg>

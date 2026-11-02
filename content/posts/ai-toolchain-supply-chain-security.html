@@ -1,0 +1,370 @@
+---
+title: "에디터를 켠 순간 백도어가 심어졌다 — Claude Code 확장 트로이 사건으로 배우는 AI 개발 도구 공급망 보안"
+date: 2026-11-03T07:30:00+09:00
+draft: false
+tags: ["AI", "공급망 보안", "supply chain", "VS Code 확장", "Cursor", "Claude Code", "SSH 백도어", "마켓플레이스", "Open VSX", "GlassWorm", "개발 환경 보안", "devcontainer", "시크릿 관리", "인시던트 분석", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "10월 29일, Cursor 마켓플레이스에서 Anthropic의 공식 Claude Code 확장 ID로 변조된 버전이 약 11시간 동안 배포됐습니다. 설치하고 에디터를 켜는 것만으로 SSH 백도어 설치가 시도됐고, 최대 5,000명이 노출됐습니다. 범인이 바꾼 건 extension.js 맨 앞의 66줄짜리 로더 하나였습니다. 이 사건을 한 단계씩 해부하면서, AI 코딩 도구가 왜 공급망 공격의 1순위 표적이 됐는지, 그리고 내 개발 머신과 팀을 지키는 실전 방어 계층을 정리합니다."
+ShowToc: false
+cover:
+  image: "ai-toolchain-supply-chain-security-cover.svg"
+  alt: "개발자가 에디터 확장을 설치하는 순간 변조된 확장이 SSH 백도어를 심는 공급망 공격의 흐름을 그린 커버 이미지"
+  caption: "AI 코딩 도구는 가장 빨리 설치되고, 가장 깊은 권한으로 돌아갑니다 — 공격자가 그걸 모를 리 없습니다"
+  relative: false
+---
+
+<style>
+/* ── AI 도구 공급망 보안 포스트 전용 스타일 (scx- 접두사) ── */
+.scx-fig{
+  --scx-teal:#0d9488; --scx-rose:#e11d48; --scx-amber:#d97706; --scx-sky:#0284c7;
+  --scx-violet:#7c3aed; --scx-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .scx-fig{
+  --scx-teal:#2dd4bf; --scx-rose:#fb7185; --scx-amber:#fbbf24; --scx-sky:#38bdf8;
+  --scx-violet:#a78bfa; --scx-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .scx-fig{
+    --scx-teal:#2dd4bf; --scx-rose:#fb7185; --scx-amber:#fbbf24; --scx-sky:#38bdf8;
+    --scx-violet:#a78bfa; --scx-slate:#94a3b8;
+  }
+}
+.scx-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.scx-fig text{font-family:inherit}
+.scx-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.scx-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.scx-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.scx-toc ol{margin:0;padding-left:1.25rem}
+.scx-toc li{margin:.22rem 0;font-size:.95rem}
+.scx-toc a{text-decoration:none}
+.scx-toc a:hover{text-decoration:underline}
+.scx-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.92rem}
+.scx-table th,.scx-table td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+.scx-table th{background:var(--entry)}
+.scx-note{border-left:4px solid var(--scx-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.scx-warn{border-left:4px solid var(--scx-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="scx-toc">
+  <div class="scx-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 공식 확장 ID로 배포된 백도어</a></li>
+    <li><a href="#sec-2">배경 — 에디터 확장이라는 공격면 3분 요약</a></li>
+    <li><a href="#sec-3">해부 ① — 무엇이, 어디서, 얼마나 배포됐나</a></li>
+    <li><a href="#sec-4">해부 ② — extension.js 맨 앞의 66줄: 로더는 무슨 일을 했나</a></li>
+    <li><a href="#sec-5">해부 ③ — 왜 피해가 제한됐고, 무엇이 아직 미궁인가</a></li>
+    <li><a href="#sec-6">더 큰 그림 — GlassWorm, Shai-Hulud, 그리고 AI 코딩 시대의 표적 이동</a></li>
+    <li><a href="#sec-7">실전 — 내 머신 점검과 팀 방어 계층 세우기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 공식 확장 ID로 배포된 백도어</h2>
+
+<p>2026년 10월 29일 새벽(태평양 시간 2시 27분경), Cursor의 확장 마켓플레이스에 <code>anthropic.claude-code</code> 확장의 새 버전이 올라왔습니다. 가짜 이름을 흉내 낸 짝퉁이 아니라, <strong>Anthropic의 정식 extension ID 그대로</strong>였습니다. 자동 업데이트가 켜져 있던 사용자라면 아무것도 누르지 않아도 받았고, 받은 뒤 에디터를 켜는 것만으로 악성 코드가 실행됐습니다. Claude 채팅을 열 필요도 없었습니다.</p>
+
+<p>이 변조 버전(2.1.313, 이후 2.1.312도 추가 확인)은 약 11시간 뒤인 오후 1시 35분경 제거될 때까지 <strong>최대 5,000명의 개발자</strong>에게 노출됐습니다. 페이로드는 광고 사기나 코인 채굴 같은 "값싼" 악성코드가 아니었습니다. 피해자의 <code>~/.ssh/authorized_keys</code>에 공격자의 공개키를 심고, 역방향 SSH 터널로 <strong>개발 머신에 지속적으로 들어올 수 있는 백도어</strong>를 만들려 했습니다. <a href="https://cursor.com/blog/claude-code-extension-security-notice" target="_blank" rel="noopener">Cursor는 보안 공지</a>를 내고 마켓플레이스 전체를 일시 폐쇄했으며, <a href="https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/" target="_blank" rel="noopener">Microsoft 위협 인텔리전스 팀</a>과 여러 보안 업체가 다음 날 바로 분석을 공개했습니다. Hacker News에서는 관련 스레드가 700포인트 넘게 오르며 한 주 내내 화제였습니다.</p>
+
+<p>왜 이 사건이 'AI 뉴스'가 아니라 'AI 엔지니어링' 이야기일까요? AI 코딩 도구는 지금 개발 생태계에서 <strong>가장 빨리 설치되고, 가장 자주 업데이트되고, 가장 깊은 권한으로 도는 소프트웨어</strong>이기 때문입니다. 에이전트가 제대로 일하려면 git 자격 증명, 클라우드 토큰, API 키에 접근해야 하고, 우리는 그걸 기꺼이 내어줍니다. 공격자 입장에서 AI 도구의 공급망은 개발자 머신 수천 대의 자격 증명으로 직행하는 고속도로입니다. 이번 사건을 한 단계씩 해부하면서, 이 고속도로에 어떤 검문소를 세워야 하는지 정리해 보겠습니다.</p>
+
+<h2 id="sec-2">2. 배경 — 에디터 확장이라는 공격면 3분 요약</h2>
+
+<p>사건을 이해하는 데 필요한 배경은 세 가지입니다.</p>
+
+<p><strong>① 확장은 곧 임의 코드 실행입니다.</strong> VS Code 계열 에디터의 확장은 에디터와 같은 권한의 Node.js 프로세스에서 돕니다. 브라우저 탭 같은 샌드박스(sandbox, 격리된 실행 환경)가 없습니다. 파일 시스템 전체를 읽고, 네트워크에 접속하고, 자식 프로세스를 띄울 수 있습니다. 즉 확장을 설치한다는 건 <strong>그 배포 채널을 운영하는 모든 주체에게 내 머신의 셸을 맡기는 일</strong>과 같습니다.</p>
+
+<p><strong>② 마켓플레이스는 하나가 아닙니다.</strong> Microsoft의 Visual Studio Marketplace는 약관상 공식 VS Code 제품만 쓸 수 있습니다. 그래서 Cursor, Windsurf 같은 포크(fork)들은 Eclipse 재단이 운영하는 <a href="https://open-vsx.org/" target="_blank" rel="noopener">Open VSX</a>를 쓰거나 자체 마켓플레이스를 운영합니다. 같은 이름의 확장이 채널마다 <strong>다른 바이너리</strong>일 수 있다는 뜻입니다. 이번 사건에서도 Microsoft 마켓플레이스와 npm의 Claude Code는 멀쩡했고, 변조본은 Cursor 마켓플레이스에서만 배포됐습니다.</p>
+
+<p><strong>③ 자동 업데이트는 신뢰를 자동으로 연장합니다.</strong> 확장은 기본적으로 자동 업데이트됩니다. "설치할 때 한 번 검토했으니 괜찮다"는 가정은 성립하지 않습니다. 어제의 깨끗한 확장 2.1.311과 오늘의 변조된 2.1.313 사이에서 사용자가 개입할 지점은 없습니다. 공급망 공격이 노리는 게 정확히 이 지점입니다. <strong>잘 알려진 이름의 배포 경로를 한 번만 장악하면, 신뢰가 쌓아 놓은 설치 기반 전체가 공격 표면이 됩니다.</strong></p>
+
+<h2 id="sec-3">3. 해부 ① — 무엇이, 어디서, 얼마나 배포됐나</h2>
+
+<p>공개된 사실관계를 먼저 정리합니다. Cursor 공지와 Microsoft·보안 업체들의 분석을 종합하면 이렇습니다.</p>
+
+<table class="scx-table">
+  <tr><th>항목</th><th>내용</th></tr>
+  <tr><td>변조된 패키지</td><td><code>anthropic.claude-code</code> 버전 2.1.313 (처음 공지), 이후 2.1.312도 변조 확인</td></tr>
+  <tr><td>배포 채널</td><td>Cursor 확장 마켓플레이스 (Windows·macOS 배포본). Microsoft Visual Studio Marketplace, npm, Anthropic 공식 채널은 영향 없음</td></tr>
+  <tr><td>노출 시간</td><td>2026-10-29 약 02:27 ~ 13:35 PT, 약 11시간</td></tr>
+  <tr><td>노출 규모</td><td>최대 5,000명 (Cursor 추산)</td></tr>
+  <tr><td>제작·배포 주체</td><td>Anthropic이 만들지 않았음(Anthropic·Cursor 공동 확인). 공격자가 Cursor 마켓플레이스의 배포 경로에 접근해 게시</td></tr>
+  <tr><td>Cursor 대응</td><td>즉시 제거 → 마켓플레이스 전체 일시 폐쇄 → 전체 확장 감사 → 접근 키 전면 로테이션 → 재구축 후 재개</td></tr>
+</table>
+
+<p>주목할 점 두 가지입니다. 첫째, <strong>짝퉁 확장이 아니라 정식 ID의 변조</strong>였습니다. "이름이 비슷한 가짜를 조심하라"는 기존 조언이 전혀 통하지 않는 유형입니다. 둘째, 발견 초기에는 어느 채널에서 배포됐는지조차 혼선이 있었습니다. 처음 발견한 보안 업체는 Open VSX 쪽을 지목했지만, 이후 Cursor·Microsoft·Anthropic의 교차 확인으로 Cursor 마켓플레이스 단독 배포로 정리됐습니다. 같은 extension ID가 여러 채널에 존재하는 구조에서는 <strong>사고가 나도 "어디서 받은 것인지" 추적부터 어렵다</strong>는 걸 보여 줍니다.</p>
+
+<figure class="scx-fig">
+<svg viewBox="0 0 860 480" role="img" aria-label="사건 타임라인 다이어그램. 10월 29일 새벽 2시 27분경 변조된 2.1.313이 Cursor 마켓플레이스에 게시되고, 약 11시간 동안 최대 5천 명에게 노출된 뒤 오후 1시 35분경 제거된다. Cursor는 마켓플레이스를 일시 폐쇄하고 키를 로테이션하며, 10월 30일 Microsoft가 분석을 공개하고, 10월 31일 2.1.312도 변조본으로 추가 확인된다">
+  <line x1="60" y1="70" x2="60" y2="430" stroke="var(--scx-slate)" stroke-width="2.5"/>
+  <text x="430" y="36" text-anchor="middle" fill="var(--scx-slate)" font-size="15" font-weight="800">트로이 확장 사건 타임라인 (2026년 10월, 태평양 시간 기준)</text>
+
+  <circle cx="60" cy="90" r="7" fill="var(--scx-rose)"/>
+  <text x="84" y="86" fill="var(--scx-rose)" font-size="13" font-weight="700">10/29 02:27경 — 변조된 2.1.313 게시</text>
+  <text x="84" y="105" fill="var(--scx-slate)" font-size="12">공식 extension ID(anthropic.claude-code)로 Cursor 마켓플레이스에 올라감</text>
+
+  <rect x="78" y="122" width="470" height="46" rx="9" fill="var(--scx-rose)" opacity="0.1"/>
+  <rect x="78" y="122" width="470" height="46" rx="9" fill="none" stroke="var(--scx-rose)" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="313" y="141" text-anchor="middle" fill="var(--scx-rose)" font-size="12.5" font-weight="700">약 11시간 노출 — 자동 업데이트·신규 설치로 최대 5,000명에게 배포</text>
+  <text x="313" y="159" text-anchor="middle" fill="var(--scx-slate)" font-size="12">에디터가 확장을 로드하는 순간 악성 로더 실행 (채팅을 열 필요 없음)</text>
+
+  <circle cx="60" cy="200" r="7" fill="var(--scx-amber)"/>
+  <text x="84" y="196" fill="var(--scx-amber)" font-size="13" font-weight="700">10/29 13:35경 — 탐지·제거</text>
+  <text x="84" y="215" fill="var(--scx-slate)" font-size="12">보안 연구자 신고로 변조 확인, 마켓플레이스에서 즉시 내림</text>
+
+  <circle cx="60" cy="256" r="7" fill="var(--scx-sky)"/>
+  <text x="84" y="252" fill="var(--scx-sky)" font-size="13" font-weight="700">10/29 ~ — Cursor 마켓플레이스 전면 대응</text>
+  <text x="84" y="271" fill="var(--scx-slate)" font-size="12">마켓플레이스 일시 폐쇄 → 전체 확장 감사 → 접근 키 전면 로테이션 → 재구축 후 재개</text>
+
+  <circle cx="60" cy="314" r="7" fill="var(--scx-violet)"/>
+  <text x="84" y="310" fill="var(--scx-violet)" font-size="13" font-weight="700">10/30 — Microsoft 위협 인텔리전스 분석 공개</text>
+  <text x="84" y="329" fill="var(--scx-slate)" font-size="12">Visual Studio Marketplace·npm 미영향 확인, Defender용 헌팅 쿼리 배포</text>
+
+  <circle cx="60" cy="372" r="7" fill="var(--scx-teal)"/>
+  <text x="84" y="368" fill="var(--scx-teal)" font-size="13" font-weight="700">10/31 — 공지 업데이트: 2.1.312도 변조본으로 추가 확인</text>
+  <text x="84" y="387" fill="var(--scx-slate)" font-size="12">"처음 공지된 버전만 피하면 된다"는 가정이 이틀 만에 깨짐</text>
+
+  <text x="430" y="440" text-anchor="middle" fill="var(--scx-slate)" font-size="12.5">11시간이면 짧아 보이지만, 자동 업데이트 생태계에서는 수천 명에게 닿기 충분한 시간입니다</text>
+</svg>
+<figcaption>그림 1. 사건 타임라인. 영향 버전 목록이 사후에 늘어난 것(2.1.313 → 2.1.312 추가)도 공급망 사고의 전형적인 전개입니다.</figcaption>
+</figure>
+
+<h2 id="sec-4">4. 해부 ② — extension.js 맨 앞의 66줄: 로더는 무슨 일을 했나</h2>
+
+<p>공급망 공격 기법 관점에서 이 사건의 교과서적인 부분입니다. <a href="https://www.stepsecurity.io/blog/claude-code-extension-trojanized" target="_blank" rel="noopener">StepSecurity의 바이너리 분석</a>에 따르면, 변조본은 정상 확장 번들의 <code>extension.js</code> <strong>맨 앞에 약 7,386바이트, 66줄짜리 즉시실행함수(IIFE)</strong>를 붙인 것이 전부였습니다. 나머지는 정상 빌드와 바이트 단위로 동일했고, 설치 스크립트(install/postinstall)도 없었습니다. 확장이 정상 동작하니 사용자는 아무 이상을 못 느낍니다. 악성 코드는 에디터가 확장을 로드할 때 조용히 먼저 실행될 뿐입니다.</p>
+
+<p>로더가 시도한 일은 네 단계입니다.</p>
+
+<ol>
+  <li><strong>정찰 비컨(beacon).</strong> 호스트 정보를 수집해 공격자 서버(<code>134.209.82.225:8099</code>의 <code>/beacon</code>)로 HTTP POST를 보냅니다. 흥미로운 디테일: 환경변수는 값이 아니라 <strong>이름만</strong> 보냈습니다. <code>KEY</code>, <code>TOKEN</code>, <code>SECRET</code>, <code>PASS</code>, <code>AWS</code>, <code>GCP</code> 같은 패턴에 걸리는 변수명 목록으로, "이 머신에 어떤 자격 증명이 있는지" 지도를 먼저 그린 겁니다.</li>
+  <li><strong>SSH 키 주입.</strong> 공격자의 공개키를 <code>~/.ssh/authorized_keys</code>에 추가합니다. 이 파일에 등록된 키의 소유자는 SSH 서비스가 열려 있는 한 비밀번호 없이 로그인할 수 있습니다.</li>
+  <li><strong>역방향 SSH 터널.</strong> 피해 머신이 방화벽·NAT 뒤에 있어도 공격자가 들어올 수 있도록, 피해 머신 쪽에서 공격자 서버로 먼저 터널을 뚫으려 시도합니다.</li>
+  <li><strong>지속화(persistence).</strong> 자동 시작 스크립트를 <strong>확장 폴더 바깥에</strong> 심습니다. 이게 운영상 가장 악질적인 부분입니다. 확장을 삭제하거나 깨끗한 2.1.314로 업데이트해도 백도어 설치 스크립트는 그대로 남아서 계속 돕니다.</li>
+</ol>
+
+<figure class="scx-fig">
+<svg viewBox="0 0 860 620" role="img" aria-label="변조 확장의 구조와 로더 동작 다이어그램. 위쪽은 정상 번들과 변조 번들의 비교로, 변조 번들은 extension.js 맨 앞에 66줄짜리 악성 로더가 붙어 있고 나머지는 동일하다. 아래쪽은 로더의 네 단계 동작으로, 비컨 전송, authorized_keys 키 주입, 역방향 SSH 터널 시도, 확장 폴더 밖 지속화 스크립트 설치를 보여준다">
+  <text x="225" y="30" text-anchor="middle" fill="var(--scx-teal)" font-size="14" font-weight="800">정상 번들 (2.1.311 등)</text>
+  <rect x="60" y="46" width="330" height="96" rx="10" fill="none" stroke="var(--scx-teal)" stroke-width="2.5"/>
+  <text x="225" y="76" text-anchor="middle" fill="var(--scx-teal)" font-size="12.5" font-weight="700">extension.js</text>
+  <rect x="84" y="90" width="282" height="34" rx="6" fill="var(--scx-teal)" opacity="0.55"/>
+  <text x="225" y="112" text-anchor="middle" fill="#fff" font-size="12">정상 확장 코드</text>
+
+  <text x="635" y="30" text-anchor="middle" fill="var(--scx-rose)" font-size="14" font-weight="800">변조 번들 (2.1.312 / 2.1.313)</text>
+  <rect x="470" y="46" width="330" height="96" rx="10" fill="none" stroke="var(--scx-rose)" stroke-width="2.5"/>
+  <text x="635" y="76" text-anchor="middle" fill="var(--scx-rose)" font-size="12.5" font-weight="700">extension.js</text>
+  <rect x="494" y="90" width="76" height="34" rx="6" fill="var(--scx-rose)" opacity="0.85"/>
+  <text x="532" y="112" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">악성 로더</text>
+  <rect x="578" y="90" width="198" height="34" rx="6" fill="var(--scx-teal)" opacity="0.55"/>
+  <text x="677" y="112" text-anchor="middle" fill="#fff" font-size="12">정상 확장 코드 (동일)</text>
+  <text x="532" y="162" text-anchor="middle" fill="var(--scx-rose)" font-size="11.5">66줄 IIFE, 약 7,386바이트</text>
+  <text x="677" y="162" text-anchor="middle" fill="var(--scx-slate)" font-size="11.5">→ 기능이 멀쩡해서 의심받지 않음</text>
+
+  <line x1="635" y1="176" x2="635" y2="212" stroke="var(--scx-rose)" stroke-width="2"/>
+  <polygon points="635,220 628,206 642,206" fill="var(--scx-rose)"/>
+  <text x="430" y="244" text-anchor="middle" fill="var(--scx-rose)" font-size="14" font-weight="800">에디터가 확장을 로드하는 순간 로더 실행 (사용자 상호작용 불필요)</text>
+
+  <rect x="40" y="270" width="390" height="104" rx="10" fill="none" stroke="var(--scx-amber)" stroke-width="2.5"/>
+  <text x="235" y="296" text-anchor="middle" fill="var(--scx-amber)" font-size="13" font-weight="700">① 정찰 비컨</text>
+  <text x="235" y="318" text-anchor="middle" fill="var(--scx-slate)" font-size="12">호스트 정보 + 시크릿 패턴 환경변수의 '이름' 목록을</text>
+  <text x="235" y="336" text-anchor="middle" fill="var(--scx-slate)" font-size="12">공격자 서버 :8099/beacon 으로 HTTP POST</text>
+  <text x="235" y="358" text-anchor="middle" fill="var(--scx-slate)" font-size="11.5">(KEY·TOKEN·SECRET·PASS·AWS·GCP 패턴 매칭)</text>
+
+  <rect x="470" y="270" width="350" height="104" rx="10" fill="none" stroke="var(--scx-rose)" stroke-width="2.5"/>
+  <text x="645" y="296" text-anchor="middle" fill="var(--scx-rose)" font-size="13" font-weight="700">② SSH 키 주입</text>
+  <text x="645" y="318" text-anchor="middle" fill="var(--scx-slate)" font-size="12">공격자 공개키를 ~/.ssh/authorized_keys 에 추가</text>
+  <text x="645" y="340" text-anchor="middle" fill="var(--scx-slate)" font-size="12">→ SSH가 열려 있으면 비밀번호 없이 로그인 가능</text>
+
+  <rect x="40" y="396" width="390" height="104" rx="10" fill="none" stroke="var(--scx-violet)" stroke-width="2.5"/>
+  <text x="235" y="422" text-anchor="middle" fill="var(--scx-violet)" font-size="13" font-weight="700">③ 역방향 SSH 터널</text>
+  <text x="235" y="444" text-anchor="middle" fill="var(--scx-slate)" font-size="12">피해 머신 → 공격자 서버 방향으로 터널을 먼저 연결</text>
+  <text x="235" y="466" text-anchor="middle" fill="var(--scx-slate)" font-size="12">(NAT·방화벽 뒤에 있어도 침입 경로 확보)</text>
+  <text x="235" y="486" text-anchor="middle" fill="var(--scx-teal)" font-size="11.5" font-weight="700">로컬 SSH 활성화에 관리자 권한 필요 → 대부분 실패</text>
+
+  <rect x="470" y="396" width="350" height="104" rx="10" fill="none" stroke="var(--scx-sky)" stroke-width="2.5"/>
+  <text x="645" y="422" text-anchor="middle" fill="var(--scx-sky)" font-size="13" font-weight="700">④ 지속화 스크립트</text>
+  <text x="645" y="444" text-anchor="middle" fill="var(--scx-slate)" font-size="12">자동 시작 항목을 확장 폴더 '바깥'에 설치</text>
+  <text x="645" y="466" text-anchor="middle" fill="var(--scx-rose)" font-size="12" font-weight="700">→ 확장을 삭제·업데이트해도 백도어 시도는 계속됨</text>
+
+  <text x="430" y="542" text-anchor="middle" fill="var(--scx-slate)" font-size="12.5">방어 관점 요약: "확장 제거 = 치료"가 성립하지 않는다.</text>
+  <text x="430" y="564" text-anchor="middle" fill="var(--scx-slate)" font-size="12.5">authorized_keys·자동 시작 항목·생성된 키와 스크립트를 별도로 찾아 제거해야 하고,</text>
+  <text x="430" y="586" text-anchor="middle" fill="var(--scx-slate)" font-size="12.5">터널이 실제로 연결된 정황이 있다면 머신 재설치가 권장됩니다 (StepSecurity)</text>
+</svg>
+<figcaption>그림 2. 변조 번들의 구조(위)와 로더의 4단계 동작(아래). 정상 코드를 건드리지 않고 로더만 앞에 붙이는 방식은 기능 이상이 없어 탐지가 늦어집니다.</figcaption>
+</figure>
+
+<div class="scx-warn">
+<strong>핵심 교훈:</strong> 이 공격에서 "확장 삭제"는 치료가 아닙니다. 지속화 스크립트가 확장 폴더 밖에 있으므로 <code>authorized_keys</code>의 수상한 키, 자동 시작 항목, 생성된 스크립트를 각각 찾아 제거해야 합니다. Cursor와 Microsoft 모두 이 점을 명시적으로 경고했고, Cursor는 플랫폼별 점검·정리 스크립트를 공지에 첨부했습니다.
+</div>
+
+<h2 id="sec-5">5. 해부 ③ — 왜 피해가 제한됐고, 무엇이 아직 미궁인가</h2>
+
+<p>다행히 실제 피해는 설계된 것보다 작았을 가능성이 높습니다. 역방향 터널이 성립하려면 피해 머신의 로컬 SSH 서비스를 켜야 하는데, 여기에 <strong>관리자 권한이 필요합니다</strong>. 에디터를 관리자 권한으로 띄우는 특이한 경우가 아니라면 이 단계는 실패합니다. Cursor 공지도 악성 코드 자체의 오류와 권한 문제로 터널 단계가 대부분 실패했을 것으로 봤습니다. 공격자가 한 끗 더 정교했다면 — 예컨대 SSH 서비스에 의존하지 않는 사용자 권한 역방향 셸을 썼다면 — 이야기가 훨씬 어두웠을 겁니다. <strong>이번에 살아남은 건 방어가 훌륭해서가 아니라 공격자가 서툴렀기 때문</strong>이라는 게 여러 분석의 공통된 평가입니다.</p>
+
+<p>반면 아직 공개되지 않은 핵심 질문이 있습니다. <strong>공격자가 어떻게 공식 extension ID로 게시할 수 있었는가</strong>입니다. 게시용 토큰 탈취인지, 마켓플레이스 인프라의 다른 구멍인지, 이 글을 쓰는 시점까지 Cursor는 침투 경로를 공개하지 않았습니다. Cursor가 사고 대응에서 마켓플레이스 전체를 내리고 <strong>모든 접근 키를 로테이션</strong>한 것은, 게시 경로의 자격 증명 오염 가능성을 심각하게 봤다는 간접 신호로 읽을 수 있습니다. 다만 이건 추정이 아니라 "아직 모른다"로 남겨 두는 게 정확합니다.</p>
+
+<div class="scx-note">
+<strong>참고 — 신뢰 인프라는 양방향으로 흔들립니다.</strong> 공교롭게도 2025년 8월에는 정반대 사고가 있었습니다. Open VSX가 진짜 Claude Code 확장을 <a href="https://github.com/anthropics/claude-code/issues/5762" target="_blank" rel="noopener">악성으로 오탐</a>해서, Open VSX를 쓰는 에디터들이 정상 확장을 자동 삭제한 일입니다. 마켓플레이스의 "악성/정상" 판정은 생각보다 수작업에 가깝고, 가짜를 통과시키는 실수와 진짜를 차단하는 실수가 모두 일어납니다. 판정 결과를 맹신하기보다 아래 7절의 방어 계층을 직접 갖추는 편이 안전합니다.
+</div>
+
+<h2 id="sec-6">6. 더 큰 그림 — GlassWorm, Shai-Hulud, 그리고 AI 코딩 시대의 표적 이동</h2>
+
+<p>이번 사건은 단발이 아니라 뚜렷한 흐름의 한 장면입니다. 최근 1년여 사이 개발자 도구 공급망에서 벌어진 일들을 나란히 놓으면 패턴이 보입니다.</p>
+
+<table class="scx-table">
+  <tr><th>시기</th><th>사건</th><th>수법의 핵심</th></tr>
+  <tr><td>2025년 9월</td><td>npm <strong>Shai-Hulud 웜</strong></td><td>탈취한 npm 토큰으로 패키지 187개에 자기 복제. 피해자 머신에서 TruffleHog로 시크릿을 긁어 다음 감염에 사용</td></tr>
+  <tr><td>2025년 10월~</td><td>Open VSX <strong>GlassWorm</strong></td><td>VS Code 확장 최초의 웜. 보이지 않는 유니코드 문자로 코드 은닉, 탈취한 게시 계정으로 다른 확장에 전파, 수만 다운로드. 이후 2026년까지 재발</td></tr>
+  <tr><td>2026년 10월</td><td><strong>Claude Code 변조</strong> (이번 사건)</td><td>공식 extension ID의 배포 경로를 직접 장악해 트로이 버전 게시. 목표는 개발 머신 자체의 원격 접근</td></tr>
+</table>
+
+<p>흐름이 보이시나요? 공격자들의 표적이 "인기 패키지"에서 <strong>"개발자 머신의 자격 증명과 접근 권한" 그 자체</strong>로 이동하고 있습니다. 그리고 AI 코딩 도구는 그 교차점의 한가운데에 있습니다. 이유는 구조적입니다.</p>
+
+<ul>
+  <li><strong>자격 증명이 모입니다.</strong> 코딩 에이전트가 쓸모 있으려면 git push 권한, 클라우드 CLI 토큰, 각종 API 키가 손에 닿아야 합니다. 에이전트를 잘 쓰는 개발자일수록 머신에 더 많은 권한이 모여 있습니다.</li>
+  <li><strong>교체 주기가 빠릅니다.</strong> AI 도구는 몇 주 단위로 갈아타는 게 일상입니다. "새로 나온 확장·CLI·MCP 서버를 일단 깔아 보는" 문화는 검증 없는 설치를 정상 행동으로 만들었습니다.</li>
+  <li><strong>이상 행동이 가려집니다.</strong> AI 도구는 원래 네트워크를 많이 쓰고, 파일을 많이 읽고, 프로세스를 많이 띄웁니다. 악성 행위가 정상 동작의 소음에 묻히기 좋은 환경입니다.</li>
+</ul>
+
+<p>즉 "AI 엔지니어링을 한다"는 것은 이제 "공급망 공격의 고가치 표적이 된다"와 같은 말입니다. 그래서 방어도 엔지니어링 관점으로 접근해야 합니다.</p>
+
+<h2 id="sec-7">7. 실전 — 내 머신 점검과 팀 방어 계층 세우기</h2>
+
+<p>먼저 급한 것부터. Cursor에서 Claude Code 확장을 쓰고 있었다면(특히 10월 29일 전후), 공식 공지의 플랫폼별 스크립트를 따르는 게 정석입니다. 그와 별개로 아래 점검은 어떤 머신에서든 몇 분이면 끝납니다.</p>
+
+{{< highlight bash >}}
+# 1) 문제 버전이 설치됐었는지 확인 (Cursor 확장 폴더)
+ls ~/.cursor/extensions | grep -i "anthropic.claude-code-2.1.31[23]"
+
+# 2) authorized_keys에 내가 모르는 공개키가 있는지 — 가장 중요한 점검
+#    (한 줄 = 키 하나. 끝의 주석(label)까지 전부 눈으로 확인하세요)
+cat ~/.ssh/authorized_keys
+
+# 3) 자동 시작 항목에 수상한 것이 있는지
+#    macOS: LaunchAgents / Linux: crontab과 systemd user unit
+ls -la ~/Library/LaunchAgents/            # macOS
+crontab -l; ls -la ~/.config/systemd/user # Linux
+
+# 4) 원격 SSH 서비스가 불필요하게 켜져 있지 않은지
+sudo systemsetup -getremotelogin          # macOS
+systemctl status ssh                      # Linux
+{{< /highlight >}}
+
+<p>개인 점검은 응급 처치일 뿐입니다. 구조적인 방어는 계층으로 세워야 합니다. 어느 한 층이 뚫려도 다음 층이 피해를 줄이도록요.</p>
+
+<figure class="scx-fig">
+<svg viewBox="0 0 860 560" role="img" aria-label="개발 머신 방어 계층 다이어그램. 다섯 개의 층이 쌓여 있다. 1층 설치 게이트는 확장과 도구의 허용 목록과 버전 고정, 2층 실행 격리는 devcontainer와 샌드박스, 3층 시크릿 다이어트는 환경변수 대신 단기 토큰, 4층 이그레스 제어는 알 수 없는 목적지 차단, 5층 탐지는 authorized_keys와 자동 시작 항목 모니터링이다. 각 층 옆에 이번 사건에서 그 층이 막았을 지점이 적혀 있다">
+  <text x="430" y="32" text-anchor="middle" fill="var(--scx-slate)" font-size="15" font-weight="800">개발 머신 방어 5계층 — 각 층이 이번 사건의 어디를 막았을까</text>
+
+  <rect x="50" y="56" width="420" height="80" rx="10" fill="var(--scx-teal)" opacity="0.12"/>
+  <rect x="50" y="56" width="420" height="80" rx="10" fill="none" stroke="var(--scx-teal)" stroke-width="2.5"/>
+  <text x="260" y="86" text-anchor="middle" fill="var(--scx-teal)" font-size="13.5" font-weight="800">① 설치 게이트</text>
+  <text x="260" y="108" text-anchor="middle" fill="var(--scx-slate)" font-size="12">확장·CLI 허용 목록(allowlist), 자동 업데이트 지연,</text>
+  <text x="260" y="125" text-anchor="middle" fill="var(--scx-slate)" font-size="12">새 도구는 격리 환경에서 먼저 시험</text>
+  <text x="640" y="92" text-anchor="middle" fill="var(--scx-teal)" font-size="12" font-weight="700">→ 변조본 설치 자체를 지연·차단</text>
+  <text x="640" y="112" text-anchor="middle" fill="var(--scx-slate)" font-size="11.5">(11시간 노출창을 그냥 지나보냄)</text>
+
+  <rect x="50" y="156" width="420" height="80" rx="10" fill="var(--scx-sky)" opacity="0.12"/>
+  <rect x="50" y="156" width="420" height="80" rx="10" fill="none" stroke="var(--scx-sky)" stroke-width="2.5"/>
+  <text x="260" y="186" text-anchor="middle" fill="var(--scx-sky)" font-size="13.5" font-weight="800">② 실행 격리</text>
+  <text x="260" y="208" text-anchor="middle" fill="var(--scx-slate)" font-size="12">AI 도구·에이전트는 devcontainer/VM 안에서,</text>
+  <text x="260" y="225" text-anchor="middle" fill="var(--scx-slate)" font-size="12">호스트 홈 디렉터리 전체를 마운트하지 않기</text>
+  <text x="640" y="192" text-anchor="middle" fill="var(--scx-sky)" font-size="12" font-weight="700">→ ~/.ssh 접근 자체가 불가능</text>
+  <text x="640" y="212" text-anchor="middle" fill="var(--scx-slate)" font-size="11.5">(키 주입·지속화가 컨테이너 안에 갇힘)</text>
+
+  <rect x="50" y="256" width="420" height="80" rx="10" fill="var(--scx-violet)" opacity="0.12"/>
+  <rect x="50" y="256" width="420" height="80" rx="10" fill="none" stroke="var(--scx-violet)" stroke-width="2.5"/>
+  <text x="260" y="286" text-anchor="middle" fill="var(--scx-violet)" font-size="13.5" font-weight="800">③ 시크릿 다이어트</text>
+  <text x="260" y="308" text-anchor="middle" fill="var(--scx-slate)" font-size="12">장수 토큰을 셸 환경변수에 상주시키지 않기,</text>
+  <text x="260" y="325" text-anchor="middle" fill="var(--scx-slate)" font-size="12">단기 토큰·키체인·시크릿 매니저 사용</text>
+  <text x="640" y="292" text-anchor="middle" fill="var(--scx-violet)" font-size="12" font-weight="700">→ 비컨이 훔칠 '지도'가 빈약해짐</text>
+  <text x="640" y="312" text-anchor="middle" fill="var(--scx-slate)" font-size="11.5">(env 스캔이 공격 1단계였음을 기억)</text>
+
+  <rect x="50" y="356" width="420" height="80" rx="10" fill="var(--scx-amber)" opacity="0.12"/>
+  <rect x="50" y="356" width="420" height="80" rx="10" fill="none" stroke="var(--scx-amber)" stroke-width="2.5"/>
+  <text x="260" y="386" text-anchor="middle" fill="var(--scx-amber)" font-size="13.5" font-weight="800">④ 이그레스(egress) 제어</text>
+  <text x="260" y="408" text-anchor="middle" fill="var(--scx-slate)" font-size="12">개발 도구의 아웃바운드 목적지 허용 목록,</text>
+  <text x="260" y="425" text-anchor="middle" fill="var(--scx-slate)" font-size="12">알 수 없는 IP·포트로의 연결 차단(Little Snitch, 방화벽 등)</text>
+  <text x="640" y="392" text-anchor="middle" fill="var(--scx-amber)" font-size="12" font-weight="700">→ :8099 비컨·역방향 터널 차단</text>
+  <text x="640" y="412" text-anchor="middle" fill="var(--scx-slate)" font-size="11.5">(C2 연결이 끊기면 백도어는 무용지물)</text>
+
+  <rect x="50" y="456" width="420" height="80" rx="10" fill="var(--scx-rose)" opacity="0.12"/>
+  <rect x="50" y="456" width="420" height="80" rx="10" fill="none" stroke="var(--scx-rose)" stroke-width="2.5"/>
+  <text x="260" y="486" text-anchor="middle" fill="var(--scx-rose)" font-size="13.5" font-weight="800">⑤ 탐지·대응</text>
+  <text x="260" y="508" text-anchor="middle" fill="var(--scx-slate)" font-size="12">authorized_keys·자동 시작 항목 변경 모니터링,</text>
+  <text x="260" y="525" text-anchor="middle" fill="var(--scx-slate)" font-size="12">사고 시 "삭제"가 아니라 "증거 보존 → 정리 → 키 로테이션"</text>
+  <text x="640" y="492" text-anchor="middle" fill="var(--scx-rose)" font-size="12" font-weight="700">→ 뚫려도 11시간 안에 알아챔</text>
+  <text x="640" y="512" text-anchor="middle" fill="var(--scx-slate)" font-size="11.5">(이번 사건의 탐지도 외부 연구자의 몫이었음)</text>
+</svg>
+<figcaption>그림 3. 방어 5계층과 이번 사건에서 각 층이 끊었을 지점. 완벽한 층은 없지만, 겹치면 사고가 '침해'가 아니라 '소동'에서 끝납니다.</figcaption>
+</figure>
+
+<p>이 중 당장 효과가 큰 두 가지만 구체적으로 보겠습니다.</p>
+
+<p><strong>실행 격리 — 에이전트는 컨테이너 안에서.</strong> 코딩 에이전트와 그 확장을 devcontainer(개발 환경을 컨테이너로 정의하는 표준) 안에서 돌리면, 이번 같은 공격이 성공해도 피해 범위가 컨테이너로 제한됩니다. 핵심은 호스트의 민감한 경로를 마운트하지 않는 것입니다.</p>
+
+{{< highlight json >}}
+// .devcontainer/devcontainer.json — 에이전트 전용 격리 환경의 뼈대
+{
+  "name": "agent-sandbox",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+  // 워크스페이스 '폴더만' 마운트합니다. 홈 디렉터리 전체(~/.ssh,
+  // ~/.aws 등)를 마운트하는 순간 격리는 의미가 없어집니다.
+  "mounts": [],
+  "containerEnv": {
+    // 시크릿은 상주 환경변수가 아니라 필요한 순간에만 주입
+  },
+  "customizations": {
+    "vscode": {
+      // 이 환경에서 쓸 확장을 '명시적으로' 나열 = 사실상의 허용 목록
+      "extensions": ["anthropic.claude-code"]
+    }
+  }
+}
+{{< /highlight >}}
+
+<p><strong>설치 게이트 — 확장 허용 목록.</strong> VS Code는 조직 정책으로 설치 가능한 확장을 제한하는 <a href="https://code.visualstudio.com/docs/setup/enterprise" target="_blank" rel="noopener"><code>extensions.allowed</code> 설정</a>을 지원합니다. 게시자 단위·확장 단위·버전 단위까지 지정할 수 있어서, 팀 전체에 "검토된 확장의 검토된 버전만" 강제할 수 있습니다. 개인이라면 최소한 <strong>자동 업데이트를 끄고 릴리스 후 며칠 지난 버전을 설치하는 것</strong>만으로도, 이번처럼 수 시간~수일 안에 발각되는 변조본의 노출창을 대부분 피할 수 있습니다. npm 생태계에서 lockfile과 <code>--ignore-scripts</code>로 하던 일을 확장 생태계에도 똑같이 적용하는 셈입니다.</p>
+
+<div class="scx-note">
+<strong>트레이드오프도 정직하게:</strong> 자동 업데이트 지연은 보안 패치도 늦게 받는다는 뜻이고, 격리 환경은 처음 세팅이 귀찮습니다. 공짜 방어는 없습니다. 다만 "AI 도구에 머신의 모든 권한을 주고 최신 버전을 즉시 받는" 현재의 기본값이 공격자에게 최적화된 설정이라는 점은 분명합니다. 기본값을 의식적으로 선택한 값으로 바꾸는 것이 이 글의 요지입니다.
+</div>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>"공식 확장이니까 안전하다"고 믿기.</strong> 이번 변조본은 정식 extension ID로 배포됐습니다. 신뢰할 것은 이름이 아니라 <strong>배포 경로와 무결성 검증</strong>입니다. 같은 이름이라도 Microsoft 마켓플레이스, Open VSX, Cursor 마켓플레이스의 패키지는 서로 다른 빌드일 수 있습니다.</li>
+  <li><strong>사고 소식에 확장만 지우고 끝내기.</strong> 지속화가 확장 폴더 밖에 있으면 삭제는 치료가 아닙니다. 벤더의 공식 정리 절차를 따르고, <code>authorized_keys</code>·자동 시작 항목을 직접 확인하고, 그 머신에서 접근 가능했던 <strong>자격 증명을 다른(깨끗한) 머신에서 로테이션</strong>하세요.</li>
+  <li><strong>시크릿을 셸 rc 파일에 export 해두기.</strong> <code>.zshrc</code>에 박힌 <code>AWS_SECRET_ACCESS_KEY</code>는 모든 프로세스의 것입니다. 이번 로더의 1단계가 정확히 그 환경변수 스캔이었습니다. 단기 토큰 발급(예: 클라우드 CLI의 SSO 로그인)이나 OS 키체인으로 옮기세요.</li>
+  <li><strong>에이전트 편의를 위해 격리를 먼저 포기하기.</strong> "컨테이너 안에서는 에이전트가 내 dotfiles를 못 봐서 불편하다"며 홈 디렉터리 전체를 마운트하는 순간, 격리층은 장식이 됩니다. 필요한 파일만 골라서 넣으세요.</li>
+  <li><strong>탐지를 남의 일로 두기.</strong> 이번 사건의 탐지도 외부 보안 연구자의 신고였습니다. <code>authorized_keys</code>는 자주 바뀌는 파일이 아니므로, 변경 시 알림을 걸어 두는 것만으로 훌륭한 개인용 침입 탐지가 됩니다. macOS라면 <code>fswatch</code>, Linux라면 <code>inotifywait</code> 한 줄로 충분합니다.</li>
+  <li><strong>MCP 서버·CLI 도구는 예외라고 생각하기.</strong> 이 글은 에디터 확장 사건을 다뤘지만, 같은 논리가 npm으로 설치하는 MCP 서버, curl로 받는 설치 스크립트, 에이전트가 제안하는 의존성 추가에 모두 적용됩니다. "임의 코드를 내 권한으로 실행하는 모든 것"이 같은 공격면입니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>10월 29일, Cursor 마켓플레이스에서 <strong>정식 ID의 Claude Code 확장 변조본</strong>(2.1.312·2.1.313)이 약 11시간 배포돼 최대 5,000명이 노출됐습니다. Anthropic 공식 채널·MS 마켓플레이스·npm은 영향이 없었습니다.</li>
+  <li>수법은 <code>extension.js</code> 맨 앞에 66줄 로더를 붙인 것. 에디터가 확장을 로드하면 <strong>시크릿 환경변수 이름 수집 → <code>authorized_keys</code> 키 주입 → 역방향 SSH 터널 → 확장 폴더 밖 지속화</strong>를 시도했습니다. 터널은 관리자 권한 요구와 코드 오류로 대부분 실패했습니다 — 방어의 승리가 아니라 공격자의 실수였습니다.</li>
+  <li><strong>확장 삭제는 치료가 아닙니다.</strong> 지속화 스크립트·주입된 키·자동 시작 항목을 별도로 제거하고, 노출된 자격 증명은 깨끗한 머신에서 로테이션해야 합니다.</li>
+  <li>Shai-Hulud(npm) → GlassWorm(Open VSX) → 이번 사건으로 이어지는 흐름의 공통점: 표적은 패키지가 아니라 <strong>개발자 머신의 자격 증명과 접근 권한</strong>입니다. 자격 증명이 모이는 AI 코딩 도구가 1순위 표적입니다.</li>
+  <li>방어는 계층으로: <strong>설치 게이트(허용 목록·업데이트 지연) → 실행 격리(devcontainer) → 시크릿 다이어트(단기 토큰) → 이그레스 제어 → 탐지(<code>authorized_keys</code> 모니터링)</strong>. 한 층이 뚫려도 다음 층이 '침해'를 '소동'으로 줄입니다.</li>
+  <li>오늘 할 일: 위 7절의 4가지 점검 명령 실행, 셸 rc 파일의 장수 시크릿 정리, 에이전트 작업용 격리 환경 하나 만들기.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://cursor.com/blog/claude-code-extension-security-notice" target="_blank" rel="noopener">Security notice — malicious version of Anthropic.claude-code (2.1.312 and 2.1.313)</a> — Cursor 공식 보안 공지 (점검·정리 스크립트 포함)</li>
+  <li><a href="https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/" target="_blank" rel="noopener">Inside a malicious Claude Code-branded extension and its persistent SSH backdoor</a> — Microsoft 위협 인텔리전스 분석 (2026-10-30)</li>
+  <li><a href="https://www.stepsecurity.io/blog/claude-code-extension-trojanized" target="_blank" rel="noopener">Trojanized Claude Code Extension Delivered Persistent SSH Backdoor to Developer Machines</a> — StepSecurity의 바이너리 레벨 분석 (로더 구조·IOC)</li>
+  <li><a href="https://thehackernews.com/2026/10/official-claude-code-vs-code-extension.html" target="_blank" rel="noopener">Official Claude Code Extension on Cursor Marketplace Trojanized with Persistent SSH Backdoor</a> — The Hacker News 보도</li>
+  <li><a href="https://www.bleepingcomputer.com/news/security/malicious-claude-code-extension-on-cursor-planted-ssh-backdoors/" target="_blank" rel="noopener">Malicious Claude Code extension on Cursor planted SSH backdoors</a> — BleepingComputer 보도 (배포 채널 교차 확인)</li>
+  <li><a href="https://www.helpnetsecurity.com/2026/10/30/claude-code-extension-ssh-backdoor/" target="_blank" rel="noopener">Claude Code extension poisoned with persistent SSH backdoor</a> — Help Net Security 보도</li>
+  <li><a href="https://github.com/anthropics/claude-code/issues/5762" target="_blank" rel="noopener">anthropics/claude-code 이슈 #5762</a> — 2025년 8월 Open VSX의 정상 확장 오탐 사건 (마켓플레이스 신뢰 판정의 한계)</li>
+  <li><a href="https://www.bleepingcomputer.com/news/security/self-spreading-glassworm-malware-hits-openvsx-vs-code-registries/" target="_blank" rel="noopener">Self-spreading GlassWorm malware hits OpenVSX, VS Code registries</a> — GlassWorm 웜 분석 (2025-10)</li>
+  <li><a href="https://code.visualstudio.com/docs/setup/enterprise" target="_blank" rel="noopener">VS Code Enterprise 문서</a> — <code>extensions.allowed</code> 확장 허용 목록 정책</li>
+  <li><a href="https://containers.dev/" target="_blank" rel="noopener">Development Containers 사양</a> — devcontainer 표준 문서</li>
+  <li>관련해서 함께 읽기 — <a href="/posts/agent-code-execution-sandbox/">에이전트 코드 실행 샌드박스</a>, <a href="/posts/agent-sandbox-escape-egress-isolation/">에이전트 샌드박스 탈출과 이그레스 격리</a>, <a href="/posts/prompt-injection-defense-agents/">프롬프트 인젝션 방어</a> (이 블로그, 한국어)</li>
+</ul>

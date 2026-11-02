@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a1a">R²Orch — 두 개의 루프로 자기 자신을 개선하는 오케스트레이터</text>
+
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#555"/>
+    </marker>
+    <marker id="arrP" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#6b3f93"/>
+    </marker>
+  </defs>
+
+  <!-- inner loop box -->
+  <rect x="40" y="60" width="440" height="300" rx="14" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="60" y="88" font-size="14" font-weight="700" fill="#1f4e9c">내부 루프 — 셀프플레이</text>
+
+  <rect x="70" y="110" width="170" height="58" rx="10" fill="#fff" stroke="#8aa8d8"/>
+  <text x="155" y="134" text-anchor="middle" font-size="13" font-weight="600" fill="#222">Proposer</text>
+  <text x="155" y="154" text-anchor="middle" font-size="11.5" fill="#555">"배울 게 남은" 태스크 선택</text>
+
+  <rect x="290" y="110" width="170" height="58" rx="10" fill="#fff" stroke="#8aa8d8"/>
+  <text x="375" y="134" text-anchor="middle" font-size="13" font-weight="600" fill="#222">Orchestrator</text>
+  <text x="375" y="154" text-anchor="middle" font-size="11.5" fill="#555">스킬 조합으로 롤아웃 실행</text>
+
+  <rect x="70" y="230" width="170" height="58" rx="10" fill="#fff" stroke="#8aa8d8"/>
+  <text x="155" y="254" text-anchor="middle" font-size="13" font-weight="600" fill="#222">실패 → 스킬 증류</text>
+  <text x="155" y="274" text-anchor="middle" font-size="11.5" fill="#555">실패 사례가 새 스킬이 됨</text>
+
+  <rect x="290" y="230" width="170" height="58" rx="10" fill="#fff" stroke="#8aa8d8"/>
+  <text x="375" y="254" text-anchor="middle" font-size="13" font-weight="600" fill="#222">스킬 → 파라미터</text>
+  <text x="375" y="274" text-anchor="middle" font-size="11.5" fill="#555">스킬을 모델 내부로 흡수</text>
+
+  <line x1="240" y1="139" x2="286" y2="139" stroke="#555" stroke-width="1.6" marker-end="url(#arr)"/>
+  <line x1="375" y1="168" x2="375" y2="200" stroke="#555" stroke-width="1.6"/>
+  <line x1="375" y1="200" x2="155" y2="200" stroke="#555" stroke-width="1.6"/>
+  <line x1="155" y1="200" x2="155" y2="226" stroke="#555" stroke-width="1.6" marker-end="url(#arr)"/>
+  <line x1="240" y1="259" x2="286" y2="259" stroke="#555" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <text x="60" y="334" font-size="12" fill="#444">목표: Recursive Learnability — 스킬을 빼도 결과가</text>
+  <text x="60" y="352" font-size="12" fill="#444">계속 갈리는 태스크를 고르도록 Proposer에 보상</text>
+
+  <!-- outer loop box -->
+  <rect x="520" y="60" width="240" height="300" rx="14" fill="#f7f0fb" stroke="#d7bfe8"/>
+  <text x="540" y="88" font-size="14" font-weight="700" fill="#6b3f93">외부 루프 — Skill Withdrawal</text>
+
+  <rect x="545" y="110" width="190" height="72" rx="10" fill="#fff" stroke="#c0a0d8"/>
+  <text x="640" y="134" text-anchor="middle" font-size="12.5" font-weight="600" fill="#222">통제 평가</text>
+  <text x="640" y="153" text-anchor="middle" font-size="11.5" fill="#555">스킬 없이도 같은 성능이면</text>
+  <text x="640" y="170" text-anchor="middle" font-size="11.5" fill="#555">그 스킬을 회수(제거)</text>
+
+  <rect x="545" y="230" width="190" height="72" rx="10" fill="#fff" stroke="#c0a0d8"/>
+  <text x="640" y="254" text-anchor="middle" font-size="12.5" font-weight="600" fill="#222">회수 → 새 실패 탐색</text>
+  <text x="640" y="273" text-anchor="middle" font-size="11.5" fill="#555">Proposer가 다시 어려운</text>
+  <text x="640" y="290" text-anchor="middle" font-size="11.5" fill="#555">태스크를 찾아 나섬</text>
+
+  <line x1="640" y1="182" x2="640" y2="226" stroke="#6b3f93" stroke-width="1.6" marker-end="url(#arrP)"/>
+  <line x1="545" y1="266" x2="500" y2="266" stroke="#6b3f93" stroke-width="1.6"/>
+  <line x1="500" y1="266" x2="500" y2="139" stroke="#6b3f93" stroke-width="1.6"/>
+  <line x1="500" y1="139" x2="484" y2="139" stroke="#6b3f93" stroke-width="1.6" marker-end="url(#arrP)"/>
+  <line x1="480" y1="300" x2="520" y2="300" stroke="#6b3f93" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+  <text x="640" y="334" font-size="12" text-anchor="middle" fill="#6b3f93" font-weight="600">종착점: 스킬 0개 배포</text>
+  <text x="640" y="352" font-size="11.5" text-anchor="middle" fill="#777">(전부 파라미터로 내재화)</text>
+
+  <text x="400" y="408" text-anchor="middle" font-size="12" fill="#666">QA · 수학 · 코드 · 인터랙티브 등 12개 데이터셋에서 베이스라인 일관 상회 (논문 보고치)</text>
+  <text x="400" y="428" text-anchor="middle" font-size="11" fill="#999">arXiv 2610.22740 초록 기반으로 재구성한 다이어그램</text>
+</svg>

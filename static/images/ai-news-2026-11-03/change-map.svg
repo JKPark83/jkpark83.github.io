@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="480" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-03</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="190" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="190" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="262" width="360" height="190" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="262" width="360" height="190" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="112" font-size="14" font-weight="600" fill="#222">Apriel Voice 27B Preview (ServiceNow)</text>
+  <text x="50" y="134" font-size="12.5" fill="#444">음성 + 추론 + 툴 콜을 한 백본에서 · MIT</text>
+  <text x="50" y="154" font-size="12.5" fill="#444">Gemma 4 26B-A4B + Whisper 인코더</text>
+  <text x="50" y="186" font-size="12.5" fill="#666">그 외 큰 모델 발표 없음</text>
+  <text x="50" y="206" font-size="12.5" fill="#666">Kimi K3.1 Pro 오픈 웨이트 11/4 예고</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">R²Orch — 재귀적 자기개선 오케스트레이션</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">셀프플레이 내부 루프 + 스킬 회수 외부 루프</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">SimpleLoRIF — 안전 저하 데이터 추적</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">그래디언트로 파인튜닝 데이터 중 위험분 식별</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">툴 실행 실패 로그도 안전 저하 원인으로 지목</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="290" font-size="15" font-weight="700" fill="#9a6a1f">🛠 오픈소스</text>
+  <text x="50" y="318" font-size="14" font-weight="600" fill="#222">unslop (~6,100★)</text>
+  <text x="50" y="340" font-size="12.5" fill="#444">AI 티 나는 UI를 디자인된 UI로 — CC/Codex 스킬</text>
+  <text x="50" y="368" font-size="14" font-weight="600" fill="#222">craft-anything (~3,800★)</text>
+  <text x="50" y="390" font-size="12.5" fill="#444">소프트웨어 분석 → 에이전트가 내 버전 제작</text>
+  <text x="50" y="410" font-size="12.5" fill="#444">순수 Rust · 검사-빌드-대조-수정 루프</text>
+
+  <!-- 도구/팁 -->
+  <text x="430" y="290" font-size="15" font-weight="700" fill="#6b3f93">🧑‍💻 도구 / 팁</text>
+  <text x="430" y="318" font-size="14" font-weight="600" fill="#222">Codex: 사이드 대화 분할 패널 (실험)</text>
+  <text x="430" y="340" font-size="12.5" fill="#444">tui_workspace 플래그 · 부모+사이드 대화 동시 표시</text>
+  <text x="430" y="368" font-size="14" font-weight="600" fill="#222">Claude Code: Anthropic 자체 트리아지 공개 설계</text>
+  <text x="430" y="390" font-size="12.5" fill="#444">이슈 트리아지 워크플로를 Sonnet 5.5로 이동</text>
+  <text x="430" y="410" font-size="12.5" fill="#444">OIDC 연합 인증 · 방화벽 러너 · 도구 차단 목록</text>
+
+  <text x="400" y="472" text-anchor="middle" font-size="11.5" fill="#888">모든 항목은 arXiv API · GitHub 클론 · HF 모델 카드로 검증</text>
+</svg>

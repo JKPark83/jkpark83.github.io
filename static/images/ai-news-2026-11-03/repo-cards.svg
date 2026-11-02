@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="360" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a1a">오늘의 오픈소스 — 성격이 정반대인 두 "만들기" 도구</text>
+
+  <!-- unslop card -->
+  <rect x="35" y="56" width="355" height="256" rx="14" fill="#fff" stroke="#eed3a8" stroke-width="1.5"/>
+  <rect x="35" y="56" width="355" height="46" rx="14" fill="#fff7ec"/>
+  <text x="55" y="86" font-size="15" font-weight="700" fill="#9a6a1f">unslop</text>
+  <text x="370" y="86" font-size="12.5" text-anchor="end" fill="#666">JS · CC BY 4.0 · ~6,100★</text>
+
+  <text x="55" y="128" font-size="13" font-weight="600" fill="#222">이미 만든 화면을 "덜 AI스럽게"</text>
+  <text x="55" y="152" font-size="12" fill="#444">· 보라 그라데이션 · 글로우 · 이모지 라벨 등</text>
+  <text x="55" y="171" font-size="12" fill="#444">  슬롭 징후를 먼저 감사(audit)</text>
+  <text x="55" y="194" font-size="12" fill="#444">· 제품에서 방향을 뽑은 뒤 간격 → 색 → 아이콘</text>
+  <text x="55" y="213" font-size="12" fill="#444">  → 카피 → 타이포 순서로 패스 수정</text>
+  <text x="55" y="236" font-size="12" fill="#444">· Claude Code /unslop · Codex $unslop 양쪽 지원</text>
+  <text x="55" y="259" font-size="12" fill="#444">· 라이브 사이트도 링크만으로 처리</text>
+  <text x="55" y="292" font-size="12" font-weight="600" fill="#9a6a1f">바이브코딩 결과물의 마감 공정</text>
+
+  <!-- craft-anything card -->
+  <rect x="410" y="56" width="355" height="256" rx="14" fill="#fff" stroke="#b9cdf2" stroke-width="1.5"/>
+  <rect x="410" y="56" width="355" height="46" rx="14" fill="#eef4ff"/>
+  <text x="430" y="86" font-size="15" font-weight="700" fill="#1f4e9c">craft-anything</text>
+  <text x="745" y="86" font-size="12.5" text-anchor="end" fill="#666">Rust · MIT/Apache-2.0 · ~3,800★</text>
+
+  <text x="430" y="128" font-size="13" font-weight="600" fill="#222">남의 소프트웨어를 분석해 내 버전을 제작</text>
+  <text x="430" y="152" font-size="12" fill="#444">· 웹사이트 · 앱 · 게임을 실제 검사 도구로 조사</text>
+  <text x="430" y="175" font-size="12" fill="#444">· 코딩 에이전트가 클린룸으로 새 프로젝트 빌드</text>
+  <text x="430" y="198" font-size="12" fill="#444">· 원본과 대조 검사 → 어긋난 부분만 재수정</text>
+  <text x="430" y="221" font-size="12" fill="#444">· 규칙 밖 명령은 승인 카드로 사람에게 질문</text>
+  <text x="430" y="244" font-size="12" fill="#444">· 순수 Rust · 5개 플랫폼 · 얼리 알파</text>
+  <text x="430" y="292" font-size="12" font-weight="600" fill="#1f4e9c">검사 → 빌드 → 대조 → 수정 에이전트 루프</text>
+
+  <text x="400" y="344" text-anchor="middle" font-size="11.5" fill="#888">두 저장소 모두 클론해 README·라이선스 확인 · 스타 수는 GitHub 검색 API 기준 근사치 (11/3 오전)</text>
+</svg>

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="ACP(Agent Client Protocol)를 나타낸 커버 그림. 왼쪽에 Zed, JetBrains, Neovim, Android Studio 네 에디터가, 오른쪽에 Claude Agent, Codex, Antigravity, Copilot 네 코딩 에이전트가 있고, 가운데 ACP라고 적힌 공용 플러그 모양 허브 하나를 통해 모두 연결된다. 에디터 N개 곱하기 에이전트 M개의 조합 폭발을 프로토콜 하나가 N 더하기 M으로 바꾼다는 구조를 보여 준다.">
+  <defs>
+    <linearGradient id="acpbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1a1533"/>
+    </linearGradient>
+    <linearGradient id="acph" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#acpbg)"/>
+
+  <!-- title -->
+  <text x="80" y="96" fill="#f8fafc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="52" font-weight="800">ACP — Agent Client Protocol</text>
+  <text x="80" y="146" fill="#93c5fd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="27" font-weight="600">코딩 에이전트의 공용 플러그, 에이전트 인터페이스의 LSP 순간</text>
+  <text x="80" y="185" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="500">에디터 N개 × 에이전트 M개의 조합 폭발을, 프로토콜 하나가 N+M으로 바꾼다</text>
+
+  <!-- editors (left) -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="600">
+    <rect x="80" y="252" width="240" height="56" rx="12" fill="#0c4a6e" opacity="0.55"/>
+    <rect x="80" y="252" width="240" height="56" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="200" y="288" text-anchor="middle" fill="#bae6fd">Zed</text>
+
+    <rect x="80" y="330" width="240" height="56" rx="12" fill="#0c4a6e" opacity="0.55"/>
+    <rect x="80" y="330" width="240" height="56" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="200" y="366" text-anchor="middle" fill="#bae6fd">JetBrains</text>
+
+    <rect x="80" y="408" width="240" height="56" rx="12" fill="#0c4a6e" opacity="0.55"/>
+    <rect x="80" y="408" width="240" height="56" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="200" y="444" text-anchor="middle" fill="#bae6fd">Neovim</text>
+
+    <rect x="80" y="486" width="240" height="56" rx="12" fill="#0c4a6e" opacity="0.55"/>
+    <rect x="80" y="486" width="240" height="56" rx="12" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="200" y="522" text-anchor="middle" fill="#bae6fd">Android Studio</text>
+  </g>
+
+  <!-- agents (right) -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="600">
+    <rect x="880" y="252" width="240" height="56" rx="12" fill="#3b1d6e" opacity="0.55"/>
+    <rect x="880" y="252" width="240" height="56" rx="12" fill="none" stroke="#a78bfa" stroke-width="2.5"/>
+    <text x="1000" y="288" text-anchor="middle" fill="#ddd6fe">Claude Agent</text>
+
+    <rect x="880" y="330" width="240" height="56" rx="12" fill="#3b1d6e" opacity="0.55"/>
+    <rect x="880" y="330" width="240" height="56" rx="12" fill="none" stroke="#a78bfa" stroke-width="2.5"/>
+    <text x="1000" y="366" text-anchor="middle" fill="#ddd6fe">Codex</text>
+
+    <rect x="880" y="408" width="240" height="56" rx="12" fill="#3b1d6e" opacity="0.55"/>
+    <rect x="880" y="408" width="240" height="56" rx="12" fill="none" stroke="#a78bfa" stroke-width="2.5"/>
+    <text x="1000" y="444" text-anchor="middle" fill="#ddd6fe">Antigravity</text>
+
+    <rect x="880" y="486" width="240" height="56" rx="12" fill="#3b1d6e" opacity="0.55"/>
+    <rect x="880" y="486" width="240" height="56" rx="12" fill="none" stroke="#a78bfa" stroke-width="2.5"/>
+    <text x="1000" y="522" text-anchor="middle" fill="#ddd6fe">Copilot</text>
+  </g>
+
+  <!-- connection lines -->
+  <g stroke="#38bdf8" stroke-width="2.2" opacity="0.75">
+    <path d="M320 280 C 420 280, 440 360, 520 380" fill="none"/>
+    <path d="M320 358 C 420 358, 440 385, 520 397" fill="none"/>
+    <path d="M320 436 C 420 436, 440 410, 520 414" fill="none"/>
+    <path d="M320 514 C 420 514, 440 440, 520 431" fill="none"/>
+  </g>
+  <g stroke="#a78bfa" stroke-width="2.2" opacity="0.75">
+    <path d="M680 380 C 760 360, 780 280, 880 280" fill="none"/>
+    <path d="M680 397 C 760 385, 780 358, 880 358" fill="none"/>
+    <path d="M680 414 C 760 410, 780 436, 880 436" fill="none"/>
+    <path d="M680 431 C 760 440, 780 514, 880 514" fill="none"/>
+  </g>
+
+  <!-- central plug/hub -->
+  <rect x="520" y="330" width="160" height="150" rx="20" fill="#111c33"/>
+  <rect x="520" y="330" width="160" height="150" rx="20" fill="none" stroke="url(#acph)" stroke-width="4"/>
+  <text x="600" y="398" text-anchor="middle" fill="#f8fafc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="42" font-weight="800">ACP</text>
+  <text x="600" y="430" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace,monospace" font-size="17">JSON-RPC 2.0</text>
+  <text x="600" y="456" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace,monospace" font-size="17">stdio · ndjson</text>
+
+  <!-- plug prongs -->
+  <rect x="496" y="368" width="24" height="16" rx="5" fill="#38bdf8"/>
+  <rect x="496" y="424" width="24" height="16" rx="5" fill="#38bdf8"/>
+  <rect x="680" y="368" width="24" height="16" rx="5" fill="#a78bfa"/>
+  <rect x="680" y="424" width="24" height="16" rx="5" fill="#a78bfa"/>
+
+  <!-- footer -->
+  <text x="80" y="590" fill="#475569" font-family="ui-sans-serif,system-ui,sans-serif" font-size="18">initialize → session/new → session/prompt → session/update → request_permission → stopReason</text>
+</svg>

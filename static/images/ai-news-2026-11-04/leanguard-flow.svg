@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="430" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">LeanGuard — fail-closed 툴 콜 파이프라인</text>
+
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- agent -->
+  <rect x="40" y="70" width="170" height="70" rx="10" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="125" y="100" text-anchor="middle" font-size="14" font-weight="600" fill="#222">LLM 에이전트</text>
+  <text x="125" y="122" text-anchor="middle" font-size="12" fill="#555">툴 콜 제안</text>
+
+  <!-- guard -->
+  <rect x="300" y="60" width="210" height="90" rx="10" fill="#fff2f0" stroke="#e5b0a8"/>
+  <text x="405" y="88" text-anchor="middle" font-size="14" font-weight="600" fill="#9c2f1f">LeanGuard 런타임</text>
+  <text x="405" y="110" text-anchor="middle" font-size="12" fill="#555">Lean4 정책 검사</text>
+  <text x="405" y="130" text-anchor="middle" font-size="12" fill="#555">상태 술어 + 과거시제 시간 연산자</text>
+
+  <!-- env -->
+  <rect x="600" y="70" width="160" height="70" rx="10" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="680" y="100" text-anchor="middle" font-size="14" font-weight="600" fill="#1e7a35">환경 / 실제 툴</text>
+  <text x="680" y="122" text-anchor="middle" font-size="12" fill="#555">허용된 콜만 도달</text>
+
+  <line x1="210" y1="105" x2="296" y2="105" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="510" y1="105" x2="596" y2="105" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="553" y="92" text-anchor="middle" font-size="12" fill="#1e7a35" font-weight="600">통과</text>
+
+  <!-- deny branch -->
+  <line x1="405" y1="150" x2="405" y2="196" stroke="#9c2f1f" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="430" y="178" font-size="12" fill="#9c2f1f" font-weight="600">거부 (fail-closed)</text>
+
+  <rect x="80" y="200" width="300" height="100" rx="10" fill="#fff7ec" stroke="#eed3a8"/>
+  <text x="230" y="228" text-anchor="middle" font-size="13.5" font-weight="600" fill="#9c6a1f">경로 1 — 피드백</text>
+  <text x="230" y="250" text-anchor="middle" font-size="12" fill="#555">위반한 규칙 + 힌트를 에이전트에 반환</text>
+  <text x="230" y="270" text-anchor="middle" font-size="12" fill="#555">반복 차단 감소 · 5개 모델 중 4개 성공률 상승</text>
+  <text x="230" y="290" text-anchor="middle" font-size="12" fill="#555">(단순 거부 대비)</text>
+
+  <rect x="430" y="200" width="300" height="100" rx="10" fill="#f7f0fb" stroke="#d7bfe8"/>
+  <text x="580" y="228" text-anchor="middle" font-size="13.5" font-weight="600" fill="#6a3a9c">경로 2 — 증명 기반 수선</text>
+  <text x="580" y="250" text-anchor="middle" font-size="12" fill="#555">Lean 메타프로그래밍으로 의도를 보존하는</text>
+  <text x="580" y="270" text-anchor="middle" font-size="12" fill="#555">인접 콜을 탐색, 정책 허용을 증명한 뒤 실행</text>
+  <text x="580" y="290" text-anchor="middle" font-size="12" fill="#555">(모델 재호출 없이)</text>
+
+  <line x1="230" y1="200" x2="150" y2="144" stroke="#9c6a1f" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+
+  <!-- results strip -->
+  <rect x="40" y="330" width="720" height="70" rx="10" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="400" y="356" text-anchor="middle" font-size="13" font-weight="600" fill="#1f4e9c">보고된 결과 (τ-Bench · Qwen 0.8B~27B 5종)</text>
+  <text x="400" y="380" text-anchor="middle" font-size="12.5" fill="#444">금지된 콜 실행: 비보호 33회 이상 → 0회 · DTap 프롬프트 인젝션 성공률 57.9% → 5.9%</text>
+</svg>

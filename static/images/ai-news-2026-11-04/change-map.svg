@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="480" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-04</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="190" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="190" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="262" width="360" height="190" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="262" width="360" height="190" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="112" font-size="14" font-weight="600" fill="#222">Mistral Large 4 웨이트 — HF 공개</text>
+  <text x="50" y="134" font-size="12.5" fill="#444">1T MoE(활성 ~52B) · 1M 컨텍스트 · 멀티모달</text>
+  <text x="50" y="154" font-size="12.5" fill="#444">수정 MIT 라이선스 · vLLM/SGLang 8-GPU 예제</text>
+  <text x="50" y="186" font-size="12.5" fill="#666">Kimi K3.1 Pro — 07시 기준 HF 미등록</text>
+  <text x="50" y="206" font-size="12.5" fill="#666">그 외 큰 모델 발표 없음</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">LeanGuard — 증명 기반 툴 콜 가드레일</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">Lean4 정책으로 모든 툴 콜 사전 검사 · fail-closed</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">CrossSWE — 멀티 레포 코딩 벤치마크</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">171개 과제 · 165개 레포 · 최고 모델 58.5%</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">레포 간 불일치가 실패의 44.2%</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="290" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스</text>
+  <text x="50" y="318" font-size="14" font-weight="600" fill="#222">tstack — Theo의 일상용 에이전트 스킬</text>
+  <text x="50" y="340" font-size="12.5" fill="#444">full-send / council / babysit-pr · CC+Codex 겸용</text>
+  <text x="50" y="368" font-size="14" font-weight="600" fill="#222">OpenDuet — 선제적 에이전트 템플릿</text>
+  <text x="50" y="390" font-size="12.5" fill="#444">에이전트 전용 컴퓨터 · Slack/Teams · MIT</text>
+
+  <!-- 도구/팁 -->
+  <text x="430" y="290" font-size="15" font-weight="700" fill="#6a3a9c">🧑‍💻 도구 / 팁</text>
+  <text x="430" y="318" font-size="14" font-weight="600" fill="#222">Codex — Guardian 거부 재심 (opt-in)</text>
+  <text x="430" y="340" font-size="12.5" fill="#444">동기 거부를 1회 재검토 · 실패 시 거부 유지</text>
+  <text x="430" y="368" font-size="14" font-weight="600" fill="#222">Claude Code 2.1.317 — 훅 onFailure: block</text>
+  <text x="430" y="390" font-size="12.5" fill="#444">SDK 훅 콜백 실패 시 액션 차단 · fail-closed</text>
+
+  <!-- connector -->
+  <line x1="400" y1="246" x2="400" y2="262" stroke="#999" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="400" y="470" text-anchor="middle" font-size="12.5" fill="#666">공통 흐름: 툴 콜 가드레일이 "실패 시 허용"에서 "실패 시 차단(fail-closed)"으로</text>
+</svg>

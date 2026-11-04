@@ -1,0 +1,34 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="목요일 아침 브리핑 표지. 민주당이 의회를 석권하자 다우는 44년 만의 중간선거 뒤 최대폭인 3.03% 올랐고, 나스닥은 1.44% 오른 25,736으로 마감했습니다. 비트코인은 80,000달러를 되찾았습니다. 예고했던 조건이 채워져 나스닥은 분할 매수 1차를 시작하고, 비트코인은 매도에서 관망으로 전환합니다">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.05 · 나스닥 &amp; 비트코인 5분 요약 · 목요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#a5b4fc">개표 끝 — 다우 +3.03% 44년 만의 선거 뒤 최대 상승 · BTC 80,000달러 회복</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 조건이 다 찼다</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#a5b4fc">불확실성 해소</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">나스닥 25,736 · 심리 극단 공포권</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#4ade80">나스닥 매수</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#bbf7d0">분할 매수 1차 시작</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 역풍이 잦아든다</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#06b6d4" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#22d3ee">BTC 80,000</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5f3fc">ETF 유출 -1.16억으로 급감</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">비트코인 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">매도 접음 · 유입 복귀 대기</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">본 콘텐츠는 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

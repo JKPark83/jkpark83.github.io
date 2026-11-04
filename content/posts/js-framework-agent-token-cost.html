@@ -1,0 +1,423 @@
+---
+title: "에이전트한테는 Angular가 Nuxt보다 2.5배 비싸다? — 'The AI cost of JavaScript frameworks' 벤치마크 해부"
+date: 2026-11-05T07:30:00+09:00
+draft: false
+tags: ["AI", "코딩 에이전트", "토큰 비용", "벤치마크", "Claude Code", "JavaScript", "프레임워크", "Next.js", "SvelteKit", "Angular", "Nuxt", "Astro", "htmx", "프롬프트 캐싱", "에이전트 평가", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "웹 성능 엔지니어 Nolan Lawson이 Claude Code에게 같은 포켓몬 도감 앱을 12개 JS 스택으로 60번 만들게 했더니, 프레임워크에 따라 토큰이 3.85M에서 9.76M까지 2.5배 벌어졌습니다. 이번 주 HN을 달군 이 벤치마크를 해부합니다 — 에이전트 토큰 고지서가 쌓이는 구조, 밀폐(hermetic) 벤치마크 설계, 그리고 공개 5일 만에 커뮤니티가 찾아낸 교란 변수까지. 결과 순위표보다 '숫자를 어떻게 읽어야 하는가'가 진짜 배울 거리입니다."
+ShowToc: false
+cover:
+  image: "js-framework-agent-token-cost-cover.svg"
+  alt: "같은 앱, 같은 프롬프트, 같은 모델이라는 조건 아래 Nuxt, vanilla, SvelteKit, Angular의 토큰 사용량 막대가 2.5배 차이를 보여 주는 커버 이미지"
+  caption: "같은 앱을 12개 스택으로 60번 — 프레임워크 선택이 토큰 고지서가 됩니다"
+  relative: false
+---
+
+<style>
+/* ── JS 프레임워크 토큰 비용 포스트 전용 스타일 (jfx- 접두사) ── */
+.jfx-fig{
+  --jfx-teal:#0d9488; --jfx-rose:#e11d48; --jfx-amber:#d97706; --jfx-sky:#0284c7;
+  --jfx-violet:#7c3aed; --jfx-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .jfx-fig{
+  --jfx-teal:#2dd4bf; --jfx-rose:#fb7185; --jfx-amber:#fbbf24; --jfx-sky:#38bdf8;
+  --jfx-violet:#a78bfa; --jfx-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .jfx-fig{
+    --jfx-teal:#2dd4bf; --jfx-rose:#fb7185; --jfx-amber:#fbbf24; --jfx-sky:#38bdf8;
+    --jfx-violet:#a78bfa; --jfx-slate:#94a3b8;
+  }
+}
+.jfx-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.jfx-fig text{font-family:inherit}
+.jfx-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.jfx-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.jfx-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.jfx-toc ol{margin:0;padding-left:1.25rem}
+.jfx-toc li{margin:.22rem 0;font-size:.95rem}
+.jfx-toc a{text-decoration:none}
+.jfx-toc a:hover{text-decoration:underline}
+.jfx-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.9rem}
+.jfx-table th,.jfx-table td{border:1px solid var(--border);padding:.45rem .65rem;text-align:left;vertical-align:top}
+.jfx-table th{background:var(--entry)}
+.jfx-table td.num,.jfx-table th.num{text-align:right;font-variant-numeric:tabular-nums}
+.jfx-note{border-left:4px solid var(--jfx-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.jfx-warn{border-left:4px solid var(--jfx-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="jfx-toc">
+  <div class="jfx-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 같은 앱을 60번 만들었더니</a></li>
+    <li><a href="#sec-2">배경 — 에이전트 토큰 고지서는 어떻게 쌓이나</a></li>
+    <li><a href="#sec-3">해부 ① — 밀폐(hermetic) 벤치마크 설계</a></li>
+    <li><a href="#sec-4">해부 ② — 결과 읽기: 무엇이 토큰을 먹었나</a></li>
+    <li><a href="#sec-5">해부 ③ — 공개 5일 만에 나온 반론들</a></li>
+    <li><a href="#sec-6">실전 — 내 스택의 에이전트 비용 직접 재기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-9">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 같은 앱을 60번 만들었더니</h2>
+
+<p>프레임워크 논쟁은 웹 개발의 오랜 스포츠입니다. 번들 크기, 렌더링 성능, DX(개발자 경험)… 그런데 이번 주에는 완전히 새로운 잣대 하나가 링에 올라왔습니다. <strong>"코딩 에이전트가 그 프레임워크로 앱을 만들 때 토큰이 얼마나 드는가"</strong>입니다.</p>
+
+<p>웹 성능 분야에서 오래 활동한 엔지니어 Nolan Lawson이 10월 28일 공개한 <a href="https://nolanlawson.com/2026/10/28/the-ai-cost-of-javascript-frameworks/" target="_blank" rel="noopener">The AI cost of JavaScript frameworks</a>는 실험 하나로 이 질문에 숫자를 붙였습니다. Claude Code(Opus 5.5)에게 <strong>같은 스펙, 같은 테스트, 같은 한 줄짜리 프롬프트</strong>를 주고, 프레임워크 이름만 바꿔 가며 포켓몬 도감(Pokédex) 앱을 만들게 한 겁니다. 스택은 Next.js부터 vanilla JS까지 12종, 스택마다 5번씩, 총 60번. 결과는 선명했습니다. 가장 싼 Nuxt는 중앙값 385만 토큰, 가장 비싼 Angular는 976만 토큰 — <strong>약 2.5배 차이</strong>입니다.</p>
+
+<p>이 글은 <a href="https://news.ycombinator.com/item?id=50323088" target="_blank" rel="noopener">Hacker News 1면</a>에 올라 약 470포인트, 댓글 380개가 넘는 논쟁을 불렀습니다. 그리고 더 흥미로운 일이 이어졌습니다. 저자가 <a href="https://github.com/nolanlawson/agent-framework-benchmark" target="_blank" rel="noopener">하네스 전체</a>와 <a href="https://github.com/nolanlawson/agent-framework-benchmark-results" target="_blank" rel="noopener">원시 결과</a>를 공개해 둔 덕분에, 공개 닷새 만에 다른 개발자가 포크로 재실험을 돌려 <strong>원래 결론을 뒤흔드는 교란 변수</strong>를 찾아낸 겁니다.</p>
+
+<p>그래서 오늘은 순위표만 훑고 끝내지 않습니다. 에이전트 토큰 고지서가 쌓이는 구조부터, 이 벤치마크의 밀폐(hermetic) 설계, 그리고 "에이전트 벤치마크 숫자를 어떻게 의심해야 하는가"까지 — 주니어 엔지니어가 앞으로 수없이 마주칠 종류의 숫자를 읽는 법을 연습해 봅니다.</p>
+
+<h2 id="sec-2">2. 배경 — 에이전트 토큰 고지서는 어떻게 쌓이나</h2>
+
+<p>먼저 "앱 하나 만드는데 토큰 976만 개"라는 숫자가 어디서 오는지부터 이해해야 합니다. 976만 토큰이면 책 수십 권 분량인데, 에이전트가 정말 그만큼 '읽고 쓰는' 걸까요?</p>
+
+<p>절반만 맞습니다. 코딩 에이전트는 <strong>루프</strong>로 동작합니다. 모델이 도구 호출(파일 읽기, 명령 실행…)을 결정하면 하네스가 실행하고, 그 결과를 대화에 붙여 모델을 다시 호출합니다. 이게 한 '턴'이고, <code>npm test</code>가 통과할 때까지 수십~수백 턴을 돕니다. 중요한 건 LLM API가 <strong>무상태(stateless)</strong>라는 점입니다. 매 턴마다 지금까지의 대화 전체 — 시스템 프롬프트, 스펙, 읽은 파일, 도구 출력 전부 — 를 다시 보내야 합니다.</p>
+
+<p>그래서 총 토큰은 대략 이렇게 쌓입니다:</p>
+
+<p style="text-align:center"><strong>총 토큰 ≈ Σ (턴마다 다시 보내는 컨텍스트) + 새 입력 + 출력</strong></p>
+
+<p>턴 수가 늘수록, 그리고 턴마다 끌고 다니는 컨텍스트가 클수록 비용이 <em>곱으로</em> 늘어나는 구조입니다. 실제로 이번 벤치마크에서 전체 토큰의 <strong>95% 안팎이 캐시 읽기(cache read)</strong>였습니다. 매 턴 재전송되는 똑같은 앞부분을 <a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching" target="_blank" rel="noopener">프롬프트 캐싱</a>이 받아 주는 덕에 단가는 기본 입력의 10% 수준으로 떨어지지만(<a href="/posts/prompt-caching-cache-aware-agents/">이 블로그의 프롬프트 캐싱 편</a> 참고), 토큰 수 자체는 고스란히 쌓입니다.</p>
+
+<figure class="jfx-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="에이전트 루프에서 토큰이 누적되는 구조를 보여 주는 다이어그램. 턴 1부터 턴 N까지 막대가 점점 길어지는데, 각 막대의 대부분은 이전 턴까지의 대화를 다시 보내는 캐시 읽기이고, 끝의 작은 조각만 새 입력과 출력이다. 오른쪽에 총 토큰은 모든 막대의 합이며 95%가 캐시 읽기라는 설명이 있다">
+  <text x="430" y="28" text-anchor="middle" fill="var(--jfx-sky)" font-size="16" font-weight="800">에이전트 루프의 토큰 누적 — 매 턴, 대화 전체를 다시 보낸다</text>
+
+  <!-- axis labels -->
+  <g font-size="13" fill="var(--jfx-slate)">
+    <text x="30" y="80">턴 1</text>
+    <text x="30" y="130">턴 2</text>
+    <text x="30" y="180">턴 3</text>
+    <text x="30" y="230">…</text>
+    <text x="30" y="280">턴 N</text>
+  </g>
+
+  <!-- turn 1 -->
+  <rect x="90" y="62" width="70" height="26" rx="4" fill="var(--jfx-teal)" opacity="0.85"/>
+  <rect x="162" y="62" width="26" height="26" rx="4" fill="var(--jfx-amber)"/>
+  <!-- turn 2 -->
+  <rect x="90" y="112" width="100" height="26" rx="4" fill="var(--jfx-sky)" opacity="0.45"/>
+  <rect x="192" y="112" width="60" height="26" rx="4" fill="var(--jfx-teal)" opacity="0.85"/>
+  <rect x="254" y="112" width="26" height="26" rx="4" fill="var(--jfx-amber)"/>
+  <!-- turn 3 -->
+  <rect x="90" y="162" width="190" height="26" rx="4" fill="var(--jfx-sky)" opacity="0.45"/>
+  <rect x="282" y="162" width="55" height="26" rx="4" fill="var(--jfx-teal)" opacity="0.85"/>
+  <rect x="339" y="162" width="26" height="26" rx="4" fill="var(--jfx-amber)"/>
+  <!-- turn N -->
+  <rect x="90" y="262" width="420" height="26" rx="4" fill="var(--jfx-sky)" opacity="0.45"/>
+  <rect x="512" y="262" width="50" height="26" rx="4" fill="var(--jfx-teal)" opacity="0.85"/>
+  <rect x="564" y="262" width="26" height="26" rx="4" fill="var(--jfx-amber)"/>
+
+  <!-- legend -->
+  <g font-size="13">
+    <rect x="90" y="330" width="16" height="16" rx="3" fill="var(--jfx-sky)" opacity="0.45"/>
+    <text x="113" y="343" fill="var(--jfx-slate)">이전 대화 재전송 = 캐시 읽기 (전체의 ~95%)</text>
+    <rect x="420" y="330" width="16" height="16" rx="3" fill="var(--jfx-teal)" opacity="0.85"/>
+    <text x="443" y="343" fill="var(--jfx-slate)">새 입력 (파일·도구 출력)</text>
+    <rect x="640" y="330" width="16" height="16" rx="3" fill="var(--jfx-amber)"/>
+    <text x="663" y="343" fill="var(--jfx-slate)">모델 출력</text>
+  </g>
+
+  <!-- right note -->
+  <g font-size="13.5" font-weight="600">
+    <text x="625" y="90" fill="var(--jfx-rose)">총 토큰 = 모든 턴의 합</text>
+    <text x="625" y="112" fill="var(--jfx-slate)" font-weight="400" font-size="12.5">턴이 늘수록, 컨텍스트가</text>
+    <text x="625" y="130" fill="var(--jfx-slate)" font-weight="400" font-size="12.5">클수록 곱으로 커진다</text>
+  </g>
+</svg>
+<figcaption>그림 1. 에이전트 루프의 토큰 누적 구조. 매 턴 대화 전체를 다시 보내므로, 총 토큰은 "턴 수 × 평균 컨텍스트 크기"에 비례해 쌓입니다. 이번 벤치마크에서 전체 토큰의 95% 안팎이 캐시 읽기였습니다.</figcaption>
+</figure>
+
+<p>이 구조를 알면 "프레임워크가 토큰 비용에 영향을 준다"는 말이 자연스러워집니다. 프레임워크가 다르면 <strong>에이전트가 읽어야 하는 문서·설정·코드의 양</strong>이 다르고, <strong>막히고 되돌아가는 횟수(턴 수)</strong>가 다르기 때문입니다. 비유하자면, 외국에서 운전하기와 같습니다. 운전 실력(모델)이 같아도 표지판이 익숙한 나라(훈련 데이터에 많은 프레임워크)에서는 내비게이션을 힐끔 보고 끝나지만, 낯선 나라에서는 지도를 펴 놓고 한참 읽어야 하죠. 그 '지도 읽는 시간'이 전부 토큰입니다.</p>
+
+<h2 id="sec-3">3. 해부 ① — 밀폐(hermetic) 벤치마크 설계</h2>
+
+<p>이 벤치마크가 HN에서 진지하게 받아들여진 이유는 결과보다 <strong>설계의 꼼꼼함</strong>에 있습니다. 변인 통제를 어떻게 했는지 뜯어보면, 에이전트 평가(<a href="/posts/hermetic-agent-evals/">밀폐 평가 편</a>에서 다룬 개념)의 좋은 실습 교재가 됩니다.</p>
+
+<p>조건은 모두에게 동일합니다. 에이전트는 같은 <code>SPEC.md</code>(로컬 PokeAPI 기반 포켓몬 도감), 같은 Playwright 인수 테스트, 같은 디자인 토큰을 받고, 프롬프트는 프레임워크 이름만 다른 딱 한 줄입니다:</p>
+
+{{< highlight text >}}
+Implement the app described in SPEC.md using {framework}.
+Use the latest stable version. Work autonomously until `npm test` passes.
+{{< /highlight >}}
+
+<p>그리고 격리가 철저합니다. 각 실행의 흐름은 이렇습니다:</p>
+
+<figure class="jfx-fig">
+<svg viewBox="0 0 860 310" role="img" aria-label="밀폐 벤치마크 파이프라인 다이어그램. 템플릿 저장소가 커밋 하나짜리 깨끗한 저장소로 내보내지고, 에이전트 컨테이너에서 Claude Code가 앱을 만들면, 앱 디렉터리만 깨끗한 새 컨테이너로 복사되어 원본 테스트가 실행되고, 통과한 앱만 측정 컨테이너에서 Lighthouse로 측정되어 리포트가 된다">
+  <text x="430" y="26" text-anchor="middle" fill="var(--jfx-sky)" font-size="16" font-weight="800">한 번의 실행 — 만들기·채점·측정을 서로 다른 컨테이너로 분리</text>
+
+  <!-- step 1 -->
+  <rect x="20" y="60" width="180" height="92" rx="12" fill="none" stroke="var(--jfx-slate)" stroke-width="2"/>
+  <text x="110" y="86" text-anchor="middle" fill="var(--jfx-slate)" font-size="13.5" font-weight="700">template 내보내기</text>
+  <text x="110" y="108" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">커밋 1개짜리 새 repo</text>
+  <text x="110" y="126" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">정답 앱·측정 코드는</text>
+  <text x="110" y="142" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">에이전트에게 안 보임</text>
+
+  <path d="M200 106 L232 106" stroke="var(--jfx-slate)" stroke-width="2" fill="none"/>
+  <polygon points="232,101 242,106 232,111" fill="var(--jfx-slate)"/>
+
+  <!-- step 2 -->
+  <rect x="246" y="60" width="180" height="92" rx="12" fill="none" stroke="var(--jfx-teal)" stroke-width="2.5"/>
+  <text x="336" y="86" text-anchor="middle" fill="var(--jfx-teal)" font-size="13.5" font-weight="700">에이전트 컨테이너</text>
+  <text x="336" y="108" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">Claude Code + 공식 도구</text>
+  <text x="336" y="126" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">(MCP·스킬), 로컬 API만</text>
+  <text x="336" y="142" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">접근, 최대 240분</text>
+
+  <path d="M426 106 L458 106" stroke="var(--jfx-slate)" stroke-width="2" fill="none"/>
+  <polygon points="458,101 468,106 458,111" fill="var(--jfx-slate)"/>
+
+  <!-- step 3 -->
+  <rect x="472" y="60" width="180" height="92" rx="12" fill="none" stroke="var(--jfx-amber)" stroke-width="2.5"/>
+  <text x="562" y="86" text-anchor="middle" fill="var(--jfx-amber)" font-size="13.5" font-weight="700">채점 컨테이너 (새것)</text>
+  <text x="562" y="108" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">에이전트의 app/만 복사</text>
+  <text x="562" y="126" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">원본 테스트로 npm test</text>
+  <text x="562" y="142" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">— 테스트 조작 무력화</text>
+
+  <path d="M652 106 L684 106" stroke="var(--jfx-slate)" stroke-width="2" fill="none"/>
+  <polygon points="684,101 694,106 684,111" fill="var(--jfx-slate)"/>
+
+  <!-- step 4 -->
+  <rect x="698" y="60" width="146" height="92" rx="12" fill="none" stroke="var(--jfx-violet)" stroke-width="2.5"/>
+  <text x="771" y="86" text-anchor="middle" fill="var(--jfx-violet)" font-size="13.5" font-weight="700">측정 컨테이너</text>
+  <text x="771" y="108" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">Caddy 뒤 프로덕션</text>
+  <text x="771" y="126" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">빌드, Lighthouse</text>
+  <text x="771" y="142" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">모바일 × 5회 중앙값</text>
+
+  <!-- bottom notes -->
+  <rect x="20" y="190" width="824" height="92" rx="12" fill="none" stroke="var(--jfx-slate)" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="40" y="218" fill="var(--jfx-slate)" font-size="13" font-weight="700">반복과 기록</text>
+  <text x="40" y="240" fill="var(--jfx-slate)" font-size="12.5">· 스택마다 5회 반복, 숫자는 중앙값 — README의 표현: "반복 1회는 일화(anecdote)다"</text>
+  <text x="40" y="260" fill="var(--jfx-slate)" font-size="12.5">· 모델(claude-opus-5-5)·effort(high)·Claude Code(2.1.310)·Node는 고정, 프레임워크·AI 도구 버전은 '그날의 최신'을 쓰되 전부 기록</text>
+</svg>
+<figcaption>그림 2. 벤치마크 파이프라인. 만들기(에이전트), 채점(원본 테스트), 측정(Lighthouse)이 서로 다른 컨테이너로 분리됩니다. 에이전트가 테스트나 데이터를 건드려도 채점은 깨끗한 컨테이너에서 원본으로 다시 하므로 소용이 없습니다.</figcaption>
+</figure>
+
+<p>주니어 입장에서 눈여겨볼 설계 포인트 세 가지만 짚습니다.</p>
+
+<p><strong>첫째, 채점과 생성의 분리.</strong> 에이전트가 만든 결과물 중 <code>app/</code> 디렉터리만 깨끗한 컨테이너로 복사해 <em>원본</em> 테스트를 다시 돌립니다. 에이전트가 테스트를 고치거나 데이터를 구워 넣어도(에이전트는 실제로 이런 유혹에 약합니다 — <a href="/posts/agent-reward-hacking-evals/">리워드 해킹 편</a> 참고) 점수에 반영되지 않습니다. 심지어 빌드 후 API 데이터를 바꿔치기한 상태로 테스트를 한 번 더 돌려서, 빌드 타임에 데이터를 박제한 앱을 잡아냅니다.</p>
+
+<p><strong>둘째, 정답과 하네스 숨기기.</strong> 에이전트에게 건네는 저장소는 커밋 하나짜리로 새로 내보낸(export) 사본입니다. git 히스토리, 저자가 만든 참조 구현(gold), 측정 코드가 에이전트 눈에 띄지 않습니다. 컨테이너 안에서 <code>pokeapi.co</code>는 localhost로 묶여 있어 몰래 실서버를 쓸 수도 없습니다.</p>
+
+<p><strong>셋째, 프레임워크별 공식 AI 도구도 조건의 일부.</strong> 각 에이전트에는 그 프레임워크 공식 문서가 권하는 MCP 서버나 스킬이 설치됩니다(Angular CLI MCP, Nuxt MCP, Svelte 플러그인 등). 도구가 없는 프레임워크는 그냥 없이 갑니다. 불공평해 보이지만 저자는 의도적이라고 말합니다 — <em>그 프레임워크를 고르면 따라오는 생태계 전체</em>가 측정 대상이라는 거죠.</p>
+
+<h2 id="sec-4">4. 해부 ② — 결과 읽기: 무엇이 토큰을 먹었나</h2>
+
+<p>결과 표의 핵심 열만 추리면 이렇습니다(스택별 5회 중앙값, 토큰 많은 순 역정렬):</p>
+
+<table class="jfx-table">
+  <thead>
+    <tr><th>스택</th><th class="num">총 토큰 (M)</th><th class="num">비용 ($)</th><th class="num">시간 (분)</th><th class="num">턴</th><th class="num">코드 줄 수</th><th class="num">전송 JS (KiB)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Nuxt</td><td class="num">3.85</td><td class="num">2.82</td><td class="num">9.0</td><td class="num">71</td><td class="num">1,415</td><td class="num">84</td></tr>
+    <tr><td>Astro</td><td class="num">4.13</td><td class="num">2.76</td><td class="num">8.2</td><td class="num">73</td><td class="num">1,461</td><td class="num">0</td></tr>
+    <tr><td>Hono + htmx</td><td class="num">4.26</td><td class="num">2.67</td><td class="num">8.6</td><td class="num">75</td><td class="num">1,370</td><td class="num">18</td></tr>
+    <tr><td>Next.js</td><td class="num">4.99</td><td class="num">3.14</td><td class="num">10.9</td><td class="num">100</td><td class="num">1,539</td><td class="num">142</td></tr>
+    <tr><td>vanilla JS</td><td class="num">5.00</td><td class="num">2.98</td><td class="num">10.1</td><td class="num">85</td><td class="num">1,492</td><td class="num">7</td></tr>
+    <tr><td>Qwik</td><td class="num">5.64</td><td class="num">3.27</td><td class="num">10.7</td><td class="num">89</td><td class="num">1,744</td><td class="num">40</td></tr>
+    <tr><td>TanStack Start</td><td class="num">7.07</td><td class="num">3.54</td><td class="num">10.3</td><td class="num">94</td><td class="num">1,697</td><td class="num">118</td></tr>
+    <tr><td>SolidStart</td><td class="num">7.13</td><td class="num">3.79</td><td class="num">11.2</td><td class="num">108</td><td class="num">1,630</td><td class="num">40</td></tr>
+    <tr><td>React Router</td><td class="num">7.58</td><td class="num">3.81</td><td class="num">12.5</td><td class="num">98</td><td class="num">1,564</td><td class="num">115</td></tr>
+    <tr><td>SvelteKit</td><td class="num">8.53</td><td class="num">4.28</td><td class="num">10.8</td><td class="num">103</td><td class="num">1,611</td><td class="num">36</td></tr>
+    <tr><td>Gracile + Lit</td><td class="num">9.04</td><td class="num">4.65</td><td class="num">12.1</td><td class="num">107</td><td class="num">1,717</td><td class="num">8</td></tr>
+    <tr><td>Angular</td><td class="num">9.76</td><td class="num">4.97</td><td class="num">17.2</td><td class="num">117</td><td class="num">2,009</td><td class="num">93</td></tr>
+  </tbody>
+</table>
+
+<figure class="jfx-fig">
+<svg viewBox="0 0 860 560" role="img" aria-label="12개 스택의 총 토큰 사용량을 비교한 가로 막대 차트. Nuxt 3.85M부터 Angular 9.76M까지 2.5배 차이가 난다. 막대 끝에 토큰과 달러 비용이 적혀 있고, 상위 세 스택은 차가운 색, 하위 세 스택은 따뜻한 색으로 칠해져 있다">
+  <text x="430" y="26" text-anchor="middle" fill="var(--jfx-sky)" font-size="16" font-weight="800">같은 앱, 같은 프롬프트 — 총 토큰(5회 중앙값)</text>
+
+  <g font-size="13" font-weight="600">
+    <text x="150" y="72" text-anchor="end" fill="var(--jfx-slate)">Nuxt</text>
+    <rect x="160" y="56" width="221" height="24" rx="5" fill="var(--jfx-teal)" opacity="0.9"/>
+    <text x="389" y="73" fill="var(--jfx-teal)" font-size="12.5">3.85M · $2.82</text>
+
+    <text x="150" y="112" text-anchor="end" fill="var(--jfx-slate)">Astro</text>
+    <rect x="160" y="96" width="237" height="24" rx="5" fill="var(--jfx-teal)" opacity="0.82"/>
+    <text x="405" y="113" fill="var(--jfx-teal)" font-size="12.5">4.13M · $2.76</text>
+
+    <text x="150" y="152" text-anchor="end" fill="var(--jfx-slate)">Hono+htmx</text>
+    <rect x="160" y="136" width="244" height="24" rx="5" fill="var(--jfx-teal)" opacity="0.74"/>
+    <text x="412" y="153" fill="var(--jfx-teal)" font-size="12.5">4.26M · $2.67 (최저가)</text>
+
+    <text x="150" y="192" text-anchor="end" fill="var(--jfx-slate)">Next.js</text>
+    <rect x="160" y="176" width="286" height="24" rx="5" fill="var(--jfx-sky)" opacity="0.6"/>
+    <text x="454" y="193" fill="var(--jfx-slate)" font-size="12.5">4.99M · $3.14</text>
+
+    <text x="150" y="232" text-anchor="end" fill="var(--jfx-slate)">vanilla JS</text>
+    <rect x="160" y="216" width="287" height="24" rx="5" fill="var(--jfx-sky)" opacity="0.6"/>
+    <text x="455" y="233" fill="var(--jfx-slate)" font-size="12.5">5.00M · $2.98 ← '프레임워크 없음'도 공짜가 아니다</text>
+
+    <text x="150" y="272" text-anchor="end" fill="var(--jfx-slate)">Qwik</text>
+    <rect x="160" y="256" width="324" height="24" rx="5" fill="var(--jfx-sky)" opacity="0.6"/>
+    <text x="492" y="273" fill="var(--jfx-slate)" font-size="12.5">5.64M · $3.27</text>
+
+    <text x="150" y="312" text-anchor="end" fill="var(--jfx-slate)">TanStack Start</text>
+    <rect x="160" y="296" width="406" height="24" rx="5" fill="var(--jfx-sky)" opacity="0.6"/>
+    <text x="574" y="313" fill="var(--jfx-slate)" font-size="12.5">7.07M · $3.54</text>
+
+    <text x="150" y="352" text-anchor="end" fill="var(--jfx-slate)">SolidStart</text>
+    <rect x="160" y="336" width="409" height="24" rx="5" fill="var(--jfx-sky)" opacity="0.6"/>
+    <text x="577" y="353" fill="var(--jfx-slate)" font-size="12.5">7.13M · $3.79</text>
+
+    <text x="150" y="392" text-anchor="end" fill="var(--jfx-slate)">React Router</text>
+    <rect x="160" y="376" width="435" height="24" rx="5" fill="var(--jfx-sky)" opacity="0.6"/>
+    <text x="603" y="393" fill="var(--jfx-slate)" font-size="12.5">7.58M · $3.81</text>
+
+    <text x="150" y="432" text-anchor="end" fill="var(--jfx-slate)">SvelteKit</text>
+    <rect x="160" y="416" width="489" height="24" rx="5" fill="var(--jfx-amber)" opacity="0.8"/>
+    <text x="657" y="433" fill="var(--jfx-amber)" font-size="12.5">8.53M · $4.28</text>
+
+    <text x="150" y="472" text-anchor="end" fill="var(--jfx-slate)">Gracile+Lit</text>
+    <rect x="160" y="456" width="519" height="24" rx="5" fill="var(--jfx-amber)" opacity="0.9"/>
+    <text x="687" y="473" fill="var(--jfx-amber)" font-size="12.5">9.04M · $4.65</text>
+
+    <text x="150" y="512" text-anchor="end" fill="var(--jfx-slate)">Angular</text>
+    <rect x="160" y="496" width="560" height="24" rx="5" fill="var(--jfx-rose)" opacity="0.9"/>
+    <text x="728" y="513" fill="var(--jfx-rose)" font-size="12.5">9.76M · $4.97</text>
+  </g>
+  <text x="430" y="548" text-anchor="middle" fill="var(--jfx-slate)" font-size="12">60회 전부 npm test 통과 — 차이는 '할 수 있느냐'가 아니라 '얼마나 들었느냐'</text>
+</svg>
+<figcaption>그림 3. 스택별 총 토큰(5회 중앙값)과 Claude Code가 보고한 API 환산 비용. 저자는 Max 플랜에서 실행했으므로 달러 숫자는 청구서가 아니라 사용량 비교용 명목 가격입니다.</figcaption>
+</figure>
+
+<p>표에서 읽어낼 포인트를 하나씩 봅니다.</p>
+
+<p><strong>60회 전부 테스트를 통과했습니다.</strong> 12개 스택 × 5회 모두 <code>npm test</code> 통과, Lighthouse 접근성 점수도 전부 100입니다. 즉 이 벤치마크의 차이는 "에이전트가 할 수 있느냐"가 아니라 <strong>"얼마나 들었느냐"</strong>에 있습니다. 능력(capability)이 상향 평준화되면 다음 경쟁 축은 효율이라는, 에이전트 엔지니어링 전반의 흐름과 같습니다.</p>
+
+<p><strong>vanilla는 싸지 않았습니다.</strong> "프레임워크 없이 가면 에이전트가 문서 읽을 일도 없으니 제일 싸겠지"라는 직관은 틀렸습니다. vanilla(5.00M)는 Nuxt·Astro·Hono+htmx보다 비쌌습니다. 라우팅, 데이터 로딩 같은 기반 설비를 에이전트가 손수 다시 짓느라 턴을 쓰기 때문입니다. 프레임워크가 제공하는 건 코드만이 아니라 <strong>모델 가중치 속에 이미 들어 있는 관례</strong>이기도 합니다.</p>
+
+<p><strong>비싼 스택들의 사연은 제각각입니다.</strong> 저자의 트랜스크립트 분석에 따르면 대략 세 유형입니다:</p>
+
+<ul>
+  <li><strong>낯섦</strong> — Gracile+Lit(9.04M)은 훈련 데이터에 거의 없는 신생 프레임워크라, 에이전트가 <code>node_modules</code> 안의 소스 코드를 직접 읽어 가며 사용법을 역공학했습니다. 읽은 게 전부 컨텍스트에 쌓여 매 턴 재전송됩니다.</li>
+  <li><strong>세대 격차</strong> — SvelteKit(8.53M)에서 에이전트는 Svelte 5 마이그레이션 문서를 반복해서 읽었습니다. 저자는 모델이 알고 있는 Svelte(4 시절 문법)와 최신 안정판의 간극 때문일 거라고 추정합니다. <a href="/posts/prompt-migration-model-upgrades/">모델은 아는데 버전이 달라진</a> 경우가 완전히 모르는 것보다 비쌀 수 있다는 흥미로운 사례입니다.</li>
+  <li><strong>세리머니</strong> — Angular(9.76M)는 같은 앱에 코드가 2,009줄로 가장 많았고(최소인 Hono+htmx의 1.47배), 턴도 117번으로 가장 많았습니다. 쓸 코드가 많으면 출력 토큰과 턴 수가 같이 늘어납니다.</li>
+</ul>
+
+<p>여기서 직접 계산해 볼 만한 파생 지표가 하나 있습니다. <strong>코드 한 줄당 토큰</strong>입니다. Nuxt는 3.85M ÷ 1,415줄 ≈ 2,700토큰/줄인데, SvelteKit은 8.53M ÷ 1,611줄 ≈ 5,300토큰/줄로 거의 2배입니다. 코드량 차이(최대 1.47배)보다 줄당 토큰 차이(최대 1.95배)가 큽니다. 즉 비용을 가르는 건 "코드를 얼마나 쓰느냐"보다 <strong>"한 줄 쓰기까지 얼마나 헤매느냐"</strong> — 익숙함이 더 큰 지렛대라는 뜻입니다.</p>
+
+<p><strong>토큰 비용과 런타임 성능은 별개의 축입니다.</strong> 에이전트에게 싼 스택이 사용자에게도 좋은 건 아닙니다. Next.js는 토큰으로는 중위권(4.99M)인데 전송 JS는 142KiB로 가장 많았고, Gracile은 토큰으로는 최하위권인데 JS는 8KiB로 최상위권입니다. Astro는 둘 다 좋았습니다(4.13M, JS 0KiB). 선택은 결국 두 축을 같이 놓고 해야 합니다.</p>
+
+<div class="jfx-note">
+<strong>비용 열 읽을 때 주의:</strong> 저자는 Claude Max 플랜에서 실행했고, 달러 숫자는 Claude Code가 보고한 API 환산 가격입니다. 실제 청구서가 아니라 사용량 비교용 명목값입니다. 또 캐시 읽기 단가(기본 입력의 ~10%)가 적용된 금액이므로, 캐싱 없는 환경이라면 차이가 훨씬 커집니다.
+</div>
+
+<h2 id="sec-5">5. 해부 ③ — 공개 5일 만에 나온 반론들</h2>
+
+<p>여기까지가 원문 내용입니다. 그런데 이 벤치마크의 가장 교육적인 부분은 공개 <em>이후에</em> 벌어진 일입니다. 저자가 하네스와 원시 결과(트랜스크립트, 측정 로그 전부)를 공개한 덕분에, 커뮤니티가 숫자를 직접 검증하기 시작했습니다.</p>
+
+<p>11월 2일, 한 개발자가 포크로 재실험을 돌리고 <a href="https://github.com/nolanlawson/agent-framework-benchmark/issues/1" target="_blank" rel="noopener">이슈 #1</a>을 올렸습니다. 두 가지 발견이 핵심입니다.</p>
+
+<p><strong>발견 ① — '실패'한 Angular 2회는 사실 테스트를 통과했습니다.</strong> 원 결과에서 Angular 5회 중 2회는 측정이 안 됐는데, 원시 데이터를 열어 보면 두 실행 모두 <code>final_test_exit=0</code>(54/54 통과)입니다. 실패는 측정 단계에서 났습니다. Angular SSR 서버가 허용 목록에 없는 <code>Host</code> 헤더를 400으로 거절하는데, 테스트는 <code>localhost</code>로 돌지만 측정 프록시는 <code>app.localhost:8443</code>으로 접근했기 때문입니다. 에이전트 입장에서는 보이지 않는 실패였죠. (이 글을 쓰며 공개된 원시 데이터에서 두 실행의 <code>run-info.txt</code>를 직접 확인했는데, 실제로 둘 다 테스트 통과가 기록되어 있습니다.)</p>
+
+<p><strong>발견 ② — 렌더링 모드가 교란 변수(confounder)였습니다.</strong> 스펙은 렌더링 전략을 에이전트 자유에 맡겼는데, 결과적으로 측정된 54개 앱 중 52개가 서버 렌더링(SSR)을 골랐고, 클라이언트 렌더링(CSR) SPA를 만든 건 vanilla 5회 전부와 Angular 1회뿐이었습니다. 즉 성능 비교표의 상당 부분은 "프레임워크 간 비교"가 아니라 <strong>"SSR 대 CSR 비교"</strong>였던 셈입니다.</p>
+
+<p>포크는 렌더링 모드를 프롬프트에 명시하고(ssr/csr), 공식 도구를 켜고 끄는 조건을 추가해 Angular·Next.js·SvelteKit·vanilla로 파일럿을 돌렸습니다. 결과가 흥미롭습니다:</p>
+
+<ul>
+  <li>모드를 고정하자 <strong>Angular는 더 이상 일관되게 최고가가 아니었고</strong>, Angular CSR은 오히려 가장 싼 셀이었습니다.</li>
+  <li>같은 조건의 반복 실행 간 빌드 토큰이 <strong>±34%</strong>씩 출렁였습니다. 중앙값 5개로 세운 순위가 흔들리기에 충분한 분산입니다.</li>
+  <li>유지보수(변경 요청 4건)는 빌드의 <strong>1/5~1/8</strong> 비용이었고 프레임워크 간 차이도 작았습니다. 실무에서 대부분의 시간은 유지보수인데, 이 벤치마크는 그린필드 빌드만 측정합니다.</li>
+  <li>에이전트는 설치된 공식 MCP·스킬을 <strong>거의 쓰지 않았습니다</strong>(Next.js는 한 번도). "공식 AI 도구를 깔아 주면 에이전트가 잘 쓰겠지"라는 가정도 데이터 앞에서는 흔들립니다.</li>
+</ul>
+
+<p>별도의 통계 분석들도 비슷한 방향을 가리켰습니다. <a href="https://gautamparab.com/writing/sixty-of-sixty-six-ranges-overlap/" target="_blank" rel="noopener">한 분석</a>은 12개 스택의 쌍 66개 중 60개에서 비용 범위가 겹친다고 지적했습니다 — 반면 전송 JS 크기는 거의 겹치지 않는, 훨씬 단단한 신호였습니다. <a href="https://dev.to/frankchu/11-of-11-js-cost-gaps-overlap-i-re-ran-the-tables-44b7" target="_blank" rel="noopener">또 다른 재분석</a>은 위에서 본 "코드량보다 익숙함이 큰 지렛대"라는 해석을 같은 표에서 끌어냈습니다.</p>
+
+<div class="jfx-warn">
+<strong>그래서 이 벤치마크는 틀렸다는 걸까요?</strong> 반대입니다. 원 저자는 README에서 "반복 1회는 일화다", "이 결과는 그날의 생태계 전체(모델·프레임워크·문서)의 스냅숏이다"라고 한계를 먼저 못 박았고, 재현 가능한 하네스와 원시 데이터를 전부 공개했습니다. <em>그랬기 때문에</em> 닷새 만에 교란 변수가 발견되고 지식이 전진한 겁니다. 폐쇄형 벤치마크였다면 "Angular는 비싸다"가 그대로 밈이 됐겠죠. 에이전트 벤치마크를 만들 때 배워야 할 건 순위표가 아니라 이 공개·반증 사이클입니다.
+</div>
+
+<h2 id="sec-6">6. 실전 — 내 스택의 에이전트 비용 직접 재기</h2>
+
+<p>남의 포켓몬 도감보다 중요한 건 내 저장소입니다. 다행히 측정 원리는 간단해서, Claude Code의 <code>stream-json</code> 출력만 있으면 벤치마크의 토큰 회계를 그대로 따라 할 수 있습니다.</p>
+
+<p>먼저 비교하고 싶은 작업을 헤드리스로 실행하면서 트랜스크립트를 남깁니다:</p>
+
+{{< highlight bash >}}
+# 같은 과제를 조건만 바꿔 실행하고, 세션 전체를 JSONL로 저장
+claude -p "SPEC.md의 기능을 구현하고 npm test가 통과할 때까지 진행해" \
+  --output-format stream-json --verbose > transcript.jsonl
+{{< /highlight >}}
+
+<p>트랜스크립트 마지막의 <code>result</code> 이벤트에 세션 전체 회계가 들어 있습니다. 벤치마크의 집계 스크립트(<code>bench/tokens.mjs</code>)와 같은 일을 하는 파이썬 버전입니다:</p>
+
+{{< highlight python >}}
+import json, sys
+
+result = None
+turns = 0
+with open(sys.argv[1]) as f:
+    for line in f:
+        ev = json.loads(line)
+        if ev.get("type") == "result":
+            result = ev          # 마지막 result 이벤트가 최종 집계
+
+u = result["usage"]
+cache_read = u.get("cache_read_input_tokens", 0)
+cache_write = u.get("cache_creation_input_tokens", 0)
+fresh_in = u.get("input_tokens", 0)
+out = u.get("output_tokens", 0)
+total = cache_read + cache_write + fresh_in + out
+
+print(f"턴 수        : {result['num_turns']}")
+print(f"캐시 읽기    : {cache_read:>12,}  ({cache_read/total:.0%})")
+print(f"비캐시 입력  : {fresh_in + cache_write:>12,}")
+print(f"출력         : {out:>12,}")
+print(f"총 토큰      : {total:>12,}")
+print(f"보고된 비용  : ${result.get('total_cost_usd', 0):.2f}")
+{{< /highlight >}}
+
+<p>그리고 비교가 의미를 가지려면, 이 벤치마크가 보여 준 원칙을 그대로 가져옵니다:</p>
+
+<ul>
+  <li><strong>과제·완료 조건을 고정</strong>합니다. 같은 스펙, 같은 테스트, "테스트 통과까지"라는 같은 종료 조건. 조건이 다르면 토큰 비교는 무의미합니다.</li>
+  <li><strong>3회 이상 반복하고 중앙값</strong>을 씁니다. 같은 조건도 ±34%씩 출렁인다는 걸 봤습니다. 1회 실행은 데이터가 아니라 일화입니다.</li>
+  <li><strong>깨끗한 환경에서 시작</strong>합니다. 이전 실행의 산출물이나 대화가 남아 있으면 비교가 오염됩니다. 컨테이너까지는 아니어도 최소한 fresh clone + 새 세션으로.</li>
+  <li><strong>결과물 검증은 생성과 분리</strong>합니다. 에이전트가 "완료"라고 말한 것과 테스트가 통과하는 것, 그리고 (Angular 사례처럼) 테스트가 통과하는 것과 실제 배포 환경에서 동작하는 것은 각각 다른 명제입니다.</li>
+</ul>
+
+<p>이렇게 재 보면 "우리 레거시 모듈은 에이전트한테 유난히 비싸다" 같은 사실이 숫자로 잡힙니다. 그다음 줄일 방법은 이 블로그에서 다뤘던 레퍼토리 그대로입니다 — <a href="/posts/agents-md-repo-context-files/">AGENTS.md로 관례를 문서화</a>해서 헤매는 턴을 줄이고, <a href="/posts/agent-token-diet-stack/">도구 출력 다이어트</a>로 턴당 컨텍스트를 줄이는 식으로요.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>벤치마크 1회 실행으로 결론 내리기.</strong> 이번 데이터가 보여 준 반복 간 분산은 ±34%입니다. 순위가 한 번 뒤집히는 건 노이즈로도 충분히 일어납니다. 중앙값, 그리고 가능하면 범위(최소~최대)까지 같이 보세요.</li>
+  <li><strong>달러 숫자를 청구서로 읽기.</strong> 구독 플랜에서 보고되는 비용은 API 환산 명목가입니다. 또 캐싱 적용 여부에 따라 같은 토큰도 금액이 10배 가까이 달라집니다. 비교엔 토큰 수가, 그중에서도 "캐시 읽기 / 비캐시 입력 / 출력" 분해가 더 안정적인 단위입니다.</li>
+  <li><strong>"프레임워크 없음 = 에이전트 비용 0"이라는 가정.</strong> vanilla가 중위권이었다는 게 이번 벤치마크의 조용한 교훈입니다. 모델이 이미 아는 관례 위에 올라타는 게, 모든 걸 손수 짓게 하는 것보다 쌉니다.</li>
+  <li><strong>공식 MCP·스킬을 깔아 주면 쓸 거라는 가정.</strong> 포크 실험에서 에이전트는 설치된 공식 도구를 거의 부르지 않았습니다. 도구를 제공했다면, 트랜스크립트에서 실제 호출 여부를 확인하세요. <a href="/posts/tool-search-deferred-loading/">안 쓰는 도구 정의는 그 자체로 토큰 비용</a>이기도 합니다.</li>
+  <li><strong>테스트 통과를 "동작함"과 동일시하기.</strong> Angular의 Host 헤더 사례처럼, 에이전트의 성공 조건(localhost 테스트)과 실제 환경(프록시 뒤) 사이의 틈은 에이전트 눈에 보이지 않습니다. 완료 조건을 설계할 때 "에이전트가 볼 수 없는 실패"가 어디 숨을 수 있는지 한 번 더 생각해 보세요.</li>
+  <li><strong>그린필드 빌드 비용으로 스택을 고르기.</strong> 유지보수는 빌드의 1/5~1/8 비용이고 프레임워크 간 차이도 작았습니다. 실무 비용의 대부분은 유지보수 쪽에서 발생하니, 빌드 벤치마크 하나로 스택을 바꾸는 건 성급합니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>Nolan Lawson의 벤치마크: Claude Code(Opus 5.5)가 같은 포켓몬 도감 앱을 12개 JS 스택으로 각 5회, 총 60회 구현. 전부 테스트 통과, 그러나 토큰은 Nuxt 3.85M ~ Angular 9.76M으로 <strong>2.5배 차이</strong>.</li>
+  <li>에이전트 비용의 구조: 매 턴 대화 전체가 재전송되므로 총 토큰 ≈ 턴 수 × 평균 컨텍스트. 이번 데이터에서 <strong>95%가 캐시 읽기</strong>.</li>
+  <li>비싼 이유는 제각각: 낯선 프레임워크의 소스 역공학(Gracile), 구버전 지식과 신버전의 간극(SvelteKit), 코드 세리머니와 턴 수(Angular). <strong>vanilla도 싸지 않다</strong> — 모델이 아는 관례가 자산이다.</li>
+  <li>공개 5일 만의 반전: 렌더링 모드(52/54가 SSR)가 교란 변수였고, '실패'한 Angular 2회는 측정 버그였으며, 반복 간 분산은 ±34%, 비용 범위 66쌍 중 60쌍이 겹침. 모드를 고정하자 Angular는 최고가가 아니었다.</li>
+  <li>진짜 교훈은 순위가 아니라 방법론: 밀폐 설계(생성·채점·측정 분리, 정답 숨기기), 반복과 중앙값, 그리고 <strong>하네스·원시 데이터 공개가 만든 반증 사이클</strong>.</li>
+  <li>내 저장소에서도 <code>stream-json</code> 트랜스크립트로 같은 회계를 돌릴 수 있다 — 과제 고정, 3회 이상 반복, 깨끗한 환경, 검증 분리.</li>
+</ul>
+
+<h2 id="sec-9">9. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://nolanlawson.com/2026/10/28/the-ai-cost-of-javascript-frameworks/" target="_blank" rel="noopener">The AI cost of JavaScript frameworks — Nolan Lawson (원문, 2026-10-28)</a></li>
+  <li><a href="https://github.com/nolanlawson/agent-framework-benchmark" target="_blank" rel="noopener">agent-framework-benchmark — 벤치마크 하네스 (GitHub)</a></li>
+  <li><a href="https://github.com/nolanlawson/agent-framework-benchmark-results" target="_blank" rel="noopener">agent-framework-benchmark-results — 원시 결과: 리포트·트랜스크립트·측정 로그 (GitHub)</a></li>
+  <li><a href="https://github.com/nolanlawson/agent-framework-benchmark/issues/1" target="_blank" rel="noopener">Issue #1: 포크 재실험 — Angular 측정 버그와 렌더링 모드 교란 변수 (2026-11-02)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50323088" target="_blank" rel="noopener">Hacker News 토론 스레드</a></li>
+  <li><a href="https://gautamparab.com/writing/sixty-of-sixty-six-ranges-overlap/" target="_blank" rel="noopener">Sixty of Sixty-Six Cost Ranges Overlap — 통계적 재분석</a></li>
+  <li><a href="https://dev.to/frankchu/11-of-11-js-cost-gaps-overlap-i-re-ran-the-tables-44b7" target="_blank" rel="noopener">표 재계산: 코드량보다 익숙함이 큰 지렛대 (dev.to)</a></li>
+  <li><a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching" target="_blank" rel="noopener">Anthropic 공식 문서 — Prompt caching</a></li>
+  <li>관련해서 함께 읽기 — <a href="/posts/prompt-caching-cache-aware-agents/">프롬프트 캐싱</a>, <a href="/posts/agent-token-diet-stack/">코딩 에이전트 토큰 다이어트</a>, <a href="/posts/agent-token-economics/">에이전트 토큰 이코노믹스</a>, <a href="/posts/hermetic-agent-evals/">에이전트 평가 밀폐 설계</a>, <a href="/posts/agent-reward-hacking-evals/">에이전트 리워드 해킹</a> (이 블로그, 한국어)</li>
+</ul>

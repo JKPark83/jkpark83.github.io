@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="프레임워크 선택이 에이전트 토큰 비용이 된다는 것을 보여 주는 커버 그림. 같은 앱, 같은 프롬프트, 같은 모델이라는 조건 아래 Nuxt 3.85M, vanilla 5.00M, SvelteKit 8.53M, Angular 9.76M 토큰의 가로 막대가 길이 차이를 드러내고, 아래에 토큰 2.5배 차이라는 문구가 있다">
+  <defs>
+    <linearGradient id="jfxbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#14252e"/>
+    </linearGradient>
+    <linearGradient id="jfxbar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="jfxbar2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#fb7185"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#jfxbg)"/>
+
+  <!-- title -->
+  <text x="80" y="100" fill="#f8fafc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="50" font-weight="800">프레임워크 선택 = 토큰 고지서</text>
+  <text x="80" y="150" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="27" font-weight="600">같은 앱 · 같은 프롬프트 · 같은 모델 — 12개 JS 스택, 토큰은 2.5배 차이</text>
+  <text x="80" y="188" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="500">"The AI cost of JavaScript frameworks" 벤치마크 해부</text>
+
+  <!-- mini bar chart -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="24" font-weight="600">
+    <!-- nuxt -->
+    <text x="80" y="285" fill="#cbd5e1">Nuxt</text>
+    <rect x="240" y="262" width="310" height="34" rx="8" fill="url(#jfxbar)"/>
+    <text x="566" y="288" fill="#5eead4" font-size="22">3.85M tok</text>
+
+    <!-- vanilla -->
+    <text x="80" y="360" fill="#cbd5e1">vanilla</text>
+    <rect x="240" y="337" width="403" height="34" rx="8" fill="url(#jfxbar)" opacity="0.85"/>
+    <text x="659" y="363" fill="#7dd3fc" font-size="22">5.00M tok</text>
+
+    <!-- sveltekit -->
+    <text x="80" y="435" fill="#cbd5e1">SvelteKit</text>
+    <rect x="240" y="412" width="688" height="34" rx="8" fill="url(#jfxbar2)" opacity="0.8"/>
+    <text x="944" y="438" fill="#fcd34d" font-size="22">8.53M tok</text>
+
+    <!-- angular -->
+    <text x="80" y="510" fill="#cbd5e1">Angular</text>
+    <rect x="240" y="487" width="787" height="34" rx="8" fill="url(#jfxbar2)"/>
+    <text x="1043" y="513" fill="#fda4af" font-size="22">9.76M</text>
+  </g>
+
+  <text x="80" y="580" fill="#94a3b8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="21" font-weight="500">Claude Opus 5.5 × Pokédex 앱 × 5회 반복 중앙값 — 그런데 이 숫자, 그대로 믿어도 될까요?</text>
+</svg>

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="420" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">하네스 양극단 — 오케스트레이션 vs 미니멀리즘</text>
+
+  <!-- left card: agent-autoloop -->
+  <rect x="30" y="56" width="360" height="310" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <text x="210" y="88" text-anchor="middle" font-size="16" font-weight="700" fill="#9c6a1f">agent-autoloop</text>
+  <text x="210" y="110" text-anchor="middle" font-size="12.5" fill="#666">TypeScript · 약 2,400★ · 11/3 공개</text>
+  <line x1="55" y1="124" x2="365" y2="124" stroke="#eed3a8"/>
+  <text x="55" y="150" font-size="13" font-weight="600" fill="#222">"에이전트를 백그라운드 직원으로"</text>
+  <text x="55" y="176" font-size="12.5" fill="#444">· 이벤트(스케줄/이슈/알림) → 규칙대로 배정</text>
+  <text x="55" y="198" font-size="12.5" fill="#444">· 한 턴 돌고 프로세스 종료 — 토큰 안 샘</text>
+  <text x="55" y="220" font-size="12.5" fill="#444">· 결정 필요할 때만 Slack/Discord 카드</text>
+  <text x="55" y="242" font-size="12.5" fill="#444">· CC/Codex 등 프롬프트 받는 CLI면 접속</text>
+  <text x="55" y="264" font-size="12.5" fill="#444">· 커널 제로 의존성 · 플러그인 구조</text>
+  <rect x="55" y="286" width="310" height="58" rx="8" fill="#fdefd8"/>
+  <text x="70" y="310" font-size="12.5" font-weight="600" fill="#9c6a1f">이럴 때</text>
+  <text x="70" y="332" font-size="12" fill="#555">반복 업무를 에이전트에게 위임하고 싶을 때</text>
+
+  <!-- right card: uncut -->
+  <rect x="410" y="56" width="360" height="310" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="590" y="88" text-anchor="middle" font-size="16" font-weight="700" fill="#1e7a35">uncut</text>
+  <text x="590" y="110" text-anchor="middle" font-size="12.5" fill="#666">Go · 약 600★ · 11/1 공개 · MIT</text>
+  <line x1="435" y1="124" x2="745" y2="124" stroke="#b5dfc0"/>
+  <text x="435" y="150" font-size="13" font-weight="600" fill="#222">"컨텍스트를 한 글자도 안 자르는 하네스"</text>
+  <text x="435" y="176" font-size="12.5" fill="#444">· 7MB 정적 바이너리 · 구현 Go 837줄</text>
+  <text x="435" y="198" font-size="12.5" fill="#444">· 툴 4개 · stdin/stdout · TUI/텔레메트리 없음</text>
+  <text x="435" y="220" font-size="12.5" fill="#444">· 요약·압축·슬라이딩 윈도 전부 없음</text>
+  <text x="435" y="242" font-size="12.5" fill="#444">· 응답 잘리면 성공인 척 않고 에러로 종료</text>
+  <text x="435" y="264" font-size="12.5" fill="#444">· OpenAI 호환 엔드포인트 · 로컬 서버 OK</text>
+  <rect x="435" y="286" width="310" height="58" rx="8" fill="#e2f5e7"/>
+  <text x="450" y="310" font-size="12.5" font-weight="600" fill="#1e7a35">이럴 때</text>
+  <text x="450" y="332" font-size="12" fill="#555">CI 파이프라인·하네스 실험·압축 효과 대조군</text>
+
+  <text x="400" y="398" text-anchor="middle" font-size="11.5" fill="#888">별 수는 GitHub 검색 API 기준(11/5 KST), 내용은 저장소 클론으로 확인</text>
+</svg>

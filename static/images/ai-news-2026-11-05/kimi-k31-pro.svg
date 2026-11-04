@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">Kimi K3.1 Pro — 스펙과 자체 보고 벤치마크</text>
+
+  <!-- spec strip -->
+  <rect x="30" y="50" width="178" height="74" rx="10" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="119" y="78" text-anchor="middle" font-size="17" font-weight="700" fill="#1f4e9c">2.8T / 104B</text>
+  <text x="119" y="100" text-anchor="middle" font-size="12" fill="#444">총/활성 파라미터 (MoE)</text>
+
+  <rect x="218" y="50" width="178" height="74" rx="10" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="307" y="78" text-anchor="middle" font-size="17" font-weight="700" fill="#1f4e9c">1M 토큰</text>
+  <text x="307" y="100" text-anchor="middle" font-size="12" fill="#444">컨텍스트 · 텍스트+이미지</text>
+
+  <rect x="406" y="50" width="178" height="74" rx="10" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="495" y="78" text-anchor="middle" font-size="17" font-weight="700" fill="#1f4e9c">896 중 16</text>
+  <text x="495" y="100" text-anchor="middle" font-size="12" fill="#444">토큰당 선택 전문가 (+공유 2)</text>
+
+  <rect x="594" y="50" width="176" height="74" rx="10" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="682" y="78" text-anchor="middle" font-size="17" font-weight="700" fill="#1f4e9c">MXFP4</text>
+  <text x="682" y="100" text-anchor="middle" font-size="12" fill="#444">양자화 인지 학습(QAT) 웨이트</text>
+
+  <!-- bar chart: self-reported -->
+  <text x="30" y="160" font-size="14" font-weight="700" fill="#333">벤치마크 (모델 카드 자체 보고, max effort 기준)</text>
+
+  <!-- bars: scale 100 -> 560px width from x=190 -->
+  <g font-size="13" fill="#333">
+    <text x="180" y="192" text-anchor="end">GPQA-Diamond</text>
+    <rect x="190" y="178" width="527" height="20" rx="4" fill="#4a7fd4"/>
+    <text x="725" y="193" font-size="12.5" font-weight="600" fill="#1f4e9c">94.2</text>
+
+    <text x="180" y="226" text-anchor="end">BrowseComp</text>
+    <rect x="190" y="212" width="516" height="20" rx="4" fill="#4a7fd4"/>
+    <text x="714" y="227" font-size="12.5" font-weight="600" fill="#1f4e9c">92.1</text>
+
+    <text x="180" y="260" text-anchor="end">OSWorld V2.1</text>
+    <rect x="190" y="246" width="446" height="20" rx="4" fill="#4a7fd4"/>
+    <text x="644" y="261" font-size="12.5" font-weight="600" fill="#1f4e9c">79.6</text>
+
+    <text x="180" y="294" text-anchor="end">DeepSWE v1.1</text>
+    <rect x="190" y="280" width="423" height="20" rx="4" fill="#4a7fd4"/>
+    <text x="621" y="295" font-size="12.5" font-weight="600" fill="#1f4e9c">75.5</text>
+
+    <text x="180" y="328" text-anchor="end">Terminal-Bench 4.0</text>
+    <rect x="190" y="314" width="368" height="20" rx="4" fill="#8fb0e0"/>
+    <text x="566" y="329" font-size="12.5" font-weight="600" fill="#555">65.7 (Opus 5.5: 66.4)</text>
+
+    <text x="180" y="362" text-anchor="end">HLE-Diamond</text>
+    <rect x="190" y="348" width="221" height="20" rx="4" fill="#8fb0e0"/>
+    <text x="419" y="363" font-size="12.5" font-weight="600" fill="#555">39.4</text>
+  </g>
+
+  <text x="400" y="400" text-anchor="middle" font-size="11.5" fill="#888">진한 막대 = 강점으로 내세운 영역, 연한 막대 = 경쟁 모델에 뒤지는 영역 · 수치는 HF 모델 카드 보고값(자체 측정 포함)</text>
+  <text x="400" y="422" text-anchor="middle" font-size="11.5" fill="#888">temperature 1.0 · top-p 0.95 · reasoning effort max 설정 기준</text>
+</svg>

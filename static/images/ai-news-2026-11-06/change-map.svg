@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="480" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-06</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="190" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="190" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="262" width="360" height="190" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="262" width="360" height="190" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="112" font-size="14" font-weight="600" fill="#222">오늘은 큰 모델 소식 없음</text>
+  <text x="50" y="134" font-size="12.5" fill="#444">10월 말 대형 릴리즈(Gemini 4 Carbon, GPT-6.1)</text>
+  <text x="50" y="154" font-size="12.5" fill="#444">이후 소강 국면 — 도구·논문 쪽이 바쁜 하루</text>
+  <text x="50" y="182" font-size="12.5" fill="#666">DeepSeek V4 루머는 돌지만 공식 발표 없음</text>
+  <text x="50" y="202" font-size="12.5" fill="#666">(미확인 정보라 본문에서 다루지 않음)</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">KernelSeek — "장비 말고 질문"</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">결정 지점의 질문만으로 FA3의 1.13배 커널</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">멀티턴 RL은 뭘 좋아지게 하나</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">이득은 오류 복구에 집중 · 턴 예산 줄면 급감</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">Pass@(K,T)로 폭·깊이 분리 평가</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="290" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스</text>
+  <text x="50" y="318" font-size="14" font-weight="600" fill="#222">floorplan — 코드베이스 지도</text>
+  <text x="50" y="340" font-size="12.5" fill="#444">CC/Codex가 앱 구조를 대화형 지도로 그려줌</text>
+  <text x="50" y="368" font-size="14" font-weight="600" fill="#222">stack-diagram — 스택 다이어그램 스킬</text>
+  <text x="50" y="390" font-size="12.5" fill="#444">한 문장 설명 → 공식 로고 아키텍처 그림</text>
+
+  <!-- 도구/팁 -->
+  <text x="430" y="290" font-size="15" font-weight="700" fill="#6a3a9c">🧑‍💻 도구 / 팁</text>
+  <text x="430" y="318" font-size="14" font-weight="600" fill="#222">Codex — 백그라운드 압축 root 한정 플래그</text>
+  <text x="430" y="340" font-size="12.5" fill="#444">async_compaction_root_only · 서브에이전트 제외</text>
+  <text x="430" y="368" font-size="14" font-weight="600" fill="#222">Claude Code — 내장 agents-md 모드</text>
+  <text x="430" y="390" font-size="12.5" fill="#444">AGENTS.md를 CLAUDE.md처럼 · instructionFiles</text>
+
+  <text x="400" y="470" text-anchor="middle" font-size="12" fill="#888">오늘의 공통 키워드: 컨텍스트 압축(compaction)과 "에이전트에게 뭘 더 쥐여줄까"의 재검토</text>
+</svg>

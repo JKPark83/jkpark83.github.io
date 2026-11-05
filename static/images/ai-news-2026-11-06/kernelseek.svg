@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">KernelSeek — "도구를 더 쥐여주지 말고, 질문을 던져라"</text>
+
+  <!-- three approach cards -->
+  <rect x="30" y="54" width="235" height="150" rx="12" fill="#f1f1f1" stroke="#ccc"/>
+  <text x="147" y="82" text-anchor="middle" font-size="14" font-weight="700" fill="#555">스크립트형 에이전트</text>
+  <text x="147" y="108" text-anchor="middle" font-size="12" fill="#555">단계마다 할 일이 고정</text>
+  <text x="147" y="128" text-anchor="middle" font-size="12" fill="#555">(정책·최적화 메뉴·역할)</text>
+  <text x="147" y="156" text-anchor="middle" font-size="12" fill="#777">레시피가 맞으면 효율적</text>
+  <text x="147" y="176" text-anchor="middle" font-size="12" fill="#c0392b">벗어나면 정체</text>
+
+  <rect x="283" y="54" width="235" height="150" rx="12" fill="#f1f1f1" stroke="#ccc"/>
+  <text x="400" y="82" text-anchor="middle" font-size="14" font-weight="700" fill="#555">자유형(오픈엔드) 에이전트</text>
+  <text x="400" y="108" text-anchor="middle" font-size="12" fill="#555">커널 집단을 자유롭게 변이</text>
+  <text x="400" y="128" text-anchor="middle" font-size="12" fill="#555">도구·프로파일러·검색 증강</text>
+  <text x="400" y="156" text-anchor="middle" font-size="12" fill="#777">자유도는 높지만</text>
+  <text x="400" y="176" text-anchor="middle" font-size="12" fill="#c0392b">수천 번 시행으로 지불</text>
+
+  <rect x="536" y="54" width="235" height="150" rx="12" fill="#eef4ff" stroke="#1f4e9c" stroke-width="1.5"/>
+  <text x="653" y="82" text-anchor="middle" font-size="14" font-weight="700" fill="#1f4e9c">질문 주도(KernelSeek)</text>
+  <text x="653" y="108" text-anchor="middle" font-size="12" fill="#333">범용 코딩 에이전트 + 최소 하네스</text>
+  <text x="653" y="128" text-anchor="middle" font-size="12" fill="#333">결정 지점마다 "짧은 질문" 주입</text>
+  <text x="653" y="156" text-anchor="middle" font-size="12" fill="#333">처음엔 사람이, 이후엔 질문 뱅크를</text>
+  <text x="653" y="176" text-anchor="middle" font-size="12" fill="#333">에이전트가 스스로에게 적용</text>
+
+  <!-- arrow -->
+  <text x="400" y="236" text-anchor="middle" font-size="13" fill="#666">같은 과제·평가기·하드웨어·주간 조건에서 비교 (FlashAttention-3 대비 속도)</text>
+
+  <!-- result bars -->
+  <text x="150" y="282" font-size="13" font-weight="600" fill="#555" text-anchor="end">도구 풍부 자율 에이전트</text>
+  <rect x="170" y="268" width="212" height="22" rx="5" fill="#c9c9c9"/>
+  <text x="392" y="284" font-size="13" font-weight="700" fill="#555">0.50×  (133 스텝 후 정체)</text>
+
+  <text x="150" y="330" font-size="13" font-weight="600" fill="#1f4e9c" text-anchor="end">KernelSeek</text>
+  <rect x="170" y="316" width="479" height="22" rx="5" fill="#3f6fc4"/>
+  <text x="659" y="332" font-size="13" font-weight="700" fill="#1f4e9c">1.13×</text>
+
+  <line x1="170" y1="260" x2="170" y2="350" stroke="#999" stroke-width="1"/>
+  <line x1="594" y1="260" x2="594" y2="350" stroke="#999" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="594" y="362" text-anchor="middle" font-size="11" fill="#888">1.0× = FlashAttention-3</text>
+
+  <rect x="30" y="384" width="740" height="56" rx="10" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="50" y="407" font-size="13" font-weight="700" fill="#1e7a35">🛠 에이전트 빌더 시사점</text>
+  <text x="50" y="428" font-size="12.5" fill="#333">막힌 에이전트에게 도구·컨텍스트를 더 얹기 전에, "남은 격차가 어디인가"라는 방향 가설(질문)부터 공급해 보자.</text>
+</svg>

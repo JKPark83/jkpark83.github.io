@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="420" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">에이전트가 그려주는 다이어그램 — 오늘의 두 레포</text>
+
+  <!-- floorplan card -->
+  <rect x="30" y="56" width="360" height="300" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="50" y="88" font-size="16" font-weight="700" fill="#1f4e9c">floorplan</text>
+  <text x="50" y="110" font-size="12" fill="#666">haydenschmitty · JavaScript · MIT · 약 2,980★</text>
+  <line x1="50" y1="122" x2="370" y2="122" stroke="#b9cdf2"/>
+  <text x="50" y="146" font-size="13" font-weight="600" fill="#222">입력: 내 코드베이스 (여러 레포도 OK)</text>
+  <text x="50" y="168" font-size="13" font-weight="600" fill="#222">출력: 탐색 가능한 대화형 앱 지도</text>
+  <text x="50" y="196" font-size="12.5" fill="#444">· CC/Codex 플러그인 — 에이전트가 코드를 읽고</text>
+  <text x="50" y="214" font-size="12.5" fill="#444">  모든 부품·파일·요청 흐름에 평문 이름을 붙임</text>
+  <text x="50" y="236" font-size="12.5" fill="#444">· 지도 위에서 질문하고, 작업하며 갱신 유지</text>
+  <text x="50" y="258" font-size="12.5" fill="#444">· 의존성 0 · Node 18+ · 라이브 데모 제공</text>
+  <rect x="50" y="278" width="320" height="58" rx="8" fill="#fff" stroke="#b9cdf2"/>
+  <text x="62" y="300" font-size="12" font-weight="700" fill="#1f4e9c">이럴 때</text>
+  <text x="62" y="320" font-size="12" fill="#333">바이브코딩으로 커진 앱의 "체크아웃하면 무슨</text>
+  <text x="62" y="336" font-size="12" fill="#333">일이 생기지?"에 답을 못 할 때</text>
+
+  <!-- stack-diagram card -->
+  <rect x="410" y="56" width="360" height="300" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="430" y="88" font-size="16" font-weight="700" fill="#1e7a35">stack-diagram</text>
+  <text x="430" y="110" font-size="12" fill="#666">caru-ini · 에이전트 스킬 · 약 1,860★</text>
+  <line x1="430" y1="122" x2="750" y2="122" stroke="#b5dfc0"/>
+  <text x="430" y="146" font-size="13" font-weight="600" fill="#222">입력: 스택을 설명하는 한 문장</text>
+  <text x="430" y="168" font-size="13" font-weight="600" fill="#222">출력: 공식 로고가 들어간 아키텍처 그림</text>
+  <text x="430" y="196" font-size="12.5" fill="#444">· npx skills add caru-ini/stack-diagram</text>
+  <text x="430" y="214" font-size="12.5" fill="#444">· Claude Code / Codex / Cursor 등에서 동작</text>
+  <text x="430" y="236" font-size="12.5" fill="#444">· 클라우드만이 아니라 모노레포 툴링 그림도</text>
+  <text x="430" y="258" font-size="12.5" fill="#444">· 라이트/다크 대응 이미지 생성</text>
+  <rect x="430" y="278" width="320" height="58" rx="8" fill="#fff" stroke="#b5dfc0"/>
+  <text x="442" y="300" font-size="12" font-weight="700" fill="#1e7a35">이럴 때</text>
+  <text x="442" y="320" font-size="12" fill="#333">README·발표자료·온보딩 문서에 넣을 아키텍처</text>
+  <text x="442" y="336" font-size="12" fill="#333">그림을 5분 안에 뽑고 싶을 때</text>
+
+  <text x="400" y="390" text-anchor="middle" font-size="12.5" fill="#666">공통점: "코드/스택 → 그림"을 에이전트에게 맡긴다 · 차이: floorplan은 역방향(코드에서), stack-diagram은 정방향(설명에서)</text>
+  <text x="400" y="408" text-anchor="middle" font-size="11" fill="#999">★ 수치는 2026-11-06 GitHub Search API 기준 근사값</text>
+</svg>

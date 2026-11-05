@@ -1,0 +1,415 @@
+---
+title: "대화 전체를 매 턴 다시 보내지 마세요 — Claude API 'message threads'로 보는 stateful LLM API 설계"
+date: 2026-11-06T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "Claude API", "Messages API", "message threads", "stateful API", "TTFT", "prompt caching", "OpenAI Responses API", "컨텍스트", "에이전트 루프", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "LLM API는 무상태(stateless)라서 에이전트는 매 턴 대화 전체를 다시 업로드해 왔습니다. 11월 2일 Anthropic이 공개 베타로 내놓은 message threads는 이 전제를 바꿉니다 — 첫 요청에 대화를 통째로 보내고, 그다음부터는 새 메시지와 직전 응답 id만 보냅니다. 500k~1M 토큰 요청에서 첫 토큰까지의 시간(TTFT) 중앙값이 약 35% 줄었고, Claude Code 대부분 사용자에게는 이미 기본 적용돼 있습니다. '토큰은 그대로 다 읽는데 왜 빨라지나', 프롬프트 캐싱과는 뭐가 다른가, 5분 만료·404 replay 같은 운영 함정까지 — stateful LLM API의 설계를 junior 눈높이에서 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "message-threads-stateful-llm-api-cover.svg"
+  alt: "thread 없이 턴마다 요청이 길어지는 막대와, thread로 새 메시지만 보내 요청이 계속 짧은 막대를 비교하는 커버 그림"
+  caption: "대화는 서버에, 요청은 새 턴만 — 과금은 그대로, 왕복은 가볍게"
+  relative: false
+---
+
+<style>
+/* ── message threads 포스트 전용 스타일 (mth- 접두사) ── */
+.mth-fig{
+  --mth-teal:#0d9488; --mth-rose:#e11d48; --mth-amber:#d97706; --mth-sky:#0284c7;
+  --mth-violet:#7c3aed; --mth-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .mth-fig{
+  --mth-teal:#2dd4bf; --mth-rose:#fb7185; --mth-amber:#fbbf24; --mth-sky:#38bdf8;
+  --mth-violet:#a78bfa; --mth-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .mth-fig{
+    --mth-teal:#2dd4bf; --mth-rose:#fb7185; --mth-amber:#fbbf24; --mth-sky:#38bdf8;
+    --mth-violet:#a78bfa; --mth-slate:#94a3b8;
+  }
+}
+.mth-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.mth-fig text{font-family:inherit}
+.mth-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.mth-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.mth-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.mth-toc ol{margin:0;padding-left:1.25rem}
+.mth-toc li{margin:.22rem 0;font-size:.95rem}
+.mth-toc a{text-decoration:none}
+.mth-toc a:hover{text-decoration:underline}
+.mth-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.9rem}
+.mth-table th,.mth-table td{border:1px solid var(--border);padding:.45rem .65rem;text-align:left;vertical-align:top}
+.mth-table th{background:var(--entry)}
+.mth-note{border-left:4px solid var(--mth-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.mth-warn{border-left:4px solid var(--mth-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="mth-toc">
+  <div class="mth-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 에이전트의 숨은 반복 작업</a></li>
+    <li><a href="#sec-2">배경 — TTFT는 어디서 새는가</a></li>
+    <li><a href="#sec-3">동작 원리 — create, continue, 그리고 replay</a></li>
+    <li><a href="#sec-4">규칙 — 턴마다 보낼 것과 빼야 할 것</a></li>
+    <li><a href="#sec-5">프롬프트 캐싱과의 관계 — 겹치지 않고 포개진다</a></li>
+    <li><a href="#sec-6">OpenAI와 비교 — 서버 상태의 두 가지 철학</a></li>
+    <li><a href="#sec-7">실전 — 도구 호출 루프에 thread 넣기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 에이전트의 숨은 반복 작업</h2>
+
+<p>에이전트를 처음 만들어 본 개발자가 요금 청구서 다음으로 놀라는 지점이 있습니다. <strong>매 턴, 지금까지의 대화 전체를 다시 보내야 한다</strong>는 사실입니다. 시스템 프롬프트, 도구 정의, 읽어 온 파일, 수십 번의 도구 호출 결과까지 — 턴이 거듭될수록 요청 JSON은 수 MB로 불어나고, 모델이 첫 글자를 뱉기까지의 대기도 조금씩 길어집니다. LLM API가 <strong>무상태(stateless)</strong>로 설계돼 있기 때문에 생기는, 에이전트 루프의 기본 체질입니다.</p>
+
+<p>11월 2일 Anthropic이 이 체질에 손을 댔습니다. Messages API에 공개 베타로 추가된 <a href="https://platform.claude.com/docs/en/build-with-claude/message-threads" target="_blank" rel="noopener">message threads</a>는 대화를 잠시 서버에 보관해 두고, 이후 요청에서는 <strong>새 메시지와 직전 응답의 <code>id</code>만</strong> 보내게 합니다. <a href="https://claude.com/blog/message-threads" target="_blank" rel="noopener">공식 발표</a>에 따르면 500k~1M 토큰짜리 요청에서 첫 토큰까지의 시간(TTFT, time to first token) 중앙값이 <strong>약 35%</strong> 줄었고, Claude Code 대부분 사용자에게는 이미 기본으로 켜져 있습니다. 모르는 사이에 이번 주부터 혜택을 받고 있었을 가능성이 높다는 뜻입니다.</p>
+
+<p>흥미로운 건 속도 자체보다 설계입니다. OpenAI가 Responses API에서 <code>previous_response_id</code>로 먼저 간 길이기도 하고, "Claude에도 비슷한 게 없냐"는 질문은 <a href="https://www.reddit.com/r/claude/comments/1klx3g4/claude_api_is_there_an_equivalent_to_previous/" target="_blank" rel="noopener">1년 반 전부터</a> 커뮤니티에 올라오던 단골 요청이었습니다. 그런데 두 회사의 답은 닮은 듯 다릅니다. 한쪽은 대화를 <em>저장소</em>로, 다른 쪽은 <em>5분짜리 캐시</em>로 설계했습니다. 이 차이를 이해하면 stateful LLM API를 쓸 때 뭘 조심해야 하는지가 그대로 보입니다.</p>
+
+<h2 id="sec-2">2. 배경 — TTFT는 어디서 새는가</h2>
+
+<p>"토큰은 그대로 다 읽는데 왜 빨라지지?"가 이 기능의 첫 번째 퀴즈입니다. 풀려면 TTFT를 분해해 봐야 합니다. 요청을 보내고 첫 토큰이 도착할 때까지, 시간은 크게 세 군데서 쓰입니다.</p>
+
+<ul>
+  <li><strong>① 전송과 전처리</strong> — 수 MB 요청 본문을 업로드하고, 서버가 JSON을 검증하고, 전체를 토크나이즈하는 비용. 대화가 길수록 정직하게 커집니다.</li>
+  <li><strong>② prefill</strong> — 모델이 입력 전체를 읽어 attention 상태(KV 캐시)를 만드는 연산. 입력 길이에 비례하는 가장 큰 덩어리지만, <a href="/posts/prompt-caching-cache-aware-agents/">프롬프트 캐싱</a>이 받아 줍니다.</li>
+  <li><strong>③ decode</strong> — 첫 토큰을 실제로 생성하는 부분. 여기는 대화 길이와 무관합니다.</li>
+</ul>
+
+<p>지금까지 에이전트 최적화는 주로 ②를 공략했습니다. 프롬프트 캐싱을 걸면 매 턴 반복되는 앞부분의 prefill 연산을 건너뛰고 과금도 기본 입력의 10% 수준으로 떨어집니다. 그런데 ①은 캐싱이 못 건드립니다. <strong>캐시에 적중하려면 일단 전체 대화를 보내서 "앞부분이 같다"는 걸 증명해야 하기 때문</strong>입니다. 1M 토큰 대화라면 대략 수 MB의 JSON이 턴마다 클라이언트에서 서버로 올라가고, 서버는 그걸 턴마다 다시 파싱하고 토크나이즈합니다. 긴 에이전트 세션에서 TTFT가 턴을 거듭할수록 미끄러지듯 늘어나는 이유의 상당 부분이 여기입니다.</p>
+
+<p>message threads가 지우는 게 바로 이 ①입니다. 대화 본문이 이미 서버에 있으니 업로드할 것도, 다시 검증·토크나이즈할 것도 새 턴 분량뿐입니다. 모델이 읽는 토큰 수는 한 글자도 줄지 않으므로 <strong>과금과 rate limit은 그대로</strong>입니다. 요금 절감 기능이 아니라 <em>지연 절감</em> 기능이라는 점, 처음에 정확히 박아 두는 게 좋습니다.</p>
+
+<figure class="mth-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="TTFT를 세 구간으로 분해한 다이어그램. 전송·전처리 구간은 message threads가 줄이고, prefill 구간은 프롬프트 캐싱이 줄이며, decode 구간은 둘 다 건드리지 않는다. 아래에는 과금은 전체 입력 토큰 기준으로 변하지 않는다는 설명이 있다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--mth-sky)" font-size="16" font-weight="800">TTFT 분해 — 어느 구간을 누가 줄이나</text>
+
+  <!-- baseline bar -->
+  <text x="40" y="84" fill="var(--mth-slate)" font-size="13">최적화 전</text>
+  <rect x="40" y="96" width="260" height="34" rx="6" fill="var(--mth-rose)" opacity="0.8"/>
+  <rect x="302" y="96" width="420" height="34" rx="6" fill="var(--mth-amber)" opacity="0.8"/>
+  <rect x="724" y="96" width="90" height="34" rx="6" fill="var(--mth-teal)" opacity="0.8"/>
+  <g font-size="13" fill="#fff" font-weight="700">
+    <text x="170" y="118" text-anchor="middle">① 전송·검증·토크나이즈</text>
+    <text x="512" y="118" text-anchor="middle">② prefill (입력 전체 읽기)</text>
+    <text x="769" y="118" text-anchor="middle">③ decode</text>
+  </g>
+
+  <!-- with caching -->
+  <text x="40" y="186" fill="var(--mth-slate)" font-size="13">+ 프롬프트 캐싱</text>
+  <rect x="40" y="198" width="260" height="34" rx="6" fill="var(--mth-rose)" opacity="0.8"/>
+  <rect x="302" y="198" width="90" height="34" rx="6" fill="var(--mth-amber)" opacity="0.8"/>
+  <rect x="394" y="198" width="90" height="34" rx="6" fill="var(--mth-teal)" opacity="0.8"/>
+  <text x="500" y="221" fill="var(--mth-amber)" font-size="13">② 캐시 적중 구간의 연산 생략 · 과금 0.1x</text>
+
+  <!-- with caching + threads -->
+  <text x="40" y="288" fill="var(--mth-slate)" font-size="13">+ 캐싱 + threads</text>
+  <rect x="40" y="300" width="56" height="34" rx="6" fill="var(--mth-rose)" opacity="0.8"/>
+  <rect x="98" y="300" width="90" height="34" rx="6" fill="var(--mth-amber)" opacity="0.8"/>
+  <rect x="190" y="300" width="90" height="34" rx="6" fill="var(--mth-teal)" opacity="0.8"/>
+  <text x="296" y="323" fill="var(--mth-rose)" font-size="13">① 새 턴 분량만 전송·토크나이즈</text>
+
+  <!-- legend / note -->
+  <g font-size="13" fill="var(--mth-slate)">
+    <rect x="40" y="368" width="16" height="16" rx="3" fill="var(--mth-rose)" opacity="0.8"/>
+    <text x="63" y="381">① threads가 줄이는 구간</text>
+    <rect x="260" y="368" width="16" height="16" rx="3" fill="var(--mth-amber)" opacity="0.8"/>
+    <text x="283" y="381">② 캐싱이 줄이는 구간</text>
+    <rect x="470" y="368" width="16" height="16" rx="3" fill="var(--mth-teal)" opacity="0.8"/>
+    <text x="493" y="381">③ decode (불변)</text>
+    <text x="40" y="414" font-size="12.5">※ 과금은 어느 경우든 "모델이 읽은 전체 입력 토큰" 기준 — threads는 요금을 바꾸지 않습니다.</text>
+  </g>
+</svg>
+<figcaption>threads와 프롬프트 캐싱은 TTFT의 서로 다른 구간을 줄입니다. 그래서 대체재가 아니라 세트입니다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 동작 원리 — create, continue, 그리고 replay</h2>
+
+<p>API 표면은 단순합니다. 기존 Messages API 요청에 <code>thread</code> 파라미터 하나를 얹고, 모든 요청에 beta 헤더 <code>message-threads-2026-08-12</code>를 붙입니다. 상태는 세 가지 동작으로 굴러갑니다.</p>
+
+<ul>
+  <li><strong>create</strong> — 첫 요청은 지금처럼 대화 전체를 <code>system</code>, <code>tools</code>와 함께 보내되 <code>"thread": {"type": "create"}</code>를 추가합니다. API는 Claude의 응답까지 포함한 대화를 응답 <code>id</code> 아래 보관합니다.</li>
+  <li><strong>continue</strong> — 다음 턴부터는 새 메시지만 보내고 <code>"thread": {"type": "continue", "previous_message_id": "직전 응답 id"}</code>를 붙입니다. <code>system</code>과 <code>tools</code>는 <em>빼고</em> 보냅니다(스레드가 기억하고 있고, 보내면 400 에러). 매 응답의 <code>id</code>가 다음 턴의 연결 고리가 됩니다.</li>
+  <li><strong>replay</strong> — 스레드는 <strong>best-effort</strong>입니다. 마지막 요청 후 <strong>5분이 지나면 만료</strong>되고, 늦어도 1시간 안에 삭제됩니다. 이어 갈 수 없게 되면 continue 요청이 404(<code>thread_not_found</code>)를 돌려주는데, 이때는 내 쪽 사본으로 대화 전체를 새 create 요청에 담아 다시 시작하면 됩니다.</li>
+</ul>
+
+{{< highlight bash >}}
+# 턴 1: 대화 전체 + thread create
+curl -sS https://api.anthropic.com/v1/messages \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2026-10-21" \
+  -H "anthropic-beta: message-threads-2026-08-12" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-5-5",
+    "max_tokens": 1024,
+    "cache_control": {"type": "ephemeral"},
+    "system": "너는 Acme의 지원 에이전트야.",
+    "messages": [{"role": "user", "content": "주문 관련 질문이 있어요."}],
+    "thread": {"type": "create"}
+  }'
+
+# 턴 2: 새 메시지만. system/tools는 빼고, 직전 응답 id만 넘긴다
+curl -sS https://api.anthropic.com/v1/messages \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2026-10-21" \
+  -H "anthropic-beta: message-threads-2026-08-12" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-opus-5-5",
+    "max_tokens": 1024,
+    "cache_control": {"type": "ephemeral"},
+    "messages": [{"role": "user", "content": "일반 배송은 보통 며칠 걸리나요?"}],
+    "thread": {"type": "continue", "previous_message_id": "'"$message_id"'"}
+  }'
+{{< /highlight >}}
+
+<p>여기서 설계의 핵심 전제가 나옵니다. <strong>대화의 원본(source of truth)은 끝까지 애플리케이션이 쥐고 있어야 합니다.</strong> 서버의 스레드는 언제 사라져도 이상하지 않은 임시 사본이고, 응답만 봐서는 "이번 턴이 서버에 저장됐는지"조차 알 수 없습니다. 다음 continue가 404로 돌아와야 비로소 알게 됩니다. 그래서 threads를 쓰는 코드는 처음부터 replay 경로를 함께 설계해야 합니다 — 이건 선택이 아니라 프로토콜의 일부입니다.</p>
+
+<figure class="mth-fig">
+<svg viewBox="0 0 860 470" role="img" aria-label="thread의 생애를 보여 주는 흐름도. create 요청이 대화를 서버에 보관하고 응답 id를 돌려주면, continue 요청이 새 메시지와 그 id로 이어 간다. 각 응답 id는 한 번만 continue할 수 있고, 5분 동안 요청이 없으면 만료된다. 만료 후 continue는 404 thread_not_found가 되고, 클라이언트는 자기 사본으로 대화 전체를 새 create 요청에 담아 복구한다">
+  <text x="430" y="28" text-anchor="middle" fill="var(--mth-sky)" font-size="16" font-weight="800">thread의 생애 — append-only 사슬과 5분 타이머</text>
+
+  <!-- client lane -->
+  <text x="40" y="66" fill="var(--mth-slate)" font-size="13" font-weight="700">클라이언트 (대화 원본 보유)</text>
+  <text x="40" y="402" fill="var(--mth-slate)" font-size="13" font-weight="700">서버 (임시 사본)</text>
+  <line x1="40" y1="78" x2="820" y2="78" stroke="var(--mth-slate)" stroke-width="1" opacity="0.35"/>
+  <line x1="40" y1="382" x2="820" y2="382" stroke="var(--mth-slate)" stroke-width="1" opacity="0.35"/>
+
+  <!-- create -->
+  <rect x="52" y="120" width="170" height="58" rx="10" fill="var(--mth-teal)" opacity="0.16" stroke="var(--mth-teal)" stroke-width="1.6"/>
+  <text x="137" y="145" text-anchor="middle" fill="var(--mth-teal)" font-size="13.5" font-weight="700">create</text>
+  <text x="137" y="165" text-anchor="middle" fill="var(--mth-slate)" font-size="12">대화 전체 + system/tools</text>
+
+  <!-- continue 1 -->
+  <rect x="290" y="120" width="170" height="58" rx="10" fill="var(--mth-sky)" opacity="0.16" stroke="var(--mth-sky)" stroke-width="1.6"/>
+  <text x="375" y="145" text-anchor="middle" fill="var(--mth-sky)" font-size="13.5" font-weight="700">continue</text>
+  <text x="375" y="165" text-anchor="middle" fill="var(--mth-slate)" font-size="12">새 메시지 + msg_A</text>
+
+  <!-- continue 2 (fails) -->
+  <rect x="528" y="120" width="170" height="58" rx="10" fill="var(--mth-rose)" opacity="0.14" stroke="var(--mth-rose)" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="613" y="145" text-anchor="middle" fill="var(--mth-rose)" font-size="13.5" font-weight="700">continue (6분 뒤)</text>
+  <text x="613" y="165" text-anchor="middle" fill="var(--mth-rose)" font-size="12">404 thread_not_found</text>
+
+  <!-- replay -->
+  <rect x="650" y="238" width="170" height="58" rx="10" fill="var(--mth-amber)" opacity="0.16" stroke="var(--mth-amber)" stroke-width="1.6"/>
+  <text x="735" y="263" text-anchor="middle" fill="var(--mth-amber)" font-size="13.5" font-weight="700">replay = 새 create</text>
+  <text x="735" y="283" text-anchor="middle" fill="var(--mth-slate)" font-size="12">내 사본으로 전체 재전송</text>
+
+  <!-- server states -->
+  <rect x="92" y="300" width="130" height="46" rx="9" fill="var(--mth-teal)" opacity="0.1" stroke="var(--mth-teal)" stroke-width="1.3"/>
+  <text x="157" y="320" text-anchor="middle" fill="var(--mth-teal)" font-size="12.5" font-weight="700">msg_A 저장</text>
+  <text x="157" y="337" text-anchor="middle" fill="var(--mth-slate)" font-size="11.5">5분 타이머 시작</text>
+
+  <rect x="310" y="300" width="130" height="46" rx="9" fill="var(--mth-sky)" opacity="0.1" stroke="var(--mth-sky)" stroke-width="1.3"/>
+  <text x="375" y="320" text-anchor="middle" fill="var(--mth-sky)" font-size="12.5" font-weight="700">msg_B 저장</text>
+  <text x="375" y="337" text-anchor="middle" fill="var(--mth-slate)" font-size="11.5">타이머 리셋 · msg_A는 소진</text>
+
+  <rect x="528" y="300" width="130" height="46" rx="9" fill="var(--mth-rose)" opacity="0.1" stroke="var(--mth-rose)" stroke-width="1.3" stroke-dasharray="5 4"/>
+  <text x="593" y="320" text-anchor="middle" fill="var(--mth-rose)" font-size="12.5" font-weight="700">만료 · 삭제</text>
+  <text x="593" y="337" text-anchor="middle" fill="var(--mth-slate)" font-size="11.5">5분 무요청</text>
+
+  <!-- arrows -->
+  <g stroke="var(--mth-slate)" stroke-width="1.5" fill="none" opacity="0.75">
+    <path d="M137 178 L152 298"/>
+    <path d="M222 150 L288 150"/>
+    <path d="M375 178 L375 298"/>
+    <path d="M460 150 L526 150"/>
+    <path d="M613 178 L600 298"/>
+    <path d="M700 178 Q735 200 735 236"/>
+  </g>
+  <text x="252" y="142" fill="var(--mth-slate)" font-size="11.5">id: msg_A</text>
+  <text x="490" y="142" fill="var(--mth-slate)" font-size="11.5">id: msg_B</text>
+
+  <text x="430" y="445" text-anchor="middle" fill="var(--mth-slate)" font-size="12.5">각 응답 id는 딱 한 번만 continue 가능(append-only) · 분기·수정·요약은 전부 "새 create"</text>
+</svg>
+<figcaption>thread의 생애. 서버 사본은 5분짜리 캐시이므로, 404 replay 경로가 정상 흐름의 일부입니다.</figcaption>
+</figure>
+
+<div class="mth-note">
+<strong>append-only라는 제약.</strong> 스레드는 덧붙이기만 됩니다. 이전 턴을 수정하거나, 중간에서 분기하거나, 히스토리를 요약으로 바꿔치기(compaction)하려면 전부 "수정된 대화 전체로 새 create"입니다. 각 응답 <code>id</code>는 한 번만 continue할 수 있어서, 같은 id로 두 번 이으면 <code>thread_already_continued</code> 에러가 납니다. 항상 가장 최근 응답 id에서 이어 가세요.
+</div>
+
+<h2 id="sec-4">4. 규칙 — 턴마다 보낼 것과 빼야 할 것</h2>
+
+<p>"새 메시지만 보낸다"가 전부면 좋겠지만, 필드마다 취급이 다릅니다. <a href="https://platform.claude.com/docs/en/build-with-claude/message-threads#what-to-send" target="_blank" rel="noopener">공식 문서</a>는 세 그룹으로 정리합니다.</p>
+
+<table class="mth-table">
+  <thead>
+    <tr><th>그룹</th><th>필드</th><th>규칙</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>create 전용</strong></td>
+      <td><code>system</code>, <code>tools</code></td>
+      <td>create에만 보냅니다. continue에 실으면(<code>null</code>로도) 400 에러.</td>
+    </tr>
+    <tr>
+      <td><strong>고정(fixed)</strong></td>
+      <td><code>model</code>, <code>tool_choice</code>, <code>thinking</code>, <code>context_management</code>, <code>output_config</code>, 최상위 <code>cache_control</code>, beta 헤더 조합 등</td>
+      <td>매 턴 <em>같은 값으로</em> 다시 보냅니다. 값이 달라지면 400 + <code>thread_fingerprint_mismatch</code>, 에러 메시지가 어긋난 필드를 짚어 줍니다.</td>
+    </tr>
+    <tr>
+      <td><strong>자유</strong></td>
+      <td><code>max_tokens</code>, <code>stop_sequences</code>, <code>stream</code>, <code>metadata</code>, <code>service_tier</code> 등</td>
+      <td>턴마다 바꿔도 됩니다.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>직관적으로 읽으면 이렇습니다. 스레드는 대화만 기억하는 게 아니라 <strong>"이 대화가 어떤 설정으로 진행 중인가"의 지문(fingerprint)</strong>도 기억합니다. 모델이나 thinking 설정이 중간에 바뀌면 보관된 대화의 의미가 달라질 수 있으니, 바꾸고 싶으면 새 스레드를 시작하라는 겁니다. 예외도 기억해 둘 만합니다 — MCP 서버 주소나 <code>container</code> id는 서버가 저장하지 않으므로 쓰는 턴마다 직접 보내야 하고, MCP 인증 토큰은 턴 사이에 갱신돼도 됩니다.</p>
+
+<h2 id="sec-5">5. 프롬프트 캐싱과의 관계 — 겹치지 않고 포개진다</h2>
+
+<p>가장 많이 나올 오해가 "threads를 켰으니 캐싱은 필요 없겠네"입니다. 반대입니다. <strong>스레드는 아무것도 캐싱해 주지 않습니다.</strong> 전송만 생략될 뿐, 캐시 브레이크포인트를 걸지 않으면 서버는 매 턴 대화 전체의 prefill을 다시 계산하고 요금도 전액 기본 단가로 매깁니다. 2절의 그림 그대로 — threads는 ①, 캐싱은 ②를 맡는 분업입니다.</p>
+
+<p>그래서 실전 조합은 "둘 다"입니다. 가장 간단한 방법은 예제에 계속 등장한 <strong>최상위 <code>cache_control</code></strong>입니다. 매 요청에 <code>"cache_control": {"type": "ephemeral"}</code>을 실으면 API가 그 턴 메시지의 마지막 블록에 브레이크포인트를 걸어 줘서, 턴마다 "이전 대화는 캐시에서 읽고, 새 턴은 캐시에 써 두는" 흐름이 완성됩니다. 과금은 평소 캐싱 규칙 그대로입니다 — 캐시 쓰기 1.25배(5분 TTL), 읽기는 기본 입력의 0.1배(최신 모델은 더 낮음).</p>
+
+<div class="mth-warn">
+<strong>브레이크포인트 4개 제한.</strong> <code>thread</code>가 붙은 요청은 <code>cache_control</code> 브레이크포인트를 최대 4개까지만 가질 수 있습니다(최상위 <code>cache_control</code>도 1개로 계산, create 때 <code>system</code>·<code>tools</code>에 건 것은 이후 모든 continue에서도 계속 계산됨). 넘치면 400 + <code>thread_unsupported_request</code>. 특히 <strong>replay로 전체 대화를 다시 보낼 때</strong>, 과거 메시지에 박아 뒀던 브레이크포인트를 그대로 두면 바로 이 제한에 걸립니다. replay 전에 옛 브레이크포인트를 걷어 내고 마지막 블록에만 남기세요. SDK 헬퍼는 이걸 알아서 해 줍니다.
+</div>
+
+<p>참고로 이 블로그에서 다뤘던 <a href="/posts/cache-engineering-agents-akv/">캐시 엔지니어링(AKV)</a>까지 포개 보면 레이어가 깔끔하게 나뉩니다. threads는 <em>전송 계층</em>(클라이언트↔서버), 프롬프트 캐싱은 <em>prefill 연산·과금 계층</em>, KV 캐시 관리와 compaction은 <em>컨텍스트 내용 계층</em>의 문제입니다. 서로 다른 층의 도구라서 충돌 없이 함께 쓸 수 있습니다 — 단, 서버 측 compaction 기능과 context editing 대부분은 threads와 아직 호환되지 않는다는 제약은 있습니다(아래 8절).</p>
+
+<h2 id="sec-6">6. OpenAI와 비교 — 서버 상태의 두 가지 철학</h2>
+
+<p>서버가 대화를 기억하는 API 자체는 새롭지 않습니다. OpenAI Responses API는 <code>store: true</code>로 응답을 서버에 저장하고 <code>previous_response_id</code>로 이어 가는 모델을 먼저 상용화했고, 더 긴 수명이 필요하면 Conversations API로 대화 객체를 만들 수 있습니다. 그런데 설계 철학이 다릅니다.</p>
+
+<table class="mth-table">
+  <thead>
+    <tr><th></th><th>Claude message threads</th><th>OpenAI Responses (<code>previous_response_id</code>)</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>상태의 성격</strong></td>
+      <td>임시 캐시 — 메모리에만 보관, 디스크 기록 없음</td>
+      <td>저장소 — 저장된 응답은 기본 30일 보존</td>
+    </tr>
+    <tr>
+      <td><strong>수명</strong></td>
+      <td>마지막 요청 후 5분 만료, 최대 1시간 내 삭제</td>
+      <td>보존 기간 내 재사용 가능, API로 개별 삭제 가능</td>
+    </tr>
+    <tr>
+      <td><strong>관리 API</strong></td>
+      <td>없음 — list/read/delete 불가</td>
+      <td>있음 — 응답 조회·삭제, Conversations 객체</td>
+    </tr>
+    <tr>
+      <td><strong>원본 책임</strong></td>
+      <td>전적으로 클라이언트 (만료 시 replay 필수)</td>
+      <td>서버에 맡기는 설계도 가능</td>
+    </tr>
+    <tr>
+      <td><strong>주 목적</strong></td>
+      <td>전송·전처리 생략 → TTFT 절감</td>
+      <td>상태 관리 위임 + 멀티턴 편의성</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>한 줄로 줄이면, OpenAI는 "대화를 우리한테 맡겨 두라"에 가깝고 Anthropic은 <strong>"원본은 네가 들고 있어라, 우리는 왕복만 가볍게 해 주겠다"</strong>입니다. 그래서 Claude threads에는 조회·삭제 API가 아예 없고, 보관도 암호화된 메모리에서 최대 1시간입니다. 상태 관리를 위임받지 않겠다는 의도가 수명 정책에 그대로 드러납니다. 어느 쪽이 낫다기보다, <em>장애 모델이 다릅니다</em>. 서버를 저장소로 쓰면 "서버의 대화가 진실인데 유실되면?"을 걱정해야 하고, 캐시로 쓰면 "만료는 일상이니 replay를 짜 두자"가 됩니다. 후자는 귀찮은 대신 명시적입니다.</p>
+
+<h2 id="sec-7">7. 실전 — 도구 호출 루프에 thread 넣기</h2>
+
+<p>에이전트에서 threads의 진가는 도구 호출 루프에서 나옵니다. 루프의 매 반복이 "직전 응답의 <code>tool_use</code>에 <code>tool_result</code>로 답하는 continue 요청"이 되기 때문입니다. 404 replay까지 포함한 뼈대를 Python으로 직접 짜 보면 이렇습니다.</p>
+
+{{< highlight python >}}
+import anthropic
+
+client = anthropic.Anthropic()
+BETA = ["message-threads-2026-08-12"]
+BASE = dict(
+    model="claude-opus-5-5",
+    max_tokens=4096,
+    cache_control={"type": "ephemeral"},  # 매 턴 캐시 읽기+쓰기 (5절)
+)
+SYSTEM = "너는 저장소를 분석하는 코딩 에이전트야."
+TOOLS = [...]  # 도구 정의
+
+history = []          # 대화 원본은 항상 내가 보관 (source of truth)
+prev_id = None        # 직전 응답 id = 스레드 연결 고리
+
+def call(new_messages):
+    global prev_id
+    history.extend(new_messages)
+    try:
+        if prev_id is None:
+            raise anthropic.NotFoundError  # 첫 턴은 create로
+        resp = client.beta.messages.create(
+            **BASE, messages=new_messages,
+            thread={"type": "continue", "previous_message_id": prev_id},
+            betas=BETA)
+    except anthropic.NotFoundError:
+        # 스레드 만료/유실 → 내 사본 전체로 replay (새 create)
+        # 주의: 과거 메시지에 cache_control 브레이크포인트가 있으면 제거
+        resp = client.beta.messages.create(
+            **BASE, system=SYSTEM, tools=TOOLS, messages=history,
+            thread={"type": "create"}, betas=BETA)
+    prev_id = resp.id
+    history.append({"role": "assistant", "content": resp.content})
+    return resp
+
+resp = call([{"role": "user", "content": "이 저장소의 테스트 구조를 분석해 줘."}])
+while resp.stop_reason == "tool_use":
+    results = run_tools(resp)                 # tool_use 블록 실행
+    resp = call([{"role": "user", "content": results}])  # tool_result로 continue
+print(resp.content)
+{{< /highlight >}}
+
+<p>그리고 사실, 위 코드를 직접 쓸 일은 많지 않습니다. 새 SDK에 들어온 <strong>thread 헬퍼</strong>가 create/continue 전환, beta 헤더, 404 replay, refusal 후 새 스레드 시작까지 다 해 주기 때문입니다. 대화 사본도 헬퍼가 메모리에 들고 있습니다.</p>
+
+{{< highlight python >}}
+thread = client.beta.messages.thread(
+    model="claude-opus-5-5",
+    max_tokens=4096,
+    cache_control={"type": "ephemeral"},
+    system="너는 저장소를 분석하는 코딩 에이전트야.",
+)
+first = thread.send({"role": "user", "content": "테스트 구조를 분석해 줘."})
+second = thread.send({"role": "user", "content": "커버리지가 빈 곳은?"})
+# 전체 대화가 필요하면: thread.messages
+{{< /highlight >}}
+
+<p>도구 루프까지 통째로 맡기고 싶으면 <code>thread.tool_runner()</code>를 쓰면 되고, SDK의 beta tool runner는 <strong>기본값부터 스레드를 사용</strong>합니다. Claude Code 사용자 대부분에게 이미 켜져 있다는 것과 같은 맥락입니다 — 이 기능은 "쓰러 가는" 기능이라기보다, 에이전트 스택의 기본 전송 방식으로 스며드는 중입니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>서버 스레드를 원본으로 믿기.</strong> 가장 위험한 실수입니다. 응답은 "이번 턴이 저장됐는지" 말해 주지 않고, 스레드는 5분이면 사라집니다. 대화 사본 보관과 replay 경로는 첫날부터 코드에 넣으세요. 프로세스를 넘어 살아야 하는 대화라면 SDK 헬퍼의 메모리 사본만으로도 부족합니다 — 직접 영속화해야 합니다.</li>
+  <li><strong>404 코드 안 보고 replay하기.</strong> 존재하지 않는 모델명도 404를 돌려줍니다. <code>error.details.error_code == "thread_not_found"</code>를 확인하고 replay하세요. 거꾸로, replay 직후에도 404가 또 나면 그 대화는 서버가 보관하기 너무 클 수 있으니 <code>thread</code> 없이 보내는 폴백도 준비해 두세요(헬퍼의 <code>unsupported_request_behavior="continue_unthreaded"</code>).</li>
+  <li><strong>스트리밍 중 성급한 continue.</strong> 응답 <code>id</code>는 <code>message_start</code>에서 일찍 도착하지만, continue는 <code>message_stop</code>을 받은 뒤에만 보내야 합니다. 먼저 보내면 404가 날 수 있습니다. 스트림이 중간에 끊겼다면 같은 continue를 재시도하되, <code>thread_already_continued</code>나 <code>thread_continue_in_flight</code>가 오면 서버가 이미 그 턴을 처리했을 수 있다는 뜻이니 전체 replay가 안전합니다.</li>
+  <li><strong>메시지 중복 전송.</strong> continue의 새 메시지를 서버는 기존 대화와 대조하지 않습니다. 이미 보낸 메시지를 또 보내면 대화에 두 번 들어가거나 에러가 납니다. "마지막으로 어디까지 보냈나"를 느슨하게 관리하면 미묘한 품질 저하로 돌아옵니다.</li>
+  <li><strong>refusal 후 continue.</strong> <code>stop_reason: "refusal"</code>이 나온 스레드는 이어 가지 마세요. 거부된 턴이 서버 사본에 남아 있을 수 있고 continue로는 지울 수 없습니다. 문제의 턴을 빼거나 고친 대화로 새 create를 보내는 게 정석입니다(헬퍼는 자동 처리).</li>
+  <li><strong>지원 범위 착각.</strong> Message Batches, 토큰 카운팅, compaction, 대부분의 context editing은 <code>thread</code>와 함께 못 씁니다. ZDR(zero data retention)·HIPAA 조직은 대상 외입니다. 조직 정책이 섞인 프로덕션이라면 <code>thread_unsupported_request</code>를 받았을 때 thread 없이 재시도하는 폴백이 필수입니다.</li>
+  <li><strong>"요금도 줄겠지"라는 기대.</strong> 다시 한번 — 토큰 사용량, 과금, rate limit 전부 그대로입니다. 비용을 줄이는 건 여전히 <a href="/posts/prompt-caching-cache-aware-agents/">프롬프트 캐싱</a>과 <a href="/posts/agent-token-diet-stack/">컨텍스트 다이어트</a>의 몫입니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>11월 2일 Anthropic이 Messages API에 <strong>message threads</strong> 공개 베타를 추가했습니다. 첫 요청에 대화 전체를 보내 스레드를 만들고(<code>thread: create</code>), 이후엔 새 메시지 + 직전 응답 id만 보냅니다(<code>continue</code>). beta 헤더는 <code>message-threads-2026-08-12</code>.</li>
+  <li>효과는 <strong>TTFT 절감</strong>: 대화 전체의 업로드·검증·토크나이즈가 새 턴 분량으로 줄어, 500k~1M 토큰 요청에서 중앙값 약 35% 감소. <strong>과금·rate limit은 불변</strong> — 모델은 여전히 전체를 읽습니다.</li>
+  <li>프롬프트 캐싱의 대체재가 아니라 <strong>세트</strong>입니다. threads는 전송 계층, 캐싱은 prefill 연산·과금 계층. 최상위 <code>cache_control</code>을 매 턴 실어 둘 다 챙기되, 브레이크포인트 4개 제한을 기억하세요.</li>
+  <li>스레드는 <strong>5분 만료의 best-effort 캐시</strong>입니다. 원본은 항상 클라이언트가 보관하고, <code>thread_not_found</code>(404)면 전체 대화로 새 create를 보내는 replay가 정상 흐름입니다. append-only라 수정·분기·요약은 전부 새 스레드.</li>
+  <li>OpenAI <code>previous_response_id</code>가 "대화를 서버 저장소에 위임"이라면, Claude threads는 "원본은 클라이언트, 서버는 왕복 최적화만". 장애 모델이 달라지는 설계 차이입니다.</li>
+  <li>SDK thread 헬퍼와 beta tool runner가 create/continue/replay를 대신 처리하고, Claude Code 대부분 사용자에겐 이미 기본 적용 — 에이전트 스택의 기본 전송 방식이 되는 중입니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://platform.claude.com/docs/en/build-with-claude/message-threads" target="_blank" rel="noopener">Message threads — Claude Platform 공식 문서</a></li>
+  <li><a href="https://claude.com/blog/message-threads" target="_blank" rel="noopener">Make long-running agents faster with message threads — Anthropic 공식 발표 (2026-11-02)</a></li>
+  <li><a href="https://platform.claude.com/docs/en/release-notes/api" target="_blank" rel="noopener">Claude API release notes — 2026-11-02 항목</a></li>
+  <li><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener">Prompt caching — Claude Platform 공식 문서</a></li>
+  <li><a href="https://platform.openai.com/docs/guides/conversation-state" target="_blank" rel="noopener">Conversation state (previous_response_id, store) — OpenAI 공식 문서</a></li>
+  <li><a href="https://www.unite.ai/anthropic-launches-message-threads-beta-for-long-running-agents/" target="_blank" rel="noopener">Anthropic Launches Message Threads Beta for Long-Running Agents — Unite.AI</a></li>
+  <li><a href="https://dev.to/gabrielanhaia/claudes-api-now-holds-your-agents-conversation-for-5-minutes-keep-your-own-copy-3a1e" target="_blank" rel="noopener">Claude's API now holds your agent's conversation for 5 minutes — dev.to 해설</a></li>
+  <li><a href="https://www.reddit.com/r/claude/comments/1klx3g4/claude_api_is_there_an_equivalent_to_previous/" target="_blank" rel="noopener">Claude API: is there an equivalent to previous_response_id? — Reddit (2025-05, 기능 요청의 전사)</a></li>
+  <li>관련해서 함께 읽기 — <a href="/posts/prompt-caching-cache-aware-agents/">프롬프트 캐싱과 캐시 인지 에이전트</a>, <a href="/posts/cache-engineering-agents-akv/">캐시 엔지니어링(AKV)</a>, <a href="/posts/agent-token-economics/">에이전트 토큰 이코노믹스</a>, <a href="/posts/open-responses-llm-api-standard/">Open Responses — LLM API 표준</a>, <a href="/posts/agent-token-diet-stack/">코딩 에이전트 토큰 다이어트</a> (이 블로그, 한국어)</li>
+</ul>

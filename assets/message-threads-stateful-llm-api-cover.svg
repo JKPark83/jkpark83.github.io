@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Message Threads를 설명하는 커버 그림. 왼쪽은 thread 없이 턴마다 대화 전체를 다시 업로드해 요청이 점점 길어지는 막대, 오른쪽은 thread로 새 메시지만 보내 요청이 계속 짧은 막대를 보여 주고, 가운데에 대화는 서버에, 요청은 새 턴만이라는 문구가 있다">
+  <defs>
+    <linearGradient id="mthbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b34"/>
+    </linearGradient>
+    <linearGradient id="mthbar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fb7185"/>
+      <stop offset="1" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="mthbar2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#mthbg)"/>
+
+  <!-- title -->
+  <text x="80" y="96" fill="#f8fafc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="48" font-weight="800">대화는 서버에, 요청은 새 턴만</text>
+  <text x="80" y="146" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="27" font-weight="600">Claude Messages API의 message threads — 긴 에이전트 루프의 TTFT 다이어트</text>
+  <text x="80" y="184" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="500">500k~1M 토큰 요청에서 첫 토큰까지의 시간 중앙값 약 35% 감소 (2026-11-02 공개 베타)</text>
+
+  <!-- left: without thread -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <text x="80" y="264" fill="#fda4af" font-size="24" font-weight="700">thread 없이 — 매 턴 전체 재전송</text>
+    <rect x="80" y="290" width="120" height="30" rx="7" fill="url(#mthbar)"/>
+    <rect x="80" y="330" width="230" height="30" rx="7" fill="url(#mthbar)"/>
+    <rect x="80" y="370" width="340" height="30" rx="7" fill="url(#mthbar)"/>
+    <rect x="80" y="410" width="450" height="30" rx="7" fill="url(#mthbar)"/>
+    <text x="80" y="486" fill="#94a3b8" font-size="21">요청 크기가 턴마다 자란다 → 업로드·검증·토크나이즈도 같이 자란다</text>
+  </g>
+
+  <!-- right: with thread -->
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <text x="660" y="264" fill="#5eead4" font-size="24" font-weight="700">thread로 — 새 메시지 + 직전 응답 id</text>
+    <rect x="660" y="290" width="120" height="30" rx="7" fill="url(#mthbar2)"/>
+    <rect x="660" y="330" width="56" height="30" rx="7" fill="url(#mthbar2)"/>
+    <rect x="660" y="370" width="64" height="30" rx="7" fill="url(#mthbar2)"/>
+    <rect x="660" y="410" width="52" height="30" rx="7" fill="url(#mthbar2)"/>
+    <text x="736" y="352" fill="#475569" font-size="19" font-family="ui-monospace,monospace">+ previous_message_id</text>
+    <text x="744" y="392" fill="#475569" font-size="19" font-family="ui-monospace,monospace">+ previous_message_id</text>
+    <text x="732" y="432" fill="#475569" font-size="19" font-family="ui-monospace,monospace">+ previous_message_id</text>
+    <text x="660" y="486" fill="#94a3b8" font-size="21">첫 턴만 전체를 보내고, 그다음부터는 늘 작다</text>
+  </g>
+
+  <!-- footer -->
+  <text x="80" y="566" fill="#64748b" font-family="ui-monospace,monospace" font-size="21">"thread": {"type": "continue", "previous_message_id": "msg_..."}</text>
+</svg>

@@ -1,0 +1,32 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="금요일 아침 브리핑 표지. AI 규제 공포에 나스닥은 5.52% 급락해 조정 국면에 들어갔고, 비트코인은 76,000달러선까지 밀렸습니다. 코스피도 5.28% 폭락했습니다. 어제 적어둔 무효화 조건이 발동돼 나스닥 1차 매수분은 손절 후 관망, 비트코인은 매도로 복귀합니다">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c1017"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.06 · 나스닥 &amp; 비트코인 5분 요약 · 금요일 아침판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#fda4af">AI 규제 공포 — 나스닥 -5.52% 조정 진입 · 코스피 -5.28% · BTC 76,000달러</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 하루 만의 반전</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.18"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">나스닥 -5.52%</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">24,315 · 조정 국면 진입</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">25,000 하회 — 1차분 손절</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 하루 만의 급반락</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#06b6d4" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#22d3ee">BTC 76,000</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5f3fc">하루 -6% · 청산 10억달러</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">78,000 이탈 — 룰대로 복귀</text>
+  </g>
+</svg>

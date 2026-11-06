@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="480" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-07</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="190" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="190" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="262" width="360" height="190" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="262" width="360" height="190" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="112" font-size="14" font-weight="600" fill="#222">GPT-6 Cyber (11/5, OpenAI)</text>
+  <text x="50" y="134" font-size="12.5" fill="#444">보안 특화 에이전트 모델 — 취약점 발굴·수정</text>
+  <text x="50" y="154" font-size="12.5" fill="#444">ExploitGym 48.5% (전작 32.1%)</text>
+  <text x="50" y="176" font-size="12.5" fill="#444">Preparedness "Critical" — 승인 고객 한정 공개</text>
+  <text x="50" y="202" font-size="12.5" fill="#666">API + Codex 경유, 일반 공개는 추후</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">Harness-S — 형제 하네스로 RL 구제</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">실패 궤적만 변형 하네스로 재굴림해 학습</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">EvoMemState — 사실에서 상태로</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">독립 사실 메모리에 관계 상태·추론 상태 추가</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">개인화 에이전트의 메모리 충돌 문제 겨냥</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="290" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스</text>
+  <text x="50" y="318" font-size="14" font-weight="600" fill="#222">dsh-superagent — DeepSeek 팀의 자율 에이전트</text>
+  <text x="50" y="340" font-size="12.5" fill="#444">레포 전담 상주 에이전트 프로토타입 · 20.2k★</text>
+  <text x="50" y="368" font-size="14" font-weight="600" fill="#222">unslop — AI 티 나는 UI 되살리기</text>
+  <text x="50" y="390" font-size="12.5" fill="#444">CC/Codex 스킬 · 감사→방향→패스 · 10.7k★</text>
+
+  <!-- 도구 팁 -->
+  <text x="430" y="290" font-size="15" font-weight="700" fill="#6d3a9c">🧑‍💻 도구 팁</text>
+  <text x="430" y="318" font-size="14" font-weight="600" fill="#222">CC: denyInsteadOfPrompting</text>
+  <text x="430" y="340" font-size="12.5" fill="#444">권한 프롬프트 대기 대신 거부하고 턴 계속</text>
+  <text x="430" y="368" font-size="14" font-weight="600" fill="#222">Codex: Code Mode 출력 절단 기본화</text>
+  <text x="430" y="390" font-size="12.5" fill="#444">호스트 측 출력 예산 — 컨텍스트 폭주 방지</text>
+
+  <text x="400" y="470" text-anchor="middle" font-size="11.5" fill="#888">전문화(보안 모델)와 자율화(상주 에이전트)가 같은 날 나란히 — 공통 과제는 '주의력 예산'</text>
+</svg>

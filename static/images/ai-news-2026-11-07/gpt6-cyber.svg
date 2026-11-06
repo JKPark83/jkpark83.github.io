@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">GPT-6 Cyber vs GPT-5.6 Cyber — 보도 기준 수치</text>
+
+  <!-- left: ExploitGym -->
+  <rect x="30" y="60" width="360" height="300" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="210" y="90" text-anchor="middle" font-size="15" font-weight="700" fill="#1f4e9c">ExploitGym 해결률 (%)</text>
+  <!-- scale: 100% = 220px, base y=330 -->
+  <rect x="90" y="259.4" width="90" height="70.6" rx="4" fill="#93aedd"/>
+  <text x="135" y="249" text-anchor="middle" font-size="15" font-weight="700" fill="#333">32.1</text>
+  <text x="135" y="350" text-anchor="middle" font-size="12.5" fill="#444">GPT-5.6 Cyber</text>
+  <rect x="230" y="223.3" width="90" height="106.7" rx="4" fill="#2f5fb3"/>
+  <text x="275" y="213" text-anchor="middle" font-size="15" font-weight="700" fill="#1f3f7a">48.5</text>
+  <text x="275" y="350" text-anchor="middle" font-size="12.5" fill="#444">GPT-6 Cyber</text>
+
+  <!-- right: scope adherence -->
+  <rect x="410" y="60" width="360" height="300" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="590" y="90" text-anchor="middle" font-size="15" font-weight="700" fill="#1e7a35">범위 밖 서비스 공격 회피율 (%)</text>
+  <!-- zoomed scale 90-100: 10% = 220px, base y=330 -->
+  <rect x="470" y="231.2" width="90" height="98.8" rx="4" fill="#8fcf9f"/>
+  <text x="515" y="221" text-anchor="middle" font-size="15" font-weight="700" fill="#333">94.49</text>
+  <text x="515" y="350" text-anchor="middle" font-size="12.5" fill="#444">GPT-5.6 Cyber</text>
+  <rect x="610" y="111.5" width="90" height="218.5" rx="4" fill="#2c8c4a"/>
+  <text x="655" y="101" text-anchor="middle" font-size="15" font-weight="700" fill="#1d5c31">99.93</text>
+  <text x="655" y="350" text-anchor="middle" font-size="12.5" fill="#444">GPT-6 Cyber</text>
+  <text x="590" y="378" text-anchor="middle" font-size="11" fill="#777">※ 90–100% 구간 확대 축 (안전 프롬프트 없이 측정)</text>
+
+  <text x="400" y="408" text-anchor="middle" font-size="11.5" fill="#888">출처: OpenAI 발표에 대한 The Register·The Hacker News 보도 (2026-11-05). 평가는 OpenAI 자체 벤치마크.</text>
+  <text x="400" y="428" text-anchor="middle" font-size="11.5" fill="#888">Preparedness Framework 분류 "Critical" — Daybreak Red 승인 고객에게만 API·Codex로 제공.</text>
+</svg>

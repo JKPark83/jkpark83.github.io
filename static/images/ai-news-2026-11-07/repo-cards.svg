@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">오늘의 레포 — '더 자율적으로' vs '더 사람답게'</text>
+
+  <!-- left card: dsh-superagent -->
+  <rect x="30" y="56" width="360" height="360" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <text x="50" y="86" font-size="16" font-weight="700" fill="#9c6a1f">dsh-superagent-prototype</text>
+  <text x="50" y="108" font-size="12.5" fill="#666">deepseek-ai · TypeScript · MIT · ~20.2k★</text>
+  <line x1="50" y1="122" x2="370" y2="122" stroke="#eed3a8"/>
+  <text x="50" y="146" font-size="13" font-weight="600" fill="#333">입력</text>
+  <text x="50" y="166" font-size="12.5" fill="#444">GitHub(이슈·멘션)·Feishu의 요청, 팀이 쓴 규칙</text>
+  <text x="50" y="194" font-size="13" font-weight="600" fill="#333">동작</text>
+  <text x="50" y="214" font-size="12.5" fill="#444">레포 하나를 전담해 상주 — 요청이 오면 자기</text>
+  <text x="50" y="232" font-size="12.5" fill="#444">세션·디렉터리에서 작업, PR로 응답</text>
+  <text x="50" y="260" font-size="13" font-weight="600" fill="#333">원칙</text>
+  <text x="50" y="280" font-size="12.5" fill="#444">"사람의 주의를 최소로 쓰고 가치를 최대로"</text>
+  <text x="50" y="298" font-size="12.5" fill="#444">요청·규칙 없이는 행동 안 함, 침묵이 기본</text>
+  <text x="50" y="326" font-size="13" font-weight="600" fill="#333">주의</text>
+  <text x="50" y="346" font-size="12.5" fill="#444">공식 제품 아닌 연구 프로토타입 — 코드 상당</text>
+  <text x="50" y="364" font-size="12.5" fill="#444">부분을 코딩 에이전트가 작성했다고 밝힘</text>
+  <text x="50" y="396" font-size="12" fill="#9c6a1f" font-weight="600">→ '팀의 막내 동료' 형태의 에이전트 설계 교본</text>
+
+  <!-- right card: unslop -->
+  <rect x="410" y="56" width="360" height="360" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+  <text x="430" y="86" font-size="16" font-weight="700" fill="#6d3a9c">unslop</text>
+  <text x="430" y="108" font-size="12.5" fill="#666">heydamir · JavaScript · CC BY 4.0 · ~10.7k★</text>
+  <line x1="430" y1="122" x2="750" y2="122" stroke="#d7bfe8"/>
+  <text x="430" y="146" font-size="13" font-weight="600" fill="#333">입력</text>
+  <text x="430" y="166" font-size="12.5" fill="#444">바이브코딩으로 만든 화면 (코드 또는 URL)</text>
+  <text x="430" y="194" font-size="13" font-weight="600" fill="#333">동작</text>
+  <text x="430" y="214" font-size="12.5" fill="#444">슬롭 감사 → 제품에서 디자인 방향 도출 →</text>
+  <text x="430" y="232" font-size="12.5" fill="#444">간격·색·아이콘·카피 순서로 패스별 수정</text>
+  <text x="430" y="260" font-size="13" font-weight="600" fill="#333">설치</text>
+  <text x="430" y="280" font-size="12.5" fill="#444">CC: ~/.claude/skills/에 복사 후 /unslop</text>
+  <text x="430" y="298" font-size="12.5" fill="#444">Codex: $skill-installer로 설치 후 $unslop</text>
+  <text x="430" y="326" font-size="13" font-weight="600" fill="#333">덤</text>
+  <text x="430" y="346" font-size="12.5" fill="#444">화면이 고쳐지는 10초 '스토리 영상' 생성</text>
+  <text x="430" y="364" font-size="12.5" fill="#444">(Playwright + ffmpeg 필요)</text>
+  <text x="430" y="396" font-size="12" fill="#6d3a9c" font-weight="600">→ 보라색 그라데이션·이모지 라벨 탈출용</text>
+
+  <text x="400" y="444" text-anchor="middle" font-size="11.5" fill="#888">별 수는 GitHub search API 기준 (2026-11-07 조회) — 둘 다 공개 2주 안에 1만★ 안팎.</text>
+</svg>

@@ -1,0 +1,358 @@
+---
+title: "그 응답, 정말 '그 모델'이 만들었을까 — Anthropic FlashProve로 배우는 provable inference"
+date: 2026-11-07T07:30:00+09:00
+draft: false
+tags: ["AI", "provable inference", "FlashProve", "zkSNARK", "영지식 증명", "inference", "서빙", "MoE", "Llama 4 Maverick", "Lean", "모델 검증", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "API 뒤에서 어떤 모델이 실제로 돌았는지, 지금은 확인할 방법이 없습니다. 라우터가 싼 모델로 바꿔치기해도, 피크 시간에 양자화 모델을 내보내도 출력만 보고는 못 잡습니다. 11월 2일 Anthropic Frontier Red Team이 EPFL·MIT·StarkWare와 함께 공개한 FlashProve는 이 문제를 암호학으로 풉니다 — 가중치는 숨긴 채 '이 응답은 commit된 바로 그 모델에서 나왔다'는 zkSNARK 증명을 만들고, 누구나 CPU에서 수 초 만에 검증합니다. 400B MoE 모델에서 증명 생성 110 토큰/초, 서빙 대비 약 72배 오버헤드. 왜 부동소수점이 적이고, MoE가 아군인지 — 증명 가능한 추론의 엔지니어링을 junior 눈높이에서 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "provable-inference-flashprove-cover.svg"
+  alt: "물음표가 붙은 API 블랙박스와, 자물쇠가 걸린 모델 가중치 commitment, 그리고 CPU에서 수 초 만에 검증되는 증명 파일을 보여 주는 커버 그림"
+  caption: "가중치는 숨기고, 추론은 증명한다 — provable inference의 약속"
+  relative: false
+---
+
+<style>
+/* ── provable inference 포스트 전용 스타일 (pvi- 접두사) ── */
+.pvi-fig{
+  --pvi-teal:#0d9488; --pvi-rose:#e11d48; --pvi-amber:#d97706; --pvi-sky:#0284c7;
+  --pvi-violet:#7c3aed; --pvi-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .pvi-fig{
+  --pvi-teal:#2dd4bf; --pvi-rose:#fb7185; --pvi-amber:#fbbf24; --pvi-sky:#38bdf8;
+  --pvi-violet:#a78bfa; --pvi-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .pvi-fig{
+    --pvi-teal:#2dd4bf; --pvi-rose:#fb7185; --pvi-amber:#fbbf24; --pvi-sky:#38bdf8;
+    --pvi-violet:#a78bfa; --pvi-slate:#94a3b8;
+  }
+}
+.pvi-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.pvi-fig text{font-family:inherit}
+.pvi-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.pvi-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.pvi-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.pvi-toc ol{margin:0;padding-left:1.25rem}
+.pvi-toc li{margin:.22rem 0;font-size:.95rem}
+.pvi-toc a{text-decoration:none}
+.pvi-toc a:hover{text-decoration:underline}
+.pvi-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.9rem}
+.pvi-table th,.pvi-table td{border:1px solid var(--border);padding:.45rem .65rem;text-align:left;vertical-align:top}
+.pvi-table th{background:var(--entry)}
+.pvi-note{border-left:4px solid var(--pvi-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.pvi-warn{border-left:4px solid var(--pvi-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="pvi-toc">
+  <div class="pvi-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — "모델을 바꿔치기해도 아무도 모른다"</a></li>
+    <li><a href="#sec-2">배경 — zkSNARK와 commitment, 3분 요약</a></li>
+    <li><a href="#sec-3">프로토콜 — 봉인하고, 증명하고, 아무나 검증한다</a></li>
+    <li><a href="#sec-4">엔지니어링 — 부동소수점은 적, MoE는 아군</a></li>
+    <li><a href="#sec-5">숫자로 보기 — 110 토큰/초와 72배의 의미</a></li>
+    <li><a href="#sec-6">실전 — 저장소를 열어 직접 검증해 보기</a></li>
+    <li><a href="#sec-7">한계와 흔한 오해</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-9">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — "모델을 바꿔치기해도 아무도 모른다"</h2>
+
+<p>LLM API를 쓰는 개발자라면 한 번쯤 품어 본 의심이 있습니다. <strong>"요즘 응답이 좀 멍청해진 것 같은데… 혹시 뒤에서 모델을 바꾼 거 아냐?"</strong> 새 모델이 나올 때마다 커뮤니티에 "nerf됐다"는 글이 올라오고, 제공사는 "모델은 그대로"라고 답하는 풍경이 반복됩니다. 문제는 이 논쟁을 끝낼 방법이 지금껏 없었다는 겁니다. 출력 품질은 프롬프트·온도·운에 따라 출렁이니, <strong>출력만 보고 어떤 모델이 돌았는지 판별하는 건 사실상 불가능</strong>합니다.</p>
+
+<p>의심할 이유는 충분합니다. 여러 제공사를 중개하는 라우팅 서비스가 요청을 더 싼 모델로 슬쩍 돌릴 수도 있고, 피크 시간에만 양자화(quantization)된 버전을 내보낼 수도 있고, 추론 서버에 접근한 공격자가 토큰 스트림을 조작할 수도 있습니다. 전부 <strong>사용자 쪽에서는 검출할 수 없는</strong> 시나리오입니다.</p>
+
+<p>11월 2일, Anthropic의 Frontier Red Team이 EPFL·MIT·StarkWare 연구자들과 함께 이 문제에 암호학으로 답하는 오픈소스 프로토타입 <a href="https://www.anthropic.com/research/provable-inference" target="_blank" rel="noopener">FlashProve</a>를 공개했습니다. 핵심 주장은 한 문장입니다. <strong>"이 응답은, 미리 commit해 둔 바로 그 가중치에서 나왔다"는 걸 가중치를 공개하지 않고 수학적으로 증명할 수 있다.</strong> 그것도 장난감 모델이 아니라 400B 파라미터 MoE 모델(Llama 4 Maverick)에서, 증명 생성 110 토큰/초라는 "쓸 만한" 속도로요. 공개 직후 <a href="https://techcrunch.com/2026/11/03/anthropic-is-working-on-a-system-to-prove-ai-models-identity/" target="_blank" rel="noopener">TechCrunch</a>를 비롯한 외신이 다뤘고, Hacker News에서는 "진짜 프로덕션에서 돌아가겠냐"는 회의론과 "서빙 신뢰 문제의 첫 실용적 해법"이라는 반론이 부딪히며 이번 주 AI 엔지니어링 쪽의 뜨거운 주제가 됐습니다.</p>
+
+<p>이 글은 FlashProve를 입구 삼아 <strong>provable inference(증명 가능한 추론)</strong>라는 분야 자체를 해부합니다. 영지식 증명을 몰라도 따라올 수 있게 바닥부터 쌓고, "왜 70배나 느린데도 의미가 있는지", 그리고 juniors가 여기서 가져갈 서빙 신뢰 모델의 사고방식까지 정리합니다.</p>
+
+<h2 id="sec-2">2. 배경 — zkSNARK와 commitment, 3분 요약</h2>
+
+<p>암호학 용어 두 개만 잡으면 나머지는 술술 읽힙니다.</p>
+
+<p><strong>commitment(커밋먼트)</strong>는 "내용은 숨기되, 나중에 바꿀 수 없게 봉인하는" 장치입니다. 비유하면 이렇습니다. 제가 예측 하나를 종이에 적어 금고에 넣고 잠근 뒤, 금고 열쇠 구멍 모양만 사진으로 공개합니다. 여러분은 안에 뭐가 적혔는지 모르지만, 제가 나중에 내용물을 몰래 바꿀 수 없다는 건 압니다. FlashProve에서 제공사는 모델 가중치 전체를 이렇게 봉인하고, 짧은 '지문'(fingerprint)만 공개합니다. 가중치는 영업 비밀로 남지만, <strong>이 지문이 가리키는 가중치는 단 하나</strong>로 고정됩니다.</p>
+
+<p><strong>zkSNARK</strong>(zero-knowledge succinct argument of knowledge, 영지식 간결 논증)는 "어떤 계산을 올바르게 수행했다"는 사실을, 계산 내용물을 보여 주지 않고 증명하는 기술입니다. 세 가지 성질이 핵심입니다.</p>
+
+<ul>
+  <li><strong>완전성(completeness)</strong> — 정직하게 만든 증명은 항상 통과합니다.</li>
+  <li><strong>건전성(soundness)</strong> — 거짓 명제의 증명을 위조하는 건 계산적으로 불가능합니다. FlashProve 저장소가 제시하는 수치로는, 해시 질의를 q번 하는 공격자가 속일 확률이 약 q/2<sup>124</sup> + 2<sup>-101</sup> — 사실상 0입니다.</li>
+  <li><strong>영지식(zero-knowledge)</strong> — 검증자는 증명에서 가중치도, 중간 계산값도, 어떤 expert가 선택됐는지도 알아낼 수 없습니다.</li>
+</ul>
+
+<p>여기에 <strong>간결성(succinctness)</strong>이 붙습니다. 증명 파일은 작고, 검증은 원래 계산보다 훨씬 쌉니다. 400B 모델의 추론을 검증하는 데 GPU가 아니라 <strong>평범한 CPU에서 수 초~수십 초</strong>면 됩니다. "검증이 생성보다 압도적으로 싸다"는 이 비대칭이 provable inference 전체를 떠받치는 기둥입니다. 제공사 한 곳이 비싸게 증명을 만들면, 세상 누구나 싸게 검증할 수 있으니까요.</p>
+
+<div class="pvi-note">
+<strong>용어 정리:</strong> 이런 기술을 LLM에 적용하는 분야를 통틀어 <strong>zkML</strong>(zero-knowledge machine learning) 또는 verifiable inference라고 부릅니다. FlashProve는 그중 "프론티어급 모델에서 처음으로 실용적인 속도를 보여 준" 사례로 주목받고 있습니다.</div>
+
+<h2 id="sec-3">3. 프로토콜 — 봉인하고, 증명하고, 아무나 검증한다</h2>
+
+<p>FlashProve의 흐름은 오프라인 1단계 + 온라인 2단계로 나뉩니다.</p>
+
+<figure class="pvi-fig">
+<svg viewBox="0 0 860 470" role="img" aria-label="FlashProve 프로토콜의 3단계 다이어그램. 1단계 오프라인에서 제공사가 가중치 commitment를 한 번 공개하고, 2단계 온라인에서 요청별로 증명 파일을 생성해 응답과 함께 전달하며, 3단계에서 검증자가 commitment·프롬프트·응답·증명만으로 CPU에서 검증한다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--pvi-sky)" font-size="16" font-weight="800">FlashProve 프로토콜 — 한 번 봉인, 요청마다 증명, 누구나 검증</text>
+
+  <!-- step 1 -->
+  <rect x="30" y="60" width="800" height="110" rx="12" fill="none" stroke="var(--pvi-violet)" stroke-width="2"/>
+  <text x="50" y="88" fill="var(--pvi-violet)" font-size="14" font-weight="800">① 오프라인 — commitment (모델당 1회, 약 39분)</text>
+  <rect x="50" y="102" width="190" height="52" rx="8" fill="var(--pvi-violet)" opacity="0.18"/>
+  <text x="145" y="124" text-anchor="middle" fill="var(--pvi-violet)" font-size="13" font-weight="700">가중치 400B (비공개)</text>
+  <text x="145" y="143" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">4-bit 정수 버전으로 고정</text>
+  <line x1="250" y1="128" x2="330" y2="128" stroke="var(--pvi-violet)" stroke-width="3"/>
+  <polygon points="330,121 346,128 330,135" fill="var(--pvi-violet)"/>
+  <rect x="356" y="102" width="200" height="52" rx="8" fill="var(--pvi-violet)" opacity="0.18"/>
+  <text x="456" y="124" text-anchor="middle" fill="var(--pvi-violet)" font-size="13" font-weight="700">commitment 공개</text>
+  <text x="456" y="143" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">다운로드 약 6.5MB</text>
+  <text x="600" y="124" fill="var(--pvi-slate)" font-size="12">같은 commitment로</text>
+  <text x="600" y="143" fill="var(--pvi-slate)" font-size="12">약 1,600만 요청까지 재사용</text>
+
+  <!-- step 2 -->
+  <rect x="30" y="190" width="800" height="120" rx="12" fill="none" stroke="var(--pvi-amber)" stroke-width="2"/>
+  <text x="50" y="218" fill="var(--pvi-amber)" font-size="14" font-weight="800">② 온라인 — 증명 생성 (요청마다, 사후 배치)</text>
+  <rect x="50" y="232" width="190" height="60" rx="8" fill="var(--pvi-amber)" opacity="0.18"/>
+  <text x="145" y="256" text-anchor="middle" fill="var(--pvi-amber)" font-size="13" font-weight="700">프롬프트 + 응답 토큰</text>
+  <text x="145" y="277" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">이미 서빙이 끝난 요청</text>
+  <line x1="250" y1="262" x2="330" y2="262" stroke="var(--pvi-amber)" stroke-width="3"/>
+  <polygon points="330,255 346,262 330,269" fill="var(--pvi-amber)"/>
+  <rect x="356" y="232" width="200" height="60" rx="8" fill="var(--pvi-amber)" opacity="0.18"/>
+  <text x="456" y="256" text-anchor="middle" fill="var(--pvi-amber)" font-size="13" font-weight="700">prover (H100 1장)</text>
+  <text x="456" y="277" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">24개 배치 · 110 토큰/초</text>
+  <line x1="566" y1="262" x2="646" y2="262" stroke="var(--pvi-amber)" stroke-width="3"/>
+  <polygon points="646,255 662,262 646,269" fill="var(--pvi-amber)"/>
+  <rect x="672" y="232" width="140" height="60" rx="8" fill="var(--pvi-amber)" opacity="0.18"/>
+  <text x="742" y="256" text-anchor="middle" fill="var(--pvi-amber)" font-size="13" font-weight="700">증명 파일</text>
+  <text x="742" y="277" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">약 19MB / 요청</text>
+
+  <!-- step 3 -->
+  <rect x="30" y="330" width="800" height="110" rx="12" fill="none" stroke="var(--pvi-teal)" stroke-width="2"/>
+  <text x="50" y="358" fill="var(--pvi-teal)" font-size="14" font-weight="800">③ 검증 — 가중치 없이, GPU 없이</text>
+  <rect x="50" y="372" width="300" height="52" rx="8" fill="var(--pvi-teal)" opacity="0.18"/>
+  <text x="200" y="394" text-anchor="middle" fill="var(--pvi-teal)" font-size="13" font-weight="700">commitment + 프롬프트 + 응답 + 증명</text>
+  <text x="200" y="413" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">가중치는 끝까지 안 봄</text>
+  <line x1="360" y1="398" x2="440" y2="398" stroke="var(--pvi-teal)" stroke-width="3"/>
+  <polygon points="440,391 456,398 440,405" fill="var(--pvi-teal)"/>
+  <rect x="466" y="372" width="200" height="52" rx="8" fill="var(--pvi-teal)" opacity="0.18"/>
+  <text x="566" y="394" text-anchor="middle" fill="var(--pvi-teal)" font-size="13" font-weight="700">CPU 검증기</text>
+  <text x="566" y="413" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">24스레드 17초 · 1스레드 21초</text>
+  <text x="700" y="394" fill="var(--pvi-teal)" font-size="22" font-weight="800">&#10003; / &#10007;</text>
+  <text x="700" y="416" fill="var(--pvi-slate)" font-size="12">수락 또는 거부</text>
+</svg>
+<figcaption>모델당 한 번 commitment를 만들고(①), 서빙이 끝난 요청을 배치로 모아 증명을 만들고(②), 검증은 누구나 CPU로 합니다(③). 수치는 Llama 4 Maverick(400B MoE) 기준 Anthropic 보고치입니다.</figcaption>
+</figure>
+
+<p>순서를 뜯어 보면 설계 의도가 보입니다.</p>
+
+<p><strong>① commitment는 모델당 한 번.</strong> 약 232GB짜리 양자화 가중치를 봉인하는 데 39분이 걸리지만, 한 번 만든 commitment는 약 1,600만 요청까지 재사용합니다. 검증자가 미리 받아 둘 것은 6.5MB짜리 commitment 파일뿐입니다.</p>
+
+<p><strong>② 증명은 '사후(post-hoc)'에 배치로.</strong> FlashProve는 서빙 경로에 끼어들지 않습니다. 이미 끝난 요청들(프롬프트 + 출력 토큰)을 24개씩 모아, 프리필(prefill)과 비슷한 병렬 패스로 한꺼번에 다시 읽으며 증명을 만듭니다. 응답 지연에 영향을 주지 않는 대신, 증명은 나중에 도착합니다. "지금 이 응답"이 아니라 "어제의 트래픽"을 감사하는 모델에 가깝습니다.</p>
+
+<p><strong>③ 검증은 철저히 가볍게.</strong> 검증자가 가진 것은 commitment, 프롬프트, 응답, 증명 파일 네 가지뿐입니다. 가중치도, GPU도 필요 없습니다. 증명이 통과하면 "이 출력 토큰들은 commit된 모델을 평가했을 때 나오는 토큰이 맞다"는 명제가 수학적으로 보증됩니다.</p>
+
+<p>의사 코드로 쓰면 이 정도 그림입니다.</p>
+
+{{< highlight python >}}
+# 개념 흐름 — 실제 API가 아니라 프로토콜의 뼈대입니다
+
+# ① 오프라인: 제공사가 모델당 1회 수행
+commitment = commit(quantize_int4(weights))   # 가중치는 비공개, 지문만 공개
+publish(commitment)                           # 약 6.5MB
+
+# ② 온라인: 서빙이 끝난 요청을 모아 사후 증명
+batch = collect_finished_requests(n=24)       # (프롬프트, 출력 토큰) 쌍
+proofs = prove(weights, batch)                # H100 1장, 110 tok/s
+send_to_verifier(proofs)                      # 요청당 약 19MB
+
+# ③ 검증: 누구나, CPU로
+ok = verify(commitment, prompt, reply, proof) # 17~21초
+# ok == True 이면: "commit된 그 모델이 이 토큰들을 생성했다"가 보증됨
+{{< /highlight >}}
+
+<h2 id="sec-4">4. 엔지니어링 — 부동소수점은 적, MoE는 아군</h2>
+
+<p>"신경망 계산을 zkSNARK로 증명한다"는 아이디어 자체는 몇 년 된 이야기입니다. 문제는 속도였습니다. 프론티어급 모델에 닿으려면 두 개의 벽을 넘어야 하고, FlashProve의 재미는 이 벽을 넘는 방식에 있습니다.</p>
+
+<h3>벽 1: GPU 부동소수점은 증명하기 끔찍하다</h3>
+
+<p>zkSNARK는 계산을 유한체(finite field) 위의 산술, 쉽게 말해 <strong>깔끔한 정수 연산</strong>으로 바꿔서 증명합니다. 그런데 GPU 추론은 부동소수점(floating point) 세상입니다. 반올림 규칙이 복잡하고, 더하는 순서에 따라 결과가 미세하게 달라지는 비결정성(nondeterminism)까지 있습니다. "어젯밤 GPU가 뱉은 바로 그 부동소수점 계산"을 증명 대상으로 삼으면 비용이 폭발합니다.</p>
+
+<p>FlashProve의 선택은 과감합니다. <strong>증명 대상을 아예 정수 모델로 바꿔 버립니다.</strong> 공개된 4-bit 양자화 가중치로 정수 산술 프리필을 정의하고, 그 정수 모델에 대해 "각 검증 토큰이 모델의 greedy 선택(가장 확률 높은 토큰)과 일치한다"를 증명합니다. 정수 모델은 결정적이므로 증명하기 좋고, 저자들의 측정으로는 부동소수점 추론과의 불일치율도 작습니다. 대신 트레이드오프가 생깁니다 — 증명이 보증하는 건 어디까지나 <strong>정수 버전 모델의 greedy 출력</strong>이고, temperature 샘플링이나 부동소수점 경로가 다른 토큰을 골랐다면 그 지점부터는 증명과 어긋날 수 있습니다. 7장에서 다시 봅니다.</p>
+
+<h3>벽 2: 400B 파라미터를 다 증명할 수는 없다</h3>
+
+<p>여기서 MoE(Mixture-of-Experts) 구조가 뜻밖의 아군이 됩니다. Llama 4 Maverick은 전체 400B 파라미터지만, 토큰 하나를 처리할 때 실제로 활성화되는 건 <strong>약 17B</strong>뿐입니다. FlashProve의 prover 비용은 전체 파라미터가 아니라 <strong>활성 파라미터에 비례</strong>하도록 설계됐습니다. 23배 차이입니다. 밀집(dense) 400B 모델이었다면 지금의 속도는 나오지 않았을 겁니다. 영리한 점은, 증명 비용은 활성 expert만큼만 내면서도 <strong>어떤 expert가 선택됐는지는 영지식으로 숨긴다</strong>는 것입니다. expert 선택 패턴도 모델의 영업 비밀일 수 있으니까요.</p>
+
+<figure class="pvi-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="FlashProve가 넘은 두 개의 벽을 보여 주는 다이어그램. 왼쪽은 부동소수점 비결정성 문제를 4-bit 정수 모델과 greedy 디코딩 고정으로 푸는 과정, 오른쪽은 400B 전체가 아니라 토큰당 활성화되는 17B만 증명 비용을 내는 MoE 구조를 보여 준다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--pvi-sky)" font-size="16" font-weight="800">프론티어 모델 증명의 두 벽, 그리고 FlashProve의 해법</text>
+
+  <!-- left: float wall -->
+  <rect x="30" y="56" width="390" height="320" rx="12" fill="none" stroke="var(--pvi-rose)" stroke-width="2"/>
+  <text x="225" y="86" text-anchor="middle" fill="var(--pvi-rose)" font-size="14" font-weight="800">벽 1 — 부동소수점</text>
+  <rect x="60" y="104" width="330" height="64" rx="8" fill="var(--pvi-rose)" opacity="0.15"/>
+  <text x="225" y="130" text-anchor="middle" fill="var(--pvi-rose)" font-size="13" font-weight="700">GPU 부동소수점 연산</text>
+  <text x="225" y="152" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">반올림 복잡 · 더하는 순서 따라 결과 변동</text>
+  <line x1="225" y1="176" x2="225" y2="206" stroke="var(--pvi-rose)" stroke-width="3"/>
+  <polygon points="218,206 225,222 232,206" fill="var(--pvi-rose)"/>
+  <rect x="60" y="230" width="330" height="64" rx="8" fill="var(--pvi-teal)" opacity="0.15"/>
+  <text x="225" y="256" text-anchor="middle" fill="var(--pvi-teal)" font-size="13" font-weight="700">4-bit 정수 모델로 고정</text>
+  <text x="225" y="278" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">결정적 정수 산술 + greedy 디코딩만 증명</text>
+  <text x="225" y="330" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">대가: 샘플링·FP 경로와는</text>
+  <text x="225" y="350" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">드물게 어긋날 수 있음</text>
+
+  <!-- right: MoE wall -->
+  <rect x="440" y="56" width="390" height="320" rx="12" fill="none" stroke="var(--pvi-violet)" stroke-width="2"/>
+  <text x="635" y="86" text-anchor="middle" fill="var(--pvi-violet)" font-size="14" font-weight="800">벽 2 — 모델 크기</text>
+  <rect x="470" y="104" width="330" height="80" rx="8" fill="var(--pvi-violet)" opacity="0.12"/>
+  <text x="635" y="130" text-anchor="middle" fill="var(--pvi-violet)" font-size="13" font-weight="700">전체 가중치 400B</text>
+  <!-- expert grid -->
+  <g opacity="0.85">
+    <rect x="492" y="142" width="24" height="24" rx="4" fill="var(--pvi-slate)" opacity="0.35"/>
+    <rect x="522" y="142" width="24" height="24" rx="4" fill="var(--pvi-teal)"/>
+    <rect x="552" y="142" width="24" height="24" rx="4" fill="var(--pvi-slate)" opacity="0.35"/>
+    <rect x="582" y="142" width="24" height="24" rx="4" fill="var(--pvi-slate)" opacity="0.35"/>
+    <rect x="612" y="142" width="24" height="24" rx="4" fill="var(--pvi-slate)" opacity="0.35"/>
+    <rect x="642" y="142" width="24" height="24" rx="4" fill="var(--pvi-teal)"/>
+    <rect x="672" y="142" width="24" height="24" rx="4" fill="var(--pvi-slate)" opacity="0.35"/>
+    <rect x="702" y="142" width="24" height="24" rx="4" fill="var(--pvi-slate)" opacity="0.35"/>
+    <rect x="732" y="142" width="24" height="24" rx="4" fill="var(--pvi-slate)" opacity="0.35"/>
+    <rect x="762" y="142" width="24" height="24" rx="4" fill="var(--pvi-slate)" opacity="0.35"/>
+  </g>
+  <line x1="635" y1="192" x2="635" y2="222" stroke="var(--pvi-violet)" stroke-width="3"/>
+  <polygon points="628,222 635,238 642,222" fill="var(--pvi-violet)"/>
+  <rect x="470" y="246" width="330" height="64" rx="8" fill="var(--pvi-teal)" opacity="0.15"/>
+  <text x="635" y="272" text-anchor="middle" fill="var(--pvi-teal)" font-size="13" font-weight="700">증명 비용은 활성 17B에만 비례</text>
+  <text x="635" y="294" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">약 23배 절감 — 단, expert 선택은 영지식으로 은닉</text>
+  <text x="635" y="340" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">H100 1장 + 호스트 메모리 약 290GB로</text>
+  <text x="635" y="360" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">가중치를 레이어 조각으로 스트리밍</text>
+</svg>
+<figcaption>증명 대상을 결정적 정수 모델로 바꿔 부동소수점 문제를 우회하고(왼쪽), MoE의 희소성 덕에 활성 파라미터만큼만 비용을 냅니다(오른쪽).</figcaption>
+</figure>
+
+<p>하드웨어 요구 사항도 눈여겨볼 만합니다. 증명에는 H100 8장이 아니라 <strong>80GB GPU 한 장 + 호스트 메모리 약 290GB</strong>면 됩니다. 가중치를 레이어 단위 조각으로 쪼개 호스트 메모리에서 GPU로 흘려보내는(streaming) 구조라, VRAM에 모델이 통째로 들어갈 필요가 없습니다. 증명은 지연에 민감하지 않은 배치 작업이니 가능한 설계입니다 — 같은 모델을 '서빙'할 때와 '증명'할 때의 하드웨어 전략이 갈리는 지점이 재미있습니다.</p>
+
+<h2 id="sec-5">5. 숫자로 보기 — 110 토큰/초와 72배의 의미</h2>
+
+<p>Anthropic이 보고한 수치를 한 표로 모으면 이렇습니다. 모두 Llama 4 Maverick(400B MoE, 활성 17B), 공개된 4-bit 가중치, prover는 H100 1장 + CPU 24코어 기준입니다.</p>
+
+<table class="pvi-table">
+  <tr><th>항목</th><th>수치</th><th>비고</th></tr>
+  <tr><td>commitment 생성</td><td>약 39분</td><td>모델당 1회, 약 1,600만 요청까지 재사용</td></tr>
+  <tr><td>commitment 다운로드</td><td>약 6.5MB</td><td>검증자가 미리 받아 둘 파일</td></tr>
+  <tr><td>증명 생성 처리량</td><td>약 110 토큰/초</td><td>24개 요청 배치, 배치당 약 223초</td></tr>
+  <tr><td>증명 크기</td><td>약 18.78MB</td><td>1,024 토큰 요청 1건 기준</td></tr>
+  <tr><td>검증 시간</td><td>17초(24스레드) / 21초(1스레드)</td><td>CPU만 사용, 오프라인 검사 포함</td></tr>
+  <tr><td>서빙 대비 오버헤드</td><td>약 72배 (측정 66~77배)</td><td>vLLM(FP8, H100 8장) 대비 GPU 시간 기준, 최고 부하에선 약 94배</td></tr>
+  <tr><td>컨텍스트 한계</td><td>1,024 토큰</td><td>현재 프로토타입의 가장 큰 제약</td></tr>
+</table>
+
+<p>"72배"라는 숫자만 보면 비현실적으로 느껴질 수 있습니다. 하지만 이 분야의 직전 기록들과 나란히 놓으면 이야기가 달라집니다.</p>
+
+<figure class="pvi-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="검증 가능한 추론 시스템들의 증명 생성 속도를 비교한 가로 막대 차트. zkLLM은 13B 모델에서 초당 약 2.5토큰, DeepProve는 GPT-2에서 초당 약 2.9토큰, VerInf는 400B 모델에서 1000토큰에 14.3시간, Attestable은 31B 모델에서 초당 53에서 77토큰, FlashProve는 400B 모델에서 초당 약 110토큰이다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--pvi-sky)" font-size="16" font-weight="800">증명 생성 속도 비교 — 모델 크기와 함께 봐야 하는 숫자</text>
+
+  <g font-size="13">
+    <!-- zkLLM -->
+    <text x="30" y="88" fill="var(--pvi-slate)">zkLLM · 13B</text>
+    <rect x="240" y="74" width="12" height="22" rx="4" fill="var(--pvi-slate)" opacity="0.7"/>
+    <text x="262" y="90" fill="var(--pvi-slate)">약 2.5 tok/s (A100 1장, 배치)</text>
+
+    <!-- DeepProve -->
+    <text x="30" y="148" fill="var(--pvi-slate)">DeepProve · GPT-2</text>
+    <rect x="240" y="134" width="14" height="22" rx="4" fill="var(--pvi-slate)" opacity="0.7"/>
+    <text x="264" y="150" fill="var(--pvi-slate)">약 2.9 tok/s (1대 기준)</text>
+
+    <!-- VerInf -->
+    <text x="30" y="208" fill="var(--pvi-slate)">VerInf · 400B MoE</text>
+    <rect x="240" y="194" width="6" height="22" rx="3" fill="var(--pvi-rose)" opacity="0.8"/>
+    <text x="256" y="210" fill="var(--pvi-rose)">1,000토큰에 14.3시간 · 증명 93.6GB</text>
+
+    <!-- Attestable -->
+    <text x="30" y="268" fill="var(--pvi-slate)">Attestable · 31B</text>
+    <rect x="240" y="254" width="330" height="22" rx="4" fill="var(--pvi-amber)" opacity="0.8"/>
+    <text x="580" y="270" fill="var(--pvi-amber)">53~77 tok/s (H100 1장, 비공개 상용)</text>
+
+    <!-- FlashProve -->
+    <text x="30" y="328" fill="var(--pvi-teal)" font-weight="700">FlashProve · 400B MoE</text>
+    <rect x="240" y="314" width="520" height="22" rx="4" fill="var(--pvi-teal)" opacity="0.9"/>
+    <text x="300" y="330" fill="#fff" font-weight="700">약 110 tok/s (H100 1장, 오픈소스)</text>
+  </g>
+
+  <text x="430" y="386" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">같은 400B급 모델 기준, 직전 공개 연구(VerInf)의 "1,000토큰 = 14.3시간"에서 "초당 110토큰"으로.</text>
+  <text x="430" y="406" text-anchor="middle" fill="var(--pvi-slate)" font-size="12">출처: Anthropic provable inference 포스트의 선행 연구 비교 (각 시스템의 자체 보고치)</text>
+</svg>
+<figcaption>속도만 단순 비교하면 안 되는 차트입니다 — 모델 크기가 제각각이니까요. 핵심은 같은 400B급에서 시간 단위가 '시간'에서 '초'로 바뀌었다는 점입니다.</figcaption>
+</figure>
+
+<p>직전 공개 연구인 VerInf는 같은 Llama 4 Maverick에서 1,000토큰을 증명하는 데 <strong>14.3시간</strong>, 증명 크기는 <strong>93.6GB</strong>였습니다. FlashProve는 같은 분량을 초 단위로 증명하고 증명 크기도 19MB 수준입니다. "원리적으로 가능하다"에서 "감사(audit) 용도로는 쓸 만하다"로 체급이 바뀐 셈이고, 이게 이번 공개가 화제가 된 실질적 이유입니다.</p>
+
+<div class="pvi-note">
+<strong>그래서 비용은?</strong> 오버헤드 72배를 뒤집으면, <strong>전체 트래픽의 일부만 표본 추출해 증명</strong>하는 그림이 나옵니다. 예컨대 트래픽의 1%만 무작위로 골라 증명해도 "상시 바꿔치기"는 통계적으로 금방 들통납니다. 전수 증명이 아니라 감사 표본이라고 생각하면 72배는 갑자기 현실적인 숫자가 됩니다.</div>
+
+<h2 id="sec-6">6. 실전 — 저장소를 열어 직접 검증해 보기</h2>
+
+<p>FlashProve는 <a href="https://github.com/anthropics/FlashProve" target="_blank" rel="noopener">github.com/anthropics/FlashProve</a>에 Apache 2.0으로 전부 공개돼 있습니다. prover(C++/CUDA, H100 필요), CPU 검증기, Lean 4 형식 증명, 프로토콜 명세, 그리고 <strong>샘플 증명 파일</strong>까지 들어 있어서, GPU 없이도 검증 쪽은 직접 만져 볼 수 있습니다.</p>
+
+{{< highlight bash >}}
+git clone https://github.com/anthropics/FlashProve
+cd FlashProve
+
+# 구조 훑어보기
+# prover/        — GPU prover (H100 + CUDA, 증명 '생성'은 여기)
+# verifier/      — C++ 고속 검증기 cp_verify (CPU만으로 동작)
+# lean/          — 프로토콜 건전성의 Lean 4 형식 증명 (THEOREM.md부터)
+# docs/          — 프로토콜 명세와 증명 파일 포맷
+# examples/      — 수락되는 증명 / 거부되는 증명 샘플
+# integrations/  — check_proof.py 등 검증 연동 스크립트
+{{< /highlight >}}
+
+<p>junior에게 권하는 코스는 세 단계입니다. 먼저 <code>examples/</code>의 샘플로 "통과하는 증명"과 "거부되는 증명"을 검증기에 넣어 보고, 다음으로 <code>docs/</code>의 포맷 문서로 증명 파일 안에 뭐가 들었는지 확인하고, 마지막으로 <code>lean/THEOREM.md</code>에서 "이 코드가 증명한다고 주장하는 명제가 정확히 뭔지"를 읽는 것입니다. 특히 세 번째가 중요합니다 — 이 프로젝트의 독특한 점이 <strong>완전성·건전성·영지식이라는 최상위 보안 명제를 Lean으로 형식화</strong>했다는 것이기 때문입니다(랜덤 오라클 모델 기준). 검증기도 두 벌입니다. 빠른 C++ 검증기와, 느리지만 Lean 명세에서 직접 나온 실행 가능한 검증기가 있고, 모든 테스트에서 두 결과가 일치합니다.</p>
+
+<div class="pvi-note">
+<strong>Lean이 낯설다면</strong> — 이 블로그의 <a href="/posts/llm-formal-verification-scale/">LLM과 형식 검증</a> 글에서 "코드가 아니라 명제를 믿는다"는 개념을 먼저 잡고 오면 THEOREM.md가 한결 수월합니다. 다만 거기서는 LLM이 증명을 '쓰는' 쪽이었다면, 여기서는 암호 프로토콜의 안전성을 사람이 Lean으로 못 박아 둔 경우라 방향이 반대입니다.</div>
+
+<p>현실적인 기대치도 적어 둡니다. 실제 Maverick 크기의 증명 생성을 재현하려면 H100과 300GB 넘는 RAM이 필요하고, README 기준 단일 토큰 증명에도 시간 단위가 걸립니다. 저장소 설명에는 "research prototype, not maintained"가 명시돼 있습니다. 학습용 교보재이자 재현 가능한 벤치마크이지, 가져다 붙이는 라이브러리가 아닙니다.</p>
+
+<h2 id="sec-7">7. 한계와 흔한 오해</h2>
+
+<p>발표가 화제가 된 만큼 과대 해석도 많이 돌았습니다. 증명이 보증하는 범위를 정확히 긋는 게 이 주제의 절반입니다.</p>
+
+<ul>
+  <li><strong>"내 채팅이 증명되는 건 아니다."</strong> 컨텍스트 한계가 1,024 토큰입니다. 시스템 프롬프트만으로 수천 토큰을 쓰는 실제 챗·에이전트 트래픽에는 아직 턱없이 짧습니다. 저자들도 컨텍스트 확장을 1순위 future work로 꼽습니다.</li>
+  <li><strong>greedy 디코딩만 증명합니다.</strong> 증명 명제는 "각 토큰이 정수 모델의 greedy 선택과 일치한다"입니다. temperature 샘플링으로 뽑은 응답은 어느 지점부터 greedy 경로와 갈라질 수 있고, 그 토큰은 증명 대상이 아닙니다.</li>
+  <li><strong>증명되는 건 '정수 모델'입니다.</strong> 실제 서빙되는 부동소수점 모델과 commit된 4-bit 정수 모델은 수학적으로 다른 함수입니다. 둘의 출력이 거의 일치한다는 건 경험적 측정이지 증명이 아니고, 저자들 스스로 <strong>적대적으로 설계된 프롬프트에서는 이 근사가 보장되지 않는다</strong>고 적었습니다.</li>
+  <li><strong>아키텍처는 숨기지 않습니다.</strong> 가중치·중간값·expert 선택은 영지식으로 보호되지만, MoE 구조라는 사실 자체는 공개 전제입니다. 아키텍처까지 숨기는 commitment는 future work입니다.</li>
+  <li><strong>타이밍 같은 사이드 채널 공격은 범위 밖</strong>이고, "제공사가 내 데이터로 몰래 학습하지 않는다" 같은 것도 이 증명이 보증하는 명제가 아닙니다.</li>
+  <li><strong>Anthropic이 API에 붙인다는 발표가 아닙니다.</strong> <a href="https://techcrunch.com/2026/11/03/anthropic-is-working-on-a-system-to-prove-ai-models-identity/" target="_blank" rel="noopener">TechCrunch 보도</a>에 따르면 당장 배포 계획은 없습니다. 연구 분야 자체를 가속하려는 오픈소스 공개로 읽는 게 정확합니다.</li>
+</ul>
+
+<p>그럼에도 junior 엔지니어가 이 주제를 알아 둘 이유는 분명합니다. 첫째, <strong>서빙 신뢰 모델이라는 사고방식</strong>입니다. "API 응답을 믿는다"는 말에는 사실 모델 동일성·버전 고정·비조작이라는 여러 가정이 뭉쳐 있고, 이번 공개는 그 가정들을 처음으로 분해해 하나씩 검증 가능하게 만들었습니다. <a href="/posts/kv-cache-isolation-multitenant-serving/">KV 캐시 유출 사고</a>에서 봤듯, 서빙 계층의 신뢰는 공짜가 아닙니다. 둘째, <strong>제3자 라우터 생태계</strong>가 커질수록 "중개자가 약속한 모델을 정말 호출했는가"는 돈이 걸린 질문이 됩니다. 셋째, 규제와 평가입니다. 벤치마크 제출 모델과 서빙 모델이 같다는 것, 감사 시점의 모델이 승인받은 그 모델이라는 것을 증명할 수단은 지금까지 "회사의 말"뿐이었습니다. <a href="/posts/hermetic-agent-evals/">평가 무결성</a>에 민감한 조직이라면 이 흐름이 어디로 가는지 지켜볼 가치가 있습니다.</p>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>11월 2일 Anthropic Frontier Red Team이 EPFL·MIT·StarkWare와 함께 <strong>FlashProve</strong>를 공개했습니다 — "이 응답은 commit된 그 가중치에서 나왔다"를 가중치 공개 없이 증명하는 <strong>provable inference</strong>의 오픈소스 프로토타입입니다(Apache 2.0).</li>
+  <li>프로토콜은 3단계: 모델당 1회 <strong>commitment</strong>(39분, 6.5MB) → 서빙이 끝난 요청을 배치로 모아 <strong>zkSNARK 증명 생성</strong>(H100 1장, 110 tok/s, 요청당 약 19MB) → 누구나 <strong>CPU로 검증</strong>(17~21초).</li>
+  <li>핵심 엔지니어링 두 가지: 부동소수점 대신 <strong>4-bit 정수 모델 + greedy 디코딩</strong>을 증명 대상으로 고정했고, MoE 덕에 증명 비용이 400B 전체가 아니라 <strong>활성 17B에만 비례</strong>합니다(expert 선택은 영지식으로 은닉).</li>
+  <li>서빙(vLLM FP8, H100 8장) 대비 오버헤드는 GPU 시간 기준 <strong>약 72배</strong>(최고 부하 94배). 전수 증명이 아니라 <strong>트래픽 표본 감사</strong>로 보면 현실적인 숫자이고, 직전 연구(같은 모델에서 1,000토큰에 14.3시간)와 비교하면 체급이 다릅니다.</li>
+  <li>한계도 뚜렷합니다: 컨텍스트 1,024 토큰, greedy만, 정수 모델 근사(적대적 프롬프트 미보장), 아키텍처 비은닉, 연구 프로토타입("not maintained"). Anthropic API에 붙는다는 발표가 아닙니다.</li>
+  <li>완전성·건전성·영지식 명제를 <strong>Lean 4로 형식화</strong>한 점이 독특합니다. GPU 없이도 저장소의 샘플 증명과 <code>lean/THEOREM.md</code>로 "무엇이 증명되고 무엇이 아닌지"를 직접 확인해 볼 수 있습니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.anthropic.com/research/provable-inference" target="_blank" rel="noopener">Provable inference — Anthropic 공식 연구 포스트 (2026-11-02)</a></li>
+  <li><a href="https://github.com/anthropics/FlashProve" target="_blank" rel="noopener">anthropics/FlashProve — 공식 저장소 (prover · 검증기 2종 · Lean 증명 · 프로토콜 명세, Apache 2.0)</a></li>
+  <li><a href="https://techcrunch.com/2026/11/03/anthropic-is-working-on-a-system-to-prove-ai-models-identity/" target="_blank" rel="noopener">Anthropic is working on a system to prove AI models' identity — TechCrunch (2026-11-03)</a></li>
+  <li><a href="https://www.helpnetsecurity.com/2026/11/04/anthropic-flashprove-provable-inference/" target="_blank" rel="noopener">Anthropic open-sources FlashProve — Help Net Security (2026-11-04)</a></li>
+  <li><a href="https://cryptobriefing.com/anthropic-flashprove-zksnark-ai-inference/" target="_blank" rel="noopener">Anthropic's FlashProve uses zero-knowledge proofs to verify large AI model outputs — Crypto Briefing</a></li>
+  <li><a href="https://dev.to/alifar/anthropic-flashprove-shows-how-ai-outputs-could-become-cryptographically-verifiable-17hh" target="_blank" rel="noopener">Anthropic FlashProve Shows How AI Outputs Could Become Cryptographically Verifiable — dev.to 해설</a></li>
+  <li>관련해서 함께 읽기 — <a href="/posts/llm-formal-verification-scale/">LLM이 깨운 형식 검증의 시대</a>, <a href="/posts/kv-cache-isolation-multitenant-serving/">멀티테넌트 LLM 서빙과 KV 캐시 격리</a>, <a href="/posts/hermetic-agent-evals/">허메틱 에이전트 평가</a>, <a href="/posts/verifier-engineering-ai-output/">AI 출력 검증기 엔지니어링</a>, <a href="/posts/model-routing-small-models/">모델 라우팅·캐스케이드 엔지니어링</a> (이 블로그, 한국어)</li>
+</ul>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="FlashProve를 설명하는 커버 그림. 왼쪽에는 물음표가 붙은 API 블랙박스, 오른쪽에는 자물쇠가 걸린 모델 가중치와 그로부터 나온 증명 파일, 그리고 CPU에서 수 초 만에 검증된다는 체크 표시가 있다">
+  <defs>
+    <linearGradient id="pvibg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1b1033"/>
+    </linearGradient>
+    <linearGradient id="pvibox" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#pvibg)"/>
+
+  <!-- title -->
+  <text x="80" y="96" fill="#f8fafc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">그 응답, 정말 '그 모델'이 만들었을까</text>
+  <text x="80" y="146" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="27" font-weight="600">Anthropic FlashProve — 가중치는 숨기고, 추론은 증명하는 provable inference</text>
+  <text x="80" y="184" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="500">400B MoE 모델의 응답을 zkSNARK로 증명 · 검증은 CPU에서 수 초 (2026-11-02 공개)</text>
+
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <!-- left: black box API -->
+    <rect x="95" y="268" width="300" height="190" rx="18" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+    <text x="245" y="332" text-anchor="middle" fill="#94a3b8" font-size="24" font-weight="700">LLM API</text>
+    <text x="245" y="384" text-anchor="middle" fill="#fb7185" font-size="52" font-weight="800">?</text>
+    <text x="245" y="432" text-anchor="middle" fill="#64748b" font-size="17">어떤 가중치가 돌았는지 알 수 없음</text>
+
+    <!-- arrow -->
+    <line x1="415" y1="363" x2="520" y2="363" stroke="#7c3aed" stroke-width="5"/>
+    <polygon points="520,351 545,363 520,375" fill="#7c3aed"/>
+
+    <!-- middle: committed weights -->
+    <rect x="565" y="268" width="280" height="190" rx="18" fill="none" stroke="url(#pvibox)" stroke-width="3"/>
+    <text x="705" y="318" text-anchor="middle" fill="#c4b5fd" font-size="21" font-weight="700">가중치 commitment</text>
+    <text x="705" y="362" text-anchor="middle" fill="#f8fafc" font-size="40" font-weight="800">&#128274;</text>
+    <text x="705" y="404" text-anchor="middle" fill="#94a3b8" font-size="17">가중치는 공개하지 않고</text>
+    <text x="705" y="430" text-anchor="middle" fill="#94a3b8" font-size="17">'지문'만 먼저 공개</text>
+
+    <!-- arrow -->
+    <line x1="865" y1="363" x2="945" y2="363" stroke="#38bdf8" stroke-width="5"/>
+    <polygon points="945,351 970,363 945,375" fill="#38bdf8"/>
+
+    <!-- right: proof verified -->
+    <rect x="985" y="268" width="135" height="190" rx="18" fill="#0d9488" opacity="0.25" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="1052" y="326" text-anchor="middle" fill="#2dd4bf" font-size="20" font-weight="700">proof</text>
+    <text x="1052" y="384" text-anchor="middle" fill="#2dd4bf" font-size="54" font-weight="800">&#10003;</text>
+    <text x="1052" y="432" text-anchor="middle" fill="#99f6e4" font-size="16">CPU 검증 수 초</text>
+  </g>
+
+  <text x="80" y="560" fill="#475569" font-family="ui-sans-serif,system-ui,sans-serif" font-size="19">Frontier Red Team · EPFL · MIT · StarkWare — github.com/anthropics/FlashProve (Apache 2.0)</text>
+</svg>

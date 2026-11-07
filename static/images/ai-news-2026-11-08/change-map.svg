@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="480" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-08</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="190" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="190" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="262" width="360" height="190" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="262" width="360" height="190" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="118" font-size="14" font-weight="600" fill="#222">오늘은 큰 모델 소식 없음</text>
+  <text x="50" y="142" font-size="12.5" fill="#444">주말 — 11/5 GPT-6 Cyber 이후 메이저 릴리즈 공백</text>
+  <text x="50" y="164" font-size="12.5" fill="#444">대신 '에이전트에 무엇을 내줄 것인가'가</text>
+  <text x="50" y="182" font-size="12.5" fill="#444">도구·오픈소스 쪽에서 하루를 채웠다</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문 — 오늘의 키워드는 '압축'</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">Coca-Cola — 도구 출력을 잠재 토큰으로</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">텍스트 대신 연속 벡터로 압축 · 토큰 70~89% 절감</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">BestRand — 벤치마크를 부분집합으로</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">"랜덤 샘플링도 거의 충분" — 꼬리 위험만 제거</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">평가 비용 절반 이하로 줄이는 이론+방법</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="290" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스</text>
+  <text x="50" y="318" font-size="14" font-weight="600" fill="#222">poki — 에이전트가 진짜 iPhone을 조작</text>
+  <text x="50" y="340" font-size="12.5" fill="#444">탈옥 없이 로컬 MCP 서버로 · ~490★</text>
+  <text x="50" y="368" font-size="14" font-weight="600" fill="#222">devvm — 프로젝트마다 VM 하나</text>
+  <text x="50" y="390" font-size="12.5" fill="#444">코딩 에이전트용 격리 샌드박스 · ~350★</text>
+
+  <!-- 도구 팁 -->
+  <text x="430" y="290" font-size="15" font-weight="700" fill="#6d3a9c">🧑‍💻 도구 팁</text>
+  <text x="430" y="318" font-size="14" font-weight="600" fill="#222">CC: privacy mod 신설</text>
+  <text x="430" y="340" font-size="12.5" fill="#444">계정 이메일이 User-Agent로 새는 것 차단</text>
+  <text x="430" y="368" font-size="14" font-weight="600" fill="#222">Codex: exec에 --trust 플래그</text>
+  <text x="430" y="390" font-size="12.5" fill="#444">비대화형 실행은 명시적 신뢰 없이는 격리 유지</text>
+
+  <text x="400" y="470" text-anchor="middle" font-size="11.5" fill="#888">기기·VM을 내주는 오픈소스와 권한·신뢰를 조이는 도구 업데이트 — 같은 질문의 양면</text>
+</svg>

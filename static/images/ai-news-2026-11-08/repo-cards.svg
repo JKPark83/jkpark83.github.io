@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">오늘의 레포 — 기기를 내주기 vs 울타리 치고 내주기</text>
+
+  <!-- left card: poki -->
+  <rect x="30" y="56" width="360" height="360" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <text x="50" y="86" font-size="16" font-weight="700" fill="#9c6a1f">poki</text>
+  <text x="50" y="108" font-size="12.5" fill="#666">JosssphZhou · JavaScript · AGPL-3.0 · ~490★</text>
+  <line x1="50" y1="122" x2="370" y2="122" stroke="#eed3a8"/>
+  <text x="50" y="146" font-size="13" font-weight="600" fill="#333">무엇</text>
+  <text x="50" y="166" font-size="12.5" fill="#444">에이전트가 진짜 iPhone을 사람처럼 조작</text>
+  <text x="50" y="184" font-size="12.5" fill="#444">탈옥·추가 하드웨어 없이, 로컬에서</text>
+  <text x="50" y="212" font-size="13" font-weight="600" fill="#333">구조</text>
+  <text x="50" y="232" font-size="12.5" fill="#444">macOS에서 MCP 서버 실행 → Claude Code,</text>
+  <text x="50" y="250" font-size="12.5" fill="#444">Codex 등 MCP 클라이언트에 등록해 사용</text>
+  <text x="50" y="278" font-size="13" font-weight="600" fill="#333">요구사항</text>
+  <text x="50" y="298" font-size="12.5" fill="#444">macOS 15+, Xcode, Node 24+, ffmpeg</text>
+  <text x="50" y="316" font-size="12.5" fill="#444">(arm64 프리빌드 패키지도 제공)</text>
+  <text x="50" y="344" font-size="13" font-weight="600" fill="#333">주의</text>
+  <text x="50" y="364" font-size="12.5" fill="#444">내 계정으로 로그인된 실기기 — 행동 범위</text>
+  <text x="50" y="382" font-size="12.5" fill="#444">제한과 중단 지점 설계가 먼저다</text>
+  <text x="50" y="406" font-size="12" fill="#9c6a1f" font-weight="600">→ 모바일 E2E 테스트·앱 자동화 실험대</text>
+
+  <!-- right card: devvm -->
+  <rect x="410" y="56" width="360" height="360" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="430" y="86" font-size="16" font-weight="700" fill="#1f4e9c">devvm</text>
+  <text x="430" y="108" font-size="12.5" fill="#666">devvmhq · Go · ~350★</text>
+  <line x1="430" y1="122" x2="750" y2="122" stroke="#b9cdf2"/>
+  <text x="430" y="146" font-size="13" font-weight="600" fill="#333">무엇</text>
+  <text x="430" y="166" font-size="12.5" fill="#444">프로젝트 폴더마다 전용 VM 하나 —</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">코딩 에이전트를 위한 격리 샌드박스</text>
+  <text x="430" y="212" font-size="13" font-weight="600" fill="#333">구조</text>
+  <text x="430" y="232" font-size="12.5" fill="#444">Lima 기반. 폴더에서 devvm 실행 → 파일로</text>
+  <text x="430" y="250" font-size="12.5" fill="#444">툴체인 감지 → VM 셸에서 claude 실행</text>
+  <text x="430" y="278" font-size="13" font-weight="600" fill="#333">특징</text>
+  <text x="430" y="298" font-size="12.5" fill="#444">VM별 네트워크 등급·크기·에이전트 선택,</text>
+  <text x="430" y="316" font-size="12.5" fill="#444">베이스 이미지 1회 빌드 후 수 초 내 기동</text>
+  <text x="430" y="344" font-size="13" font-weight="600" fill="#333">주의</text>
+  <text x="430" y="364" font-size="12.5" fill="#444">macOS 13+/Linux, Lima 2.2+ 필요.</text>
+  <text x="430" y="382" font-size="12.5" fill="#444">Intel Mac은 아직 미검증</text>
+  <text x="430" y="406" font-size="12" fill="#1f4e9c" font-weight="600">→ 위험한 자율 실행은 VM 안에서만</text>
+
+  <text x="400" y="448" text-anchor="middle" font-size="11.5" fill="#888">별 수는 GitHub search API 기준(11/8). 능력을 넓히는 쪽과 피해 반경을 줄이는 쪽 — 함께 쓰면 된다.</text>
+</svg>

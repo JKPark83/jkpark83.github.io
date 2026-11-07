@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="SwarmEvolve를 설명하는 커버 그림. 왼쪽에는 값비싼 프런티어 모델 에이전트 하나가, 오른쪽에는 작은 latent 에이전트 수십 개가 떼를 지어 KV 캐시를 주고받는 모습이 그려져 있고, 작은 떼가 더 높은 점수에 더 빨리 도달한다는 화살표가 있다">
+  <defs>
+    <linearGradient id="swebg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#102a26"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#swebg)"/>
+
+  <text x="600" y="86" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="44" font-weight="800">큰 에이전트 하나 대신, 작은 떼 수십</text>
+  <text x="600" y="132" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="23">SwarmEvolve — 텍스트 없이 생각하고, KV 캐시로 대화하는 진화 탐색</text>
+
+  <!-- left: one big frontier agent -->
+  <text x="250" y="188" text-anchor="middle" fill="#fb7185" font-family="sans-serif" font-size="20" font-weight="700">기존: 프런티어 모델 1개</text>
+  <circle cx="250" cy="330" r="78" fill="#fb7185" opacity="0.16" stroke="#fb7185" stroke-width="3"/>
+  <text x="250" y="325" text-anchor="middle" fill="#fb7185" font-family="sans-serif" font-size="26" font-weight="800">후보 1개</text>
+  <text x="250" y="356" text-anchor="middle" fill="#fca5a5" font-family="sans-serif" font-size="18">느리고 비쌈</text>
+  <text x="250" y="452" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="17">텍스트로 생각 → 매번 전부 디코딩</text>
+
+  <!-- vs -->
+  <text x="600" y="340" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="30" font-weight="800">vs</text>
+
+  <!-- right: swarm of small latent agents -->
+  <text x="930" y="188" text-anchor="middle" fill="#2dd4bf" font-family="sans-serif" font-size="20" font-weight="700">SwarmEvolve: 작은 latent 에이전트 45개</text>
+  <g fill="#2dd4bf" opacity="0.85">
+    <circle cx="820" cy="270" r="15"/><circle cx="868" cy="252" r="15"/><circle cx="916" cy="268" r="15"/>
+    <circle cx="964" cy="250" r="15"/><circle cx="1012" cy="270" r="15"/><circle cx="1050" cy="300" r="15"/>
+    <circle cx="812" cy="320" r="15"/><circle cx="860" cy="306" r="15"/><circle cx="910" cy="318" r="15"/>
+    <circle cx="958" cy="304" r="15"/><circle cx="1006" cy="320" r="15"/><circle cx="1046" cy="350" r="15"/>
+    <circle cx="824" cy="366" r="15"/><circle cx="872" cy="356" r="15"/><circle cx="920" cy="368" r="15"/>
+    <circle cx="968" cy="356" r="15"/><circle cx="1012" cy="368" r="15"/>
+  </g>
+  <!-- KV cache links -->
+  <g stroke="#5eead4" stroke-width="1.6" opacity="0.5">
+    <line x1="868" y1="252" x2="916" y2="268"/><line x1="964" y1="250" x2="916" y2="268"/>
+    <line x1="860" y1="306" x2="910" y2="318"/><line x1="958" y1="304" x2="910" y2="318"/>
+    <line x1="872" y1="356" x2="920" y2="368"/><line x1="916" y1="268" x2="910" y2="318"/>
+  </g>
+  <text x="930" y="430" text-anchor="middle" fill="#99f6e4" font-family="sans-serif" font-size="17">latent 공간에서 생각 → KV 캐시만 주고받음</text>
+
+  <!-- bottom result bar -->
+  <rect x="150" y="492" width="900" height="70" rx="14" fill="#14b8a6" opacity="0.12" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="600" y="524" text-anchor="middle" fill="#2dd4bf" font-family="sans-serif" font-size="22" font-weight="800">Qwen3 8B 떼가 다른 프레임워크의 32B보다 높은 점수</text>
+  <text x="600" y="550" text-anchor="middle" fill="#99f6e4" font-family="sans-serif" font-size="18">다른 시스템이 60분 걸리는 점수에 median 3~8분 — arXiv:2611.08483 보고치</text>
+
+  <text x="600" y="600" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="16">수치는 저자 보고치</text>
+</svg>

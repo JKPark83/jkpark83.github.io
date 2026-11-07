@@ -1,0 +1,321 @@
+---
+title: "프런티어 모델 한 대 대신, 작은 에이전트 45마리의 떼 — SwarmEvolve로 배우는 진화 탐색의 비용 뒤집기"
+date: 2026-11-08T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "진화 탐색", "evolutionary agent", "AlphaEvolve", "SwarmEvolve", "latent reasoning", "KV 캐시", "agent swarm", "inference", "Qwen3", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "AlphaEvolve 이후 '진화적 코딩 에이전트'는 알고리즘을 스스로 발견하는 강력한 도구가 됐지만, 치명적인 약점이 있습니다 — 후보 하나를 만들 때마다 거대 모델을 한 번씩 돌려야 해서 돈이 폭발합니다. 11월 둘째 주 arXiv에 올라온 SwarmEvolve(2611.08483)는 이 비용 구조를 통째로 뒤집습니다. 거대 모델 한 대 대신, 텍스트를 쓰지 않고 latent 공간에서 생각하며 KV 캐시로만 대화하는 작은 에이전트 45마리를 떼로 돌립니다. 결과는 Qwen3 8B 떼가 다른 프레임워크의 32B보다 높은 점수, 남들이 60분 걸리는 성능에 median 3~8분. 왜 '생성이 아니라 평가가 병목'인 진화 탐색에서 에이전트를 작게·많이 만드는 게 정답인지, junior 눈높이에서 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "swarm-evolve-latent-agents-cover.svg"
+  alt: "값비싼 프런티어 모델 에이전트 하나와, 텍스트 없이 latent 공간에서 생각하며 KV 캐시를 주고받는 작은 에이전트 떼를 비교하는 커버 그림"
+  caption: "큰 에이전트 하나 대신 작은 떼 수십 — 진화 탐색의 비용을 뒤집는 법"
+  relative: false
+---
+
+<style>
+/* ── SwarmEvolve 포스트 전용 스타일 (swe- 접두사) ── */
+.swe-fig{
+  --swe-teal:#0d9488; --swe-rose:#e11d48; --swe-amber:#d97706; --swe-sky:#0284c7;
+  --swe-violet:#7c3aed; --swe-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .swe-fig{
+  --swe-teal:#2dd4bf; --swe-rose:#fb7185; --swe-amber:#fbbf24; --swe-sky:#38bdf8;
+  --swe-violet:#a78bfa; --swe-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .swe-fig{
+    --swe-teal:#2dd4bf; --swe-rose:#fb7185; --swe-amber:#fbbf24; --swe-sky:#38bdf8;
+    --swe-violet:#a78bfa; --swe-slate:#94a3b8;
+  }
+}
+.swe-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.swe-fig text{font-family:inherit}
+.swe-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.swe-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.swe-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.swe-toc ol{margin:0;padding-left:1.25rem}
+.swe-toc li{margin:.22rem 0;font-size:.95rem}
+.swe-toc a{text-decoration:none}
+.swe-toc a:hover{text-decoration:underline}
+.swe-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.9rem}
+.swe-table th,.swe-table td{border:1px solid var(--border);padding:.45rem .65rem;text-align:left;vertical-align:top}
+.swe-table th{background:var(--entry)}
+.swe-note{border-left:4px solid var(--swe-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.swe-warn{border-left:4px solid var(--swe-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="swe-toc">
+  <div class="swe-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — "거대 모델 한 대"가 당연하지 않은 분야</a></li>
+    <li><a href="#sec-2">배경 — 진화적 코딩 에이전트가 뭐고, 왜 비싼가</a></li>
+    <li><a href="#sec-3">SwarmEvolve의 세 가지 뒤집기</a></li>
+    <li><a href="#sec-4">한 라운드가 돌아가는 모습</a></li>
+    <li><a href="#sec-5">숫자로 보기 — 작은 떼가 큰 모델을 이긴다</a></li>
+    <li><a href="#sec-6">실전 — 진화 루프를 코드로 감 잡기</a></li>
+    <li><a href="#sec-7">흔한 오해 · 남은 한계</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-9">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — "거대 모델 한 대"가 당연하지 않은 분야</h2>
+
+<p>요즘 AI 엔지니어링의 기본 반사는 "문제가 어려우면 더 큰 모델을 쓴다"입니다. 그런데 이 반사가 정면으로 깨지는 분야가 하나 있습니다. 바로 <strong>진화적 탐색(evolutionary search)</strong>입니다. 알고리즘을 자동으로 발견하거나 수치 해법을 최적화하는 이 일은, 모델 한 번의 영리함보다 <strong>"같은 예산으로 얼마나 많은 후보를 시험해 보느냐"</strong>가 성패를 가릅니다.</p>
+
+<p>11월 둘째 주 arXiv에 올라온 <a href="https://arxiv.org/abs/2611.08483" target="_blank" rel="noopener">SwarmEvolve: Latent Agent Swarms for Evolutionary Discovery and Optimization</a>(arXiv:2611.08483, Qile Jiang·George Em Karniadakis)가 화제가 된 건 이 통념을 데이터로 뒤집었기 때문입니다. 핵심 결과 한 줄이 강렬합니다. <strong>Qwen3 8B짜리 작은 모델을 떼로 돌린 SwarmEvolve가, 같은 문제에서 다른 프레임워크가 Qwen3 32B로 돌린 결과보다 평균 점수가 높았습니다.</strong> 게다가 다른 최신 시스템이 60분 걸려 도달하는 점수에, SwarmEvolve는 중앙값 기준 <strong>3~8분</strong>이면 닿았습니다. Hugging Face Daily Papers와 alphaXiv 트렌딩에 함께 오르며 "작은 모델 + 영리한 엔지니어링이 프런티어 모델을 이긴다"는, 실무자들이 좋아하는 바로 그 서사를 만들었습니다.</p>
+
+<p>이 글의 목표는 보도가 아니라 설계를 읽는 것입니다. SwarmEvolve가 쓴 트릭 — <strong>텍스트 대신 latent 공간에서 생각하기, 대화 대신 KV 캐시를 직접 주고받기, 그리고 다양성을 숫자로 관리하기</strong> — 는 진화 탐색만의 묘수가 아닙니다. "같은 비용으로 더 많은 시도를 돌려야 하는" 모든 에이전트 시스템에 그대로 옮겨 붙는 사고방식입니다. junior 엔지니어에게 이 세 가지는 꽤 오래 써먹을 도구가 됩니다.</p>
+
+<h2 id="sec-2">2. 배경 — 진화적 코딩 에이전트가 뭐고, 왜 비싼가</h2>
+
+<p>먼저 <strong>진화적 코딩 에이전트(evolutionary coding agent)</strong>가 뭔지 짚고 갑니다. 2025년 5월 Google DeepMind가 공개한 <a href="https://arxiv.org/abs/2506.13131" target="_blank" rel="noopener">AlphaEvolve</a>가 이 분야를 대중화했습니다. 발상은 생물의 진화를 코드에 적용한 것입니다.</p>
+
+<ol>
+  <li><strong>풀고 싶은 문제와 채점 함수(evaluator)를 준다.</strong> 채점 함수는 코드를 받아 점수(실행 시간, 정확도, 오차 등)를 숫자로 돌려줍니다. 이게 "적합도(fitness)"입니다.</li>
+  <li><strong>LLM이 기존 프로그램을 변형(mutation)한다.</strong> "이 코드를 이렇게 바꿔 봐"라고 LLM에게 시켜 새 후보를 만듭니다.</li>
+  <li><strong>후보를 채점한다.</strong> 실제로 돌려서 점수를 매깁니다.</li>
+  <li><strong>잘한 후보를 살려 다음 세대의 부모로 쓴다.</strong> 점수 높은 것들을 보관소(program database)에 넣고, 그 이력을 다시 프롬프트에 넣어 더 나은 변형을 유도합니다.</li>
+</ol>
+
+<p>이 루프를 수천 번 돌리면 사람이 생각 못 한 해법이 나옵니다. AlphaEvolve는 이 방식으로 4×4 복소수 행렬 곱셈을 48번의 스칼라 곱으로 해내는 절차를 찾아 — <strong>Strassen 알고리즘 이후 56년 만의 개선</strong> — 을 보고했고, Google 내부 스케줄링 휴리스틱을 개선해 전 세계 컴퓨팅 자원의 0.7%를 회수했다고 밝혔습니다. 이 아이디어를 오픈소스로 재현한 OpenEvolve·ShinkaEvolve·CodeEvolve 같은 프레임워크도 줄줄이 나왔습니다.</p>
+
+<p>그런데 여기에 구조적인 비용 문제가 있습니다. 진화 탐색의 힘은 <strong>"많이 시도하기"</strong>에서 나오는데, AlphaEvolve 계열은 <strong>후보 하나를 만들 때마다 프런티어 LLM(Gemini급)을 한 번씩 호출</strong>합니다. 후보를 10배 더 보려면 LLM 호출도 10배입니다. 돈과 시간이 선형으로 폭발합니다. 더 뼈아픈 건, 많은 후보가 금방 비슷해진다는 점입니다. 거대 모델 열 번 호출해서 거의 똑같은 변형 열 개를 얻으면, 아홉 번은 버린 돈입니다.</p>
+
+<div class="swe-note">
+<strong>핵심 전제 하나</strong> — 진화 탐색에서는 "생성(LLM이 후보 만들기)"보다 "채점(후보 돌려 보기)"이 느릴 때가 많고, 그래서 <strong>생성 비용을 극단적으로 낮추면 같은 예산으로 탐색 폭을 훨씬 넓힐 수 있습니다.</strong> SwarmEvolve의 모든 설계는 이 한 문장에서 출발합니다. 생성을 싸게 만드는 데 집중한 것이죠.</div>
+
+<p>그래서 질문이 이렇게 바뀝니다. "더 똑똑한 모델 하나로 후보를 신중하게 만들까?"가 아니라, <strong>"멍청해도 좋으니 후보를 아주 싸게, 아주 많이, 그리고 서로 다르게 만들 수는 없을까?"</strong> SwarmEvolve의 답이 바로 이겁니다.</p>
+
+<h2 id="sec-3">3. SwarmEvolve의 세 가지 뒤집기</h2>
+
+<p>SwarmEvolve는 "거대 모델 한 대"를 "작은 모델의 떼(swarm)"로 바꿉니다. 기본 설정은 <strong>한 떼에 latent 에이전트 45마리</strong>이고, 이런 떼를 여러 개(논문은 라운드마다 10개 떼) 병렬로 돌립니다. 이게 가능하려면 에이전트 한 마리당 비용이 극단적으로 싸야 합니다. 그 비용을 깎는 트릭이 세 가지입니다.</p>
+
+<figure class="swe-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="SwarmEvolve의 세 가지 핵심 트릭 다이어그램. 왼쪽부터 latent 공간에서 생각하기, KV 캐시로 대화하기, 다양성을 숫자로 관리하기가 각각 박스로 설명되어 있다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--swe-sky)" font-size="16" font-weight="800">작은 에이전트를 싸게·많이·다르게 만드는 세 가지 트릭</text>
+
+  <!-- trick 1: latent -->
+  <rect x="25" y="58" width="258" height="320" rx="12" fill="none" stroke="var(--swe-violet)" stroke-width="2"/>
+  <text x="154" y="88" text-anchor="middle" fill="var(--swe-violet)" font-size="15" font-weight="800">① latent로 생각</text>
+  <text x="154" y="112" text-anchor="middle" fill="var(--swe-slate)" font-size="12">텍스트로 안 쓴다</text>
+  <rect x="50" y="130" width="208" height="54" rx="8" fill="var(--swe-rose)" opacity="0.14"/>
+  <text x="154" y="152" text-anchor="middle" fill="var(--swe-rose)" font-size="12" font-weight="700">보통 에이전트</text>
+  <text x="154" y="172" text-anchor="middle" fill="var(--swe-slate)" font-size="11">토큰을 한 개씩 디코딩</text>
+  <text x="154" y="205" text-anchor="middle" fill="var(--swe-slate)" font-size="18">↓</text>
+  <rect x="50" y="218" width="208" height="54" rx="8" fill="var(--swe-violet)" opacity="0.16"/>
+  <text x="154" y="240" text-anchor="middle" fill="var(--swe-violet)" font-size="12" font-weight="700">latent 에이전트</text>
+  <text x="154" y="260" text-anchor="middle" fill="var(--swe-slate)" font-size="11">hidden state로만 추론</text>
+  <text x="154" y="312" text-anchor="middle" fill="var(--swe-teal)" font-size="12" font-weight="700">디코딩 비용 ↓↓</text>
+  <text x="154" y="334" text-anchor="middle" fill="var(--swe-slate)" font-size="11">→ 한 마리가 아주 쌈</text>
+  <text x="154" y="358" text-anchor="middle" fill="var(--swe-slate)" font-size="11">→ 45마리를 한 배치로</text>
+
+  <!-- trick 2: KV cache -->
+  <rect x="301" y="58" width="258" height="320" rx="12" fill="none" stroke="var(--swe-amber)" stroke-width="2"/>
+  <text x="430" y="88" text-anchor="middle" fill="var(--swe-amber)" font-size="15" font-weight="800">② KV 캐시로 대화</text>
+  <text x="430" y="112" text-anchor="middle" fill="var(--swe-slate)" font-size="12">말로 안 주고받는다</text>
+  <circle cx="365" cy="160" r="16" fill="var(--swe-amber)" opacity="0.7"/>
+  <circle cx="430" cy="150" r="16" fill="var(--swe-amber)" opacity="0.7"/>
+  <circle cx="495" cy="160" r="16" fill="var(--swe-amber)" opacity="0.7"/>
+  <line x1="365" y1="160" x2="430" y2="150" stroke="var(--swe-amber)" stroke-width="1.6"/>
+  <line x1="430" y1="150" x2="495" y2="160" stroke="var(--swe-amber)" stroke-width="1.6"/>
+  <text x="430" y="205" text-anchor="middle" fill="var(--swe-slate)" font-size="11">생각(KV 캐시)을 직접 전달</text>
+  <rect x="330" y="222" width="200" height="50" rx="8" fill="var(--swe-amber)" opacity="0.14"/>
+  <text x="430" y="243" text-anchor="middle" fill="var(--swe-amber)" font-size="12" font-weight="700">summarizer 에이전트</text>
+  <text x="430" y="262" text-anchor="middle" fill="var(--swe-slate)" font-size="11">떼의 KV 캐시를 합쳐 받음</text>
+  <text x="430" y="305" text-anchor="middle" fill="var(--swe-teal)" font-size="12" font-weight="700">latent에서 아이디어 교배</text>
+  <text x="430" y="327" text-anchor="middle" fill="var(--swe-slate)" font-size="11">같은 프로그램 읽는 에이전트는</text>
+  <text x="430" y="346" text-anchor="middle" fill="var(--swe-slate)" font-size="11">KV 캐시 1벌을 공유(vLLM)</text>
+  <text x="430" y="365" text-anchor="middle" fill="var(--swe-slate)" font-size="11">→ 메모리·연산 절약</text>
+
+  <!-- trick 3: novelty -->
+  <rect x="577" y="58" width="258" height="320" rx="12" fill="none" stroke="var(--swe-teal)" stroke-width="2"/>
+  <text x="706" y="88" text-anchor="middle" fill="var(--swe-teal)" font-size="15" font-weight="800">③ 다양성을 숫자로</text>
+  <text x="706" y="112" text-anchor="middle" fill="var(--swe-slate)" font-size="12">비슷한 후보는 버린다</text>
+  <circle cx="650" cy="155" r="12" fill="var(--swe-teal)" opacity="0.8"/>
+  <circle cx="690" cy="150" r="12" fill="var(--swe-teal)" opacity="0.8"/>
+  <circle cx="662" cy="188" r="12" fill="var(--swe-slate)" opacity="0.5"/>
+  <circle cx="760" cy="168" r="12" fill="var(--swe-teal)" opacity="0.8"/>
+  <text x="706" y="222" text-anchor="middle" fill="var(--swe-slate)" font-size="11">hidden state 벡터 사이 거리 측정</text>
+  <text x="706" y="250" text-anchor="middle" fill="var(--swe-slate)" font-size="11">가까운 것(중복)은 쳐내고</text>
+  <text x="706" y="272" text-anchor="middle" fill="var(--swe-slate)" font-size="11">멀리 떨어진(참신한) 것만 남김</text>
+  <rect x="606" y="292" width="200" height="50" rx="8" fill="var(--swe-teal)" opacity="0.14"/>
+  <text x="706" y="313" text-anchor="middle" fill="var(--swe-teal)" font-size="12" font-weight="700">novelty filter</text>
+  <text x="706" y="332" text-anchor="middle" fill="var(--swe-slate)" font-size="11">버린 돈(중복 후보) 줄이기</text>
+</svg>
+<figcaption>세 트릭이 하나로 맞물립니다. latent로 생성을 싸게(①), KV 캐시로 교배를 자연스럽게(②), novelty filter로 중복을 걷어내(③) — 같은 예산으로 더 넓고 다양하게 탐색합니다.</figcaption>
+</figure>
+
+<p><strong>트릭 ① — latent 공간에서 생각한다.</strong> 보통 LLM 에이전트는 생각을 토큰으로 "써 내려가며" 추론합니다. 토큰을 한 개씩 디코딩하는 이 과정이 느리고 비쌉니다. SwarmEvolve의 latent 에이전트는 이걸 건너뜁니다 — 중간 추론을 텍스트로 뱉지 않고 모델 내부의 <strong>hidden state(은닉 상태, 모델이 각 층에서 들고 있는 벡터)</strong> 수준에서 처리합니다. 디코딩을 안 하니 한 마리당 비용이 급감하고, 그래서 45마리를 한 배치(batch)로 묶어 GPU에 한꺼번에 태울 수 있습니다. 이 "토큰 없이 생각하기"는 Coconut 계열의 latent reasoning 연구 흐름에 닿아 있는데, SwarmEvolve는 그걸 <strong>한 마리의 추론이 아니라 떼의 병렬 탐색</strong>에 쓴 게 핵심입니다.</p>
+
+<p><strong>트릭 ② — KV 캐시를 직접 주고받는다.</strong> 에이전트끼리 협력하려면 보통 자연어로 "내 생각은 이래"라고 메시지를 주고받습니다. 그런데 latent 에이전트는 애초에 텍스트를 안 만들죠. 대신 자기 <strong>KV 캐시(어텐션이 참고하는, 지금까지 읽은 내용의 내부 표현)</strong>를 그대로 넘깁니다. 떼의 아이디어를 섞는 역할은 <strong>summarizer 에이전트</strong>가 맡는데, 이 녀석이 떼 전원의 KV 캐시를 합쳐서 받습니다. 진화 알고리즘에서 두 부모의 특성을 섞는 "교배(crossover)"가, 여기서는 텍스트 요약 없이 <strong>latent 공간에서 자연스럽게</strong> 일어나는 겁니다. 구현도 영리합니다. 같은 프로그램을 읽는 latent 에이전트들은 <strong>그 프로그램의 KV 캐시를 1벌만 두고 공유</strong>합니다 — vLLM의 paged FlashAttention 커널이 이걸 가능하게 해서, 45마리가 제각각 같은 내용을 중복 저장하는 메모리·연산 낭비를 없앱니다.</p>
+
+<p><strong>트릭 ③ — 다양성을 숫자로 관리한다.</strong> 후보를 싸게 많이 만들어도, 다 비슷하면 소용없습니다. SwarmEvolve는 <strong>novelty filter(참신성 필터)</strong>로 이걸 막습니다. 에이전트들의 hidden state 벡터 사이 거리를 직접 재서, 서로 가까운(즉 비슷한 생각을 하는) 후보는 쳐내고 멀리 떨어진(참신한) 것만 다음 단계로 보냅니다. "다양성"이라는 추상적인 목표를 <strong>벡터 거리라는 측정 가능한 신호</strong>로 바꾼 것이죠. 진화 탐색이 한 봉우리에 갇히지(수렴해 버리지) 않게 하는, 값싸고 기계적인 장치입니다.</p>
+
+<h2 id="sec-4">4. 한 라운드가 돌아가는 모습</h2>
+
+<p>세 트릭이 한 라운드 안에서 어떻게 맞물리는지 흐름으로 보겠습니다.</p>
+
+<figure class="swe-fig">
+<svg viewBox="0 0 860 340" role="img" aria-label="SwarmEvolve 한 라운드의 흐름도. 프로그램 보관소에서 부모를 뽑아 latent 에이전트 떼가 변형하고, novelty filter로 거르고, summarizer가 KV 캐시를 합쳐 후보를 만들고, 채점한 뒤 좋은 것을 보관소에 되돌려 넣는 순환 구조">
+  <text x="430" y="28" text-anchor="middle" fill="var(--swe-sky)" font-size="16" font-weight="800">한 라운드 — 뽑고, 떼로 변형하고, 거르고, 채점하고, 되돌린다</text>
+
+  <rect x="30" y="60" width="150" height="66" rx="10" fill="var(--swe-sky)" opacity="0.16" stroke="var(--swe-sky)" stroke-width="2"/>
+  <text x="105" y="88" text-anchor="middle" fill="var(--swe-sky)" font-size="13" font-weight="800">① 부모 선택</text>
+  <text x="105" y="110" text-anchor="middle" fill="var(--swe-slate)" font-size="11">보관소에서 프로그램</text>
+
+  <line x1="180" y1="93" x2="205" y2="93" stroke="var(--swe-slate)" stroke-width="2.5"/>
+  <polygon points="205,87 217,93 205,99" fill="var(--swe-slate)"/>
+
+  <rect x="217" y="60" width="160" height="66" rx="10" fill="var(--swe-violet)" opacity="0.16" stroke="var(--swe-violet)" stroke-width="2"/>
+  <text x="297" y="88" text-anchor="middle" fill="var(--swe-violet)" font-size="13" font-weight="800">② 떼로 변형</text>
+  <text x="297" y="110" text-anchor="middle" fill="var(--swe-slate)" font-size="11">latent 에이전트 45마리</text>
+
+  <line x1="377" y1="93" x2="402" y2="93" stroke="var(--swe-slate)" stroke-width="2.5"/>
+  <polygon points="402,87 414,93 402,99" fill="var(--swe-slate)"/>
+
+  <rect x="414" y="60" width="150" height="66" rx="10" fill="var(--swe-teal)" opacity="0.16" stroke="var(--swe-teal)" stroke-width="2"/>
+  <text x="489" y="88" text-anchor="middle" fill="var(--swe-teal)" font-size="13" font-weight="800">③ 참신성 필터</text>
+  <text x="489" y="110" text-anchor="middle" fill="var(--swe-slate)" font-size="11">중복 제거</text>
+
+  <line x1="564" y1="93" x2="589" y2="93" stroke="var(--swe-slate)" stroke-width="2.5"/>
+  <polygon points="589,87 601,93 589,99" fill="var(--swe-slate)"/>
+
+  <rect x="601" y="60" width="170" height="66" rx="10" fill="var(--swe-amber)" opacity="0.16" stroke="var(--swe-amber)" stroke-width="2"/>
+  <text x="686" y="88" text-anchor="middle" fill="var(--swe-amber)" font-size="13" font-weight="800">④ summarizer</text>
+  <text x="686" y="110" text-anchor="middle" fill="var(--swe-slate)" font-size="11">KV 캐시 합쳐 후보 확정</text>
+
+  <!-- down to eval -->
+  <line x1="686" y1="126" x2="686" y2="165" stroke="var(--swe-slate)" stroke-width="2.5"/>
+  <polygon points="680,165 686,177 692,165" fill="var(--swe-slate)"/>
+
+  <rect x="601" y="178" width="170" height="60" rx="10" fill="var(--swe-rose)" opacity="0.14" stroke="var(--swe-rose)" stroke-width="2"/>
+  <text x="686" y="204" text-anchor="middle" fill="var(--swe-rose)" font-size="13" font-weight="800">⑤ 채점(evaluator)</text>
+  <text x="686" y="224" text-anchor="middle" fill="var(--swe-slate)" font-size="11">실제로 돌려 점수화</text>
+
+  <!-- back to database -->
+  <line x1="601" y1="208" x2="200" y2="208" stroke="var(--swe-slate)" stroke-width="2.5"/>
+  <polygon points="200,202 188,208 200,214" fill="var(--swe-slate)"/>
+  <text x="400" y="200" text-anchor="middle" fill="var(--swe-slate)" font-size="11">점수 높은 후보만 되돌려 넣기</text>
+
+  <rect x="30" y="178" width="158" height="60" rx="10" fill="var(--swe-sky)" opacity="0.12" stroke="var(--swe-sky)" stroke-width="2"/>
+  <text x="109" y="204" text-anchor="middle" fill="var(--swe-sky)" font-size="13" font-weight="800">프로그램 보관소</text>
+  <text x="109" y="224" text-anchor="middle" fill="var(--swe-slate)" font-size="11">세대가 쌓이는 곳</text>
+
+  <!-- loop back to parent -->
+  <line x1="109" y1="178" x2="109" y2="126" stroke="var(--swe-sky)" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <polygon points="103,126 109,114 115,126" fill="var(--swe-sky)"/>
+
+  <text x="430" y="290" text-anchor="middle" fill="var(--swe-slate)" font-size="12.5">이 순환을 수백~수천 번 — 생성이 싸니 같은 시간에 더 많이 돈다</text>
+  <text x="430" y="314" text-anchor="middle" fill="var(--swe-slate)" font-size="11.5">라운드마다 이런 떼를 여러 개 병렬로 돌린다</text>
+</svg>
+<figcaption>부모 선택 → 떼로 변형 → 참신성 필터 → summarizer 교배 → 채점 → 보관소 환원의 순환. 보통의 진화 루프와 뼈대는 같지만, ②~④가 전부 latent 공간에서 값싸게 일어나는 게 다릅니다.</figcaption>
+</figure>
+
+<p>중요한 건 이 흐름의 <strong>뼈대 자체는 AlphaEvolve와 똑같다</strong>는 점입니다. 부모를 뽑고, 변형하고, 채점하고, 좋은 걸 살려 다시 넣는 — 고전적인 진화 알고리즘입니다. SwarmEvolve가 바꾼 건 "변형" 단계의 <strong>단가와 병렬도</strong>뿐입니다. 거대 모델 한 번 호출 대신, 거의 공짜에 가까운 latent 에이전트 45마리를 돌리는 것으로요. 그 결과 같은 시간·같은 GPU에서 훨씬 많은 세대를 굴릴 수 있고, 진화 탐색에서 "많이 굴리기"는 거의 언제나 승리 공식입니다.</p>
+
+<h2 id="sec-5">5. 숫자로 보기 — 작은 떼가 큰 모델을 이긴다</h2>
+
+<p>논문이 보고한 핵심 수치를 정리하면 이렇습니다(모두 저자 보고치이며 아직 독립 재현 전입니다).</p>
+
+<table class="swe-table">
+  <thead><tr><th>항목</th><th>수치 / 내용</th></tr></thead>
+  <tbody>
+    <tr><td>평가 대상</td><td>수학적 발견·과학 계산 문제 <strong>21개</strong></td></tr>
+    <tr><td>떼 구성</td><td>기본 <strong>latent 에이전트 45마리</strong>/떼 (0·15·75도 실험), 라운드마다 떼 여러 개</td></tr>
+    <tr><td>모델</td><td>open-weight <strong>Qwen3 8B·14B·32B</strong></td></tr>
+    <tr><td>속도</td><td>다른 SOTA 프레임워크가 60분 걸리는 점수에 <strong>중앙값 3~8분</strong>에 도달</td></tr>
+    <tr><td>효율</td><td>같은 모델·GPU·시간 예산에서 <strong>시간당 5~13배 많은 프로그램</strong> 평가(커뮤니티 PR 보고)</td></tr>
+    <tr><td>품질 역전</td><td><strong>Qwen3 8B 떼</strong>의 평균 점수가 OpenEvolve·ShinkaEvolve·CodeEvolve의 <strong>Qwen3 32B-FP8</strong>보다 높음</td></tr>
+    <tr><td>프런티어 비교</td><td>Qwen3 8B/14B/32B로 <strong>AlphaEvolve가 프런티어 LLM으로 처음 찾은 해</strong>를 일부 문제에서 개선</td></tr>
+  </tbody>
+</table>
+
+<p>가장 많이 인용된 결과는 "8B 떼 &gt; 남의 32B"입니다. 같은 Qwen3 계열에서 4배 작은 모델을 떼로 묶었더니, 네 배 큰 모델을 한 대씩 쓴 경쟁 프레임워크를 이겼습니다. 이게 왜 중요한지 junior 관점에서 다시 짚으면 — <strong>진화 탐색의 성능은 "모델 한 대의 IQ"가 아니라 "탐색의 폭×다양성"에서 나온다</strong>는 걸 숫자로 보여 주기 때문입니다. 생성을 싸게 만들어 폭을 늘리고(latent·배치), 중복을 걷어내 다양성을 지키면(novelty filter), 작은 모델로도 큰 모델을 넘어설 수 있습니다.</p>
+
+<div class="swe-warn">
+<strong>숫자를 읽을 때 주의</strong> — 이건 전부 저자 보고치입니다. 공개 저장소는 글을 쓰는 시점에 스타 2개·라이선스 없음·README에 "code coming soon"만 적혀 있어, 제3자 재현이 아직 안 됐습니다. "8B가 32B를 이겼다"는 특정 벤치마크 묶음(수학·과학 계산 21문제) 안에서의 평균이고, 모든 도메인으로 일반화되는 주장은 아닙니다. 인상적이되, "검증 대기 중"으로 분류해 두는 게 맞습니다.</div>
+
+<h2 id="sec-6">6. 실전 — 진화 루프를 코드로 감 잡기</h2>
+
+<p>SwarmEvolve 자체는 코드가 아직 안 풀렸으니, 여기서는 <strong>진화 탐색의 뼈대</strong>를 손에 익히는 걸 목표로 합니다. 아래는 "거대 모델 한 대" 버전의 최소 진화 루프입니다. SwarmEvolve가 어느 줄을 바꾸는지 주석으로 표시했습니다.</p>
+
+{{< highlight python >}}
+import random
+
+# evaluator: 후보 코드를 받아 점수(높을수록 좋음)를 돌려주는 채점 함수.
+# 진화 탐색에서 "느리고 비싼" 쪽은 보통 이 채점입니다.
+def evaluate(program: str) -> float:
+    ...  # 실제로 실행해 정확도/속도/오차 등을 점수로 환산
+
+# 프로그램 보관소: (점수, 코드) 쌍이 세대를 거쳐 쌓이는 곳.
+database = [(evaluate(seed), seed) for seed in initial_programs]
+
+for round_i in range(NUM_ROUNDS):
+    # ① 부모 선택 — 점수가 높을수록 뽑힐 확률을 높인다
+    parents = weighted_sample(database, k=PARENTS_PER_ROUND)
+
+    children = []
+    for parent_score, parent_code in parents:
+        # ② 변형(mutation) — 여기가 비용의 핵심.
+        #    기존 방식: 프런티어 LLM을 1번 호출해 후보 1개 생성(비쌈).
+        #    SwarmEvolve: 이 한 줄이 "latent 에이전트 45마리 배치"로 바뀐다.
+        #                 텍스트를 안 뽑고 KV 캐시로 교배해 후보 여러 개를 싸게 생성.
+        child_code = mutate_with_llm(parent_code, history=parent_score)
+        children.append(child_code)
+
+    # ③ 참신성 필터 — SwarmEvolve는 hidden state 벡터 거리로 중복 후보를 쳐낸다.
+    #    (아래는 개념만 보여 주는 단순 버전)
+    children = drop_near_duplicates(children)
+
+    # ④ 채점 후 보관소에 환원 — 점수 높은 후보만 다음 세대의 부모가 된다
+    for code in children:
+        score = evaluate(code)
+        database.append((score, code))
+
+    # 보관소가 너무 커지지 않게 상위만 유지(다양성 보존 로직을 함께 두기도 함)
+    database = keep_top_and_diverse(database, size=POOL_SIZE)
+
+best = max(database, key=lambda sc: sc[0])  # 지금까지 가장 좋은 해
+{{< /highlight >}}
+
+<p>이 스켈레톤에서 SwarmEvolve가 건드리는 건 사실상 <strong>② 변형과 ③ 필터 두 줄</strong>입니다. 나머지 진화 뼈대(부모 선택·채점·환원·풀 관리)는 그대로 둡니다. 그래서 이 글의 교훈이 재사용 가능한 겁니다. 여러분이 이미 돌리는 에이전트 루프가 있다면, "생성 단계를 더 싸게, 더 병렬로, 중복 없이" 만들 여지가 있는지 같은 눈으로 보면 됩니다.</p>
+
+<p>직접 손에 익히고 싶다면, 코드가 공개된 <a href="https://github.com/codelion/openevolve" target="_blank" rel="noopener">OpenEvolve</a> 같은 오픈소스 진화 프레임워크로 작은 문제(예: 간단한 정렬·수치 최적화) 하나를 돌려 보는 걸 권합니다. 세대가 지날수록 점수가 오르는 걸 눈으로 보고 나면, SwarmEvolve가 "왜 하필 생성 비용을 깎았는가"가 몸으로 이해됩니다.</p>
+
+<h2 id="sec-7">7. 흔한 오해 · 남은 한계</h2>
+
+<ul>
+  <li><strong>"작은 모델이 큰 모델보다 똑똑하다"는 뜻이 아닙니다.</strong> 같은 모델 한 대끼리 붙이면 32B가 8B보다 낫습니다. SwarmEvolve의 결과는 <strong>"탐색 시스템 전체"</strong>를 비교한 것입니다 — 8B를 떼로 영리하게 굴린 시스템이, 32B를 단순하게 굴린 시스템을 이긴 것이죠. 모델이 아니라 설계가 이겼습니다.</li>
+  <li><strong>아무 문제에나 통하지 않습니다.</strong> 진화 탐색의 대전제는 <strong>"값싸고 자동화된 채점 함수가 있다"</strong>입니다. 점수를 기계적으로 매길 수 있는 수학·알고리즘·수치 최적화에 강하고, "좋음"의 기준이 주관적이거나 채점이 느린·비싼 문제에는 잘 안 맞습니다. 적용 전에 "내 문제에 빠른 evaluator가 있나?"부터 물어야 합니다.</li>
+  <li><strong>latent 협력은 공짜 점심이 아닙니다.</strong> KV 캐시를 주고받는 다중 에이전트 방식은 "중간 생각이 텍스트로 안 남는다"는 특성 때문에 <strong>관측·디버깅이 어렵습니다.</strong> 실제로 "relay된 KV 캐시의 무결성"을 다룬 별도 연구들이 나올 만큼, latent 통신은 신뢰·검증 측면에서 아직 연구 중인 영역입니다.</li>
+  <li><strong>지금은 한 가지 모델 계열만 씁니다.</strong> 저자들도 한계로 적었듯, 현재 떼의 에이전트는 모두 같은 모델 패밀리(Qwen3)에서 돕니다. 서로 다른 모델을 섞어 더 다양한 "유전자 풀"을 만드는 건 앞으로의 과제입니다.</li>
+  <li><strong>재현은 아직입니다.</strong> 앞서 적었듯 코드가 완전히 풀리지 않았습니다. 지금 이 글을 읽는 목적은 "당장 갖다 쓰기"가 아니라 <strong>설계 패턴을 배우기</strong>입니다.</li>
+</ul>
+
+<p>그럼에도 이 주제를 지금 알아 둘 이유는 분명합니다. <strong>"에이전트를 크게 하나 vs 작게 여럿"</strong>이라는 선택은 진화 탐색을 넘어 점점 더 많은 곳에서 등장합니다. <a href="/posts/multi-agent-orchestration/">멀티 에이전트 오케스트레이션</a>에서 리드 모델과 값싼 워커를 나누던 발상, <a href="/posts/hybrid-reasoning-agents-latent/">latent로 생각하는 에이전트</a>에서 본 "토큰 없이 추론하기", <a href="/posts/cache-to-cache-llm-communication/">KV 캐시 직접 통신</a>에서 본 "텍스트 대신 내부 표현으로 대화하기" — SwarmEvolve는 이 조각들을 <strong>진화 탐색이라는 구체적인 과제 위에서 하나로 합쳐</strong> "작게·많이·다르게"가 통한다는 걸 보여 준 사례입니다. 다음에 "더 큰 모델을 붙일까?"라는 질문이 떠오르면, "같은 돈으로 더 많이·다양하게 돌릴 방법은 없나?"를 먼저 떠올려 보세요.</p>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>11월 둘째 주 arXiv에 올라온 <strong>SwarmEvolve</strong>(arXiv:2611.08483)는 진화적 코딩 에이전트의 비용 구조를 뒤집습니다 — 거대 모델 한 대 대신 <strong>작은 latent 에이전트 45마리의 떼</strong>를 돌립니다.</li>
+  <li>세 가지 트릭: ① <strong>latent 공간에서 생각</strong>(토큰 디코딩 생략 → 생성이 쌈), ② <strong>KV 캐시를 직접 주고받기</strong>(summarizer가 떼의 캐시를 합쳐 latent에서 교배), ③ <strong>novelty filter</strong>(hidden state 거리로 중복 제거 → 다양성 유지).</li>
+  <li>핵심 결과: <strong>Qwen3 8B 떼</strong>의 평균 점수가 경쟁 프레임워크의 <strong>Qwen3 32B-FP8</strong>보다 높고, 남들이 60분 걸리는 점수에 <strong>median 3~8분</strong>에 도달. 일부 문제에선 AlphaEvolve가 프런티어 LLM으로 찾은 해도 개선(모두 저자 보고치).</li>
+  <li>교훈: 진화 탐색의 성능은 "모델 한 대의 IQ"가 아니라 <strong>탐색의 폭 × 다양성</strong>에서 나온다. 생성을 싸게 만들면 폭이, 중복을 걷어내면 다양성이 는다.</li>
+  <li>전제와 한계: <strong>빠른 자동 채점 함수가 있는 문제</strong>(수학·알고리즘·수치 최적화)에 강하고, latent 협력은 관측·디버깅이 어렵습니다. 아직 한 모델 계열만 쓰고, 코드 미공개로 <strong>독립 재현 전</strong>입니다.</li>
+  <li>재사용 포인트: "에이전트를 크게 하나 vs 작게 여럿"의 선택은 어디서든 옵니다. 내 루프의 <strong>생성 단계를 더 싸게·병렬로·중복 없이</strong> 만들 여지가 있는지 같은 눈으로 보세요.</li>
+</ul>
+
+<h2 id="sec-9">9. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://arxiv.org/abs/2611.08483" target="_blank" rel="noopener">SwarmEvolve: Latent Agent Swarms for Evolutionary Discovery and Optimization — arXiv:2611.08483 (Qile Jiang·George Em Karniadakis)</a></li>
+  <li><a href="https://huggingface.co/papers/2611.08483" target="_blank" rel="noopener">SwarmEvolve — Hugging Face Daily Papers 페이지</a></li>
+  <li><a href="https://arxiv.org/abs/2506.13131" target="_blank" rel="noopener">AlphaEvolve: A coding agent for scientific and algorithmic discovery — arXiv:2506.13131 (Google DeepMind)</a></li>
+  <li><a href="https://deepmind.google/discover/blog/alphaevolve-a-gemini-powered-coding-agent-for-designing-advanced-algorithms/" target="_blank" rel="noopener">AlphaEvolve 공식 블로그 — Google DeepMind (2025-05)</a></li>
+  <li><a href="https://github.com/codelion/openevolve" target="_blank" rel="noopener">OpenEvolve — AlphaEvolve의 오픈소스 재현(직접 돌려 볼 수 있는 진화 프레임워크)</a></li>
+  <li><a href="https://arxiv.org/html/2510.14150v2" target="_blank" rel="noopener">CodeEvolve: An open source evolutionary coding agent — arXiv:2510.14150</a></li>
+  <li>관련해서 함께 읽기 — <a href="/posts/hybrid-reasoning-agents-latent/">생각은 벡터로, 행동은 텍스트로 — latent로 생각하는 에이전트</a>, <a href="/posts/cache-to-cache-llm-communication/">KV 캐시 직접 통신(Cache-to-Cache)</a>, <a href="/posts/multi-agent-orchestration/">멀티 에이전트 오케스트레이션</a>, <a href="/posts/benchmark-driven-agentic-optimization/">벤치마크 주도 에이전트 성능 최적화</a> (이 블로그, 한국어)</li>
+</ul>

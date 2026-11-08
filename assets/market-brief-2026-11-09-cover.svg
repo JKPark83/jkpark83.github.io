@@ -1,0 +1,34 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="월요일 아침 브리핑 표지. 비트코인은 오늘 아침 주간 마감에서 5주 연속 하락을 확정짓기 직전이고, 지난주 ETF 유출은 6월 이후 최대인 12억8천만달러였습니다. 코인 공포·탐욕 지수는 토요일 25로 극단 공포 문턱을 찍고 28로 돌아왔습니다. 오늘 밤 나스닥 24,300 확인과 내일 밤 CPI가 관문입니다. 나스닥 관망, 비트코인 매도 유지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101723"/>
+      <stop offset="1" stop-color="#14101f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.09 · 나스닥 &amp; 비트코인 5분 요약 · 월요일판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#fdba74">BTC 5주 연속 하락 확정 직전 · 지난주 ETF -12.8억달러 · 오늘 밤 24,300 확인 · 내일 CPI</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 조건 완성 하루 전</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">심리 20~22</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">극단 공포 나흘째</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">오늘 밤 24,300 확인</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 심리 경계선</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#06b6d4" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#22d3ee">토 25 → 일 28</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5f3fc">극단 공포 문턱 터치</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">유출 중단 전까지 유지</text>
+  </g>
+
+  <text x="80" y="580" font-family="sans-serif" font-size="16" fill="#64748b">본 글은 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

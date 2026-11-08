@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">초록불을 의심하라 — 오늘 두 논문의 숫자</text>
+
+  <!-- Left panel: Terminal-Bench -->
+  <rect x="30" y="56" width="360" height="340" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="210" y="86" text-anchor="middle" font-size="15" font-weight="700" fill="#1e7a35">Terminal-Bench 2.0 → 2.1 감사</text>
+  <text x="210" y="106" text-anchor="middle" font-size="12" fill="#555">arXiv 2611.08417 (저자 보고 값)</text>
+
+  <text x="60" y="146" font-size="13" font-weight="600" fill="#222">결함이 발견된 과제 비율</text>
+  <rect x="60" y="156" width="300" height="18" rx="4" fill="#e3ede5"/>
+  <rect x="60" y="156" width="90" height="18" rx="4" fill="#2e9e4f"/>
+  <text x="158" y="170" font-size="12.5" font-weight="700" fill="#1e7a35">약 30%</text>
+
+  <text x="60" y="212" font-size="13" font-weight="600" fill="#222">수리(2.1) 후 변화</text>
+  <text x="60" y="238" font-size="13" fill="#333">· 정확도 10pp 이상 상승</text>
+  <text x="60" y="262" font-size="13" fill="#333">· 리더보드 순위 최대 3계단 이동</text>
+  <text x="60" y="286" font-size="13" fill="#333">· 전체 순위 상관은 유지 (ρ = 0.958)</text>
+
+  <text x="60" y="330" font-size="13" font-weight="600" fill="#222">고정 wall-clock의 함정</text>
+  <text x="60" y="354" font-size="12.5" fill="#333">시간 제한을 늘리자 GPT 5.4의</text>
+  <text x="60" y="374" font-size="12.5" fill="#333">하네스 간 격차 20pp가 사라졌다</text>
+
+  <!-- Right panel: Accepted but Wrong -->
+  <rect x="410" y="56" width="360" height="340" rx="12" fill="#fdf0f0" stroke="#e8c0c0"/>
+  <text x="590" y="86" text-anchor="middle" font-size="15" font-weight="700" fill="#a33">API 마이그레이션 수리의 오답 릴리즈율</text>
+  <text x="590" y="106" text-anchor="middle" font-size="12" fill="#555">arXiv 2611.08269 (전체 수리 공간 기준)</text>
+
+  <!-- bars: 41.0 / 6.5 / 7.0 ; scale: 100% = 300px -->
+  <text x="440" y="146" font-size="13" fill="#222">일반 입력 + 전체 단언 게이트</text>
+  <rect x="440" y="154" width="300" height="20" rx="4" fill="#f3e0e0"/>
+  <rect x="440" y="154" width="123" height="20" rx="4" fill="#c84b4b"/>
+  <text x="571" y="169" font-size="13" font-weight="700" fill="#a33">41.0%</text>
+
+  <text x="440" y="212" font-size="13" fill="#222">+ 릴리즈 노트發 엣지 입력 1개</text>
+  <rect x="440" y="220" width="300" height="20" rx="4" fill="#f3e0e0"/>
+  <rect x="440" y="220" width="20" height="20" rx="4" fill="#2e9e4f"/>
+  <text x="468" y="235" font-size="13" font-weight="700" fill="#1e7a35">6.5%</text>
+
+  <text x="440" y="278" font-size="13" fill="#222">+ 블라인드 모델이 쓴 입력 3개</text>
+  <rect x="440" y="286" width="300" height="20" rx="4" fill="#f3e0e0"/>
+  <rect x="440" y="286" width="21" height="20" rx="4" fill="#2e9e4f"/>
+  <text x="469" y="301" font-size="13" font-weight="700" fill="#1e7a35">7.0%</text>
+
+  <text x="440" y="340" font-size="12.5" fill="#333">CPython·Node.js·SQLite의 문서화된 변경 60건,</text>
+  <text x="440" y="360" font-size="12.5" fill="#333">73개 과제 사전등록 연구. 단, 교묘한 오답은</text>
+  <text x="440" y="380" font-size="12.5" fill="#333">엣지 입력으로도 15~17%가 여전히 통과.</text>
+
+  <text x="400" y="428" text-anchor="middle" font-size="12" fill="#888">막대 길이는 비율 기준. 수치는 각 논문 초록의 자기 보고 값.</text>
+</svg>

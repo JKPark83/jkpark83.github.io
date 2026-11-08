@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">오늘의 레포 3장 — 작업 표면, 위협 모델, 1회용 PC</text>
+
+  <!-- vork -->
+  <rect x="24" y="56" width="240" height="372" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="144" y="88" text-anchor="middle" font-size="16" font-weight="700" fill="#1f4e9c">vork</text>
+  <text x="144" y="108" text-anchor="middle" font-size="11.5" fill="#555">Rust · 소스 공개 리서치 프리뷰 · ~1.1k★</text>
+  <text x="40" y="140" font-size="12.5" font-weight="700" fill="#333">무엇</text>
+  <text x="40" y="158" font-size="12" fill="#444">에이전트용 헤드리스</text>
+  <text x="40" y="174" font-size="12" fill="#444">3D·VFX 렌더링 엔진</text>
+  <text x="40" y="202" font-size="12.5" font-weight="700" fill="#333">구조</text>
+  <text x="40" y="220" font-size="12" fill="#444">에이전트가 씬을 코드로 쓰고</text>
+  <text x="40" y="236" font-size="12" fill="#444">렌더 → 이미지 확인 → 수정 루프</text>
+  <text x="40" y="252" font-size="12" fill="#444">Vulkan/Metal GPU 레이트레이싱</text>
+  <text x="40" y="280" font-size="12.5" font-weight="700" fill="#333">요구</text>
+  <text x="40" y="298" font-size="12" fill="#444">NVIDIA GPU(Linux/Win) 또는</text>
+  <text x="40" y="314" font-size="12" fill="#444">Apple Silicon + macOS 26</text>
+  <text x="40" y="342" font-size="12.5" font-weight="700" fill="#333">주의</text>
+  <text x="40" y="360" font-size="12" fill="#444">정식 오픈소스 라이선스 아님</text>
+  <text x="40" y="376" font-size="12" fill="#444">(프리뷰 기간 무료)</text>
+
+  <!-- grim-prompter -->
+  <rect x="280" y="56" width="240" height="372" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+  <text x="400" y="88" text-anchor="middle" font-size="16" font-weight="700" fill="#6e3f94">grim-prompter</text>
+  <text x="400" y="108" text-anchor="middle" font-size="11.5" fill="#555">스킬/프롬프트 · MIT · ~400★</text>
+  <text x="296" y="140" font-size="12.5" font-weight="700" fill="#333">무엇</text>
+  <text x="296" y="158" font-size="12" fill="#444">코딩 에이전트를 위협 모델러로:</text>
+  <text x="296" y="174" font-size="12" fill="#444">36 아키텍처 · 29 분석 기법</text>
+  <text x="296" y="202" font-size="12.5" font-weight="700" fill="#333">구조</text>
+  <text x="296" y="220" font-size="12" fill="#444">threat-model 스킬 심볼릭 링크</text>
+  <text x="296" y="236" font-size="12" fill="#444">CC는 /threat-model,</text>
+  <text x="296" y="252" font-size="12" fill="#444">Codex는 $threat-model로 실행</text>
+  <text x="296" y="280" font-size="12.5" font-weight="700" fill="#333">특징</text>
+  <text x="296" y="298" font-size="12" fill="#444">read-only 검사 + 파일:라인</text>
+  <text x="296" y="314" font-size="12" fill="#444">증거 인용을 런북으로 강제</text>
+  <text x="296" y="342" font-size="12.5" font-weight="700" fill="#333">주의</text>
+  <text x="296" y="360" font-size="12" fill="#444">결과는 보조 자료 — 사람의</text>
+  <text x="296" y="376" font-size="12" fill="#444">보안 리뷰를 대체하지 않는다</text>
+
+  <!-- sandbox-mcp -->
+  <rect x="536" y="56" width="240" height="372" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <text x="656" y="88" text-anchor="middle" font-size="16" font-weight="700" fill="#9c6a1f">sandbox-mcp</text>
+  <text x="656" y="108" text-anchor="middle" font-size="11.5" fill="#555">JavaScript · MIT · ~330★</text>
+  <text x="552" y="140" font-size="12.5" font-weight="700" fill="#333">무엇</text>
+  <text x="552" y="158" font-size="12" fill="#444">에이전트에게 매번 새 것으로</text>
+  <text x="552" y="174" font-size="12" fill="#444">주는 1회용 Windows 11 머신</text>
+  <text x="552" y="202" font-size="12.5" font-weight="700" fill="#333">구조</text>
+  <text x="552" y="220" font-size="12" fill="#444">Windows Sandbox 자동화 엔진</text>
+  <text x="552" y="236" font-size="12" fill="#444">CLI(sbx) + 선택형 MCP 어댑터</text>
+  <text x="552" y="252" font-size="12" fill="#444">GUI 시나리오 왕복 약 40~50초</text>
+  <text x="552" y="280" font-size="12.5" font-weight="700" fill="#333">용도</text>
+  <text x="552" y="298" font-size="12" fill="#444">"내 PC에선 되는데" 사냥:</text>
+  <text x="552" y="314" font-size="12" fill="#444">깨끗한 네트워크 차단 PC에서</text>
+  <text x="552" y="330" font-size="12" fill="#444">설치·실행·크래시 증거 수집</text>
+  <text x="552" y="358" font-size="12.5" font-weight="700" fill="#333">주의</text>
+  <text x="552" y="376" font-size="12" fill="#444">Windows Sandbox 기능이 있는</text>
+  <text x="552" y="392" font-size="12" fill="#444">Windows Pro/Enterprise 필요</text>
+
+  <text x="400" y="450" text-anchor="middle" font-size="12" fill="#888">별 수는 2026-11-09 GitHub Search API 기준 근사치.</text>
+</svg>

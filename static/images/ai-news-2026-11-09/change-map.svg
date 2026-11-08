@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="500" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-09</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="200" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="200" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="272" width="360" height="200" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="272" width="360" height="200" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="118" font-size="14" font-weight="600" fill="#222">오늘도 큰 모델 소식 없음</text>
+  <text x="50" y="142" font-size="12.5" fill="#444">11/5 GPT-6 Cyber 이후 주말 공백 이어짐</text>
+  <text x="50" y="164" font-size="12.5" fill="#444">Qwen3.5 지원 코드가 HF에 합류했다는</text>
+  <text x="50" y="182" font-size="12.5" fill="#444">신호만 돌고 있다 — 공식 발표는 아직</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문 — "초록불을 의심하라"</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">Terminal-Bench 2.1 — 벤치마크 유지보수 부채</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">검증된 벤치도 과제 ~30%에서 결함 · 수리 후 +10pp</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">Accepted but Wrong — 통과했는데 오답</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">API 마이그레이션 수리, 테스트 통과해도 41%는 오답</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">릴리즈 노트發 엣지 입력 1개면 6.5%로 급감</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="300" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스</text>
+  <text x="50" y="328" font-size="14" font-weight="600" fill="#222">vork — 에이전트용 헤드리스 3D/VFX 엔진</text>
+  <text x="50" y="350" font-size="12.5" fill="#444">코드로 쓰고 GPU로 렌더 · Rust · ~1.1k★</text>
+  <text x="50" y="378" font-size="14" font-weight="600" fill="#222">grim-prompter — 코딩 에이전트로 위협 모델링</text>
+  <text x="50" y="400" font-size="12.5" fill="#444">증거 추적형 36 아키텍처 · 29 기법 · MIT</text>
+  <text x="50" y="428" font-size="14" font-weight="600" fill="#222">sandbox-mcp — 1회용 Windows 머신</text>
+  <text x="50" y="450" font-size="12.5" fill="#444">Windows Sandbox 자동화 CLI+MCP · ~330★</text>
+
+  <!-- 도구 팁 -->
+  <text x="430" y="300" font-size="15" font-weight="700" fill="#6e3f94">🧑‍💻 도구 업데이트</text>
+  <text x="430" y="328" font-size="14" font-weight="600" fill="#222">Claude Code 2.1.319 — MCP 태스크 백그라운드</text>
+  <text x="430" y="350" font-size="12.5" fill="#444">태스크형 MCP 호출을 즉시 백그라운드로 보낸다</text>
+  <text x="430" y="378" font-size="14" font-weight="600" fill="#222">Codex — MCP 네트워크 정책 보수화</text>
+  <text x="430" y="400" font-size="12.5" fill="#444">판단 불가 트래픽은 기본 거부 ·</text>
+  <text x="430" y="418" font-size="12.5" fill="#444">저장된 거부 규칙은 grant가 깨져도 유지</text>
+
+  <text x="400" y="492" text-anchor="middle" font-size="12" fill="#888">공통 주제: 통과(초록불) ≠ 정답 — 벤치마크·테스트·네트워크 정책 모두 '검증의 검증'으로</text>
+</svg>

@@ -1,0 +1,316 @@
+---
+title: "에이전트는 자면서 똑똑해진다 — Anthropic이 해부한 agent memory의 부품들"
+date: 2026-11-09T07:30:00+09:00
+draft: false
+tags: ["AI", "agent memory", "에이전트 메모리", "dreaming", "memory consolidation", "컨텍스트 엔지니어링", "Claude", "Dreams API", "memory store", "knowledge wiki", "CL-Bench", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "세션이 끝나면 에이전트는 모든 걸 잊습니다. 어제 한 삽질을 오늘 또 하고, 지난주에 찾아낸 해결책을 다음 주에 다시 찾습니다. 11월 6일 Anthropic 엔지니어링 팀이 이 문제를 정면으로 다룬 글 'The components of agent memory'를 공개했고, Hacker News 프런트페이지에 오르며 이번 주 가장 뜨거운 엔지니어링 주제가 됐습니다. 핵심은 두 가지 — 메모리를 transcripts → notes → wiki → injected context의 4층 계층으로 설계하라는 것, 그리고 사람이 자면서 기억을 정리하듯 세션 사이에 메모리를 검증·통합하는 'dreaming'을 돌리라는 것입니다. 기억 파일 413개를 쌓고 배지 1개에 그친 에이전트와, 파일 10개로 게임을 깬 에이전트의 차이는 어디서 왔는지 — 벤치마크 숫자와 함께 junior 눈높이에서 뜯어봅니다."
+ShowToc: false
+cover:
+  image: "agent-memory-components-dreaming-cover.svg"
+  alt: "세션이 끝나면 기억을 잃는 에이전트와, transcripts에서 notes·wiki·injected context로 올라가는 메모리 계층 피라미드, 그리고 자면서 기억을 정리하는 dreaming을 표현한 커버 그림"
+  caption: "기억은 쌓는 게 아니라 설계하는 것 — 메모리 계층과 dreaming"
+  relative: false
+---
+
+<style>
+/* ── agent memory 포스트 전용 스타일 (amc- 접두사) ── */
+.amc-fig{
+  --amc-teal:#0d9488; --amc-rose:#e11d48; --amc-amber:#d97706; --amc-sky:#0284c7;
+  --amc-violet:#7c3aed; --amc-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .amc-fig{
+  --amc-teal:#2dd4bf; --amc-rose:#fb7185; --amc-amber:#fbbf24; --amc-sky:#38bdf8;
+  --amc-violet:#a78bfa; --amc-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .amc-fig{
+    --amc-teal:#2dd4bf; --amc-rose:#fb7185; --amc-amber:#fbbf24; --amc-sky:#38bdf8;
+    --amc-violet:#a78bfa; --amc-slate:#94a3b8;
+  }
+}
+.amc-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.amc-fig text{font-family:inherit}
+.amc-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.amc-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.amc-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.amc-toc ol{margin:0;padding-left:1.25rem}
+.amc-toc li{margin:.22rem 0;font-size:.95rem}
+.amc-toc a{text-decoration:none}
+.amc-toc a:hover{text-decoration:underline}
+.amc-table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.9rem}
+.amc-table th,.amc-table td{border:1px solid var(--border);padding:.45rem .65rem;text-align:left;vertical-align:top}
+.amc-table th{background:var(--entry)}
+.amc-note{border-left:4px solid var(--amc-sky,#0284c7);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+.amc-warn{border-left:4px solid var(--amc-rose,#e11d48);background:var(--entry);padding:.7rem 1rem;margin:1.2rem 0;border-radius:0 8px 8px 0;font-size:.94rem}
+</style>
+
+<div class="amc-toc">
+  <div class="amc-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — "어제 그 삽질, 오늘 또 하고 있다"</a></li>
+    <li><a href="#sec-2">배경 — agent memory는 무엇이고, 무엇이 아닌가</a></li>
+    <li><a href="#sec-3">메모리 계층 — transcripts에서 injected context까지 4층</a></li>
+    <li><a href="#sec-4">실험이 말해 주는 것 — 메모는 예측이고, 적게 쓰는 쪽이 이긴다</a></li>
+    <li><a href="#sec-5">dreaming — 자는 동안 기억을 고쳐 쓰는 에이전트</a></li>
+    <li><a href="#sec-6">실전 — Dreams API와 쿡북 패턴으로 직접 만들어 보기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-9">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — "어제 그 삽질, 오늘 또 하고 있다"</h2>
+
+<p>코딩 에이전트를 매일 쓰다 보면 반드시 마주치는 장면이 있습니다. 어제 세션에서 "이 저장소의 통합 테스트는 <code>TIDEWICK_DATA_DIR</code>를 설정해야 돈다"는 걸 30분 삽질 끝에 알아냈는데, 오늘 새 세션을 열면 에이전트는 똑같은 삽질을 처음부터 다시 합니다. 컨텍스트 윈도우는 세션이 끝나면 증발하니까요. <strong>일은 쌓이는데 경험은 쌓이지 않는 것</strong> — 지금 에이전트 엔지니어링에서 가장 아까운 낭비입니다.</p>
+
+<p>11월 6일, Anthropic 엔지니어링 팀이 이 문제를 정면으로 다룬 글 <a href="https://www.anthropic.com/research/components-of-agent-memory" target="_blank" rel="noopener">The components of agent memory</a>를 공개했습니다. 저자는 "컨텍스트를 압축·지속·격리하라"는 분류로 컨텍스트 엔지니어링 담론을 끌어온 Lance Martin입니다. 글은 공개 직후 <a href="https://news.ycombinator.com/item?id=50402212" target="_blank" rel="noopener">Hacker News 프런트페이지</a>에 올랐고, 같은 주에 latent 메모리 논문 <a href="https://arxiv.org/abs/2610.21375" target="_blank" rel="noopener">Memorilla</a>까지 나란히 화제가 되면서 이번 주 AI 엔지니어링 커뮤니티의 주제는 단연 '기억'이었습니다.</p>
+
+<p>이 글이 특별한 이유는 주장이 아니라 <strong>숫자</strong>에 있습니다. 메모리를 붙였더니 벤치마크 점수가 얼마나 올랐는지, 메모를 많이 쓴 에이전트와 적게 쓴 에이전트의 성적이 어떻게 갈렸는지, 그리고 세션 사이에 기억을 정리하는 <strong>dreaming</strong>이라는 오프라인 패스가 무엇을 고쳐 놓는지를 실험으로 보여 줍니다. 이 포스트에서는 그 내용을 junior 개발자 눈높이에서 해부하고, 연구 프리뷰로 공개된 Dreams API와 쿡북 레시피로 직접 만들어 보는 데까지 갑니다.</p>
+
+<h2 id="sec-2">2. 배경 — agent memory는 무엇이고, 무엇이 아닌가</h2>
+
+<p>Anthropic의 정의는 간결합니다. <strong>agent memory(에이전트 메모리)는 에이전트가 경험에서 얻어 세션 사이에 유지하는 지식</strong>입니다. 이 정의에서 중요한 건 오히려 '아닌 것' 목록입니다.</p>
+
+<ul>
+  <li><strong>모델 가중치가 아닙니다.</strong> 사전학습으로 박힌 지식은 내 프로젝트의 어제를 모릅니다.</li>
+  <li><strong>in-context learning이 아닙니다.</strong> 한 세션 안에서 대화로 배우는 건 세션이 끝나면 사라집니다.</li>
+  <li><strong>compaction이 아닙니다.</strong> 컨텍스트가 차오를 때 오래된 턴을 요약으로 갈아 끼우는 <a href="/posts/context-compaction-long-horizon-agents/">compaction</a>은 같은 세션을 연장하는 기술이지, 세션을 넘는 기억이 아닙니다.</li>
+</ul>
+
+<p>그러니까 메모리는 "컨텍스트 윈도우를 어떻게든 늘리는 문제"가 아니라, <strong>윈도우 밖에 무엇을 어떤 모양으로 남길 것인가</strong>라는 설계 문제입니다. 파일 몇 개 만들어 두면 되는 것 아니냐고 생각하기 쉽지만, 뒤에서 보듯 "많이 남기는" 에이전트가 오히려 일을 못 하게 되는 함정이 기다리고 있습니다.</p>
+
+<p>글 전체를 관통하는 비유는 사람의 뇌입니다. 해마(hippocampus)는 경험을 빠르게 임시 저장하고, 잠자는 동안 그 기록을 재생하면서 신피질(neocortex)의 장기 지식으로 천천히 옮겨 적습니다. 에이전트도 같은 분업이 가능하다는 게 핵심 제안입니다. 세션 중에는 빠르게 메모만 남기고, <strong>세션이 없는 한가한 시간에 원본 기록을 다시 읽으며 기억을 정리하는 패스</strong>를 따로 돌리는 겁니다. Anthropic은 이 오프라인 패스를 dreaming이라고 부릅니다.</p>
+
+<h2 id="sec-3">3. 메모리 계층 — transcripts에서 injected context까지 4층</h2>
+
+<p>글이 제시하는 아키텍처는 4층 계층입니다. 아래로 갈수록 크고 날것이고, 위로 갈수록 작고 정제돼 있습니다.</p>
+
+<figure class="amc-fig">
+<svg viewBox="0 0 860 520" role="img" aria-label="에이전트 메모리 4층 계층 다이어그램. 맨 아래 transcripts는 모든 세션의 원본 기록이고, 그 위 memory notes는 에이전트가 남긴 핵심 메모, 그 위 representations는 위키처럼 서로 연결된 지식 구조, 맨 위 injected context는 매 세션 자동 주입되는 소량의 컨텍스트다. 오른쪽에서 dreaming이 아래층을 읽어 위층을 고쳐 쓰는 화살표가 층을 가로지른다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--amc-sky)" font-size="16" font-weight="800">메모리 계층 — 아래는 크고 날것, 위는 작고 정제됨</text>
+
+  <!-- layer 4: injected -->
+  <rect x="250" y="60" width="360" height="72" rx="10" fill="var(--amc-rose)" opacity="0.16" stroke="var(--amc-rose)" stroke-width="2"/>
+  <text x="430" y="88" text-anchor="middle" fill="var(--amc-rose)" font-size="14" font-weight="800">④ injected context (주입 컨텍스트)</text>
+  <text x="430" y="110" text-anchor="middle" fill="var(--amc-slate)" font-size="12">매 세션 자동 로드 — 반드시 작게 (예: MEMORY.md 앞 200줄/25KB)</text>
+
+  <!-- layer 3 -->
+  <rect x="190" y="152" width="480" height="72" rx="10" fill="var(--amc-violet)" opacity="0.16" stroke="var(--amc-violet)" stroke-width="2"/>
+  <text x="430" y="180" text-anchor="middle" fill="var(--amc-violet)" font-size="14" font-weight="800">③ representations (표상) — 지식 wiki</text>
+  <text x="430" y="202" text-anchor="middle" fill="var(--amc-slate)" font-size="12">서로 링크된 작은 페이지들 — 필요할 때 찾아 읽는 구조화된 지식</text>
+
+  <!-- layer 2 -->
+  <rect x="130" y="244" width="600" height="72" rx="10" fill="var(--amc-amber)" opacity="0.16" stroke="var(--amc-amber)" stroke-width="2"/>
+  <text x="430" y="272" text-anchor="middle" fill="var(--amc-amber)" font-size="14" font-weight="800">② memory notes (메모) — "나중에 쓸모 있을 것"의 예측</text>
+  <text x="430" y="294" text-anchor="middle" fill="var(--amc-slate)" font-size="12">세션 중 에이전트가 직접 남기는 검증된 사실·규칙·교훈</text>
+
+  <!-- layer 1 -->
+  <rect x="70" y="336" width="720" height="72" rx="10" fill="var(--amc-teal)" opacity="0.16" stroke="var(--amc-teal)" stroke-width="2"/>
+  <text x="430" y="364" text-anchor="middle" fill="var(--amc-teal)" font-size="14" font-weight="800">① transcripts (세션 기록) — 모든 것의 원본, 검색 가능한 이벤트 로그</text>
+  <text x="430" y="386" text-anchor="middle" fill="var(--amc-slate)" font-size="12">지우지 않는다 — 위층이 틀렸는지 확인하는 유일한 근거(ground truth)</text>
+
+  <!-- dreaming arrows -->
+  <path d="M 770 360 C 830 330, 830 230, 690 188" fill="none" stroke="var(--amc-sky)" stroke-width="3"/>
+  <polygon points="700,180 682,186 696,200" fill="var(--amc-sky)"/>
+  <path d="M 690 280 C 760 250, 740 150, 625 100" fill="none" stroke="var(--amc-sky)" stroke-width="3" stroke-dasharray="7 5"/>
+  <polygon points="636,92 618,96 630,112" fill="var(--amc-sky)"/>
+  <text x="800" y="250" text-anchor="middle" fill="var(--amc-sky)" font-size="13" font-weight="800">dreaming</text>
+  <text x="800" y="268" text-anchor="middle" fill="var(--amc-slate)" font-size="11">아래층을 읽어</text>
+  <text x="800" y="284" text-anchor="middle" fill="var(--amc-slate)" font-size="11">위층을 고쳐 쓴다</text>
+
+  <!-- session read/write hints -->
+  <text x="110" y="460" fill="var(--amc-slate)" font-size="12">세션 중 쓰기: 주로 ①(자동)과 ②(에이전트가 직접)</text>
+  <text x="110" y="482" fill="var(--amc-slate)" font-size="12">세션 중 읽기: ④는 공짜(자동 주입), ③은 검색해서, ①·②는 필요할 때 거슬러 올라가서</text>
+</svg>
+<figcaption>그림 1. 에이전트 메모리의 4층 계층. 세션은 아래층에 쓰고 위층을 읽으며, dreaming이 세션 사이에 아래층을 근거로 위층을 교정·승격합니다.</figcaption>
+</figure>
+
+<p>각 층을 하나씩 보겠습니다.</p>
+
+<p><strong>① transcripts</strong>는 모든 세션의 원본 기록입니다. 그대로는 너무 길어서 컨텍스트에 넣을 수 없지만, 절대 버리면 안 되는 층입니다. 위층의 메모가 맞는지 틀렸는지 확인할 수 있는 <strong>유일한 근거 자료</strong>이기 때문입니다. 검색 가능한 로그로만 유지하면 됩니다.</p>
+
+<p><strong>② memory notes</strong>는 세션 중에 에이전트가 직접 남기는 짧은 메모입니다. "이 테스트는 환경 변수 X가 필요하다", "이 API는 빈 배열 대신 null을 돌려준다" 같은 검증된 사실과 규칙이 여기 들어갑니다. 파일 폴더에 저장할 수도 있고, 세션 로그에 태그로 남길 수도 있습니다.</p>
+
+<p><strong>③ representations</strong>는 메모가 충분히 쌓였을 때 만드는 구조화된 표상입니다. 대표 형태가 <strong>wiki</strong> — 서로 링크된 작은 페이지들의 집합입니다. 낱개 메모가 포스트잇이라면 위키는 잘 정리된 사내 문서에 가깝습니다. 에이전트가 직접 쓰고 유지합니다.</p>
+
+<p><strong>④ injected context</strong>는 매 세션 시작 때 자동으로 주입되는 소량의 컨텍스트입니다. 가장 비싼 자리입니다. 여기 들어간 내용은 좋든 나쁘든 <strong>모든 세션에 영향을 주기 때문</strong>입니다. 실제로 Claude Code의 자동 메모리는 인덱스 파일 <code>MEMORY.md</code>의 앞 200줄 또는 25KB까지만 로드합니다. 나머지는 필요할 때 에이전트가 찾아 읽는 구조입니다.</p>
+
+<div class="amc-note">
+<strong>어디서 본 구조 같다면 맞습니다.</strong> 데이터 엔지니어링의 raw → staging → mart 레이어, 또는 로그 → 메트릭 → 대시보드 파이프라인과 같은 사고방식입니다. 원본은 보존하고, 가공물은 언제든 원본에서 다시 만들 수 있게 하고, 비싼 자리(대시보드/주입 컨텍스트)에는 정제된 것만 올립니다.</div>
+
+<h2 id="sec-4">4. 실험이 말해 주는 것 — 메모는 예측이고, 적게 쓰는 쪽이 이긴다</h2>
+
+<p>계층 구조 자체는 새롭지 않습니다. 이 글의 가치는 각 층을 <strong>실험으로 검증한 것</strong>입니다. 세 가지 발견이 중요합니다.</p>
+
+<h3>발견 1 — 메모 하나는 "이게 나중에 쓸모 있을 것"이라는 예측이다</h3>
+
+<p>데이터베이스 과제로 구성된 CL-Bench 1.0 벤치마크에서, 실패를 기록하고 → 가설을 세워 시험하고 → 결과를 규칙으로 적는 <strong>학습 루프</strong>를 만든 모델들은 메모리를 붙였을 때 점수가 크게 올랐습니다.</p>
+
+<table class="amc-table">
+  <thead><tr><th>모델</th><th>메모리 없음 (mean reward)</th><th>메모리 있음</th><th>변화</th></tr></thead>
+  <tbody>
+    <tr><td>Opus 5.5</td><td>0.655</td><td><strong>0.838</strong></td><td>+0.183</td></tr>
+    <tr><td>Sonnet 5.5</td><td>0.644</td><td><strong>0.833</strong></td><td>+0.189</td></tr>
+    <tr><td>Opus 5</td><td>0.564</td><td><strong>0.828</strong></td><td>+0.264</td></tr>
+    <tr><td>Opus 4.7</td><td>0.383</td><td><strong>0.700</strong></td><td>+0.317</td></tr>
+    <tr><td>Sonnet 5</td><td>0.306</td><td><strong>0.610</strong></td><td>+0.304</td></tr>
+    <tr><td>Sonnet 4.6</td><td>0.330</td><td>0.364 <span style="opacity:.7">(지시 보강 시 0.641)</span></td><td>+0.034</td></tr>
+  </tbody>
+</table>
+
+<p>표에서 두 가지를 읽을 수 있습니다. 첫째, 메모리는 공짜 성능입니다 — 같은 모델이 기억만 얻어도 한 체급 위 점수를 냅니다. 둘째, <strong>메모리를 활용하는 능력 자체가 모델 역량</strong>입니다. Sonnet 4.6은 메모리를 줘도 절반 이하의 확률로만 읽었고(지시를 다듬어야 0.641), 최신 모델은 10번 중 9번꼴로 읽고 활용했습니다. 구형 모델 기반 에이전트에 메모리를 붙였는데 효과가 없다면, 메모리 설계보다 모델부터 의심할 일입니다.</p>
+
+<h3>발견 2 — 많이 적는 에이전트가 지고, 가려 적는 에이전트가 이긴다</h3>
+
+<p>가장 인상적인 실험은 Pokémon Red 플레이입니다. 구형 Sonnet 3.7은 <strong>225개 폴더에 413개의 기억 파일(약 978K 문자)</strong>을 만들었습니다. 지도 좌표, NPC 대사, 온갖 디테일을 다 적은 겁니다. 결과는 배지 1개 — 낡은 기록을 유지보수하느라 시간을 썼고, 정작 필요한 걸 찾지 못했습니다. 반면 최신 모델은 <strong>약 10개 파일(약 43K 문자)</strong>만 만들었습니다. 전략과 "시험해서 검증된 규칙"만 적은 겁니다. 결과는 배지 4개, 그리고 작은 메모리 폴더만 쓴 Opus 5.5는 게임을 끝까지 깼습니다.</p>
+
+<p>메모 하나를 적는 행위는 <strong>"이 정보가 미래 세션에 쓸모 있을 것"이라는 예측(prediction)</strong>입니다. 예측이니까 선구안(salience)이 성적을 가릅니다. 모든 걸 적는 건 예측을 포기하는 것이고, 그 비용은 다음 세션이 치릅니다 — 검색은 느려지고, 낡은 메모가 새 메모를 묻어 버립니다.</p>
+
+<h3>발견 3 — "어떻게 쓰라"가 아니라 "무엇을 위한 것인지" 알려 줘라</h3>
+
+<p>메모리 사용법을 세세히 지시하면 오히려 나빠질 수 있습니다. "실패만 기록하라"는 규칙을 강제하자 Opus 5는 메모리 이득이 0.234, Opus 4.7은 0.150 깎였습니다. 프런티어 모델에게는 <strong>메모리가 무엇을 위한 저장소인지 목적만 알려 주고, 무엇을 적을지는 모델의 판단에 맡기는 쪽</strong>이 꾸준히 좋았습니다. 프롬프트 과잉 명세가 역효과를 내는 패턴은 <a href="/posts/agent-skills-failure-lifecycle/">스킬 설계</a>에서도 봤던 그대로입니다.</p>
+
+<h2 id="sec-5">5. dreaming — 자는 동안 기억을 고쳐 쓰는 에이전트</h2>
+
+<p>세션 중에 남긴 메모에는 구조적 약점이 있습니다. <strong>쓰는 순간에는 틀렸는지 알 수 없고, 쌓일수록 중복·모순·낡은 항목이 늘어난다</strong>는 점입니다. 세션 중의 에이전트는 본업이 바쁘니 메모 정리에 시간을 쓸 수도 없습니다. 그래서 정리를 별도의 오프라인 작업으로 분리합니다. dreaming은 한가한 시간에 <strong>메모리와 원본 transcripts를 나란히 놓고 대조하는 배치 패스</strong>입니다. 하는 일은 세 가지입니다.</p>
+
+<ul>
+  <li><strong>교정(verify)</strong> — 메모를 원본 기록과 대조해 틀린 것을 고칩니다.</li>
+  <li><strong>통합(consolidate)</strong> — 중복을 합치고, 모순은 최신 값으로 정리하고, 흩어진 메모를 위키로 구조화합니다.</li>
+  <li><strong>승격(promote)</strong> — 충분히 검증되고 자주 쓰이는 지식을 위층(위키, 나아가 injected context)으로 올립니다.</li>
+</ul>
+
+<figure class="amc-fig">
+<svg viewBox="0 0 860 460" role="img" aria-label="dreaming 사이클 다이어그램. 낮에는 세션들이 돌면서 transcripts와 메모가 쌓이고, 밤에는 dreaming이 메모를 transcripts와 대조해 교정하고 위키로 통합하며 핵심을 승격한다. 다음 날 세션은 정리된 메모리로 시작한다. 아래에는 포켓몬 실험 사례가 적혀 있다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--amc-sky)" font-size="16" font-weight="800">dreaming 사이클 — 낮에는 일하고, 밤에는 기억을 정리한다</text>
+
+  <!-- day -->
+  <rect x="40" y="60" width="360" height="150" rx="12" fill="none" stroke="var(--amc-amber)" stroke-width="2"/>
+  <text x="60" y="88" fill="var(--amc-amber)" font-size="14" font-weight="800">☀ 낮 — 세션 N개</text>
+  <rect x="60" y="104" width="150" height="40" rx="8" fill="var(--amc-amber)" opacity="0.18"/>
+  <text x="135" y="129" text-anchor="middle" fill="var(--amc-amber)" font-size="12" font-weight="700">본업 수행</text>
+  <rect x="230" y="104" width="150" height="40" rx="8" fill="var(--amc-amber)" opacity="0.18"/>
+  <text x="305" y="129" text-anchor="middle" fill="var(--amc-amber)" font-size="12" font-weight="700">메모 빠르게 기록</text>
+  <text x="60" y="180" fill="var(--amc-slate)" font-size="12">부산물: transcripts 축적 (원본 보존)</text>
+  <text x="60" y="198" fill="var(--amc-slate)" font-size="12">메모는 중복·모순·오류를 품은 채 쌓인다</text>
+
+  <!-- night -->
+  <rect x="460" y="60" width="360" height="150" rx="12" fill="none" stroke="var(--amc-violet)" stroke-width="2"/>
+  <text x="480" y="88" fill="var(--amc-violet)" font-size="14" font-weight="800">☾ 밤 — dreaming (배치)</text>
+  <text x="480" y="118" fill="var(--amc-violet)" font-size="13" font-weight="700">1. 교정 — 메모 vs transcripts 대조</text>
+  <text x="480" y="143" fill="var(--amc-violet)" font-size="13" font-weight="700">2. 통합 — 중복 병합, wiki 구조화</text>
+  <text x="480" y="168" fill="var(--amc-violet)" font-size="13" font-weight="700">3. 승격 — 핵심만 위층으로</text>
+  <text x="480" y="196" fill="var(--amc-slate)" font-size="12">입력 저장소는 건드리지 않고 새 저장소를 만든다</text>
+
+  <!-- arrows -->
+  <path d="M 400 110 L 452 110" fill="none" stroke="var(--amc-slate)" stroke-width="3"/>
+  <polygon points="450,103 466,110 450,117" fill="var(--amc-slate)"/>
+  <path d="M 640 218 C 640 280, 230 280, 225 218" fill="none" stroke="var(--amc-teal)" stroke-width="3"/>
+  <polygon points="218,232 224,210 236,230" fill="var(--amc-teal)"/>
+  <text x="430" y="262" text-anchor="middle" fill="var(--amc-teal)" font-size="13" font-weight="800">다음 날 세션은 정리된 메모리로 시작</text>
+
+  <!-- case study -->
+  <rect x="40" y="310" width="780" height="120" rx="12" fill="var(--amc-rose)" opacity="0.07" stroke="var(--amc-rose)" stroke-width="1.5"/>
+  <text x="60" y="340" fill="var(--amc-rose)" font-size="13" font-weight="800">사례 — 틀린 메모 하나가 에이전트를 가둔다 (Pokémon, Mt. Moon)</text>
+  <text x="60" y="366" fill="var(--amc-slate)" font-size="12.5">"포켓몬 센터 위치"를 잘못 적은 메모 하나 → 에이전트가 일방통행 절벽에서 반복 추락, 산을 끝내 못 넘음</text>
+  <text x="60" y="390" fill="var(--amc-slate)" font-size="12.5">dreaming이 transcripts와 대조해 메모 수정 → 수정된 메모리로 돌리자 1,935번째 행동에 다음 도시 도달</text>
+  <text x="60" y="414" fill="var(--amc-slate)" font-size="12.5">같은 모델, 같은 과제 — 차이는 메모 한 줄의 참/거짓뿐</text>
+</svg>
+<figcaption>그림 2. dreaming 사이클. 세션(낮)은 메모를 빠르게 쌓고, dreaming(밤)은 원본 기록과 대조해 교정·통합·승격합니다. 틀린 메모 하나를 고치는 것만으로 막혀 있던 과제가 풀립니다.</figcaption>
+</figure>
+
+<p>그림 속 사례가 dreaming의 가치를 압축합니다. 메모리는 양날의 검이라, <strong>틀린 기억은 기억이 없는 것보다 나쁩니다</strong>. 매 세션 그 거짓을 전제로 행동하기 때문입니다. 잘못 적힌 위치 메모 하나 때문에 에이전트는 일방통행 절벽에서 계속 떨어졌고, dreaming이 원본 기록과 대조해 그 메모를 고치자 과제가 풀렸습니다.</p>
+
+<p>교정을 넘어 <strong>위키 구축</strong>으로 가면 숫자가 더 흥미롭습니다. 약 35만 개 파일(약 4.2억 토큰) 규모의 실제 코드베이스(Stainless)에서 25개 질문으로 평가했을 때 — 위키만으로 답하는 정확도는 세션이 128회 쌓이는 동안 13%에서 48%로 올랐고, <strong>위키+검색 조합은 54%→61%</strong>로 검색 단독(53%)을 넘어섰습니다. 덤으로 질문당 약 2만 토큰을 아꼈습니다. 좋은 위키는 검색의 대체재가 아니라, <strong>검색이 잘 못 하는 '여러 문서를 가로지르는 그림'을 보완하는 지도</strong>라는 뜻입니다. 실제로 법률 과제(Harvey LAB)에서 여러 문서를 종합해야 하는 질문은 위키가 87% vs 검색 73%로 앞섰지만, 답이 문서 하나에 들어 있는 과제에서는 위키의 이득이 없었습니다.</p>
+
+<div class="amc-warn">
+<strong>dreaming은 공짜가 아닙니다.</strong> 표상을 정확하게 유지하는 데는 컴퓨트가 듭니다. 실험 중에는 위키가 원본 코퍼스의 1.77배 크기로 자라고 일부 페이지는 링크조차 안 된 사례도 있었습니다. 저자들 스스로 "transcript 검색을 기본으로 깔고 표상은 그 위에 얹는 게 맞지 않나"를 열린 질문으로 남깁니다. 요약 아티팩트가 원본보다 커지고 어긋나는 문제는 <a href="/posts/agent-handoff-constraint-weakening/">핸드오프 제약 약화</a>에서 본 패턴과 같은 뿌리입니다.</div>
+
+<h2 id="sec-6">6. 실전 — Dreams API와 쿡북 패턴으로 직접 만들어 보기</h2>
+
+<p>개념은 그대로 제품이 되고 있습니다. Anthropic Managed Agents에는 <a href="https://platform.claude.com/docs/en/managed-agents/dreams" target="_blank" rel="noopener">Dreams API</a>가 연구 프리뷰로 들어 있습니다. 기존 memory store 하나와 과거 세션 1~100개를 입력으로 주면, 비동기 잡이 돌면서 <strong>중복을 합치고 낡은 항목을 정리한 새 memory store를 따로 만들어</strong> 줍니다. 입력 저장소는 절대 수정하지 않으므로, 결과가 마음에 안 들면 버리면 됩니다.</p>
+
+{{< highlight python >}}
+# Dreams API — 연구 프리뷰 (beta 헤더 필요)
+# anthropic-beta: managed-agents-2026-04-01,dreaming-2026-04-21
+dream = client.beta.dreams.create(
+    inputs=[
+        {"type": "memory_store", "memory_store_id": store_id},   # 정리 대상 저장소
+        {"type": "sessions", "session_ids": [session_a, session_b]},  # 대조할 원본 transcripts
+    ],
+    model="claude-opus-5-5",
+    # '어떻게'가 아니라 '무엇에 집중할지'만 — 특정 줄을 고치라는 명령은 먹히지 않는다
+    instructions="코딩 스타일 선호에 집중하고, 일회성 디버깅 메모는 무시해.",
+)
+
+# 비동기 잡 — 수 분에서 수 시간. 폴링으로 완료 확인
+while dream.status in ("pending", "running"):
+    time.sleep(10)
+    dream = client.beta.dreams.retrieve(dream.id)
+
+# 출력은 '새' memory store — 검토 후 다음 세션에 붙이거나 버린다
+output_store_id = next(
+    o.memory_store_id for o in dream.outputs if o.type == "memory_store"
+)
+{{< /highlight >}}
+
+<p>관리형이 아니라 직접 만들고 싶다면 공식 쿡북 <a href="https://platform.claude.com/cookbook/managed-agents-cma-dreaming-with-a-dynamic-workflow" target="_blank" rel="noopener">Dreaming with a dynamic workflow</a>가 좋은 출발점입니다. 구조는 단순한 2단계 파이프라인입니다.</p>
+
+<ul>
+  <li><strong>analyze</strong> — transcript 1개당 analyzer 에이전트 1개(저렴한 Haiku)가 병렬로 붙어, 기존 메모리의 주장을 원본과 <strong>대조·검증</strong>하고 새로 확인된 사실을 추가합니다.</li>
+  <li><strong>organize</strong> — 전부 끝나면 organizer 에이전트 1개가 중복을 합치고, 링크를 고치고, 인덱스를 갱신합니다.</li>
+</ul>
+
+<p>메모리의 실체는 거창한 벡터 DB가 아니라 <strong>작은 마크다운 파일들의 폴더</strong>입니다. 파일마다 frontmatter가 붙고, <code>[[slug]]</code> 링크로 서로 연결되며, <code>_index.md</code>가 전체 카탈로그 역할을 합니다.</p>
+
+{{< highlight markdown >}}
+---
+name: tidewick-data-dir-resolution
+description: config.data_dir() 탐색 규칙과 make test에서 나는
+  cwd 의존 FileNotFoundError. 테스트가 데이터를 못 찾을 때 읽을 것.
+---
+통합 테스트는 TIDEWICK_DATA_DIR=... 가 필요 (2026-10-02 CI 로그에서 검증).
+make 타깃은 [[tidewick-project-conventions]] 참고.
+{{< /highlight >}}
+
+<p>이 레시피에서 junior가 훔칠 만한 디테일이 많습니다. description은 "무슨 내용인지"가 아니라 <strong>"언제 읽어야 하는지"</strong>를 적습니다(검색하는 건 미래의 에이전트니까요). 사실에는 <strong>검증 날짜와 출처</strong>를 붙입니다. 모순되는 사실은 지우지 않고 <code>CONFLICT: A는 …, B는 …</code>로 나란히 적어 둡니다. 그리고 transcripts는 <strong>신뢰할 수 없는 데이터로 취급</strong>해 비밀 값은 절대 메모리로 옮기지 않습니다. 예시 실행 기준 transcript 11개를 분석하는 데 약 2.5분, 비용은 $0.36이었습니다 — 밤마다 cron으로 돌려도 부담 없는 수준입니다.</p>
+
+<p>Managed Agents를 안 쓰더라도 원리는 그대로 이식할 수 있습니다. 에이전트에게 메모리 폴더 하나를 주고, 세션 transcripts를 파일로 남기고, 밤마다 "메모리를 transcripts와 대조해 교정·통합하라"는 배치 세션을 하나 돌리면 그게 dreaming입니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>injected context를 쓰레기장으로 만들기.</strong> "중요하니까 자동 주입"이 쌓이면 매 세션 토큰을 태우고, 틀린 항목 하나가 전 세션으로 퍼집니다. Claude Code가 <code>MEMORY.md</code>를 앞 200줄/25KB만 읽는 건 우연이 아닙니다. 주입은 인덱스 수준으로 얇게, 본문은 찾아 읽게 하세요.</li>
+  <li><strong>원본 transcripts를 지우기.</strong> 요약본만 남기면 dreaming이 대조할 근거가 사라집니다. 틀린 메모를 영영 고칠 수 없게 됩니다.</li>
+  <li><strong>메모리 사용법을 과잉 명세하기.</strong> "매 턴 기록해라", "실패만 적어라" 같은 규칙은 실험에서 점수를 깎았습니다. 목적을 알려 주고 판단은 맡기세요. 단, 구형·소형 모델은 반대로 지시를 보강해야 메모리를 읽기 시작합니다 — 모델 체급에 맞춰 조이는 정도를 달리해야 합니다.</li>
+  <li><strong>여러 에이전트가 하나의 메모리 파일을 동시에 고치게 하기.</strong> 공유 표 하나를 여럿이 덮어쓰게 한 실험에서는 채점 대상 사실 57개 중 41개(72%)만 살아남았습니다. 담당 구역을 나누고 원문을 그대로 인용하게 하자 57개 전부(100%) 보존됐습니다. 메모리 쓰기에도 소유권 설계가 필요합니다.</li>
+  <li><strong>위키를 만능으로 믿기.</strong> 여러 문서를 가로지르는 질문에는 강하지만, 답이 한 문서에 있는 과제에서는 검색 대비 이득이 없었습니다. 유지 비용(컴퓨트, 비대해진 위키)을 생각하면 transcript 검색부터 깔고 필요가 증명될 때 표상을 얹는 순서가 안전합니다.</li>
+  <li><strong>메모리를 무조건 신뢰하기.</strong> 메모는 과거 세션의 주장일 뿐입니다. 외부 입력이 섞이는 환경이라면 <a href="/posts/agent-memory-poisoning-defense/">메모리 포이즈닝</a>까지 포함해, "메모리도 검증 대상"이라는 전제를 유지하세요.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>11월 6일 Anthropic이 공개한 <strong>The components of agent memory</strong>는 에이전트 메모리를 4층 계층으로 정리합니다 — <strong>transcripts(원본) → memory notes(메모) → representations(wiki) → injected context(자동 주입)</strong>. 아래는 크고 날것, 위는 작고 정제됨.</li>
+  <li>메모 하나는 "나중에 쓸모 있을 것"이라는 <strong>예측</strong>입니다. 413개 파일을 쌓은 에이전트는 배지 1개, 검증된 규칙 10개 파일만 남긴 에이전트는 배지 4개 — <strong>선구안이 양을 이깁니다</strong>.</li>
+  <li>CL-Bench에서 메모리는 전 모델의 점수를 올렸고(예: Opus 5 0.564→0.828), 메모리를 읽고 활용하는 능력 자체가 모델 역량입니다. 프런티어 모델에는 목적만 알려 주고 사용법은 맡기는 쪽이 좋습니다.</li>
+  <li><strong>dreaming</strong>은 세션 사이의 오프라인 배치 패스입니다 — 메모를 원본 transcripts와 대조해 <strong>교정</strong>하고, 중복·모순을 <strong>통합</strong>하고, 핵심을 위층으로 <strong>승격</strong>합니다. 틀린 메모 하나를 고치자 막혀 있던 과제가 풀렸고, 위키를 키우자 대규모 코드베이스 QA가 검색 단독을 넘어섰습니다(61% vs 53%, 질문당 약 2만 토큰 절약).</li>
+  <li>직접 해 보려면: 연구 프리뷰 <strong>Dreams API</strong>(<code>/v1/dreams</code>, 입력 저장소는 불변·출력은 새 저장소) 또는 쿡북의 analyzer/organizer 패턴(Haiku 병렬, <code>_index.md</code> + <code>[[slug]]</code> 위키, 예시 실행 $0.36/2.5분).</li>
+  <li>함정: injected context 비대화, 원본 삭제, 과잉 명세, 공유 파일 동시 쓰기(72%→100% 사례), 위키 만능주의. 그리고 <strong>틀린 기억은 무기억보다 나쁘다</strong>는 것.</li>
+</ul>
+
+<h2 id="sec-9">9. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.anthropic.com/research/components-of-agent-memory" target="_blank" rel="noopener">The components of agent memory — Anthropic 엔지니어링 (2026-11-06)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50402212" target="_blank" rel="noopener">Hacker News 토론 — The Components of Agent Memory</a></li>
+  <li><a href="https://platform.claude.com/docs/en/managed-agents/dreams" target="_blank" rel="noopener">Dreams — Claude Managed Agents 공식 문서 (연구 프리뷰)</a></li>
+  <li><a href="https://platform.claude.com/docs/en/managed-agents/memory" target="_blank" rel="noopener">Memory stores — Claude Managed Agents 공식 문서</a></li>
+  <li><a href="https://platform.claude.com/cookbook/managed-agents-cma-dreaming-with-a-dynamic-workflow" target="_blank" rel="noopener">Dreaming with a dynamic workflow — Claude Cookbook 레시피</a></li>
+  <li><a href="https://arxiv.org/abs/2610.21375" target="_blank" rel="noopener">Memorilla: Latent Semantic Memory for LLMs — 같은 주 HN에서 화제가 된 latent 메모리 논문 (arXiv:2610.21375)</a></li>
+  <li><a href="https://rlancemartin.github.io/2025/06/23/context_engineering/" target="_blank" rel="noopener">Context Engineering for Agents — 저자 Lance Martin의 이전 글 (2025-06)</a></li>
+  <li><a href="https://daleseo.com/claude-code-memory/" target="_blank" rel="noopener">클로드 코드 자동 메모리: AI가 스스로 기억하는 법 — DaleSeo (한국어)</a></li>
+  <li>관련해서 함께 읽기 — <a href="/posts/agent-memory-engineering/">에이전트 메모리 기초</a>, <a href="/posts/agent-memory-consolidation-substrates/">장기 기억의 통합과 substrate 선택</a>, <a href="/posts/agent-memory-vs-documentation/">에이전트 기억 설계 논쟁 — 메모리 vs 문서화</a>, <a href="/posts/hindsight-agent-memory-learns/">기억이 아니라 학습하는 메모리, Hindsight</a>, <a href="/posts/context-compaction-long-horizon-agents/">컨텍스트 compaction</a>, <a href="/posts/agent-memory-poisoning-defense/">메모리 포이즈닝 방어</a> (이 블로그, 한국어)</li>
+</ul>

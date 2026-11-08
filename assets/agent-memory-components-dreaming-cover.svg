@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트 메모리를 설명하는 커버 그림. 왼쪽에는 세션이 끝나면 기억이 사라지는 에이전트, 가운데에는 트랜스크립트에서 노트, 위키, 주입 컨텍스트로 올라가는 메모리 계층 피라미드, 오른쪽에는 자면서 기억을 정리하는 dreaming을 뜻하는 달과 지식 위키 아이콘이 있다">
+  <defs>
+    <linearGradient id="amcbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#101b33"/>
+    </linearGradient>
+    <linearGradient id="amcpyr" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#334155"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#amcbg)"/>
+
+  <!-- title -->
+  <text x="80" y="96" fill="#f8fafc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="46" font-weight="800">에이전트는 자면서 똑똑해진다</text>
+  <text x="80" y="146" fill="#7dd3fc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="27" font-weight="600">Anthropic이 해부한 agent memory의 부품들 — 메모리 계층과 dreaming</text>
+  <text x="80" y="184" fill="#64748b" font-family="ui-sans-serif,system-ui,sans-serif" font-size="20" font-weight="500">transcripts → notes → wiki → injected context, 그리고 오프라인 통합 (2026-11-06 공개)</text>
+
+  <g font-family="ui-sans-serif,system-ui,sans-serif">
+    <!-- memory pyramid -->
+    <g>
+      <polygon points="340,540 620,540 592,480 368,480" fill="url(#amcpyr)" opacity="0.35"/>
+      <polygon points="368,470 592,470 560,410 400,410" fill="url(#amcpyr)" opacity="0.55"/>
+      <polygon points="400,400 560,400 528,340 432,340" fill="url(#amcpyr)" opacity="0.75"/>
+      <polygon points="432,330 528,330 480,250 480,250" fill="#38bdf8" opacity="0.95"/>
+      <text x="480" y="518" text-anchor="middle" fill="#cbd5e1" font-size="19" font-weight="600">transcripts (세션 기록)</text>
+      <text x="480" y="447" text-anchor="middle" fill="#e2e8f0" font-size="19" font-weight="600">memory notes (메모)</text>
+      <text x="480" y="377" text-anchor="middle" fill="#f1f5f9" font-size="19" font-weight="600">wiki (표상)</text>
+      <text x="480" y="318" text-anchor="middle" fill="#bae6fd" font-size="17" font-weight="700">injected</text>
+    </g>
+
+    <!-- dreaming moon + arrows -->
+    <g>
+      <path d="M 860 300 a 85 85 0 1 0 60 145 a 70 70 0 0 1 -60 -145 z" fill="#fbbf24" opacity="0.9"/>
+      <text x="905" y="500" text-anchor="middle" fill="#fbbf24" font-size="22" font-weight="700">dreaming</text>
+      <text x="905" y="530" text-anchor="middle" fill="#94a3b8" font-size="17">세션 사이, 기억을 다시 읽고 고쳐 쓴다</text>
+      <!-- zzz -->
+      <text x="975" y="300" fill="#fde68a" font-size="30" font-weight="800">z</text>
+      <text x="1000" y="270" fill="#fde68a" font-size="38" font-weight="800">z</text>
+      <text x="1032" y="235" fill="#fde68a" font-size="46" font-weight="800">z</text>
+    </g>
+
+    <!-- circular arrows between pyramid and moon -->
+    <path d="M 650 370 C 720 330, 760 330, 800 360" fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"/>
+    <polygon points="796,344 812,366 786,370" fill="#fbbf24"/>
+    <path d="M 800 440 C 760 470, 720 470, 650 430" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round"/>
+    <polygon points="668,416 646,428 666,444" fill="#38bdf8"/>
+
+    <!-- small badge -->
+    <rect x="80" y="236" width="206" height="42" rx="21" fill="#1e293b" stroke="#334155"/>
+    <text x="183" y="263" text-anchor="middle" fill="#7dd3fc" font-size="18" font-weight="700">AI 엔지니어링 딥다이브</text>
+  </g>
+</svg>

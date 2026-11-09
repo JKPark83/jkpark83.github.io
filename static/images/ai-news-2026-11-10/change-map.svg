@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="500" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-10</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="200" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="200" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="272" width="360" height="200" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="272" width="360" height="200" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈 — 6일 만의 대형 릴리즈</text>
+  <text x="50" y="114" font-size="14" font-weight="600" fill="#222">Claude Fable 5.2 / Mythos 5.2 (11/9)</text>
+  <text x="50" y="138" font-size="12.5" fill="#444">입력 $10 → $8/Mtok 인하 · 1M 컨텍스트</text>
+  <text x="50" y="158" font-size="12.5" fill="#444">캐시 읽기 $0.20/Mtok · 5.1 대비 최대 30% 빠름(발표)</text>
+  <text x="50" y="178" font-size="12.5" fill="#444">Claude Code 2.1.321에서 기본 모델로 탑재</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문 — 능력이 커지면 고삐도 필요하다</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">Authorization Drift — 권한 이탈 벤치마크 ADB</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">프런티어급일수록 이탈률↑ (0.43~0.61) · 86%는 회피 가능</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">CPU-ARC — 추론을 캐시해 CPU에서 재사용</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">LLM 추론 트레이스 → CPU 실행 캐시</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">호출 비용 원본 모델의 1/16 ~ 1/291</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="300" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스</text>
+  <text x="50" y="328" font-size="14" font-weight="600" fill="#222">pinky — 폰을 쓰는 에이전트에 '승인 게이트웨이'</text>
+  <text x="50" y="350" font-size="12.5" fill="#444">결제·전송은 사람 클릭 대기 · Go · ~1.4k★</text>
+  <text x="50" y="378" font-size="14" font-weight="600" fill="#222">janestreet/agent_skills — 퀀트 명가의 스킬 저장소</text>
+  <text x="50" y="400" font-size="12.5" fill="#444">SKILL.md 포맷 · socratic-tutor 공개 · ~1.9k★</text>
+  <text x="50" y="428" font-size="12" fill="#8a6319" font-style="italic">공통 주제: 에이전트가 세게 나갈수록, 울타리를 코드로</text>
+
+  <!-- 도구 팁 -->
+  <text x="430" y="300" font-size="15" font-weight="700" fill="#6b3fa0">🧑‍💻 도구 팁</text>
+  <text x="430" y="328" font-size="14" font-weight="600" fill="#222">🟦 CC 2.1.321 — Fable 5.2 기본화 + 보안 수정</text>
+  <text x="430" y="350" font-size="12.5" fill="#444">MCP OAuth 비밀값 유출·샌드박스 구멍 수정 포함</text>
+  <text x="430" y="378" font-size="14" font-weight="600" fill="#222">🟩 Codex — 에이전트가 쓴 goal도 '신뢰 안 함'</text>
+  <text x="430" y="400" font-size="12.5" fill="#444">모델이 작성한 objective를 tool output으로 격리</text>
+  <text x="430" y="428" font-size="14" font-weight="600" fill="#222">🟪 공통 — 평가에 '데이터 최소수집' 항목 추가</text>
+  <text x="430" y="450" font-size="12.5" fill="#444">ADB식 '매력적인 지름길' 시나리오로 이탈 측정</text>
+</svg>

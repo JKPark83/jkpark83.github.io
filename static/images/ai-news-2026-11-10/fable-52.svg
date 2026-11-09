@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="420" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">Claude Fable 5.2 — 개발자에게 바뀌는 숫자들</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12.5" fill="#666">출처: Claude Code v2.1.321 체인지로그(가격·컨텍스트) · 언론 보도(속도, Anthropic 발표 인용)</text>
+
+  <!-- 입력 가격 비교 -->
+  <rect x="40" y="80" width="340" height="220" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="60" y="110" font-size="15" font-weight="700" fill="#1f4e9c">입력 토큰 가격 ($/Mtok)</text>
+  <!-- Fable 5.1 bar: 10 -->
+  <text x="60" y="150" font-size="13" fill="#333">Fable 5.1</text>
+  <rect x="140" y="136" width="220" height="22" rx="4" fill="#9db8dd"/>
+  <text x="352" y="152" font-size="13" font-weight="700" fill="#1a3a6b" text-anchor="end">$10</text>
+  <!-- Fable 5.2 bar: 8 -->
+  <text x="60" y="190" font-size="13" fill="#333">Fable 5.2</text>
+  <rect x="140" y="176" width="176" height="22" rx="4" fill="#2f6fd6"/>
+  <text x="308" y="192" font-size="13" font-weight="700" fill="#fff" text-anchor="end">$8</text>
+  <text x="60" y="232" font-size="12.5" fill="#444">출력은 $40/Mtok, 캐시 읽기는 $0.20/Mtok.</text>
+  <text x="60" y="252" font-size="12.5" fill="#444">캐시 읽기가 입력가의 2.5%라, 컨텍스트를 길게</text>
+  <text x="60" y="272" font-size="12.5" fill="#444">끌고 가는 에이전트 세션일수록 체감 인하폭이 크다.</text>
+
+  <!-- 스펙 카드 -->
+  <rect x="420" y="80" width="340" height="220" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="440" y="110" font-size="15" font-weight="700" fill="#1e7a35">스펙 요약</text>
+  <text x="440" y="142" font-size="13.5" fill="#222">• 모델 ID: claude-fable-5-2</text>
+  <text x="440" y="168" font-size="13.5" fill="#222">• 컨텍스트: 1M 토큰</text>
+  <text x="440" y="194" font-size="13.5" fill="#222">• 속도: 5.1 대비 최대 30% 빠름 (발표치)</text>
+  <text x="440" y="220" font-size="13.5" fill="#222">• Claude Code 2.1.321부터 기본 Fable 모델</text>
+  <text x="440" y="246" font-size="13.5" fill="#222">• Mythos 5.2: 같은 모델, 보호장치 완화판</text>
+  <text x="440" y="266" font-size="12.5" fill="#555">   (승인된 조직 전용)</text>
+
+  <!-- bottom note -->
+  <rect x="40" y="320" width="720" height="68" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <text x="60" y="348" font-size="13.5" font-weight="600" fill="#8a5a12">오늘 해볼 것</text>
+  <text x="60" y="372" font-size="13" fill="#444">API 호출 로그에서 Fable 5.1 트래픽의 토큰 단가를 다시 계산하고, 긴 세션 워크로드부터 5.2로 올려 캐시 읽기 절감을 확인.</text>
+</svg>

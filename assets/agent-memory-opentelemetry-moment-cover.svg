@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="에이전트 메모리 표준 논쟁을 표현한 커버 그림. 왼쪽에는 서로 다른 모양의 자물쇠가 걸린 메모리 사일로 세 개가 서로 끊어진 선으로 연결돼 있고, 가운데에는 다섯 가지 질문에 답하는 공용 메모리 레코드가, 오른쪽에는 OpenTelemetry의 네 층 합의 구조가 그려져 있다">
+  <defs>
+    <linearGradient id="amobg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#101b33"/>
+    </linearGradient>
+    <linearGradient id="amocard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#16213a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#amobg)"/>
+
+  <!-- title -->
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="sans-serif" font-size="40" font-weight="800">기억은 쌓이는데, 이사를 못 간다</text>
+  <text x="600" y="120" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="22">agent memory의 'OpenTelemetry 순간' 논쟁</text>
+
+  <!-- left: three locked silos -->
+  <g font-family="sans-serif">
+    <rect x="70" y="190" width="200" height="90" rx="14" fill="url(#amocard)" stroke="#2dd4bf" stroke-width="2.5"/>
+    <text x="170" y="228" text-anchor="middle" fill="#2dd4bf" font-size="19" font-weight="700">AGENTS.md</text>
+    <text x="170" y="256" text-anchor="middle" fill="#94a3b8" font-size="14">파일 통째</text>
+
+    <rect x="70" y="310" width="200" height="90" rx="14" fill="url(#amocard)" stroke="#a78bfa" stroke-width="2.5"/>
+    <text x="170" y="348" text-anchor="middle" fill="#a78bfa" font-size="19" font-weight="700">/memories</text>
+    <text x="170" y="376" text-anchor="middle" fill="#94a3b8" font-size="14">모델이 정한 경로</text>
+
+    <rect x="70" y="430" width="200" height="90" rx="14" fill="url(#amocard)" stroke="#fbbf24" stroke-width="2.5"/>
+    <text x="170" y="468" text-anchor="middle" fill="#fbbf24" font-size="19" font-weight="700">그래프 엣지</text>
+    <text x="170" y="496" text-anchor="middle" fill="#94a3b8" font-size="14">엔티티 · 관계</text>
+
+    <!-- broken connections -->
+    <g stroke="#475569" stroke-width="2.5" stroke-dasharray="7 7">
+      <line x1="170" y1="280" x2="170" y2="310"/>
+      <line x1="170" y1="400" x2="170" y2="430"/>
+    </g>
+    <text x="196" y="302" fill="#fb7185" font-size="20" font-weight="800">✕</text>
+    <text x="196" y="422" fill="#fb7185" font-size="20" font-weight="800">✕</text>
+  </g>
+
+  <!-- arrow -->
+  <path d="M 300 360 L 380 360" stroke="#38bdf8" stroke-width="4" fill="none"/>
+  <polygon points="396,360 374,348 374,372" fill="#38bdf8"/>
+
+  <!-- center: shared record -->
+  <g font-family="monospace">
+    <rect x="420" y="200" width="360" height="330" rx="16" fill="url(#amocard)" stroke="#38bdf8" stroke-width="3"/>
+    <text x="600" y="240" text-anchor="middle" fill="#38bdf8" font-family="sans-serif" font-size="21" font-weight="800">공용 메모리 레코드</text>
+    <g fill="#cbd5e1" font-size="16">
+      <text x="450" y="284">address:  repo</text>
+      <text x="450" y="318">key:      tests-need-pg</text>
+      <text x="450" y="352">kind:     lesson</text>
+      <text x="450" y="386">version:  3</text>
+      <text x="450" y="420">supersedes: 41b9…</text>
+      <text x="450" y="454">written_by: agent</text>
+    </g>
+    <text x="600" y="502" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="14">어디서 참인가 · 정체성 · 내용 · 만료 · 버전</text>
+  </g>
+
+  <!-- arrow -->
+  <path d="M 810 360 L 890 360" stroke="#38bdf8" stroke-width="4" fill="none"/>
+  <polygon points="906,360 884,348 884,372" fill="#38bdf8"/>
+
+  <!-- right: OTel four layers -->
+  <g font-family="sans-serif">
+    <text x="1020" y="228" text-anchor="middle" fill="#e2e8f0" font-size="18" font-weight="700">OTel처럼, 네 층의 합의</text>
+    <rect x="920" y="250" width="200" height="56" rx="10" fill="#2dd4bf" opacity="0.18" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="1020" y="285" text-anchor="middle" fill="#2dd4bf" font-size="16" font-weight="700">데이터 모델</text>
+    <rect x="920" y="320" width="200" height="56" rx="10" fill="#a78bfa" opacity="0.18" stroke="#a78bfa" stroke-width="2"/>
+    <text x="1020" y="355" text-anchor="middle" fill="#a78bfa" font-size="16" font-weight="700">시맨틱 컨벤션</text>
+    <rect x="920" y="390" width="200" height="56" rx="10" fill="#fbbf24" opacity="0.18" stroke="#fbbf24" stroke-width="2"/>
+    <text x="1020" y="425" text-anchor="middle" fill="#fbbf24" font-size="16" font-weight="700">계약 (MCP 위)</text>
+    <rect x="920" y="460" width="200" height="56" rx="10" fill="#fb7185" opacity="0.18" stroke="#fb7185" stroke-width="2"/>
+    <text x="1020" y="495" text-anchor="middle" fill="#fb7185" font-size="16" font-weight="700">적합성 테스트</text>
+  </g>
+
+  <text x="600" y="590" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="16">부족한 건 도구가 아니라 합의다 — "It's a missing agreement."</text>
+</svg>

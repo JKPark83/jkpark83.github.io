@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="수요일 아침 브리핑 표지. 10월 CPI가 헤드라인 0.4퍼센트, 코어 0.3퍼센트로 모두 예상을 웃돌아 10년물 금리가 4.98퍼센트까지 올랐고 12월 인상이 사실상 굳어졌습니다. 나스닥은 0.74퍼센트 내린 25,065로 월요일 랠리의 일부만 반납해 1차 매수분은 유지하되 증액은 멈춥니다. 비트코인은 73,000달러 지지를 시험 중이며 ETF는 7거래일 연속 유출입니다. 나스닥 관망, 비트코인 매도 유지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101723"/>
+      <stop offset="1" stop-color="#14101f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.11 · 나스닥 &amp; 비트코인 5분 요약 · 수요일판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#fdba74">CPI +0.4%/+0.3% 서프라이즈 · 10년물 4.98% · 나스닥 -0.74% · BTC 73,000 공방</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 증액 중단, 보유 유지</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#a5b4fc">25,065</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">확인선 24,300 위</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">1차분 유지 · 증액 보류</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 지지 공방</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#06b6d4" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#22d3ee">73,000</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5f3fc">1차 지지 시험 중</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">유출 중단 전까지 유지</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">12월 인상 85% · 50bp 논쟁 점화 · ETF 7일 연속 유출 · 다음 관문은 금요일 PPI</text>
+  <text x="80" y="595" font-family="sans-serif" font-size="15" fill="#475569">본 글은 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

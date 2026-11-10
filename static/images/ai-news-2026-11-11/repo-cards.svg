@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="430" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">오늘의 오픈소스 — '내 데이터'를 자산으로 바꾸는 세 가지 방식</text>
+
+  <!-- card 1 -->
+  <rect x="30" y="60" width="238" height="300" rx="14" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="149" y="92" text-anchor="middle" font-size="15" font-weight="700" fill="#1f4e9c">tinker-ai-skill</text>
+  <text x="149" y="112" text-anchor="middle" font-size="12" fill="#666">Python · MIT · ~300★</text>
+  <line x1="52" y1="126" x2="246" y2="126" stroke="#b9cdf2"/>
+  <text x="52" y="150" font-size="12.5" font-weight="600" fill="#222">입력: 내 Claude Code 세션</text>
+  <text x="52" y="174" font-size="12.5" fill="#444">수집 → 익명화 → 슬라이스</text>
+  <text x="52" y="194" font-size="12.5" fill="#444">→ Tinker LoRA 학습</text>
+  <text x="52" y="214" font-size="12.5" fill="#444">→ 병합 → GGUF 양자화</text>
+  <text x="52" y="242" font-size="12.5" font-weight="600" fill="#222">출력: llama.cpp에서 도는</text>
+  <text x="52" y="260" font-size="12.5" font-weight="600" fill="#222">나만의 로컬 코딩 모델</text>
+  <text x="52" y="290" font-size="12" fill="#666">Tess-4 / Tess-4.5-27B를</text>
+  <text x="52" y="308" font-size="12" fill="#666">만든 실제 레시피 공개판</text>
+  <text x="52" y="338" font-size="12" font-weight="600" fill="#1f4e9c">세션 = 학습 데이터</text>
+
+  <!-- card 2 -->
+  <rect x="281" y="60" width="238" height="300" rx="14" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="400" y="92" text-anchor="middle" font-size="15" font-weight="700" fill="#1e7a35">auto-ontology-mcp</text>
+  <text x="400" y="112" text-anchor="middle" font-size="12" fill="#666">Python · Apache-2.0 · ~300★</text>
+  <line x1="303" y1="126" x2="497" y2="126" stroke="#b5dfc0"/>
+  <text x="303" y="150" font-size="12.5" font-weight="600" fill="#222">입력: 내 DB · 영수증 · 논문</text>
+  <text x="303" y="174" font-size="12.5" fill="#444">NVIDIA Auto Ontology의</text>
+  <text x="303" y="194" font-size="12.5" fill="#444">시맨틱 레이어를 MCP로</text>
+  <text x="303" y="214" font-size="12.5" fill="#444">조인 경로·값 포맷 검증</text>
+  <text x="303" y="242" font-size="12.5" font-weight="600" fill="#222">출력: 틀린 SQL을 조용히</text>
+  <text x="303" y="260" font-size="12.5" font-weight="600" fill="#222">내보내지 않는 질의 계층</text>
+  <text x="303" y="290" font-size="12" fill="#666">LLM 호스팅 불필요 —</text>
+  <text x="303" y="308" font-size="12" fill="#666">언어 작업은 내 MCP 클라이언트 몫</text>
+  <text x="303" y="338" font-size="12" font-weight="600" fill="#1e7a35">문서 = 질의 가능한 지식</text>
+
+  <!-- card 3 -->
+  <rect x="532" y="60" width="238" height="300" rx="14" fill="#fff7ec" stroke="#eed3a8"/>
+  <text x="651" y="92" text-anchor="middle" font-size="15" font-weight="700" fill="#9c6a1f">cinecode</text>
+  <text x="651" y="112" text-anchor="middle" font-size="12" fill="#666">Python · MIT · ~2,000★</text>
+  <line x1="554" y1="126" x2="748" y2="126" stroke="#eed3a8"/>
+  <text x="554" y="150" font-size="12.5" font-weight="600" fill="#222">입력: 아이디어 한 문장</text>
+  <text x="554" y="174" font-size="12.5" fill="#444">에이전트가 각본을 쓰고</text>
+  <text x="554" y="194" font-size="12.5" fill="#444">three.js로 장면을 코딩</text>
+  <text x="554" y="214" font-size="12.5" fill="#444">→ headless Chrome 렌더</text>
+  <text x="554" y="234" font-size="12.5" fill="#444">→ ffmpeg 합성</text>
+  <text x="554" y="262" font-size="12.5" font-weight="600" fill="#222">출력: 완성된 MP4</text>
+  <text x="554" y="290" font-size="12" fill="#666">Claude Code · Cursor에서</text>
+  <text x="554" y="308" font-size="12" fill="#666">로컬 실행, 유료 영상 API 불필요</text>
+  <text x="554" y="338" font-size="12" font-weight="600" fill="#9c6a1f">취향 = 연출 파이프라인</text>
+
+  <text x="400" y="396" text-anchor="middle" font-size="12.5" fill="#555">공통점: 모델 API가 아니라 '내가 이미 가진 것'(세션·문서·취향)에서 가치를 뽑는다</text>
+  <text x="400" y="416" text-anchor="middle" font-size="11" fill="#999">스타 수는 2026-11-11 GitHub Search API 기준 근사치</text>
+</svg>

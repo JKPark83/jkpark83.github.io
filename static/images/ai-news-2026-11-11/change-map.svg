@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="500" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-11</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="200" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="200" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="272" width="360" height="200" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="272" width="360" height="200" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈 — 조용한 하루</text>
+  <text x="50" y="114" font-size="14" font-weight="600" fill="#222">신규 모델 발표 없음 (11/10~11)</text>
+  <text x="50" y="138" font-size="12.5" fill="#444">Fable 5.2는 롤아웃 이틀째 — 어제 브리핑 참고</text>
+  <text x="50" y="162" font-size="14" font-weight="600" fill="#222">Claude Code 2.1.322</text>
+  <text x="50" y="184" font-size="12.5" fill="#444">Vertex AI에서도 fast mode 지원 (global/us/eu)</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문 — 평가의 사각지대 두 곳</text>
+  <text x="430" y="112" font-size="14" font-weight="600" fill="#222">Longtail-SWE — 13개 롱테일 언어 SWE 벤치마크</text>
+  <text x="430" y="134" font-size="12.5" fill="#444">Haskell·Elixir·OCaml 등 202개 과제 · solver–judge–repairer</text>
+  <text x="430" y="162" font-size="14" font-weight="600" fill="#222">Sage-Taiyi — 메타인지 과학 발견 아키텍처</text>
+  <text x="430" y="184" font-size="12.5" fill="#444">Taiyi-Bench 265개 과제 · Overall 54.0 (최고 베이스라인 47.9)</text>
+  <text x="430" y="204" font-size="12.5" fill="#444">습식 실험 수율 trace→84%, 13→69% 검증</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="300" font-size="15" font-weight="700" fill="#9c6a1f">🛠 오픈소스 — 내 데이터가 자산이 되는 날</text>
+  <text x="50" y="328" font-size="14" font-weight="600" fill="#222">tinker-ai-skill — 내 세션으로 내 모델 파인튜닝</text>
+  <text x="50" y="350" font-size="12.5" fill="#444">Claude Code 트랜스크립트 → LoRA → 로컬 GGUF</text>
+  <text x="50" y="378" font-size="14" font-weight="600" fill="#222">auto-ontology-mcp — 시맨틱 레이어 MCP</text>
+  <text x="50" y="400" font-size="12.5" fill="#444">text-to-SQL 조인·값 검증 + 개인 지식베이스</text>
+  <text x="50" y="428" font-size="14" font-weight="600" fill="#222">cinecode — 코드로 만드는 영화 (~2.0k★)</text>
+
+  <!-- 도구 팁 -->
+  <text x="430" y="300" font-size="15" font-weight="700" fill="#6b3f93">🧑‍💻 도구 팁 — 권한과 속도</text>
+  <text x="430" y="328" font-size="14" font-weight="600" fill="#222">🟩 Codex: readOnlyHint가 승인 판정의 1순위로</text>
+  <text x="430" y="350" font-size="12.5" fill="#444">destructiveHint와 충돌 시 read-only가 이긴다 — 힌트 정직하게</text>
+  <text x="430" y="378" font-size="14" font-weight="600" fill="#222">🟦 Claude Code: Vertex에서 /fast 켜기</text>
+  <text x="430" y="400" font-size="12.5" fill="#444">거부되면 표준 속도로 자동 폴백</text>
+  <text x="430" y="428" font-size="14" font-weight="600" fill="#222">🟪 공통: 평가에 롱테일 언어 1개 추가</text>
+
+  <text x="400" y="492" text-anchor="middle" font-size="11.5" fill="#888">오늘의 실: 모델이 조용한 날엔 내 데이터(세션·문서·평가셋)를 자산으로 바꾸는 작업을 한다</text>
+</svg>

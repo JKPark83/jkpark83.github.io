@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="420" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">Longtail-SWE — 벤치마크를 '만드는' 파이프라인</text>
+
+  <!-- pipeline boxes -->
+  <rect x="35" y="70" width="170" height="92" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <text x="120" y="98" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1f4e9c">Solver</text>
+  <text x="120" y="120" text-anchor="middle" font-size="12" fill="#444">후보 과제를</text>
+  <text x="120" y="138" text-anchor="middle" font-size="12" fill="#444">실제로 풀어본다</text>
+
+  <rect x="255" y="70" width="170" height="92" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="340" y="98" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1e7a35">Judge</text>
+  <text x="340" y="120" text-anchor="middle" font-size="12" fill="#444">풀이 궤적·테스트 결과로</text>
+  <text x="340" y="138" text-anchor="middle" font-size="12" fill="#444">과제 품질을 심사</text>
+
+  <rect x="475" y="70" width="170" height="92" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <text x="560" y="98" text-anchor="middle" font-size="14.5" font-weight="700" fill="#9c6a1f">Repairer</text>
+  <text x="560" y="120" text-anchor="middle" font-size="12" fill="#444">모호한 설명·불량 테스트를</text>
+  <text x="560" y="138" text-anchor="middle" font-size="12" fill="#444">버리지 않고 고친다</text>
+
+  <rect x="680" y="76" width="90" height="80" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+  <text x="725" y="106" text-anchor="middle" font-size="13.5" font-weight="700" fill="#6b3f93">202개</text>
+  <text x="725" y="126" text-anchor="middle" font-size="12" fill="#444">검증된</text>
+  <text x="725" y="143" text-anchor="middle" font-size="12" fill="#444">과제</text>
+
+  <!-- arrows -->
+  <path d="M205 116 L249 116" stroke="#999" stroke-width="2" fill="none"/>
+  <path d="M249 116 l-8 -5 v10 z" fill="#999"/>
+  <path d="M425 116 L469 116" stroke="#999" stroke-width="2" fill="none"/>
+  <path d="M469 116 l-8 -5 v10 z" fill="#999"/>
+  <path d="M645 116 L674 116" stroke="#999" stroke-width="2" fill="none"/>
+  <path d="M674 116 l-8 -5 v10 z" fill="#999"/>
+  <!-- feedback loop repairer -> solver -->
+  <path d="M560 162 L560 192 L120 192 L120 168" stroke="#bbb" stroke-width="1.8" fill="none" stroke-dasharray="5 4"/>
+  <path d="M120 168 l-5 8 h10 z" fill="#bbb"/>
+  <text x="340" y="186" text-anchor="middle" font-size="11.5" fill="#888">수리된 과제는 다시 풀어서 재검증</text>
+
+  <!-- languages -->
+  <text x="40" y="238" font-size="14.5" font-weight="700" fill="#1a1a1a">기존 벤치마크가 비워 둔 13개 언어</text>
+  <g font-size="12.5" fill="#333">
+    <rect x="40"  y="252" width="76" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="78"  y="271" text-anchor="middle">Clojure</text>
+    <rect x="124" y="252" width="60" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="154" y="271" text-anchor="middle">Dart</text>
+    <rect x="192" y="252" width="64" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="224" y="271" text-anchor="middle">Elixir</text>
+    <rect x="264" y="252" width="70" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="299" y="271" text-anchor="middle">Erlang</text>
+    <rect x="342" y="252" width="48" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="366" y="271" text-anchor="middle">F#</text>
+    <rect x="398" y="252" width="76" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="436" y="271" text-anchor="middle">Haskell</text>
+    <rect x="482" y="252" width="56" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="510" y="271" text-anchor="middle">Julia</text>
+    <rect x="546" y="252" width="66" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="579" y="271" text-anchor="middle">Kotlin</text>
+    <rect x="620" y="252" width="52" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="646" y="271" text-anchor="middle">Lua</text>
+    <rect x="40"  y="288" width="68" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="74"  y="307" text-anchor="middle">OCaml</text>
+    <rect x="116" y="288" width="40" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="136" y="307" text-anchor="middle">R</text>
+    <rect x="164" y="288" width="60" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="194" y="307" text-anchor="middle">Scala</text>
+    <rect x="232" y="288" width="60" height="28" rx="14" fill="#eef4ff" stroke="#b9cdf2"/><text x="262" y="307" text-anchor="middle">Swift</text>
+  </g>
+
+  <rect x="40" y="340" width="720" height="56" rx="10" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <text x="56" y="364" font-size="13" font-weight="600" fill="#1e7a35">왜 중요한가</text>
+  <text x="56" y="384" font-size="12.5" fill="#333">벤치마크 전체(과제·실행 환경·구축/평가 도구)가 공개 — 같은 레시피로 사내 코드베이스용 프라이빗 벤치마크를 만들 수 있다</text>
+</svg>

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="500" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-12</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="56" width="360" height="200" rx="12" fill="#eef4ff" stroke="#b9cdf2"/>
+  <rect x="410" y="56" width="360" height="200" rx="12" fill="#f0fbf2" stroke="#b5dfc0"/>
+  <rect x="30" y="272" width="360" height="200" rx="12" fill="#fff7ec" stroke="#eed3a8"/>
+  <rect x="410" y="272" width="360" height="200" rx="12" fill="#f7f0fb" stroke="#d7bfe8"/>
+
+  <!-- 모델/릴리즈 -->
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1f4e9c">🤖 모델 / 릴리즈</text>
+  <text x="50" y="114" font-size="14" font-weight="600" fill="#222">Qwen4-Max Preview (11/11, 보도 기준)</text>
+  <text x="50" y="136" font-size="12.5" fill="#444">Qwen 4 세대 첫 공개 신호 — Token Plan 경유 프리뷰</text>
+  <text x="50" y="158" font-size="12.5" fill="#444">1M 컨텍스트·멀티모달 입력 보도</text>
+  <text x="50" y="180" font-size="12.5" fill="#b45309">⚠ 모델 카드·벤치마크·가격 공식 미공개</text>
+  <text x="50" y="202" font-size="12.5" fill="#b45309">⚠ 프리뷰 종료 후 모델 회수 보도 — 프로덕션 금지</text>
+
+  <!-- 논문 -->
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#1e7a35">📚 논문 — 메모리와 판단의 민낯</text>
+  <text x="430" y="114" font-size="14" font-weight="600" fill="#222">WikiTrace (2611.14320)</text>
+  <text x="430" y="136" font-size="12.5" fill="#444">메모리가 에이전트를 망치는 이유와 근거 링크 해법</text>
+  <text x="430" y="166" font-size="14" font-weight="600" fill="#222">MMDM (2611.14309)</text>
+  <text x="430" y="188" font-size="12.5" fill="#444">System-1 결정 모델 벤치마크 5,448문항</text>
+  <text x="430" y="210" font-size="12.5" fill="#444">지식은 강하고 제약·다중선택은 약하다</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="300" font-size="15" font-weight="700" fill="#9a6a1d">🛠 오픈소스 — 역설계 공방전</text>
+  <text x="50" y="330" font-size="14" font-weight="600" fill="#222">bla — AI 역설계 에이전트 방어막</text>
+  <text x="50" y="352" font-size="12.5" fill="#444">rea 계열 공격을 막는 Counter-REA MCP/CLI</text>
+  <text x="50" y="378" font-size="14" font-weight="600" fill="#222">rea-video — 영상 역설계</text>
+  <text x="50" y="400" font-size="12.5" fill="#444">숏폼을 샷 단위로 분해해 제작법 복원</text>
+  <text x="50" y="426" font-size="14" font-weight="600" fill="#222">AnyModelBot — 로컬 봇 팀</text>
+  <text x="50" y="448" font-size="12.5" fill="#444">임의 모델 + 메신저 연동, 데이터는 내 기기에</text>
+
+  <!-- 도구 팁 -->
+  <text x="430" y="300" font-size="15" font-weight="700" fill="#6b3f93">🧑‍💻 도구 팁</text>
+  <text x="430" y="330" font-size="14" font-weight="600" fill="#222">Codex — MCP OAuth 자격증명 경합 수정</text>
+  <text x="430" y="352" font-size="12.5" fill="#444">갱신 중이던 토큰이 새 로그인을 덮어쓰지 않게</text>
+  <text x="430" y="378" font-size="14" font-weight="600" fill="#222">Claude Code — /diff 패널의 내부 구현 공개</text>
+  <text x="430" y="400" font-size="12.5" fill="#444">diff 패널이 플러그인 하나로 — mods/diff 정독 권장</text>
+  <text x="430" y="426" font-size="14" font-weight="600" fill="#222">공통 — lesson에 근거 링크 달기</text>
+  <text x="430" y="448" font-size="12.5" fill="#444">WikiTrace 패턴을 내 메모리 설계에 적용</text>
+</svg>

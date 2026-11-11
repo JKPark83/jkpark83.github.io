@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">메모리가 에이전트를 망칠 때 — WikiTrace의 근거 링크</text>
+
+  <!-- left panel: lesson-only -->
+  <rect x="30" y="54" width="355" height="330" rx="12" fill="#fdf0f0" stroke="#e3b4b4"/>
+  <text x="207" y="82" text-anchor="middle" font-size="15" font-weight="700" fill="#a33">기존: lesson만 주입</text>
+  <rect x="60" y="100" width="295" height="52" rx="8" fill="#fff" stroke="#d99"/>
+  <text x="207" y="122" text-anchor="middle" font-size="13" font-weight="600" fill="#333">lesson: "이 API는 재시도하면 된다"</text>
+  <text x="207" y="141" text-anchor="middle" font-size="12" fill="#777">성공/실패 라벨에서 추출 — 출처 궤적은 버림</text>
+  <path d="M207 160 L207 192" stroke="#c66" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="60" y="196" width="295" height="46" rx="8" fill="#fff" stroke="#d99"/>
+  <text x="207" y="216" text-anchor="middle" font-size="13" fill="#333">에이전트는 검증 수단이 없음</text>
+  <text x="207" y="233" text-anchor="middle" font-size="12" fill="#777">틀린 lesson도, 오독한 lesson도 그대로 따름</text>
+  <path d="M207 250 L207 282" stroke="#c66" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="60" y="286" width="295" height="74" rx="8" fill="#fbe3e3" stroke="#c66"/>
+  <text x="207" y="312" text-anchor="middle" font-size="14" font-weight="700" fill="#a33">memory-induced degradation</text>
+  <text x="207" y="334" text-anchor="middle" font-size="12.5" fill="#844">메모리가 없었으면 풀었을 과제를</text>
+  <text x="207" y="351" text-anchor="middle" font-size="12.5" fill="#844">메모리 때문에 틀린다</text>
+
+  <!-- right panel: WikiTrace -->
+  <rect x="415" y="54" width="355" height="330" rx="12" fill="#eefaf1" stroke="#a9d8b8"/>
+  <text x="592" y="82" text-anchor="middle" font-size="15" font-weight="700" fill="#1e7a35">WikiTrace: 3층 근거 링크</text>
+  <rect x="445" y="100" width="295" height="44" rx="8" fill="#fff" stroke="#8c8"/>
+  <text x="592" y="119" text-anchor="middle" font-size="13" font-weight="600" fill="#333">① insight (간결한 lesson)</text>
+  <text x="592" y="136" text-anchor="middle" font-size="12" fill="#777">새 과제는 항상 여기서 시작</text>
+  <path d="M592 152 L592 176" stroke="#2a7" stroke-width="2" marker-end="url(#ag)"/>
+  <rect x="445" y="180" width="295" height="44" rx="8" fill="#fff" stroke="#8c8"/>
+  <text x="592" y="199" text-anchor="middle" font-size="13" font-weight="600" fill="#333">② 성공/실패 이유 요약</text>
+  <text x="592" y="216" text-anchor="middle" font-size="12" fill="#777">왜 그 궤적이 통했는지·막혔는지</text>
+  <path d="M592 232 L592 256" stroke="#2a7" stroke-width="2" marker-end="url(#ag)"/>
+  <rect x="445" y="260" width="295" height="44" rx="8" fill="#fff" stroke="#8c8"/>
+  <text x="592" y="279" text-anchor="middle" font-size="13" font-weight="600" fill="#333">③ 원본 궤적 (raw trajectory)</text>
+  <text x="592" y="296" text-anchor="middle" font-size="12" fill="#777">틀린 lesson을 잡아낼 증거가 남아 있는 곳</text>
+  <rect x="445" y="316" width="295" height="52" rx="8" fill="#dff3e6" stroke="#2a7"/>
+  <text x="592" y="337" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1e5c30">디테일 부족·insight 충돌·실패 출처일 때만</text>
+  <text x="592" y="356" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1e5c30">링크를 타고 내려가 확인 후 행동</text>
+
+  <text x="400" y="428" text-anchor="middle" font-size="13" fill="#555">5개 에이전트 벤치마크에서 기존 메모리 방식과 "insight만 제공" 베이스라인을 일관되게 상회 (arXiv 2611.14320)</text>
+
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c66"/></marker>
+    <marker id="ag" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2a7"/></marker>
+  </defs>
+</svg>

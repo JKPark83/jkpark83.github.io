@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="목요일 아침 브리핑 표지. 코어위브가 24.7퍼센트 폭등하며 AI 트레이드를 되살려 나스닥이 1.6퍼센트 오른 25,466으로 증액 검토선 25,253을 회복했습니다. 채권시장 휴장으로 금리는 4.98퍼센트에 멈춰 있고 오늘 밤 다시 열립니다. 비트코인은 74,000달러를 회복했고 ETF 유출은 9,500만달러로 줄었지만 유입 복귀는 아닙니다. 나스닥 관망, 비트코인 매도 유지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101723"/>
+      <stop offset="1" stop-color="#14101f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.12 · 나스닥 &amp; 비트코인 5분 요약 · 목요일판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#86efac">코어위브 +24.7% · 나스닥 +1.60% (25,466) · 10년물 4.98% 멈춤 · BTC 74,000 회복</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 검토선 회복, PPI 대기</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#a5b4fc">25,466</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">검토선 25,253 위</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">1차분 유지 · PPI 후 증액</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 반등, 그러나 유출</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#06b6d4" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#22d3ee">74,400</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5f3fc">73,000 지지 사수</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">유입 복귀 전까지 유지</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">채권시장 재개장 오늘 밤 · ETF 유출 -0.95억으로 축소 · IBIT 8일 연속 유출 · 관문은 금요일 PPI</text>
+  <text x="80" y="595" font-family="sans-serif" font-size="15" fill="#475569">본 글은 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

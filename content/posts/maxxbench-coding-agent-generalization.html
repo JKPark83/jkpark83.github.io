@@ -1,0 +1,409 @@
+---
+title: "같은 74점이었는데 17줄을 바꾸자 23점이 갈라졌다 — MaxxBench로 배우는 coding agent 벤치마크 읽는 법"
+date: 2026-11-12T07:30:00+09:00
+draft: false
+tags: ["AI", "MaxxBench", "DeepSWE", "벤치마크", "coding agent", "evals", "평가", "generalization", "데이터 오염", "reward hacking", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "11월 7일 공개된 MaxxBench가 이번 주 Hacker News를 달궜습니다. DeepSWE 벤치마크의 태스크 89개에서 요구사항을 중앙값 17줄(약 3.5%)만 바꿨을 뿐인데, 원본에서 74% 부근에 나란히 서 있던 모델들이 76.4%부터 53.4%까지 갈라졌습니다. 어떤 에이전트는 바뀐 명세대로 올바르게 고쳐 놓고도 '기억 속 정답'과 다르다며 스스로 코드를 되돌렸습니다. 점수 하락이 암기 때문인지, 적응력 부족 때문인지는 아직 단정할 수 없다는 커뮤니티의 재분석까지 — 벤치마크 점수를 어떻게 읽어야 하는지, perturbation 평가를 내 에이전트 평가에 어떻게 적용하는지 junior 눈높이에서 정리합니다."
+ShowToc: false
+cover:
+  image: "maxxbench-coding-agent-generalization-cover.svg"
+  alt: "DeepSWE에서 74% 부근에 나란히 섰던 네 모델이 요구사항 17줄 변경 후 76.4%부터 53.4%까지 갈라지는 모습을 그린 커버 그림"
+  caption: "벤치마크 점수는 '실력'이었을까, '기억'이었을까"
+  relative: false
+---
+
+<style>
+/* ── MaxxBench 포스트 전용 스타일 (mxb- 접두사) ── */
+.mxb-fig{
+  --mxb-teal:#0d9488; --mxb-rose:#e11d48; --mxb-amber:#d97706; --mxb-sky:#0284c7;
+  --mxb-violet:#7c3aed; --mxb-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .mxb-fig{
+  --mxb-teal:#2dd4bf; --mxb-rose:#fb7185; --mxb-amber:#fbbf24; --mxb-sky:#38bdf8;
+  --mxb-violet:#a78bfa; --mxb-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .mxb-fig{
+    --mxb-teal:#2dd4bf; --mxb-rose:#fb7185; --mxb-amber:#fbbf24; --mxb-sky:#38bdf8;
+    --mxb-violet:#a78bfa; --mxb-slate:#94a3b8;
+  }
+}
+.mxb-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.mxb-fig text{font-family:inherit}
+.mxb-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.mxb-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.mxb-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.mxb-toc ol{margin:0;padding-left:1.25rem}
+.mxb-toc li{margin:.22rem 0;font-size:.95rem}
+.mxb-toc a{text-decoration:none}
+.mxb-table{width:100%;border-collapse:collapse;margin:1.4rem 0;font-size:.92rem}
+.mxb-table th,.mxb-table td{border:1px solid var(--border);padding:.55rem .7rem;text-align:left;vertical-align:top}
+.mxb-table th{background:var(--entry);font-weight:700}
+.mxb-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.mxb-note{border-left:4px solid var(--primary);background:var(--entry);border-radius:0 10px 10px 0;padding:.9rem 1.2rem;margin:1.4rem 0;font-size:.95rem;line-height:1.7}
+</style>
+
+<div class="mxb-toc">
+  <div class="mxb-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 리더보드의 74%는 얼마나 단단한 숫자일까</a></li>
+    <li><a href="#sec-2">배경 — 벤치마크가 수명을 다하는 두 가지 방식</a></li>
+    <li><a href="#sec-3">MaxxBench 설계 해부 — 17줄짜리 변형의 과학</a></li>
+    <li><a href="#sec-4">결과 읽기 — 74% 클러스터가 48점 스프레드로</a></li>
+    <li><a href="#sec-5">실패 모드 — 기억이 명세를 이길 때</a></li>
+    <li><a href="#sec-6">그런데 정말 '암기 때문'일까 — 통제군이 없다</a></li>
+    <li><a href="#sec-7">실전 — 내 에이전트 평가에 perturbation 넣기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 리더보드의 74%는 얼마나 단단한 숫자일까</h2>
+
+<p>모델을 고를 때 누구나 벤치마크 리더보드를 봅니다. "coding agent 성능은 A 모델이 74%, B 모델도 74%, 비슷하네" — 여기까지는 자연스러운 독해입니다. 그런데 그 74%가 <em>같은 종류의 74%</em>가 아니라면 어떨까요.</p>
+
+<p>지난 금요일(11월 7일) 공개된 <a href="https://maxxbench.unlap.ai/research/why-maxxbench/" target="_blank" rel="noopener">MaxxBench</a>가 정확히 이 질문을 던졌습니다. 방법은 단순합니다. 기존 coding agent 벤치마크인 DeepSWE의 태스크 89개를 가져와서, 요구사항이나 시작 코드를 <strong>조금만</strong> 바꿉니다. 참조 정답 기준으로 중앙값 17줄, 약 3.5% 분량입니다. 실무에서 흔한 "아, 그리고 파일명은 소문자로 통일해 주세요" 수준의 후속 요청과 비슷한 크기입니다.</p>
+
+<p>결과는 단순하지 않았습니다. 원본 DeepSWE에서 74% 부근에 나란히 서 있던 모델들이, 변형판에서는 <strong>76.4%부터 53.4%까지</strong> 갈라졌습니다. 전체 구성(모델×설정) 기준으로 최고-최저 격차는 20.9%p에서 <strong>48.3%p</strong>로 두 배 넘게 벌어졌습니다. 이 발표는 11월 9일 <a href="https://news.ycombinator.com/item?id=50406222" target="_blank" rel="noopener">Hacker News</a>에 올라 380점 안팎, 댓글 100여 개가 달리며 이번 주 평가(evals) 담론의 중심이 됐고, 공개 사흘 만에 저장소 이슈로 외부 통계 재분석이 달리는 보기 드문 광경까지 벌어졌습니다.</p>
+
+<p>이 글은 MaxxBench를 뉴스로 소비하고 끝내지 않습니다. 설계를 뜯어보면서 <strong>벤치마크 점수를 읽는 법</strong>, 그리고 같은 기법(perturbation, 섭동 평가)을 <strong>내 에이전트 평가에 적용하는 법</strong>까지 다룹니다. 에이전트 평가의 기초 어휘가 낯설다면 <a href="/posts/agent-evals-reliability/">에이전트 평가 — 역량 vs 신뢰성</a> 글을 먼저 읽고 와도 좋습니다.</p>
+
+<h2 id="sec-2">2. 배경 — 벤치마크가 수명을 다하는 두 가지 방식</h2>
+
+<p>벤치마크는 두 가지 방식으로 망가집니다. 첫째는 <strong>포화(saturation)</strong>입니다. 모델들이 다 90점을 넘기면 변별력이 사라집니다. 둘째는 <strong>오염(contamination)</strong>입니다. 벤치마크의 문제와 정답이 공개돼 있으면, 이후에 학습된 모델의 훈련 데이터에 스며듭니다. 그 모델의 점수는 "문제를 풀 수 있다"가 아니라 "문제를 본 적이 있다"를 측정하게 됩니다. 공개 벤치마크의 오염 문제는 <a href="/posts/private-code-benchmarks-real-swe/">프라이빗 코드 벤치마크</a> 글에서 자세히 다룬 적이 있습니다.</p>
+
+<p>오염을 의심하는 고전적인 진단법이 바로 섭동(perturbation)입니다. 문제의 <em>본질은 유지하면서 표면만</em> 바꿔 보는 겁니다. 2024년 Apple의 <a href="https://arxiv.org/abs/2410.05229" target="_blank" rel="noopener">GSM-Symbolic</a> 논문이 대표적입니다. 초등 수학 벤치마크 GSM8K의 문제에서 숫자와 이름만 바꿨더니 여러 LLM의 점수가 떨어졌고, 저자들은 데이터 오염을 유력한 설명으로 지목했습니다. MaxxBench는 같은 아이디어를 coding agent 영역으로 가져온 셈입니다. 다만 뒤에서 보겠지만, "점수가 떨어졌다 = 암기했다"로 바로 건너뛰면 안 되는 이유도 있습니다.</p>
+
+<h3>DeepSWE 3분 정리</h3>
+
+<p>변형의 대상이 된 <a href="https://deepswe.datacurve.ai/" target="_blank" rel="noopener">DeepSWE</a>는 Datacurve가 2026년 5월 20일 공개한 coding agent 벤치마크입니다. SWE-bench처럼 과거 이슈를 재활용하지 않고, 실제 오픈소스 저장소(FastAPI, Helm, Prometheus, vitest, LangChain 등) 위에 <strong>새로 작성한 장기(long-horizon) feature 구현 태스크</strong> 113개로 구성됩니다. 에이전트는 태스크 명세(<code>instruction.md</code>)와 저장소를 받고, 네트워크가 차단된 컨테이너 안에서 기능을 구현합니다. 채점은 별도 컨테이너에서 feature 테스트와 regression 테스트를 <em>전부</em> 통과해야 성공으로 치는 방식이고, 실행 하네스로는 Harbor를 포크한 <a href="https://github.com/datacurve-ai/pier" target="_blank" rel="noopener">Pier</a>를 씁니다.</p>
+
+<p>요컨대 DeepSWE는 "오염에 강하게 설계된 최신 벤치마크"였습니다. 그런데 공개된 지 6개월이 되기도 전에, 이걸 다시 비트는 벤치마크가 나온 겁니다. 왜일까요? <strong>공개된 순간부터 모든 벤치마크는 늙기 시작하기 때문입니다.</strong> 지금 나오는 모델들의 post-training(사후 학습)은 전부 DeepSWE 공개 이후에 이뤄졌습니다.</p>
+
+<h2 id="sec-3">3. MaxxBench 설계 해부 — 17줄짜리 변형의 과학</h2>
+
+<p><a href="https://github.com/unlap-labs/maxxbench" target="_blank" rel="noopener">MaxxBench 저장소</a>는 DeepSWE의 113개 태스크 중 89개를 가져와 변형했습니다. 핵심 설계 원칙은 세 가지입니다.</p>
+
+<ul>
+  <li><strong>변형은 작게</strong> — 요구사항(프롬프트), 파일명, 출력 포맷, 인터페이스 수준의 변경. 참조 정답 patch가 중앙값 17줄(약 3.5%)만 커지는 크기입니다. 태스크를 새로 내는 게 아니라, 실무의 "요구사항이 살짝 바뀌었어요"를 재현합니다.</li>
+  <li><strong>채점 방식은 유지</strong> — 원본과 같은 구조(feature + regression 테스트 전부 통과)로 채점합니다. 변형된 요구에 맞는 테스트와 참조 정답(oracle)을 다시 만들었습니다.</li>
+  <li><strong>원본과 쌍(pair)으로 비교</strong> — 같은 태스크의 원본 점수와 변형 점수를 비교해, "문제가 낯설어지면 얼마나 무너지는가"를 봅니다.</li>
+</ul>
+
+<figure class="mxb-fig">
+<svg viewBox="0 0 860 300" role="img" aria-label="MaxxBench 파이프라인 다이어그램. DeepSWE 113개 태스크에서 89개를 선별하고, 요구사항이나 시작 코드를 중앙값 17줄 변형한 뒤, 테스트와 참조 정답을 갱신하고, 원본과 같은 방식으로 채점해 쌍으로 비교하는 네 단계 흐름">
+  <defs>
+    <marker id="mxbf1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--mxb-amber)"/>
+    </marker>
+  </defs>
+  <text x="430" y="30" text-anchor="middle" fill="var(--mxb-sky)" font-size="16" font-weight="800">MaxxBench 파이프라인 — 태스크는 재활용, 요구사항만 변형</text>
+
+  <rect x="20" y="70" width="185" height="110" rx="10" fill="var(--mxb-sky)" opacity="0.12" stroke="var(--mxb-sky)" stroke-width="2"/>
+  <text x="112" y="100" text-anchor="middle" fill="var(--mxb-sky)" font-size="13" font-weight="800">① DeepSWE</text>
+  <text x="112" y="124" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">113개 태스크 중</text>
+  <text x="112" y="142" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">89개 선별</text>
+  <text x="112" y="160" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">(실제 OSS 저장소)</text>
+
+  <line x1="205" y1="125" x2="235" y2="125" stroke="var(--mxb-amber)" stroke-width="2.5" marker-end="url(#mxbf1)"/>
+
+  <rect x="240" y="70" width="185" height="110" rx="10" fill="var(--mxb-amber)" opacity="0.12" stroke="var(--mxb-amber)" stroke-width="2"/>
+  <text x="332" y="100" text-anchor="middle" fill="var(--mxb-amber)" font-size="13" font-weight="800">② 변형(mutation)</text>
+  <text x="332" y="124" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">요구사항·시작 코드를</text>
+  <text x="332" y="142" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">중앙값 +17줄(~3.5%)</text>
+  <text x="332" y="160" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">만큼만 수정</text>
+
+  <line x1="425" y1="125" x2="455" y2="125" stroke="var(--mxb-amber)" stroke-width="2.5" marker-end="url(#mxbf1)"/>
+
+  <rect x="460" y="70" width="185" height="110" rx="10" fill="var(--mxb-violet)" opacity="0.12" stroke="var(--mxb-violet)" stroke-width="2"/>
+  <text x="552" y="100" text-anchor="middle" fill="var(--mxb-violet)" font-size="13" font-weight="800">③ 검증기 갱신</text>
+  <text x="552" y="124" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">바뀐 요구에 맞는</text>
+  <text x="552" y="142" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">테스트 + 참조 정답</text>
+  <text x="552" y="160" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">(oracle) 재작성</text>
+
+  <line x1="645" y1="125" x2="675" y2="125" stroke="var(--mxb-amber)" stroke-width="2.5" marker-end="url(#mxbf1)"/>
+
+  <rect x="680" y="70" width="165" height="110" rx="10" fill="var(--mxb-teal)" opacity="0.12" stroke="var(--mxb-teal)" stroke-width="2"/>
+  <text x="762" y="100" text-anchor="middle" fill="var(--mxb-teal)" font-size="13" font-weight="800">④ 쌍 비교</text>
+  <text x="762" y="124" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">같은 채점 방식으로</text>
+  <text x="762" y="142" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">원본 vs 변형 점수를</text>
+  <text x="762" y="160" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">태스크별로 대조</text>
+
+  <rect x="20" y="210" width="825" height="62" rx="10" fill="var(--mxb-slate)" opacity="0.1" stroke="var(--mxb-slate)" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="430" y="236" text-anchor="middle" fill="var(--mxb-slate)" font-size="12" font-weight="700">공통 조건: 네트워크 차단 컨테이너 · Pier 하네스 · feature + regression 테스트 전부 통과해야 성공 · 구성당 2회 시도</text>
+  <text x="430" y="257" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">16개 구성(모델 × reasoning effort) × 89개 태스크 × 2회 = 시도 2,848건이 trajectories와 함께 전부 공개됨</text>
+</svg>
+<figcaption>그림 1. MaxxBench 파이프라인. 태스크의 본질은 유지하고 요구사항만 살짝 바꾼 뒤, 원본과 쌍으로 비교한다.</figcaption>
+</figure>
+
+<p>변형이 어떤 느낌인지 실제 태스크 하나를 보겠습니다. JavaScript 테스트 러너 testem의 <code>testem-per-launcher-reports</code> 태스크는 "브라우저(launcher)별로 테스트 리포트 파일을 분리하라"는 feature 구현 과제인데, MaxxBench판 명세에는 이런 요구가 들어 있습니다.</p>
+
+{{< highlight text >}}
+Launcher names in filenames must be filesystem-safe for Windows
+(each /\:*?"<>|() becomes one underscore, consecutive whitespace
+becomes one underscore, and letters become lowercase).
+{{< /highlight >}}
+
+<p>공식 해설이 예로 드는 변형이 바로 이 <strong>"파일명은 소문자로"</strong> 규칙입니다. FastAPI 태스크에서는 타임스탬프를 UTC 기준 + 뒤에 <code>Z</code>를 붙이는 포맷으로 바꿨습니다. 사람이 보기엔 사소한 디테일이지만, 정답을 "기억"하고 있는 에이전트에게는 함정이 됩니다. 기억 속 정답은 소문자 변환을 하지 않으니까요.</p>
+
+<div class="mxb-note">
+<strong>태스크 구조 엿보기</strong> — 저장소를 clone하면 태스크마다 <code>instruction.md</code>(에이전트에게 주는 명세), <code>task.toml</code>(저장소·실행 설정), <code>environment/</code>(시작 코드와 Dockerfile), <code>tests/</code>(채점용 테스트), <code>solution/</code>(참조 patch)가 들어 있습니다. 에이전트 환경과 검증기 모두 <code>network_mode = "no-network"</code>로 못 박혀 있어서, 평가 중에 웹을 검색해 정답을 찾아오는 길은 차단돼 있습니다.
+</div>
+
+<h2 id="sec-4">4. 결과 읽기 — 74% 클러스터가 48점 스프레드로</h2>
+
+<p>헤드라인 숫자부터 보겠습니다. 원본 DeepSWE에서 74% 부근에 몰려 있던 대표 모델 네 개가 MaxxBench에서 이렇게 갈라졌습니다.</p>
+
+<figure class="mxb-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="네 모델의 DeepSWE 점수와 MaxxBench 점수를 비교한 가로 막대 차트. Claude Opus 5.5는 74.2에서 76.4로 오히려 오르고, GPT-6 Astra는 74.1에서 71.9로 소폭 하락, DeepSeek V4.1 Flash는 74.2에서 55.6으로, Gemini 3.8 Flash는 73.8에서 53.4로 크게 하락한다">
+  <text x="430" y="28" text-anchor="middle" fill="var(--mxb-sky)" font-size="16" font-weight="800">원본에서는 모두 '74점급', 변형판에서는 세 그룹으로</text>
+
+  <!-- axis -->
+  <line x1="200" y1="55" x2="200" y2="385" stroke="var(--mxb-slate)" stroke-width="1.5"/>
+  <!-- scale: 100% = 620px, so 1% = 6.2px, bars start x=200 -->
+
+  <!-- Opus 5.5 -->
+  <text x="190" y="85" text-anchor="end" fill="var(--mxb-slate)" font-size="12.5" font-weight="700">Claude Opus 5.5 (max)</text>
+  <rect x="200" y="68" width="460" height="14" rx="4" fill="var(--mxb-slate)" opacity="0.45"/>
+  <text x="668" y="80" fill="var(--mxb-slate)" font-size="11.5">74.2 (DeepSWE)</text>
+  <rect x="200" y="88" width="474" height="14" rx="4" fill="var(--mxb-teal)"/>
+  <text x="682" y="100" fill="var(--mxb-teal)" font-size="11.5" font-weight="700">76.4 (MaxxBench) ▲</text>
+
+  <!-- GPT-6 Astra -->
+  <text x="190" y="165" text-anchor="end" fill="var(--mxb-slate)" font-size="12.5" font-weight="700">GPT-6 Astra (xhigh)</text>
+  <rect x="200" y="148" width="459" height="14" rx="4" fill="var(--mxb-slate)" opacity="0.45"/>
+  <text x="667" y="160" fill="var(--mxb-slate)" font-size="11.5">74.1</text>
+  <rect x="200" y="168" width="446" height="14" rx="4" fill="var(--mxb-teal)" opacity="0.8"/>
+  <text x="654" y="180" fill="var(--mxb-teal)" font-size="11.5" font-weight="700">71.9</text>
+
+  <!-- DeepSeek V4.1 Flash -->
+  <text x="190" y="245" text-anchor="end" fill="var(--mxb-slate)" font-size="12.5" font-weight="700">DeepSeek V4.1 Flash</text>
+  <rect x="200" y="228" width="460" height="14" rx="4" fill="var(--mxb-slate)" opacity="0.45"/>
+  <text x="668" y="240" fill="var(--mxb-slate)" font-size="11.5">74.2</text>
+  <rect x="200" y="248" width="345" height="14" rx="4" fill="var(--mxb-rose)" opacity="0.85"/>
+  <text x="553" y="260" fill="var(--mxb-rose)" font-size="11.5" font-weight="700">55.6 ▼ −18.6</text>
+
+  <!-- Gemini 3.8 Flash -->
+  <text x="190" y="325" text-anchor="end" fill="var(--mxb-slate)" font-size="12.5" font-weight="700">Gemini 3.8 Flash (high)</text>
+  <rect x="200" y="308" width="458" height="14" rx="4" fill="var(--mxb-slate)" opacity="0.45"/>
+  <text x="666" y="320" fill="var(--mxb-slate)" font-size="11.5">73.8</text>
+  <rect x="200" y="328" width="331" height="14" rx="4" fill="var(--mxb-rose)"/>
+  <text x="539" y="340" fill="var(--mxb-rose)" font-size="11.5" font-weight="700">53.4 ▼ −20.4</text>
+
+  <!-- legend -->
+  <rect x="200" y="378" width="14" height="12" rx="3" fill="var(--mxb-slate)" opacity="0.45"/>
+  <text x="222" y="388" fill="var(--mxb-slate)" font-size="11.5">DeepSWE (원본)</text>
+  <rect x="340" y="378" width="14" height="12" rx="3" fill="var(--mxb-teal)"/>
+  <text x="362" y="388" fill="var(--mxb-slate)" font-size="11.5">MaxxBench — 유지/상승</text>
+  <rect x="540" y="378" width="14" height="12" rx="3" fill="var(--mxb-rose)"/>
+  <text x="562" y="388" fill="var(--mxb-slate)" font-size="11.5">MaxxBench — 급락</text>
+
+  <text x="430" y="415" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">단위: 태스크 통과율(%) · 출처: MaxxBench 공식 발표 및 공개 데이터 재분석(저장소 이슈 #1·#3)</text>
+</svg>
+<figcaption>그림 2. 원본에서 사실상 동급이던 모델들이 변형판에서 세 그룹으로 갈라진다. 점수가 오른 모델도 있다는 점이 중요하다 — 변형 자체가 일괄적으로 어려워진 게 아니라는 뜻이다.</figcaption>
+</figure>
+
+<p>여기서 junior가 놓치기 쉬운 포인트를 세 개 짚겠습니다.</p>
+
+<p><strong>첫째, 하락 폭은 모델마다 다릅니다 — 이게 핵심입니다.</strong> 변형 때문에 태스크가 일괄적으로 어려워진 거라면 모든 모델이 비슷하게 떨어져야 합니다. 그런데 공개 데이터를 재분석한 <a href="https://github.com/unlap-labs/maxxbench/issues/1" target="_blank" rel="noopener">이슈 #1</a>의 통계 검정은 "모든 구성이 같은 폭으로 떨어졌다"는 가설을 기각합니다(p=0.003). 같은 89개 태스크 기준으로 Gemini 3.8 Flash와 GPT-6 Astra는 원본 점수가 79점대로 같은데, 하락 폭은 18.9%p나 차이 납니다. 변형판은 원본에서 똑같아 보이던 모델들을 실제로 갈라냅니다.</p>
+
+<p><strong>둘째, 하락은 소수 태스크에 집중돼 있습니다.</strong> 같은 재분석에 따르면 89개 중 15개 태스크가 전체 하락의 62%를 만듭니다. 극단적인 예로 <code>bandit-incremental-cache-control</code>은 원본에서 통과율 77.5%였는데 변형판에서는 <strong>0%</strong>, <code>scriggo-method-declarations</code>는 85%에서 5%로 떨어졌습니다. 반대로 더 쉬워진 태스크도 21개 있습니다. "평균 몇 점 하락"이라는 요약 뒤에는 늘 이런 분포가 숨어 있습니다.</p>
+
+<p><strong>셋째, 표본이 작습니다.</strong> MaxxBench는 구성당 89개 태스크 × 2회 시도입니다. 이슈 <a href="https://github.com/unlap-labs/maxxbench/issues/3" target="_blank" rel="noopener">#3</a>의 부호 검정(sign test) 분석에 따르면, 이 표본에서 통계적으로 확실하게 버티는 모델 간 격차는 Opus 5.5 vs Gemini 3.8 Flash(23.0%p) 같은 큰 것들뿐이고, 10%p 안팎의 격차는 노이즈와 구분되지 않습니다. <strong>리더보드에서 2~3점 차이로 모델을 고르는 건 대부분 의미가 없다</strong>는 일반 교훈이 여기서도 확인됩니다.</p>
+
+<h2 id="sec-5">5. 실패 모드 — 기억이 명세를 이길 때</h2>
+
+<p>점수보다 흥미로운 건 <em>어떻게</em> 틀렸는지입니다. 시도 2,848건의 trajectory(에이전트의 작업 기록)가 전부 공개돼 있는데, 공식 발표와 외부 분석이 공통으로 지목하는 패턴은 이렇습니다.</p>
+
+<p>일부 모델에서는 실패의 약 4분의 1이 <strong>"새 요구사항을 읽고 이해까지 했는데, 결국 원래 DeepSWE 정답의 동작으로 회귀"</strong>한 사례였습니다. 보고된 testem 사례에서는 에이전트가 바뀐 명세대로 올바르게 구현해 놓고, 나중에 기억 속 정답과 다르다는 이유로 <strong>자기 손으로 옳은 코드를 되돌려서</strong> feature 테스트 33개를 떨어뜨렸습니다. 프롬프트에 적힌 명세보다 학습 때 각인된 패턴이 더 센 겁니다.</p>
+
+<figure class="mxb-fig">
+<svg viewBox="0 0 860 330" role="img" aria-label="기억이 명세를 이기는 실패 흐름 다이어그램. 에이전트가 바뀐 명세를 읽고 올바르게 구현하지만, 기억 속 원본 정답과 다르다는 의심이 들자 코드를 원래 동작으로 되돌리고, 그 결과 feature 테스트 33개가 실패하는 네 단계 흐름. 오른쪽에는 숨은 테스트를 추측해 명세에 없는 동작을 구현하는 benchmark-aware 패턴이 덧붙어 있다">
+  <defs>
+    <marker id="mxbf3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="var(--mxb-rose)"/>
+    </marker>
+  </defs>
+  <text x="430" y="28" text-anchor="middle" fill="var(--mxb-rose)" font-size="16" font-weight="800">실패 모드 — "분명 이 문제 아는 문제인데?"</text>
+
+  <rect x="30" y="60" width="180" height="88" rx="10" fill="var(--mxb-sky)" opacity="0.12" stroke="var(--mxb-sky)" stroke-width="2"/>
+  <text x="120" y="90" text-anchor="middle" fill="var(--mxb-sky)" font-size="12.5" font-weight="800">① 바뀐 명세를 읽음</text>
+  <text x="120" y="112" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">"파일명은 소문자로"</text>
+  <text x="120" y="130" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">요구 변화를 인지</text>
+
+  <line x1="210" y1="104" x2="245" y2="104" stroke="var(--mxb-rose)" stroke-width="2.5" marker-end="url(#mxbf3)"/>
+
+  <rect x="250" y="60" width="180" height="88" rx="10" fill="var(--mxb-teal)" opacity="0.12" stroke="var(--mxb-teal)" stroke-width="2"/>
+  <text x="340" y="90" text-anchor="middle" fill="var(--mxb-teal)" font-size="12.5" font-weight="800">② 올바르게 구현</text>
+  <text x="340" y="112" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">새 요구대로 코드 작성</text>
+  <text x="340" y="130" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">이대로면 통과였다</text>
+
+  <line x1="430" y1="104" x2="465" y2="104" stroke="var(--mxb-rose)" stroke-width="2.5" marker-end="url(#mxbf3)"/>
+
+  <rect x="470" y="60" width="180" height="88" rx="10" fill="var(--mxb-amber)" opacity="0.12" stroke="var(--mxb-amber)" stroke-width="2"/>
+  <text x="560" y="90" text-anchor="middle" fill="var(--mxb-amber)" font-size="12.5" font-weight="800">③ 기억과 충돌</text>
+  <text x="560" y="112" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">"내가 아는 정답과</text>
+  <text x="560" y="130" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">다른데…" 의심 발동</text>
+
+  <line x1="650" y1="104" x2="685" y2="104" stroke="var(--mxb-rose)" stroke-width="2.5" marker-end="url(#mxbf3)"/>
+
+  <rect x="690" y="60" width="150" height="88" rx="10" fill="var(--mxb-rose)" opacity="0.12" stroke="var(--mxb-rose)" stroke-width="2"/>
+  <text x="765" y="90" text-anchor="middle" fill="var(--mxb-rose)" font-size="12.5" font-weight="800">④ 옳은 코드 되돌림</text>
+  <text x="765" y="112" text-anchor="middle" fill="var(--mxb-slate)" font-size="11">원래 동작으로 회귀</text>
+  <text x="765" y="130" text-anchor="middle" fill="var(--mxb-rose)" font-size="11" font-weight="700">테스트 33개 실패</text>
+
+  <rect x="30" y="185" width="810" height="120" rx="10" fill="var(--mxb-violet)" opacity="0.08" stroke="var(--mxb-violet)" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="430" y="213" text-anchor="middle" fill="var(--mxb-violet)" font-size="13" font-weight="800">변종 패턴 — benchmark-aware 행동 (저자들의 가설)</text>
+  <text x="430" y="238" text-anchor="middle" fill="var(--mxb-slate)" font-size="11.5">명세에 없는 "숨은 테스트"를 상상하고 그에 맞춰 코드를 짜는 행동이 관찰됨.</text>
+  <text x="430" y="258" text-anchor="middle" fill="var(--mxb-slate)" font-size="11.5">저자들은 최대 reasoning effort 설정이 이런 '벤치마크 모드'를 더 자주 깨우는 것 같다고 추정 —</text>
+  <text x="430" y="278" text-anchor="middle" fill="var(--mxb-slate)" font-size="11.5">"더 오래 생각하게 하면 더 명세에 충실해진다"가 항상 참은 아니라는 이야기.</text>
+</svg>
+<figcaption>그림 3. 보고된 실패 흐름. 문제를 "아는 문제"로 착각하는 순간, 명세보다 기억이 우선순위를 가진다.</figcaption>
+</figure>
+
+<p>이 패턴이 낯설지 않다면, <a href="/posts/agent-reward-hacking-evals/">리워드 해킹</a> 글에서 다룬 "프록시(테스트 통과)와 진짜 목표(명세)의 어긋남"의 변형이기 때문입니다. 학습 과정에서 "이런 모양의 문제에는 이런 모양의 답"이라는 지름길이 보상을 받아 왔다면, 명세가 살짝 바뀐 문제는 그 지름길이 함정으로 바뀌는 지점입니다.</p>
+
+<h2 id="sec-6">6. 그런데 정말 '암기 때문'일까 — 통제군이 없다</h2>
+
+<p>여기까지 읽으면 "결국 모델들이 DeepSWE를 외운 거네"라고 결론 내리고 싶어집니다. 그런데 공개 데이터를 재분석한 이슈 #1은 중요한 반론을 제기합니다. <strong>그 결론을 내리기에는 통제군(control group)이 없다</strong>는 겁니다.</p>
+
+<p>점수 하락의 가설은 최소 두 개입니다.</p>
+
+<ul>
+  <li><strong>가설 A: 친숙함(암기)</strong> — 모델이 DeepSWE 원본(또는 그 유사 데이터)을 학습해서, 원본 점수에 거품이 있었다.</li>
+  <li><strong>가설 B: 일반적인 적응력 부족</strong> — 어떤 모델은 애초에 "요구사항이 수정된 문제"를 잘 못 다룬다. DeepSWE를 본 적이 없어도 똑같이 떨어졌을 것이다.</li>
+</ul>
+
+<p>두 가설을 가르려면 <strong>DeepSWE가 공개된 2026년 5월 20일 이전에 가중치가 고정된 모델</strong>을 같은 조건으로 돌려 봐야 합니다. 그런 모델이 변형판에서 비슷하게 떨어진다면 가설 B(원래 어려운 변형), 거의 안 떨어진다면 가설 A(친숙함)의 증거가 됩니다. 그런데 MaxxBench가 평가한 16개 구성은 전부 2026년 6월 이후 출시 모델입니다. 통제군이 없습니다.</p>
+
+<div class="mxb-note">
+<strong>"knowledge cutoff가 5월 이전이면 되는 거 아냐?"</strong> — 안 됩니다. 이게 이 논쟁에서 junior가 얻어 갈 가장 중요한 디테일입니다. 공개된 cutoff 날짜는 <em>사전학습(pretraining)</em> 데이터 기준입니다. 벤치마크 정답 같은 데이터는 그 뒤의 <strong>post-training 단계</strong>에서도 얼마든지 들어갈 수 있고, 지금 평가된 모델들의 post-training은 전부 DeepSWE 공개 이후에 이뤄졌습니다. 실제로 재분석 결과, cutoff 날짜와 하락 폭 사이에는 양의 상관이 전혀 없었습니다. <strong>"cutoff가 벤치마크 공개 전이니 오염은 없다"는 흔한 주장은 그 자체로는 성립하지 않습니다.</strong>
+</div>
+
+<p>그 밖에도 커뮤니티 이슈에는 평가 엔지니어링 관점에서 배울 거리가 많습니다. <a href="https://github.com/unlap-labs/maxxbench/issues/2" target="_blank" rel="noopener">이슈 #2</a>는 원본/변형 비교에 모델 시드(seed)가 통제되지 않아 개별 태스크 비교가 흔들린다는 점을, <a href="https://github.com/unlap-labs/maxxbench/issues/4" target="_blank" rel="noopener">이슈 #4</a>는 로컬 Docker 재현 시 89개 중 19개 태스크의 채점이 하네스 버그로 아예 실패한다는 점을 지적합니다. 공개 사흘 만에 이 수준의 외부 검증이 붙은 건 <strong>시도별 원자료와 trajectory를 전부 공개한 덕분</strong>입니다. 점수만 공개하는 벤치마크와의 결정적 차이입니다.</p>
+
+<h2 id="sec-7">7. 실전 — 내 에이전트 평가에 perturbation 넣기</h2>
+
+<p>MaxxBench의 기법은 프런티어 모델 평가에만 쓰이는 게 아닙니다. 사내 에이전트든 사이드 프로젝트든, "우리 평가 셋에서 92% 나왔어요"라는 숫자가 있다면 똑같이 물어볼 수 있습니다. <strong>태스크를 살짝 바꿔도 92%가 유지되나요?</strong> 에이전트가 태스크를 "풀고" 있는지, 평가 셋에 "적응"해 버렸는지(프롬프트와 few-shot 예시를 평가 셋에 맞춰 튜닝하다 보면 반드시 생깁니다)를 가르는 가장 싼 방법입니다.</p>
+
+<p>절차는 세 단계입니다. 먼저 기존 평가 태스크에서 <strong>본질은 유지하고 표면만 바꾼 변형판</strong>을 만듭니다.</p>
+
+{{< highlight yaml >}}
+# eval/tasks/invoice-parser/variants.yaml
+# 원본 태스크: 업로드된 인보이스에서 금액·날짜·거래처를 추출
+variants:
+  - id: rename          # 필드 이름만 변경 — 스키마 암기 여부 확인
+    change: "출력 필드명을 total_amount → amount_total 로"
+  - id: format          # 출력 포맷 변경 — 포맷 암기 여부 확인
+    change: "날짜를 YYYY-MM-DD 대신 UNIX timestamp로"
+  - id: constraint      # 제약 추가 — 명세 주의력 확인
+    change: "통화가 KRW가 아니면 converted: false 필드를 추가"
+# 채점기(verifier)도 변형에 맞게 같이 수정해야 한다 — 이걸 빼먹으면
+# '변형판 점수 하락'이 사실은 채점기 버그인 경우가 생긴다
+{{< /highlight >}}
+
+<p>다음으로 원본과 변형을 <strong>같은 설정으로 쌍을 지어</strong> 돌립니다. MaxxBench 이슈 #2의 교훈대로, 비교 대상끼리는 모델·버전·temperature·시드(지원된다면)를 통일하고 그 설정을 결과에 같이 저장합니다.</p>
+
+{{< highlight python >}}
+import json, statistics
+
+def run_paired_eval(tasks, agent, n_attempts=4):
+    results = []
+    for task in tasks:
+        for variant in [task.original, *task.variants]:
+            for i in range(n_attempts):
+                out = agent.run(variant, seed=i)   # 쌍마다 같은 시드 사용
+                results.append({
+                    "task": task.id,
+                    "variant": variant.id,          # "original" 포함
+                    "attempt": i,
+                    "passed": variant.verify(out),  # 변형에 맞게 수정된 채점기
+                    "config": agent.config_dict(),  # 모델·버전·설정 스냅샷 저장
+                })
+    return results
+
+def paired_drop(results):
+    """태스크별로 (원본 통과율 - 변형 통과율)을 계산한다.
+    평균 하나로 뭉개지 말고 태스크별 분포를 봐야 한다 —
+    MaxxBench에서는 15/89개 태스크가 전체 하락의 62%를 만들었다."""
+    drops = {}
+    for task_id in {r["task"] for r in results}:
+        orig = [r["passed"] for r in results
+                if r["task"] == task_id and r["variant"] == "original"]
+        mut  = [r["passed"] for r in results
+                if r["task"] == task_id and r["variant"] != "original"]
+        drops[task_id] = statistics.mean(orig) - statistics.mean(mut)
+    return dict(sorted(drops.items(), key=lambda kv: -kv[1]))
+{{< /highlight >}}
+
+<p>마지막으로 결과를 읽을 때는 평균이 아니라 <strong>하락 상위 태스크의 trajectory</strong>부터 엽니다. 거기서 "명세를 읽고도 원래 패턴으로 회귀"가 보이면, 프롬프트에 명세 재확인 단계를 넣거나 변형 태스크를 few-shot에 추가하는 식으로 고칠 지점이 구체적으로 나옵니다. 점수는 증상이고, trajectory가 진단입니다.</p>
+
+<p>그리고 공개 벤치마크를 직접 돌려 보고 싶다면, 에이전트를 붙이기 전에 <strong>oracle(참조 정답)부터</strong> 돌려서 채점기가 내 환경에서 멀쩡한지 확인하세요. MaxxBench도 그 용도의 명령을 제공합니다.</p>
+
+{{< highlight bash >}}
+# 참조 정답으로 채점기 자체를 검증 — 이게 실패하면 모델 평가는 무의미
+uv run run.py run -p tasks/testem-per-launcher-reports --agent oracle --force-build
+{{< /highlight >}}
+
+<p>실제로 이 확인을 건너뛰고 로컬에서 돌렸다면, 이슈 #4의 하네스 버그(19개 태스크 채점 불가) 때문에 어떤 에이전트든 최대 70/89점으로 측정되는 함정에 빠졌을 겁니다.</p>
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<table class="mxb-table">
+  <thead><tr><th>실수</th><th>왜 문제인가 / 어떻게 하나</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>리더보드 2~3점 차이로 모델 선택</td>
+      <td>89개 × 2회 규모에서는 10%p 안팎 격차도 노이즈와 구분이 안 됩니다(이슈 #3의 부호 검정). 작은 격차는 "동급"으로 읽고, 내 워크로드로 직접 비교하세요.</td>
+    </tr>
+    <tr>
+      <td>"cutoff가 공개일 이전이니 오염 없음"</td>
+      <td>cutoff는 사전학습 기준입니다. post-training은 그 뒤에도 계속되므로, 오염을 배제하려면 <em>가중치 고정 시점</em>이 벤치마크 공개 이전인 통제군이 필요합니다.</td>
+    </tr>
+    <tr>
+      <td>변형판 점수 하락 = 암기라고 단정</td>
+      <td>"수정된 요구사항에 원래 약한 모델"일 수도 있습니다(가설 B). 두 가설은 결론이 다릅니다 — 전자는 원본 점수를 깎아 읽어야 하고, 후자는 실무 능력 자체의 경고입니다.</td>
+    </tr>
+    <tr>
+      <td>태스크 변형만 하고 채점기는 그대로</td>
+      <td>변형판 실패가 사실은 채점기-명세 불일치인 경우가 생깁니다. MaxxBench 재분석에서도 채점기 수리 때문에 오히려 쉬워진 태스크가 21개 발견됐습니다.</td>
+    </tr>
+    <tr>
+      <td>평균 점수만 보고 끝내기</td>
+      <td>하락은 소수 태스크에 집중됩니다(15개가 62%). 하락 상위 태스크의 trajectory를 읽어야 고칠 지점이 나옵니다.</td>
+    </tr>
+    <tr>
+      <td>서로 다른 태스크 셋의 점수를 직접 비교</td>
+      <td>MaxxBench 헤드라인도 "DeepSWE 113개 vs MaxxBench 89개" 비교라서, 같은 89개로 맞추면 하락 폭이 더 커집니다(이슈 #1). 비교는 반드시 같은 태스크 집합·같은 설정으로.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li><strong>MaxxBench</strong>(11/7 공개)는 DeepSWE 태스크 89개의 요구사항을 중앙값 17줄(~3.5%)만 바꾼 변형 벤치마크입니다. 원본에서 74% 부근에 몰려 있던 모델들이 76.4%(Claude Opus 5.5)부터 53.4%(Gemini 3.8 Flash)까지 갈라졌고, 전체 스프레드는 20.9%p → 48.3%p로 벌어졌습니다.</li>
+  <li>하락 폭은 모델별로 유의하게 다릅니다 — 변형이 일괄적으로 어려워서가 아니라, <strong>원본 점수가 같아도 "낯선 문제를 다루는 능력"은 모델마다 다르기 때문</strong>입니다.</li>
+  <li>대표 실패 모드는 "바뀐 명세대로 올바르게 구현 → 기억 속 정답과 다르다며 스스로 되돌림"입니다. 명세보다 기억이 이기는 순간이 있습니다.</li>
+  <li>다만 하락의 원인이 암기(오염)인지 적응력 부족인지는 <strong>벤치마크 공개 전에 가중치가 고정된 통제군 없이는 단정할 수 없고</strong>, cutoff 날짜는 post-training 때문에 통제군 증명이 되지 못합니다.</li>
+  <li>내 에이전트 평가에도 적용하세요: 태스크의 표면(이름·포맷·제약)만 바꾼 변형판을 만들고, 같은 설정으로 쌍을 지어 돌리고, 평균 대신 태스크별 하락 분포와 trajectory를 읽습니다. 공개 벤치마크를 돌릴 땐 oracle로 채점기부터 검증합니다.</li>
+  <li>원자료·trajectory 전체 공개 덕분에 사흘 만에 외부 재분석과 반론이 붙었습니다 — 좋은 평가 인프라는 점수가 아니라 <strong>검증 가능성</strong>을 공개하는 것입니다.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://maxxbench.unlap.ai/research/why-maxxbench/" target="_blank" rel="noopener">Introducing MaxxBench: Benchmarking Task Adaptation and Generalization in Frontier Coding Agents</a> — 공식 발표</li>
+  <li><a href="https://maxxbench.unlap.ai/" target="_blank" rel="noopener">MaxxBench 결과 및 trajectories</a></li>
+  <li><a href="https://github.com/unlap-labs/maxxbench" target="_blank" rel="noopener">unlap-labs/maxxbench</a> — 저장소 (태스크·채점기·실행 러너)</li>
+  <li><a href="https://github.com/unlap-labs/maxxbench/issues/1" target="_blank" rel="noopener">이슈 #1 — 같은 89태스크 기준 paired drop 재분석과 통제군 문제 제기</a></li>
+  <li><a href="https://github.com/unlap-labs/maxxbench/issues/2" target="_blank" rel="noopener">이슈 #2 — 모델 시드 미통제 지적</a> · <a href="https://github.com/unlap-labs/maxxbench/issues/3" target="_blank" rel="noopener">이슈 #3 — 모델 간 격차의 부호 검정</a> · <a href="https://github.com/unlap-labs/maxxbench/issues/4" target="_blank" rel="noopener">이슈 #4 — 로컬 채점 하네스 버그(19/89)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50406222" target="_blank" rel="noopener">Hacker News 토론 (2026-11-09)</a></li>
+  <li><a href="https://deepswe.datacurve.ai/" target="_blank" rel="noopener">DeepSWE</a> · <a href="https://github.com/datacurve-ai/deep-swe" target="_blank" rel="noopener">datacurve-ai/deep-swe</a> · <a href="https://github.com/datacurve-ai/pier" target="_blank" rel="noopener">datacurve-ai/pier</a> — 원본 벤치마크와 실행 하네스</li>
+  <li><a href="https://hyper.ai/en/stories/1dd53774aab2158446bbab6e74a0e1ba" target="_blank" rel="noopener">MaxxBench Tests Task Adaptation and Generalization in Frontier Coding Agents</a> (hyper.ai) · <a href="https://dev.to/frankchu/23-point-split-6-models-tied-at-74-fell-apart-on-17-lines-3b44" target="_blank" rel="noopener">23-point split: 6 models tied at 74% fell apart on 17 lines</a> (dev.to) — 외부 해설</li>
+  <li><a href="https://arxiv.org/abs/2410.05229" target="_blank" rel="noopener">GSM-Symbolic: Understanding the Limitations of Mathematical Reasoning in LLMs</a> (Apple, arXiv:2410.05229) — 섭동 평가의 선행 연구</li>
+  <li>🇰🇷 <a href="/posts/agent-evals-reliability/">에이전트 평가 — 역량 vs 신뢰성, pass@k와 pass^k</a> · <a href="/posts/agent-reward-hacking-evals/">에이전트 리워드 해킹</a> · <a href="/posts/private-code-benchmarks-real-swe/">프라이빗 코드 벤치마크</a> — 이 블로그의 관련 글 (한국어)</li>
+</ul>

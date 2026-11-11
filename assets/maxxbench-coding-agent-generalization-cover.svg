@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="MaxxBench 벤치마크를 표현한 커버 그림. 왼쪽에는 DeepSWE에서 74% 부근에 나란히 선 네 모델의 막대가, 가운데에는 '요구사항 중앙값 17줄 변경'이라는 화살표가, 오른쪽에는 76점부터 53점까지 넓게 갈라진 MaxxBench 막대가 그려져 있다">
+  <defs>
+    <linearGradient id="mxbbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#101c2e"/>
+    </linearGradient>
+    <linearGradient id="mxbcard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#16213a"/>
+    </linearGradient>
+    <marker id="mxbarw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#fbbf24"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#mxbbg)"/>
+
+  <!-- title -->
+  <text x="600" y="78" text-anchor="middle" fill="#e2e8f0" font-family="sans-serif" font-size="40" font-weight="800">같은 74점이었는데, 17줄을 바꾸자 갈라졌다</text>
+  <text x="600" y="122" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="23">MaxxBench로 배우는 coding agent 벤치마크 읽는 법</text>
+
+  <g font-family="sans-serif">
+    <!-- left card: DeepSWE cluster -->
+    <rect x="70" y="180" width="400" height="360" rx="16" fill="url(#mxbcard)" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="270" y="222" text-anchor="middle" fill="#38bdf8" font-size="21" font-weight="800">DeepSWE (원본)</text>
+    <text x="270" y="250" text-anchor="middle" fill="#94a3b8" font-size="15">네 모델이 74% 부근에 나란히</text>
+
+    <!-- baseline at 100% top, bars grow upward from y=500 (0%) to y=270 area -->
+    <line x1="110" y1="500" x2="430" y2="500" stroke="#334155" stroke-width="2"/>
+    <!-- bars ~74% -> height ~192 -->
+    <rect x="130" y="307" width="52" height="193" rx="6" fill="#38bdf8" opacity="0.85"/>
+    <rect x="202" y="308" width="52" height="192" rx="6" fill="#38bdf8" opacity="0.7"/>
+    <rect x="274" y="307" width="52" height="193" rx="6" fill="#38bdf8" opacity="0.55"/>
+    <rect x="346" y="309" width="52" height="191" rx="6" fill="#38bdf8" opacity="0.4"/>
+    <text x="156" y="296" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">74.2</text>
+    <text x="228" y="296" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">74.1</text>
+    <text x="300" y="296" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">74.2</text>
+    <text x="372" y="296" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">73.8</text>
+
+    <!-- middle arrow -->
+    <line x1="490" y1="360" x2="690" y2="360" stroke="#fbbf24" stroke-width="4" marker-end="url(#mxbarw)"/>
+    <text x="593" y="330" text-anchor="middle" fill="#fbbf24" font-size="19" font-weight="800">요구사항 변경</text>
+    <text x="593" y="398" text-anchor="middle" fill="#94a3b8" font-size="15">중앙값 +17줄 (~3.5%)</text>
+
+    <!-- right card: MaxxBench spread -->
+    <rect x="730" y="180" width="400" height="360" rx="16" fill="url(#mxbcard)" stroke="#fb7185" stroke-width="2.5"/>
+    <text x="930" y="222" text-anchor="middle" fill="#fb7185" font-size="21" font-weight="800">MaxxBench (변형)</text>
+    <text x="930" y="250" text-anchor="middle" fill="#94a3b8" font-size="15">최대 23점 차이로 벌어짐</text>
+
+    <line x1="770" y1="500" x2="1090" y2="500" stroke="#334155" stroke-width="2"/>
+    <!-- 76.4 / 71.9 / 55.6 / 53.4 -->
+    <rect x="790" y="301" width="52" height="199" rx="6" fill="#2dd4bf" opacity="0.9"/>
+    <rect x="862" y="313" width="52" height="187" rx="6" fill="#2dd4bf" opacity="0.65"/>
+    <rect x="934" y="355" width="52" height="145" rx="6" fill="#fb7185" opacity="0.75"/>
+    <rect x="1006" y="361" width="52" height="139" rx="6" fill="#fb7185" opacity="0.9"/>
+    <text x="816" y="290" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">76.4</text>
+    <text x="888" y="302" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">71.9</text>
+    <text x="960" y="344" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">55.6</text>
+    <text x="1032" y="350" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">53.4</text>
+  </g>
+
+  <text x="600" y="590" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="16">벤치마크 점수는 '실력'이었을까, '기억'이었을까</text>
+</svg>

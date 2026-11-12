@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Modern Web Guidance를 표현한 커버 그림. 왼쪽에는 2019년식 div 모달과 jQuery 코드를 쓰는 코딩 에이전트가, 가운데에는 search와 retrieve 명령으로 가이드를 주입하는 화살표가, 오른쪽에는 네이티브 dialog와 popover를 쓰는 모던 코드가 그려져 있다">
+  <defs>
+    <linearGradient id="mwgbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#101c2e"/>
+    </linearGradient>
+    <linearGradient id="mwgcard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#16213a"/>
+    </linearGradient>
+    <marker id="mwgarw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#fbbf24"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#mwgbg)"/>
+
+  <!-- title -->
+  <text x="600" y="76" text-anchor="middle" fill="#e2e8f0" font-family="sans-serif" font-size="38" font-weight="800">당신의 코딩 에이전트는 2019년 웹에 살고 있다</text>
+  <text x="600" y="120" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="23">Modern Web Guidance 1.0으로 배우는 &#39;지식 주입&#39; 엔지니어링</text>
+
+  <g font-family="sans-serif">
+    <!-- left card: legacy agent output -->
+    <rect x="70" y="180" width="380" height="360" rx="16" fill="url(#mwgcard)" stroke="#f87171" stroke-width="2.5"/>
+    <text x="260" y="222" text-anchor="middle" fill="#f87171" font-size="21" font-weight="800">컷오프 속 지식 (2019)</text>
+    <g font-family="monospace" font-size="17" fill="#cbd5e1">
+      <text x="100" y="262">&lt;div class="modal-overlay"&gt;</text>
+      <text x="100" y="292">  &lt;div role="dialog"</text>
+      <text x="100" y="322">       aria-modal="true"&gt;</text>
+      <text x="100" y="352">// 수동 focus trap 87줄…</text>
+      <text x="100" y="382">body.style.overflow='hidden'</text>
+      <text x="100" y="412">$('.modal').fadeIn()</text>
+    </g>
+    <text x="260" y="470" text-anchor="middle" fill="#94a3b8" font-size="17">학습 데이터의 대부분은</text>
+    <text x="260" y="496" text-anchor="middle" fill="#94a3b8" font-size="17">오래된 웹 코드</text>
+
+    <!-- middle arrow -->
+    <g>
+      <rect x="480" y="300" width="240" height="120" rx="14" fill="#1e293b" stroke="#fbbf24" stroke-width="2.5"/>
+      <text x="600" y="338" text-anchor="middle" fill="#fbbf24" font-size="19" font-weight="800">mwg search →</text>
+      <text x="600" y="366" text-anchor="middle" fill="#fbbf24" font-size="19" font-weight="800">retrieve "dialog"</text>
+      <text x="600" y="398" text-anchor="middle" fill="#94a3b8" font-size="15">가이드 203개 · 오프라인 CLI</text>
+      <line x1="450" y1="360" x2="478" y2="360" stroke="#fbbf24" stroke-width="3" marker-end="url(#mwgarw)"/>
+      <line x1="720" y1="360" x2="748" y2="360" stroke="#fbbf24" stroke-width="3" marker-end="url(#mwgarw)"/>
+    </g>
+
+    <!-- right card: modern output -->
+    <rect x="750" y="180" width="380" height="360" rx="16" fill="url(#mwgcard)" stroke="#34d399" stroke-width="2.5"/>
+    <text x="940" y="222" text-anchor="middle" fill="#34d399" font-size="21" font-weight="800">주입된 지식 (현재 웹)</text>
+    <g font-family="monospace" font-size="17" fill="#cbd5e1">
+      <text x="780" y="262">&lt;button command="show-modal"</text>
+      <text x="780" y="292">  commandfor="confirm"&gt;</text>
+      <text x="780" y="322">&lt;dialog id="confirm"&gt;</text>
+      <text x="780" y="352">  &lt;form method="dialog"&gt;</text>
+      <text x="780" y="382">dialog:modal {</text>
+      <text x="780" y="412">  overscroll-behavior:contain</text>
+    </g>
+    <text x="940" y="470" text-anchor="middle" fill="#94a3b8" font-size="17">focus·ESC·top-layer는</text>
+    <text x="940" y="496" text-anchor="middle" fill="#94a3b8" font-size="17">브라우저가 공짜로 처리</text>
+  </g>
+
+  <!-- footer -->
+  <text x="600" y="590" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="18">Chrome · Edge · Firefox · MDN 공동 관리 — 에이전트 pass rate 50~60% → 86~98%</text>
+</svg>

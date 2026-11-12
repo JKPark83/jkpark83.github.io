@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="금요일 아침 브리핑 표지. 젠슨 황이 엔비디아 CEO에서 물러나 주가가 장중 14퍼센트 급락 후 4.3퍼센트 하락으로 마감했고 나스닥은 0.4퍼센트 하락한 25,366으로 선방했습니다. 시스코와 어플라이드 머티어리얼즈 실적은 AI 수요 건재를 재확인했습니다. 비트코인은 71,300달러까지 밀리며 8월 이후 최저를 기록했고 MSCI는 스트래티지를 지수에서 제외합니다. 나스닥 관망, 비트코인 매도 유지">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101723"/>
+      <stop offset="1" stop-color="#14101f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.13 · 나스닥 &amp; 비트코인 5분 요약 · 금요일판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#fca5a5">젠슨 황 사임 · 엔비디아 -4.3% · 나스닥 -0.39% (25,366) · BTC 71,300 — 8월 이후 최저</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — CEO 쇼크 속 선방</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#6366f1" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#a5b4fc">25,366</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#c7d2fe">검토선 25,253 위 유지</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">오늘 밤 PPI가 관문</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 3개월 최저</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#06b6d4" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#22d3ee">71,300</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5f3fc">73,000 지지 붕괴</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#f87171">비트코인 매도</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">다음 지지 70,000 · 68,000</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">시스코·AMAT 실적 비트 · 10년물 4.99% · ETF 유출 -3억달러로 재확대 · MSCI, 스트래티지 지수 제외</text>
+  <text x="80" y="595" font-family="sans-serif" font-size="15" fill="#475569">본 글은 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

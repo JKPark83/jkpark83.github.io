@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="440" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">SparseRead — 모델을 안 고치고 '읽기'만 통제한다</text>
+
+  <!-- Agent box -->
+  <rect x="30" y="170" width="130" height="80" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="95" y="203" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="700">에이전트</text>
+  <text x="95" y="226" text-anchor="middle" fill="#94a3b8" font-size="11">모델 수정 없음</text>
+
+  <line x1="160" y1="210" x2="208" y2="210" stroke="#64748b" stroke-width="2"/>
+  <path d="M208 210 l-9 -5 v10 z" fill="#64748b"/>
+
+  <!-- SparseRead layer -->
+  <rect x="216" y="70" width="330" height="300" rx="12" fill="#172036" stroke="#a855f7" stroke-width="2"/>
+  <text x="381" y="98" text-anchor="middle" fill="#c084fc" font-size="15" font-weight="700">SparseRead 읽기 제어 레이어</text>
+
+  <rect x="238" y="116" width="286" height="66" rx="8" fill="#1e293b" stroke="#475569"/>
+  <text x="252" y="140" fill="#e2e8f0" font-size="13" font-weight="600">① Read Intent Protocol</text>
+  <text x="252" y="160" fill="#94a3b8" font-size="11.5">지금 뭘 찾는지·어디까지 봤는지 추적</text>
+
+  <rect x="238" y="192" width="286" height="66" rx="8" fill="#1e293b" stroke="#475569"/>
+  <text x="252" y="216" fill="#e2e8f0" font-size="13" font-weight="600">② Adaptive Reader Backends</text>
+  <text x="252" y="236" fill="#94a3b8" font-size="11.5">소스별로 증거 탐색·노출 방식 선택</text>
+
+  <rect x="238" y="268" width="286" height="84" rx="8" fill="#1e293b" stroke="#f97316"/>
+  <text x="252" y="292" fill="#fb923c" font-size="13" font-weight="600">③ Budgeted Read Gate</text>
+  <text x="252" y="312" fill="#94a3b8" font-size="11.5">에피소드당 원문 노출 총량에 상한</text>
+  <text x="252" y="330" fill="#94a3b8" font-size="11.5">부족하면 전체 보기로 폴백 (충실성 유지)</text>
+
+  <line x1="546" y1="210" x2="594" y2="210" stroke="#64748b" stroke-width="2"/>
+  <path d="M594 210 l-9 -5 v10 z" fill="#64748b"/>
+
+  <!-- Sources -->
+  <rect x="602" y="110" width="168" height="200" rx="10" fill="#1e293b" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="686" y="138" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="700">외부 콘텐츠</text>
+  <text x="686" y="166" text-anchor="middle" fill="#cbd5e1" font-size="12">웹페이지</text>
+  <text x="686" y="190" text-anchor="middle" fill="#cbd5e1" font-size="12">문서 · 저장소</text>
+  <text x="686" y="214" text-anchor="middle" fill="#cbd5e1" font-size="12">도구 응답</text>
+  <text x="686" y="246" text-anchor="middle" fill="#94a3b8" font-size="11">통째로 읽지 않고</text>
+  <text x="686" y="264" text-anchor="middle" fill="#94a3b8" font-size="11">필요한 증거만 노출</text>
+
+  <!-- results strip -->
+  <rect x="30" y="388" width="740" height="36" rx="8" fill="#14532d"/>
+  <text x="400" y="411" text-anchor="middle" fill="#bbf7d0" font-size="13" font-weight="600">6개 모델·5개 시나리오: 전체 토큰 최대 -92.9% · 시간 최대 -89.0% · 품질은 97% 설정에서 유지/개선 (arXiv 2608.22237)</text>
+</svg>

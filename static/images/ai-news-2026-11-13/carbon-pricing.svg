@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="430" fill="#0f172a" rx="12"/>
+  <text x="400" y="36" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">Gemini 4 Carbon API 가격 — 인트로 vs 정가 vs Fable 5.2</text>
+  <text x="400" y="58" text-anchor="middle" fill="#94a3b8" font-size="12">단위: $ / 1M 토큰 · 출처: Google 가격 페이지 인용 보도(VentureBeat 외), Claude Code 2.1.321 체인지로그</text>
+
+  <!-- axis -->
+  <line x1="90" y1="340" x2="740" y2="340" stroke="#475569" stroke-width="1"/>
+
+  <!-- group 1: Carbon intro -->
+  <g>
+    <rect x="120" y="325" width="70" height="15" fill="#34d399"/>
+    <text x="155" y="318" text-anchor="middle" fill="#34d399" font-size="13" font-weight="700">$2</text>
+    <rect x="200" y="265" width="70" height="75" fill="#10b981"/>
+    <text x="235" y="258" text-anchor="middle" fill="#10b981" font-size="13" font-weight="700">$10</text>
+    <text x="195" y="366" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">Carbon 인트로</text>
+    <text x="195" y="384" text-anchor="middle" fill="#94a3b8" font-size="11">~11/30까지</text>
+  </g>
+
+  <!-- group 2: Carbon standard -->
+  <g>
+    <rect x="330" y="310" width="70" height="30" fill="#34d399"/>
+    <text x="365" y="303" text-anchor="middle" fill="#34d399" font-size="13" font-weight="700">$4</text>
+    <rect x="410" y="190" width="70" height="150" fill="#10b981"/>
+    <text x="445" y="183" text-anchor="middle" fill="#10b981" font-size="13" font-weight="700">$20</text>
+    <text x="405" y="366" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">Carbon 정가</text>
+    <text x="405" y="384" text-anchor="middle" fill="#94a3b8" font-size="11">12/1부터</text>
+  </g>
+
+  <!-- group 3: Fable 5.2 -->
+  <g>
+    <rect x="540" y="280" width="70" height="60" fill="#60a5fa"/>
+    <text x="575" y="273" text-anchor="middle" fill="#60a5fa" font-size="13" font-weight="700">$8</text>
+    <rect x="620" y="90" width="70" height="250" fill="#3b82f6"/>
+    <text x="655" y="83" text-anchor="middle" fill="#3b82f6" font-size="13" font-weight="700">$40</text>
+    <text x="615" y="366" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">Claude Fable 5.2</text>
+    <text x="615" y="384" text-anchor="middle" fill="#94a3b8" font-size="11">1M 컨텍스트</text>
+  </g>
+
+  <!-- legend -->
+  <text x="120" y="416" fill="#cbd5e1" font-size="12">각 그룹: 왼쪽(연한색) = 입력, 오른쪽(진한색) = 출력</text>
+  <text x="740" y="416" text-anchor="end" fill="#facc15" font-size="12" font-weight="600">배치는 인트로가의 50%, 캐시 입력 -95%</text>
+</svg>

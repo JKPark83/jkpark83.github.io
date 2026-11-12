@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">오늘의 AI 변화 지도 — 2026-11-13</text>
+
+  <!-- 모델 -->
+  <rect x="24" y="56" width="368" height="186" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="40" y="82" fill="#60a5fa" font-size="15" font-weight="700">🤖 모델</text>
+  <text x="40" y="110" fill="#e2e8f0" font-size="13" font-weight="600">Gemini 4 Carbon — 유료 API GA (11/10)</text>
+  <text x="40" y="130" fill="#94a3b8" font-size="12">$2/$10 인트로 가격, 11/30 종료 → 12/1부터 $4/$20</text>
+  <text x="40" y="150" fill="#94a3b8" font-size="12">모델 ID: gemini-4-carbon · 캐시 입력 -95%</text>
+  <text x="40" y="180" fill="#e2e8f0" font-size="13" font-weight="600">Gemini Robotics 2.5 (11/10)</text>
+  <text x="40" y="200" fill="#94a3b8" font-size="12">VLA 모델 · 파트너 롤아웃 · ASIMOV-Jailbreak 벤치 공개</text>
+  <text x="40" y="226" fill="#facc15" font-size="12" font-weight="600">→ 인트로 가격 기간에 평가 셋 돌려볼 것</text>
+
+  <!-- 논문 -->
+  <rect x="408" y="56" width="368" height="186" rx="10" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="424" y="82" fill="#c084fc" font-size="15" font-weight="700">📚 논문</text>
+  <text x="424" y="110" fill="#e2e8f0" font-size="13" font-weight="600">SparseRead — 에이전트 읽기 제어 레이어</text>
+  <text x="424" y="130" fill="#94a3b8" font-size="12">전체 토큰 최대 -92.9%, 품질은 97% 설정에서 유지</text>
+  <text x="424" y="160" fill="#e2e8f0" font-size="13" font-weight="600">SteerDistill — 양자화 에이전트 교정 증류</text>
+  <text x="424" y="180" fill="#94a3b8" font-size="12">W4A16에서 BF16 대비 1점 이내로 복원</text>
+  <text x="424" y="226" fill="#facc15" font-size="12" font-weight="600">→ 읽기 예산·로컬 에이전트 경량화의 설계 재료</text>
+
+  <!-- 오픈소스 -->
+  <rect x="24" y="256" width="368" height="186" rx="10" fill="#1e293b" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="40" y="282" fill="#4ade80" font-size="15" font-weight="700">🛠 오픈소스</text>
+  <text x="40" y="310" fill="#e2e8f0" font-size="13" font-weight="600">expo/exact — 에이전트 우선 크로스플랫폼</text>
+  <text x="40" y="330" fill="#94a3b8" font-size="12">웹·macOS·iOS·리눅스, 에이전트가 빌드→실행→검증</text>
+  <text x="40" y="356" fill="#e2e8f0" font-size="13" font-weight="600">agentes.chat — 사람+에이전트 셀프호스트 채팅</text>
+  <text x="40" y="382" fill="#e2e8f0" font-size="13" font-weight="600">gputaskman — GPU 내부를 보는 htop</text>
+  <text x="40" y="402" fill="#94a3b8" font-size="12">프로세스별 VRAM·KV 캐시·모델 가중치 구분</text>
+
+  <!-- 도구 팁 -->
+  <rect x="408" y="256" width="368" height="186" rx="10" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+  <text x="424" y="282" fill="#fb923c" font-size="15" font-weight="700">🧑‍💻 도구 팁</text>
+  <text x="424" y="310" fill="#e2e8f0" font-size="13" font-weight="600">🟦 CC: sec-default 티어 모델 업데이트 (11/11)</text>
+  <text x="424" y="330" fill="#94a3b8" font-size="12">조직이 내린 관리 도구, 유저 플러그인이 복원 불가</text>
+  <text x="424" y="356" fill="#e2e8f0" font-size="13" font-weight="600">🟩 Codex: Guardian 리뷰 히스토리 재사용 (11/12)</text>
+  <text x="424" y="376" fill="#94a3b8" font-size="12">같은 스레드의 연속 리뷰가 리뷰어 기억을 공유</text>
+  <text x="424" y="402" fill="#e2e8f0" font-size="13" font-weight="600">🟪 공통: 읽기 예산 게이트 패턴</text>
+  <text x="424" y="422" fill="#94a3b8" font-size="12">에피소드당 원문 노출 총량에 상한을 건다</text>
+</svg>

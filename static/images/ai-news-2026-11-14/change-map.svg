@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">오늘의 AI 변화 지도 — 2026-11-14</text>
+
+  <!-- 모델 -->
+  <rect x="24" y="56" width="368" height="186" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="40" y="82" fill="#60a5fa" font-size="15" font-weight="700">🤖 모델</text>
+  <text x="40" y="110" fill="#e2e8f0" font-size="13" font-weight="600">Gemini 4 Hydrogen 출시 (11/12)</text>
+  <text x="40" y="130" fill="#94a3b8" font-size="12">$1.50/$7.50 · 1M ctx 균일가 · 3.8 Flash 대비 ~2.5배 속도</text>
+  <text x="40" y="150" fill="#94a3b8" font-size="12">Terminal-Bench 4.1: 18.2% → 57% (Google 자체 수치)</text>
+  <text x="40" y="180" fill="#e2e8f0" font-size="13" font-weight="600">Gemini 3.8 Flash 가격 인상 예고</text>
+  <text x="40" y="200" fill="#94a3b8" font-size="12">$0.75/$3.75는 12/31까지 → 1/1부터 $1.50/$7.50</text>
+  <text x="40" y="226" fill="#facc15" font-size="12" font-weight="600">→ Flash 고정 파이프라인은 연내 재평가</text>
+
+  <!-- 논문 -->
+  <rect x="408" y="56" width="368" height="186" rx="10" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="424" y="82" fill="#c084fc" font-size="15" font-weight="700">📚 논문</text>
+  <text x="424" y="110" fill="#e2e8f0" font-size="13" font-weight="600">Actor, Judge, or Teacher? — 결정 모델 3역할</text>
+  <text x="424" y="130" fill="#94a3b8" font-size="12">못 하는 배우도 좋은 심판·교사가 될 수 있다</text>
+  <text x="424" y="160" fill="#e2e8f0" font-size="13" font-weight="600">Evidence-Guided Recovery — 도구 타임아웃 복구</text>
+  <text x="424" y="180" fill="#94a3b8" font-size="12">증거 기반 복구로 완료 인증 30 vs 9 (+36.2%p)</text>
+  <text x="424" y="226" fill="#facc15" font-size="12" font-weight="600">→ 사후 행동 심판 = 싼 평가·보상 신호</text>
+
+  <!-- 오픈소스 -->
+  <rect x="24" y="256" width="368" height="186" rx="10" fill="#1e293b" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="40" y="282" fill="#4ade80" font-size="15" font-weight="700">🛠 오픈소스</text>
+  <text x="40" y="310" fill="#e2e8f0" font-size="13" font-weight="600">lot-map — Claude Code 작업 실황 지도</text>
+  <text x="40" y="330" fill="#94a3b8" font-size="12">도구 호출·훅·스킬·서브에이전트가 패널에서 점등</text>
+  <text x="40" y="356" fill="#e2e8f0" font-size="13" font-weight="600">MACaQ — 화웨이의 모델 불문 양자화</text>
+  <text x="40" y="376" fill="#94a3b8" font-size="12">122B를 64분·32.5GB로 GGUF 양자화</text>
+  <text x="40" y="402" fill="#e2e8f0" font-size="13" font-weight="600">kubai-icons — 아이콘 그려주는 에이전트 스킬</text>
+  <text x="40" y="422" fill="#94a3b8" font-size="12">+ MIT 아이콘 2,800종 (React/Vue/웹)</text>
+
+  <!-- 도구 팁 -->
+  <rect x="408" y="256" width="368" height="186" rx="10" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+  <text x="424" y="282" fill="#fb923c" font-size="15" font-weight="700">🧑‍💻 도구 팁</text>
+  <text x="424" y="310" fill="#e2e8f0" font-size="13" font-weight="600">🟦 CC: AGENTS.md 공식 지원 (agents-md 모드)</text>
+  <text x="424" y="330" fill="#94a3b8" font-size="12">instructionFiles 옵션 4모드 · /config에서 선택</text>
+  <text x="424" y="356" fill="#e2e8f0" font-size="13" font-weight="600">🟩 Codex: 샌드박스 투명 TCP 라우팅 (11/13)</text>
+  <text x="424" y="376" fill="#94a3b8" font-size="12">--transparent-tcp · 네이티브 소켓도 관리 프록시로</text>
+  <text x="424" y="402" fill="#e2e8f0" font-size="13" font-weight="600">🟪 공통: "이 행동이 도움됐나" 사후 심판 평가</text>
+  <text x="424" y="422" fill="#94a3b8" font-size="12">성공 예측 대신 행동 단위 기여 판정</text>
+</svg>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="380" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="700">같은 결정 모델, 세 가지 역할 — arXiv 2611.17167</text>
+
+  <!-- center model box -->
+  <rect x="320" y="60" width="160" height="52" rx="10" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="400" y="82" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="700">결정 모델</text>
+  <text x="400" y="100" text-anchor="middle" fill="#94a3b8" font-size="11">선택지 + 확률의 typed 출력</text>
+
+  <!-- arrows -->
+  <line x1="352" y1="112" x2="152" y2="160" stroke="#64748b" stroke-width="1.5"/>
+  <line x1="400" y1="112" x2="400" y2="160" stroke="#64748b" stroke-width="1.5"/>
+  <line x1="448" y1="112" x2="648" y2="160" stroke="#64748b" stroke-width="1.5"/>
+
+  <!-- Actor -->
+  <rect x="28" y="164" width="240" height="150" rx="10" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="148" y="190" text-anchor="middle" fill="#f87171" font-size="14" font-weight="700">① Actor — 행동 선택</text>
+  <text x="44" y="216" fill="#e2e8f0" font-size="12">ALFWorld에서 6개 모델 전부</text>
+  <text x="44" y="234" fill="#e2e8f0" font-size="12">"먼저 해야 할 하위 목표"를 두고</text>
+  <text x="44" y="252" fill="#e2e8f0" font-size="12">더 쉬운 목표에 끌려감</text>
+  <text x="44" y="282" fill="#fca5a5" font-size="12" font-weight="600">→ 행동은 결과를 '예측'해야</text>
+  <text x="44" y="300" fill="#fca5a5" font-size="12" font-weight="600">   해서 어렵다</text>
+
+  <!-- Judge -->
+  <rect x="280" y="164" width="240" height="150" rx="10" fill="#1e293b" stroke="#eab308" stroke-width="1.5"/>
+  <text x="400" y="190" text-anchor="middle" fill="#facc15" font-size="14" font-weight="700">② Judge — 사후 심판</text>
+  <text x="296" y="216" fill="#e2e8f0" font-size="12">전체 궤적을 보고 행동마다</text>
+  <text x="296" y="234" fill="#e2e8f0" font-size="12">"이 행동이 도움됐나?"를 판정</text>
+  <text x="296" y="252" fill="#e2e8f0" font-size="12">성공 예측 질문보다 변별력 높음</text>
+  <text x="296" y="282" fill="#fde68a" font-size="12" font-weight="600">→ 결과를 보고 판단하므로</text>
+  <text x="296" y="300" fill="#fde68a" font-size="12" font-weight="600">   못 하는 배우도 잘 심판</text>
+
+  <!-- Teacher -->
+  <rect x="532" y="164" width="240" height="150" rx="10" fill="#1e293b" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="652" y="190" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="700">③ Teacher — RL 보상</text>
+  <text x="548" y="216" fill="#e2e8f0" font-size="12">JEV가 행동별 점수를 매겨</text>
+  <text x="548" y="234" fill="#e2e8f0" font-size="12">Qwen2.5-1.5B를 GRPO로 학습</text>
+  <text x="548" y="264" fill="#86efac" font-size="12" font-weight="600">ALFWorld 72.8% → 82.9%</text>
+  <text x="548" y="282" fill="#86efac" font-size="12" font-weight="600">WebShop 56.8% → 71.4%</text>
+
+  <text x="400" y="352" text-anchor="middle" fill="#facc15" font-size="12" font-weight="600">시사점: 평가·보상 신호는 "성공할까?"가 아니라 "이 행동이 도움됐나?"로 묻는다</text>
+</svg>

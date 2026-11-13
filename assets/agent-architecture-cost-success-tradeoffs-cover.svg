@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="커버 그림. 왼쪽에는 싱글 에이전트 하나가 토큰 1배라는 작은 영수증과 성공률 67.4%를 들고 있고, 오른쪽에는 오케스트레이터와 워커 네 개로 이뤄진 멀티 에이전트가 토큰 1.4~4.7배라는 긴 영수증과 성공률 58.2~75.6%를 들고 있다. 가운데 저울은 거의 수평이다">
+  <defs>
+    <linearGradient id="aactbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#aactbg)"/>
+
+  <text x="600" y="84" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="40" font-weight="800">멀티 에이전트를 붙이기 전에, 영수증부터</text>
+  <text x="600" y="128" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="22">에이전트 아키텍처의 비용-성공 트레이드오프 — Amazon 통제 실험</text>
+
+  <!-- 왼쪽: 싱글 에이전트 -->
+  <rect x="110" y="200" width="330" height="310" rx="18" fill="#0d9488" opacity="0.14" stroke="#2dd4bf" stroke-width="2.5"/>
+  <text x="275" y="243" text-anchor="middle" fill="#2dd4bf" font-family="sans-serif" font-size="24" font-weight="800">싱글 에이전트</text>
+  <circle cx="275" cy="322" r="44" fill="#2dd4bf" opacity="0.85"/>
+  <text x="275" y="334" text-anchor="middle" fill="#0f172a" font-family="sans-serif" font-size="30" font-weight="800">A</text>
+  <!-- 작은 영수증 -->
+  <rect x="213" y="398" width="124" height="58" rx="6" fill="#f1f5f9" opacity="0.92"/>
+  <text x="275" y="424" text-anchor="middle" fill="#0f172a" font-family="sans-serif" font-size="17" font-weight="700">토큰 1×</text>
+  <text x="275" y="446" text-anchor="middle" fill="#334155" font-family="sans-serif" font-size="14">지연 1×</text>
+  <text x="275" y="490" text-anchor="middle" fill="#e2e8f0" font-family="sans-serif" font-size="20" font-weight="700">성공률 67.4%</text>
+
+  <!-- 가운데: 저울 -->
+  <line x1="600" y1="300" x2="600" y2="420" stroke="#94a3b8" stroke-width="5"/>
+  <line x1="520" y1="310" x2="680" y2="296" stroke="#e2e8f0" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="520" cy="330" r="17" fill="#2dd4bf"/>
+  <circle cx="680" cy="316" r="17" fill="#fb7185"/>
+  <rect x="540" y="420" width="120" height="14" rx="6" fill="#94a3b8"/>
+  <text x="600" y="470" text-anchor="middle" fill="#fbbf24" font-family="sans-serif" font-size="19" font-weight="700">성공률 차이, 대부분</text>
+  <text x="600" y="495" text-anchor="middle" fill="#fbbf24" font-family="sans-serif" font-size="19" font-weight="700">통계적으로 유의미하지 않음</text>
+
+  <!-- 오른쪽: 멀티 에이전트 -->
+  <rect x="760" y="200" width="330" height="310" rx="18" fill="#e11d48" opacity="0.12" stroke="#fb7185" stroke-width="2.5"/>
+  <text x="925" y="243" text-anchor="middle" fill="#fb7185" font-family="sans-serif" font-size="24" font-weight="800">멀티 에이전트</text>
+  <circle cx="925" cy="296" r="30" fill="#fb7185" opacity="0.9"/>
+  <text x="925" y="305" text-anchor="middle" fill="#0f172a" font-family="sans-serif" font-size="20" font-weight="800">O</text>
+  <circle cx="835" cy="368" r="22" fill="#fda4af" opacity="0.8"/>
+  <circle cx="895" cy="380" r="22" fill="#fda4af" opacity="0.8"/>
+  <circle cx="955" cy="380" r="22" fill="#fda4af" opacity="0.8"/>
+  <circle cx="1015" cy="368" r="22" fill="#fda4af" opacity="0.8"/>
+  <line x1="912" y1="322" x2="846" y2="350" stroke="#fb7185" stroke-width="2.5"/>
+  <line x1="920" y1="326" x2="898" y2="358" stroke="#fb7185" stroke-width="2.5"/>
+  <line x1="930" y1="326" x2="952" y2="358" stroke="#fb7185" stroke-width="2.5"/>
+  <line x1="938" y1="322" x2="1004" y2="350" stroke="#fb7185" stroke-width="2.5"/>
+  <!-- 긴 영수증 -->
+  <rect x="845" y="412" width="160" height="50" rx="6" fill="#f1f5f9" opacity="0.92"/>
+  <text x="925" y="434" text-anchor="middle" fill="#0f172a" font-family="sans-serif" font-size="17" font-weight="700">토큰 1.4~4.7×</text>
+  <text x="925" y="454" text-anchor="middle" fill="#334155" font-family="sans-serif" font-size="14">지연 2.6~5.8×</text>
+  <text x="925" y="492" text-anchor="middle" fill="#e2e8f0" font-family="sans-serif" font-size="20" font-weight="700">성공률 58.2~75.6%</text>
+
+  <text x="600" y="580" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="18">arXiv:2611.12953 · 13개 기업형 SOP · 모델/도구/태스크 고정, 아키텍처만 변경</text>
+</svg>

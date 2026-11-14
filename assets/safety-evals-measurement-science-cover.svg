@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="커버 그림. 왼쪽 '바이브 체크' 패널에는 94%라는 숫자 하나가 반짝이로 장식돼 있고, 오른쪽 '측정' 패널에는 같은 94%가 ±10%p 오차 막대, 채점자 카파 0.78, 사전등록 체크와 함께 그려져 있다. 가운데에 두 패널을 가르는 질문이 적혀 있다">
+  <defs>
+    <linearGradient id="evmsbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#evmsbg)"/>
+
+  <text x="600" y="80" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="40" font-weight="800">당신의 eval은 측정인가, 바이브 체크인가</text>
+  <text x="600" y="124" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="22">Anthropic 'Building strong safety evaluations' 해부 — eval의 측정 과학</text>
+
+  <!-- 왼쪽: 바이브 체크 -->
+  <rect x="90" y="180" width="440" height="360" rx="18" fill="#e11d48" opacity="0.12" stroke="#fb7185" stroke-width="2.5"/>
+  <text x="310" y="226" text-anchor="middle" fill="#fb7185" font-family="sans-serif" font-size="26" font-weight="800">바이브 체크</text>
+  <text x="310" y="330" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="84" font-weight="800">94%</text>
+  <text x="195" y="292" text-anchor="middle" fill="#fbbf24" font-family="sans-serif" font-size="30">✦</text>
+  <text x="425" y="276" text-anchor="middle" fill="#fbbf24" font-family="sans-serif" font-size="22">✦</text>
+  <text x="412" y="362" text-anchor="middle" fill="#fbbf24" font-family="sans-serif" font-size="26">✧</text>
+  <text x="310" y="400" text-anchor="middle" fill="#fda4af" font-family="sans-serif" font-size="19">"오 지난 모델보다 좋아졌네요"</text>
+  <text x="310" y="448" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="16">표본 20개 · 채점자 검증 없음</text>
+  <text x="310" y="478" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="16">지표는 결과 보고 나서 결정</text>
+
+  <!-- 오른쪽: 측정 -->
+  <rect x="670" y="180" width="440" height="360" rx="18" fill="#0d9488" opacity="0.14" stroke="#2dd4bf" stroke-width="2.5"/>
+  <text x="890" y="226" text-anchor="middle" fill="#2dd4bf" font-family="sans-serif" font-size="26" font-weight="800">측정</text>
+  <text x="890" y="330" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="68" font-weight="800">94%</text>
+  <!-- 오차 막대 -->
+  <line x1="890" y1="352" x2="890" y2="412" stroke="#2dd4bf" stroke-width="5"/>
+  <line x1="862" y1="352" x2="918" y2="352" stroke="#2dd4bf" stroke-width="5"/>
+  <line x1="862" y1="412" x2="918" y2="412" stroke="#2dd4bf" stroke-width="5"/>
+  <text x="988" y="390" text-anchor="middle" fill="#2dd4bf" font-family="sans-serif" font-size="22" font-weight="700">±10%p</text>
+  <text x="890" y="448" text-anchor="middle" fill="#99f6e4" font-family="sans-serif" font-size="18">채점자 κ=0.78 ✓ · 사전등록 ✓</text>
+  <text x="890" y="478" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="16">멀티턴 100개 이상 · 신뢰구간 보고</text>
+
+  <!-- 가운데 질문 -->
+  <text x="600" y="585" text-anchor="middle" fill="#cbd5e1" font-family="sans-serif" font-size="20" font-weight="700">98%와 94%의 차이는 '통계적으로' 없을 수도 있습니다</text>
+</svg>

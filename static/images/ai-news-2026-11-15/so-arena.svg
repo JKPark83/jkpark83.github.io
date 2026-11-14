@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="400" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="700">SO-Arena — 시스템1 모델을 "두 축"으로 잰다</text>
+  <text x="400" y="56" text-anchor="middle" fill="#94a3b8" font-size="12">11개 도메인 · 5개 능력군 · 21개 모델 · arXiv 2611.15777</text>
+
+  <!-- Axis 1: capability -->
+  <rect x="24" y="76" width="368" height="130" rx="10" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="40" y="100" fill="#c084fc" font-size="14" font-weight="700">축 1 · 능력 스펙트럼</text>
+  <text x="40" y="124" fill="#e2e8f0" font-size="12">증거 기반 채점: 참조 라벨을 모델이 본 입력과 대조해 검수</text>
+  <text x="40" y="144" fill="#e2e8f0" font-size="12">도메인별 난이도 기준으로 세분화 평가</text>
+  <text x="40" y="164" fill="#e2e8f0" font-size="12">샌드박스에서 행동을 반복 실행하는 상호작용 평가 포함</text>
+  <text x="40" y="190" fill="#94a3b8" font-size="12">→ 추론형 과제에선 시스템1 vs 시스템2 직접 비교 가능</text>
+
+  <!-- Axis 2: reliability -->
+  <rect x="408" y="76" width="368" height="130" rx="10" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+  <text x="424" y="100" fill="#fb923c" font-size="14" font-weight="700">축 2 · 결정 신뢰성 (이 논문의 핵심)</text>
+  <text x="424" y="124" fill="#e2e8f0" font-size="12">① 결정 안정성: 보기 구성을 바꿔도 같은 결정을 내리나?</text>
+  <text x="424" y="144" fill="#e2e8f0" font-size="12">② 정답 부재 인지: 맞는 보기가 없을 때 "없음"을 아나?</text>
+  <text x="424" y="170" fill="#94a3b8" font-size="12">라우터·분류기가 실전에서 흔들리는 지점을 그대로 재현</text>
+  <text x="424" y="190" fill="#94a3b8" font-size="12">정확도 벤치마크에는 안 잡히는 성질</text>
+
+  <!-- Finding -->
+  <rect x="24" y="222" width="752" height="86" rx="10" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="40" y="248" fill="#f87171" font-size="14" font-weight="700">발견: 종합 성능 ≠ 신뢰성</text>
+  <text x="40" y="272" fill="#e2e8f0" font-size="13">종합 성능 1위인 시스템1 모델이 신뢰성 순위에선 7위에 그쳤다.</text>
+  <text x="40" y="294" fill="#94a3b8" font-size="12">스케일을 키우거나 추론을 붙였을 때의 이득도 도메인마다 제각각 — 일괄 적용이 안 된다.</text>
+
+  <!-- Takeaway -->
+  <rect x="24" y="322" width="752" height="58" rx="10" fill="#172554" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="40" y="346" fill="#60a5fa" font-size="13" font-weight="700">🛠 에이전트 빌더용 체크</text>
+  <text x="40" y="368" fill="#e2e8f0" font-size="12">라우팅·분류에 쓰는 모델 평가 셋에 "보기 순서/구성 셔플"과 "정답 없는 케이스"를 넣어라 — 정확도만 재면 7위짜리 신뢰성을 1위로 착각한다.</text>
+</svg>

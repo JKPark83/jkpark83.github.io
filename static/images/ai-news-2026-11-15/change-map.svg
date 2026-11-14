@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#0f172a" rx="12"/>
+  <text x="400" y="34" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="700">오늘의 AI 변화 지도 — 2026-11-15</text>
+
+  <!-- 모델 -->
+  <rect x="24" y="56" width="368" height="186" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="40" y="82" fill="#60a5fa" font-size="15" font-weight="700">🤖 모델</text>
+  <text x="40" y="110" fill="#e2e8f0" font-size="13" font-weight="600">Edge0-145B / 120B 오픈 웨이트 공개 (11/13)</text>
+  <text x="40" y="130" fill="#94a3b8" font-size="12">latent MoE · 4-bit 네이티브 학습 · 단일 NVIDIA GPU / 맥</text>
+  <text x="40" y="150" fill="#94a3b8" font-size="12">Terminal-Bench 2.1 86.5 주장 (자체 수치, 독립 검증 전)</text>
+  <text x="40" y="180" fill="#e2e8f0" font-size="13" font-weight="600">가중치는 커뮤니티 라이선스 — 상업 서비스 제한</text>
+  <text x="40" y="200" fill="#94a3b8" font-size="12">코드는 Apache-2.0, 상업용 모델 서비스·판매는 금지</text>
+  <text x="40" y="226" fill="#facc15" font-size="12" font-weight="600">→ 로컬 에이전트 실험엔 OK, 제품 탑재 전 라이선스 확인</text>
+
+  <!-- 논문 -->
+  <rect x="408" y="56" width="368" height="186" rx="10" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="424" y="82" fill="#c084fc" font-size="15" font-weight="700">📚 논문</text>
+  <text x="424" y="110" fill="#e2e8f0" font-size="13" font-weight="600">SO-Arena — 시스템1 모델의 능력 vs 신뢰성</text>
+  <text x="424" y="130" fill="#94a3b8" font-size="12">성능 1위 모델이 신뢰성에선 7위 (21개 모델 평가)</text>
+  <text x="424" y="160" fill="#e2e8f0" font-size="13" font-weight="600">Experience-Handoff RL — 플레이북 작성도 학습 대상</text>
+  <text x="424" y="180" fill="#94a3b8" font-size="12">기록물은 "다음 롤아웃 성공률"로 평가해 공동 최적화</text>
+  <text x="424" y="226" fill="#facc15" font-size="12" font-weight="600">→ 라우팅·분류 모델, 정확도 말고 안정성도 재라</text>
+
+  <!-- 오픈소스 -->
+  <rect x="24" y="256" width="368" height="186" rx="10" fill="#1e293b" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="40" y="282" fill="#4ade80" font-size="15" font-weight="700">🛠 오픈소스</text>
+  <text x="40" y="310" fill="#e2e8f0" font-size="13" font-weight="600">deepseek-ai/chat-demo — 백엔드 없는 공식 챗 UI</text>
+  <text x="40" y="330" fill="#94a3b8" font-size="12">정적 페이지가 Anthropic 호환 API로 직접 연결 · MIT</text>
+  <text x="40" y="356" fill="#e2e8f0" font-size="13" font-weight="600">yogurt — 로컬 AI 회의록 (Granola 대안)</text>
+  <text x="40" y="376" fill="#94a3b8" font-size="12">녹음·전사·요약 전부 내 컴퓨터에서 · MIT</text>
+  <text x="40" y="402" fill="#e2e8f0" font-size="13" font-weight="600">line-art-animation — 수묵 라인아트 Claude 스킬</text>
+  <text x="40" y="422" fill="#94a3b8" font-size="12">SVG 보행 솔버·주야 사이클 포함 TS 라이브러리</text>
+
+  <!-- 도구 팁 -->
+  <rect x="408" y="256" width="368" height="186" rx="10" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+  <text x="424" y="282" fill="#fb923c" font-size="15" font-weight="700">🧑‍💻 도구</text>
+  <text x="424" y="310" fill="#e2e8f0" font-size="13" font-weight="600">Claude Code 2.1.325 — 권한 조이기 업데이트</text>
+  <text x="424" y="330" fill="#94a3b8" font-size="12">샌드박스 Bash도 기본은 일반 권한 플로우로</text>
+  <text x="424" y="350" fill="#94a3b8" font-size="12">예약 작업·/loop은 훅 있는 스킬 실행 전 확인</text>
+  <text x="424" y="380" fill="#e2e8f0" font-size="13" font-weight="600">Codex /statusline — 비용·리밋 항목 확장</text>
+  <text x="424" y="400" fill="#94a3b8" font-size="12">컨텍스트 사용률·토큰 합계·레이트리밋 상시 표시</text>
+  <text x="424" y="426" fill="#facc15" font-size="12" font-weight="600">→ 자동화 돌리는 쪽은 설정 안 바꾸면 멈출 수 있음</text>
+</svg>

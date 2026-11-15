@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="500" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">인젝션 방어, 두 가지 접근 — 학습(LLMON) vs 강제(CapLite)</text>
+
+  <!-- LLMON side -->
+  <rect x="30" y="56" width="360" height="400" rx="10" fill="#ffffff" stroke="#b9d2ec"/>
+  <text x="50" y="84" font-size="15" font-weight="700" fill="#1c4e85">IBM LLMON — 프롬프트 포맷으로 학습</text>
+  <text x="50" y="104" font-size="12" fill="#666">프롬프트를 주소 지정 가능한 블록으로 분리</text>
+
+  <rect x="50" y="118" width="320" height="36" rx="6" fill="#e3efdd" stroke="#8fba7e"/>
+  <text x="62" y="141" font-size="12.5" font-weight="600" fill="#2d5b1e">system / instruction 블록 — 권위 있음(따름)</text>
+
+  <rect x="50" y="162" width="320" height="36" rx="6" fill="#fdeeee" stroke="#d9a0a0"/>
+  <text x="62" y="185" font-size="12.5" font-weight="600" fill="#8a2520">data / document 블록 — 입력일 뿐(안 따름)</text>
+
+  <rect x="50" y="206" width="320" height="36" rx="6" fill="#fdeeee" stroke="#d9a0a0"/>
+  <text x="62" y="229" font-size="12.5" font-weight="600" fill="#8a2520">tool 정의 / tool 결과 블록 — 입력일 뿐</text>
+
+  <rect x="50" y="250" width="320" height="52" rx="6" fill="#eef4fb" stroke="#b9d2ec"/>
+  <text x="62" y="271" font-size="12.5" font-weight="600" fill="#1c4e85">exec 블록 — "어떤 instruction을, 어떤 입력으로,</text>
+  <text x="62" y="289" font-size="12.5" font-weight="600" fill="#1c4e85">출력을 어디로" 명시적으로 지정</text>
+
+  <text x="50" y="330" font-size="12.5" fill="#333">granite-4.1-3b/8b-llmon-preview가 이 포맷으로</text>
+  <text x="50" y="348" font-size="12.5" fill="#333">학습돼 HF에 공개 (Apache 2.0).</text>
+  <rect x="50" y="366" width="320" height="70" rx="6" fill="#fdf8ee"/>
+  <text x="62" y="388" font-size="12" fill="#8a5a13">한계(카드 명시): 학습된 행동일 뿐 보장이 아니다.</text>
+  <text x="62" y="406" font-size="12" fill="#8a5a13">민감 시스템 접근 에이전트의 유일한 방어선으로</text>
+  <text x="62" y="424" font-size="12" fill="#8a5a13">쓰지 말 것.</text>
+
+  <!-- CapLite side -->
+  <rect x="410" y="56" width="360" height="400" rx="10" fill="#ffffff" stroke="#d2c4ec"/>
+  <text x="430" y="84" font-size="15" font-weight="700" fill="#5b3a9e">CapLite — 코드로 강제 (2611.17115)</text>
+  <text x="430" y="104" font-size="12" fill="#666">전제: 1.7B~12B 소형 모델은 보안 정책을 직접 못 쓴다</text>
+
+  <rect x="430" y="118" width="320" height="44" rx="6" fill="#f3eefb" stroke="#d2c4ec"/>
+  <text x="442" y="137" font-size="12.5" font-weight="600" fill="#3d2670">1. 정책을 모델이 아니라 "툴 스키마"에서 유도</text>
+  <text x="442" y="154" font-size="11.5" fill="#555">모델이 쓴 정책·그래프·제약 리스트에 의존 안 함</text>
+
+  <path d="M590 162 l0 12" stroke="#9a86c4" stroke-width="2"/>
+  <rect x="430" y="178" width="320" height="44" rx="6" fill="#f3eefb" stroke="#d2c4ec"/>
+  <text x="442" y="197" font-size="12.5" font-weight="600" fill="#3d2670">2. 쓰기(write) 호출은 툴 결과를 읽기 "전에" 커밋</text>
+  <text x="442" y="214" font-size="11.5" fill="#555">주입된 텍스트가 새 쓰기를 추가할 수 없음</text>
+
+  <path d="M590 222 l0 12" stroke="#9a86c4" stroke-width="2"/>
+  <rect x="430" y="238" width="320" height="44" rx="6" fill="#f3eefb" stroke="#d2c4ec"/>
+  <text x="442" y="257" font-size="12.5" font-weight="600" fill="#3d2670">3. 수신자·금액·대상 인자는 유저 요청에 명시된</text>
+  <text x="442" y="274" font-size="12.5" font-weight="600" fill="#3d2670">값만 허용 → write integrity 보장</text>
+
+  <rect x="430" y="300" width="320" height="64" rx="6" fill="#eefbf1" stroke="#b9ecc6"/>
+  <text x="442" y="322" font-size="13" font-weight="700" fill="#1d7a3a">AgentDojo 공격 에피소드 13,935회 → 성공 0</text>
+  <text x="442" y="342" font-size="12" fill="#2d5b1e">공격 하 유틸리티 29.0% (CaMeL 27.2%와 비슷,</text>
+  <text x="442" y="358" font-size="12" fill="#2d5b1e">토큰은 비교 대상 중 최소)</text>
+
+  <rect x="430" y="376" width="320" height="60" rx="6" fill="#fdf8ee"/>
+  <text x="442" y="398" font-size="12" fill="#8a5a13">기존 방어(CaMeL·Progent·IPIGuard·DRIFT)는 소형</text>
+  <text x="442" y="416" font-size="12" fill="#8a5a13">모델 15종 중 11~14종에서 뚫리거나 실행 실패.</text>
+  <text x="442" y="432" font-size="12" fill="#8a5a13">수치 출처: 논문 초록(저자 보고)</text>
+</svg>

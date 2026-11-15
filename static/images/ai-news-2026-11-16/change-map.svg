@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="520" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-16</text>
+  <text x="400" y="56" text-anchor="middle" font-size="13" fill="#666">테마: 프롬프트 인젝션 방어가 "프롬프트 문구"에서 포맷·인터페이스 레벨로 내려간다</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="80" width="360" height="200" rx="10" fill="#eef4fb" stroke="#b9d2ec"/>
+  <rect x="410" y="80" width="360" height="200" rx="10" fill="#f3eefb" stroke="#d2c4ec"/>
+  <rect x="30" y="300" width="360" height="200" rx="10" fill="#eefbf1" stroke="#b9ecc6"/>
+  <rect x="410" y="300" width="360" height="200" rx="10" fill="#fbf6ee" stroke="#ecd9b9"/>
+
+  <!-- 모델 -->
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1c4e85">🤖 모델 &amp; 릴리즈</text>
+  <text x="50" y="134" font-size="13" font-weight="600" fill="#222">Inkling 2 Small 가중치 공개 (11/12)</text>
+  <text x="50" y="152" font-size="12" fill="#444">594B MoE · 17B active · 1M ctx · Apache 2.0</text>
+  <text x="50" y="170" font-size="12" fill="#444">NVFP4/MXFP8 체크포인트, VRAM 500GB+급</text>
+  <text x="50" y="196" font-size="13" font-weight="600" fill="#222">IBM granite-4.1-llmon-preview 3B/8B</text>
+  <text x="50" y="214" font-size="12" fill="#444">LLMON 블록 프롬프트 포맷으로 학습된</text>
+  <text x="50" y="232" font-size="12" fill="#444">인젝션 내성 instruct 모델 (Apache 2.0)</text>
+
+  <!-- 논문 -->
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#5b3a9e">📚 논문</text>
+  <text x="430" y="134" font-size="13" font-weight="600" fill="#222">MAPE (2611.17068)</text>
+  <text x="430" y="152" font-size="12" fill="#444">메모리 설계를 프로그램 진화로 탐색</text>
+  <text x="430" y="170" font-size="12" fill="#444">수작업 대비 +12%p, 서빙 비용 35%</text>
+  <text x="430" y="196" font-size="13" font-weight="600" fill="#222">CapLite (2611.17115)</text>
+  <text x="430" y="214" font-size="12" fill="#444">소형 모델은 보안 정책을 못 쓴다 →</text>
+  <text x="430" y="232" font-size="12" fill="#444">툴 스키마에서 정책 유도, 13,935회 공격 0 성공</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="328" font-size="15" font-weight="700" fill="#1d7a3a">🛠 오픈소스</text>
+  <text x="50" y="354" font-size="13" font-weight="600" fill="#222">lxe/phoneuse (~670★)</text>
+  <text x="50" y="372" font-size="12" fill="#444">탈옥 없이 아이폰을 에이전트가 조작</text>
+  <text x="50" y="390" font-size="12" fill="#444">미러링 입력 + Bluetooth HID 출력</text>
+  <text x="50" y="416" font-size="13" font-weight="600" fill="#222">Dodaios/ste80-humanizer (~690★)</text>
+  <text x="50" y="434" font-size="12" fill="#444">AI 문체 제거 + Karpathy식 STE80 재작성</text>
+  <text x="50" y="452" font-size="12" fill="#444">2-pass 에이전트 스킬 (MIT)</text>
+
+  <!-- 도구 팁 -->
+  <text x="430" y="328" font-size="15" font-weight="700" fill="#8a5a13">🧑‍💻 도구 팁</text>
+  <text x="430" y="354" font-size="13" font-weight="600" fill="#222">Claude Code: sec-default 모드 확장</text>
+  <text x="430" y="372" font-size="12" fill="#444">모델의 툴 호출을 권한 체크 전에</text>
+  <text x="430" y="390" font-size="12" fill="#444">유저 모드가 선실행하는 경로 차단</text>
+  <text x="430" y="416" font-size="13" font-weight="600" fill="#222">Codex: rollout_budget 소수점 지원</text>
+  <text x="430" y="434" font-size="12" fill="#444">limit_budget으로 롤아웃 예산 상한 +</text>
+  <text x="430" y="452" font-size="12" fill="#444">잔액 리마인더 임계값 설정</text>
+</svg>

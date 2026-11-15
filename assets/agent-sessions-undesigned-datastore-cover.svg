@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="커버 그림. 왼쪽 위에서 사용자와 에이전트가 대화를 주고받고, 그 모든 턴이 한 줄씩 JSONL 장부로 떨어져 디스크에 쌓인다. 장부 옆에는 스키마 없음, 보존 정책은 우연, 검색 불가, 비밀값 포함이라는 경고 태그가 붙어 있다">
+  <defs>
+    <linearGradient id="asdsbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#asdsbg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="38" font-weight="800">에이전트는 당신의 모든 턴을 디스크에 적고 있다</text>
+  <text x="600" y="122" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="22">아무도 설계하지 않은 데이터 스토어 — 세션 파일 해부</text>
+
+  <!-- 왼쪽: 대화 -->
+  <rect x="90" y="170" width="430" height="300" rx="18" fill="#0284c7" opacity="0.10" stroke="#38bdf8" stroke-width="2.5"/>
+  <text x="305" y="212" text-anchor="middle" fill="#38bdf8" font-family="sans-serif" font-size="24" font-weight="800">대화는 흘러가고</text>
+  <!-- 말풍선들 -->
+  <rect x="120" y="238" width="250" height="44" rx="12" fill="#38bdf8" opacity="0.18"/>
+  <text x="138" y="266" fill="#e2e8f0" font-family="sans-serif" font-size="17">"로그인 버그 고쳐 줘"</text>
+  <rect x="200" y="296" width="290" height="44" rx="12" fill="#a78bfa" opacity="0.18"/>
+  <text x="218" y="324" fill="#e2e8f0" font-family="sans-serif" font-size="17">도구 호출 → 테스트 실행 → 수정</text>
+  <rect x="120" y="354" width="270" height="44" rx="12" fill="#38bdf8" opacity="0.18"/>
+  <text x="138" y="382" fill="#e2e8f0" font-family="sans-serif" font-size="17">"좋아, 이 방향으로 계속"</text>
+  <text x="305" y="446" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="16">컨텍스트 창은 잊어도…</text>
+
+  <!-- 가운데 화살표 -->
+  <line x1="520" y1="320" x2="640" y2="320" stroke="#fbbf24" stroke-width="3"/>
+  <polygon points="640,320 624,311 624,329" fill="#fbbf24"/>
+  <text x="580" y="300" text-anchor="middle" fill="#fbbf24" font-family="sans-serif" font-size="16" font-weight="700">매 턴 기록</text>
+
+  <!-- 오른쪽: JSONL 장부 -->
+  <rect x="660" y="170" width="450" height="300" rx="18" fill="#0d9488" opacity="0.12" stroke="#2dd4bf" stroke-width="2.5"/>
+  <text x="885" y="212" text-anchor="middle" fill="#2dd4bf" font-family="sans-serif" font-size="24" font-weight="800">디스크는 전부 기억한다</text>
+  <text x="885" y="242" text-anchor="middle" fill="#94a3b8" font-family="monospace" font-size="15">~/.claude/projects/…/세션ID.jsonl</text>
+  <!-- JSONL 줄들 -->
+  <rect x="690" y="258" width="390" height="30" rx="6" fill="#2dd4bf" opacity="0.14"/>
+  <text x="702" y="279" fill="#99f6e4" font-family="monospace" font-size="14">{"type":"user","parentUuid":…}</text>
+  <rect x="690" y="294" width="390" height="30" rx="6" fill="#2dd4bf" opacity="0.14"/>
+  <text x="702" y="315" fill="#99f6e4" font-family="monospace" font-size="14">{"type":"assistant","message":…}</text>
+  <rect x="690" y="330" width="390" height="30" rx="6" fill="#fb7185" opacity="0.16"/>
+  <text x="702" y="351" fill="#fda4af" font-family="monospace" font-size="14">{"tool_result":"Bearer sk-…"} ⚠</text>
+  <rect x="690" y="366" width="390" height="30" rx="6" fill="#2dd4bf" opacity="0.14"/>
+  <text x="702" y="387" fill="#99f6e4" font-family="monospace" font-size="14">{"type":"user","timestamp":…}</text>
+  <!-- 경고 태그 -->
+  <text x="885" y="440" text-anchor="middle" fill="#fb7185" font-family="sans-serif" font-size="16" font-weight="700">스키마 없음 · 보존은 우연 · 검색 불가 · 비밀값 포함</text>
+
+  <text x="600" y="540" text-anchor="middle" fill="#e2e8f0" font-family="sans-serif" font-size="24" font-weight="700">가치는 원본 데이터급, 대우는 임시 파일급</text>
+  <text x="600" y="580" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="18">세션 파일 스키마 · resume vs fork · Atuin Threads · 비밀값 점검</text>
+</svg>

@@ -1,0 +1,396 @@
+---
+title: "에이전트는 당신의 모든 턴을 디스크에 적고 있다 — 아무도 설계하지 않은 데이터 스토어, 세션 파일"
+date: 2026-11-16T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "세션", "JSONL", "Claude Code", "Codex", "Atuin", "resume", "fork", "컨텍스트 엔지니어링", "데이터 거버넌스", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "코딩 에이전트는 매 턴을 로컬 디스크의 JSONL 파일에 적습니다. 이 파일 덕분에 resume·fork·체크포인트가 돌아가지만, 스키마도 보존 정책도 검색도 없이 자라는 '아무도 설계하지 않은 데이터 스토어'이기도 합니다. 지난주 셸 히스토리 도구 Atuin이 에이전트 세션을 기기 간 동기화·검색·cross-harness resume까지 지원하는 Threads를 들고 HN 메인(234포인트)에 올랐고, 같은 주에 '세션은 설계되지 않은 데이터 스토어'라는 프레임워크 비판 글까지 나오면서 이 레이어가 조명을 받았습니다. 세션 파일을 직접 열어 스키마를 해부하고, resume와 fork의 차이, 보존·비밀값·검색 문제, 그리고 세션을 1급 데이터로 다루는 법을 정리합니다."
+ShowToc: false
+cover:
+  image: "agent-sessions-undesigned-datastore-cover.svg"
+  alt: "커버 그림. 왼쪽에는 에이전트와 사용자가 주고받는 대화가 있고, 그 아래 디스크로 한 줄씩 떨어져 쌓이는 JSONL 장부가 그려져 있다. 장부에는 '스키마? 보존 정책? 검색?'이라는 물음표가 붙어 있다"
+  caption: "모든 턴은 디스크에 남습니다 — 문제는 그 파일을 아무도 데이터 스토어로 설계하지 않았다는 것"
+  relative: false
+---
+
+<style>
+/* ── 에이전트 세션 데이터 스토어 포스트 전용 스타일 (asds- 접두사) ── */
+.asds-fig{
+  --asds-teal:#0d9488; --asds-rose:#e11d48; --asds-amber:#d97706; --asds-sky:#0284c7;
+  --asds-violet:#7c3aed; --asds-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .asds-fig{
+  --asds-teal:#2dd4bf; --asds-rose:#fb7185; --asds-amber:#fbbf24; --asds-sky:#38bdf8;
+  --asds-violet:#a78bfa; --asds-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .asds-fig{
+    --asds-teal:#2dd4bf; --asds-rose:#fb7185; --asds-amber:#fbbf24; --asds-sky:#38bdf8;
+    --asds-violet:#a78bfa; --asds-slate:#94a3b8;
+  }
+}
+.asds-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.asds-fig text{font-family:inherit}
+.asds-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.asds-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.asds-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.asds-toc ol{margin:0;padding-left:1.25rem}
+.asds-toc li{margin:.22rem 0;font-size:.95rem}
+.asds-toc a{text-decoration:none}
+.asds-table{width:100%;border-collapse:collapse;margin:1.4rem 0;font-size:.92rem}
+.asds-table th,.asds-table td{border:1px solid var(--border);padding:.55rem .7rem;text-align:left;vertical-align:top}
+.asds-table th{background:var(--entry);font-weight:700}
+.asds-note{border-left:4px solid var(--primary);background:var(--entry);border-radius:0 10px 10px 0;padding:.9rem 1.2rem;margin:1.4rem 0;font-size:.95rem;line-height:1.7}
+</style>
+
+<div class="asds-toc">
+  <div class="asds-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 그 파일, 지워도 되는 걸까요</a></li>
+    <li><a href="#sec-2">배경 — 컨텍스트 창, 세션, 메모리는 다른 층입니다</a></li>
+    <li><a href="#sec-3">세션 파일 해부 — 직접 열어 봅시다</a></li>
+    <li><a href="#sec-4">resume와 fork — 이벤트 로그 위의 두 연산</a></li>
+    <li><a href="#sec-5">데이터 스토어로 보는 순간 보이는 구멍들</a></li>
+    <li><a href="#sec-6">Atuin Threads — 세션을 1급 데이터로 승격하기</a></li>
+    <li><a href="#sec-7">실전 — 내 세션 데이터를 직접 다뤄 보기</a></li>
+    <li><a href="#sec-8">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-9">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-10">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 그 파일, 지워도 되는 걸까요</h2>
+
+<p>퀴즈 하나로 시작합니다. 어제 Claude Code로 반나절 동안 리팩터링을 했습니다. 그 대화에서 오간 모든 프롬프트, 모델의 모든 응답, 실행된 모든 명령과 그 출력은 지금 어디에 있을까요? 정답: <strong>여러분 홈 디렉터리의 평문 JSONL 파일</strong>에, 한 줄도 빠짐없이 들어 있습니다. 그 안에는 아마 소스 코드 조각, 에러 로그, 내부 URL, 운이 나빴다면 무심코 붙여 넣은 토큰까지 함께 있을 겁니다.</p>
+
+<p>이 파일은 그냥 로그가 아닙니다. <code>--resume</code>으로 어제 대화를 이어 가는 것도, <code>/branch</code>로 대화를 갈라 보는 것도, 되감기(체크포인트)도 전부 이 파일이 있어서 가능합니다. 사실상 <strong>에이전트 작업의 원본 데이터(source of truth)</strong>인 셈입니다. 그런데 이 파일에는 공개된 스키마도, 깊이 고민된 보존 정책도, 검색 기능도, 기기 간 이동 수단도 없습니다. 쓰기만 설계되고 나머지는 설계되지 않은 데이터 스토어입니다.</p>
+
+<p>지난주 이 레이어가 갑자기 조명을 받았습니다. 셸 히스토리 동기화 도구로 유명한 Atuin(GitHub 32k+ 스타)이 10월 말 공개한 <a href="https://blog.atuin.sh/threads-agent-sessions/" target="_blank" rel="noopener">Threads</a> — 에이전트 세션을 기기 간에 암호화 동기화하고, 검색하고, 심지어 <em>다른 harness에서</em> 이어 가게 해 주는 기능 — 가 11월 12일 <a href="https://news.ycombinator.com/item?id=50453637" target="_blank" rel="noopener">Hacker News 메인에 올라 234포인트, 84개 댓글</a>을 모았습니다. 같은 주에 dev.to에는 <a href="https://dev.to/playfulprogramming/ai-agent-sessions-are-a-data-store-nobody-designed-17be" target="_blank" rel="noopener">"AI Agent Sessions Are a Data Store Nobody Designed"</a>라는 글이 올라와, 프레임워크들이 모든 턴과 도구 응답을 "데이터 스토어로 설계된 적 없는 저장소"에 쌓고 있다며 규제·보안 관점의 문제를 제기했습니다. 방향은 달라도 두 글이 가리키는 곳은 같습니다. <strong>세션 파일이라는 데이터 레이어를 이제는 진지하게 다뤄야 한다</strong>는 겁니다.</p>
+
+<p>이 블로그에서 agent memory(기억의 추출·통합)와 message threads(서버 쪽 대화 상태)는 이미 다뤘습니다. 오늘은 그보다 한 층 아래, 모든 것의 원료가 되는 <strong>로컬 세션 파일 그 자체</strong>를 해부합니다. 주니어 개발자가 매일 만들면서도 한 번도 열어 본 적 없는 파일일 확률이 높으니, 직접 열어 보는 것부터 시작하겠습니다.</p>
+
+<h2 id="sec-2">2. 배경 — 컨텍스트 창, 세션, 메모리는 다른 층입니다</h2>
+
+<p>용어가 자주 섞이는 영역이라, 세 층을 먼저 분리해 두겠습니다.</p>
+
+<ul>
+  <li><strong>컨텍스트 창(context window)</strong>: 모델이 <em>이번 호출에서</em> 실제로 읽는 토큰 묶음입니다. 휘발성이고 크기 제한이 있습니다. 가득 차면 압축(compaction)으로 요약본으로 교체됩니다. 비유하면 <strong>RAM</strong>입니다.</li>
+  <li><strong>세션(session)</strong>: 한 번의 대화 전체를 기록한 <strong>디스크 위의 추가 전용(append-only) 이벤트 로그</strong>입니다. 압축으로 컨텍스트 창에서 밀려난 내용도 세션 파일에는 남아 있습니다. 비유하면 <strong>저널(journal), 데이터베이스의 WAL</strong>입니다.</li>
+  <li><strong>메모리(memory)</strong>: 세션들에서 증류해 다음 세션으로 넘기는 지식입니다. <code>CLAUDE.md</code>, auto memory 같은 것들요. 비유하면 <strong>인덱스가 잘 잡힌 요약 테이블</strong>입니다.</li>
+</ul>
+
+<p>이번 글의 주인공은 가운데 층입니다. 중요한 성질 하나만 기억해 두세요. <strong>컨텍스트 창은 잊지만, 세션은 잊지 않습니다.</strong> 모델이 "기억 못 하는" 내용도 디스크에는 그대로 있다는 사실이, 뒤에서 다룰 기회(검색·재활용)와 위험(비밀값·규제)의 양쪽 뿌리가 됩니다.</p>
+
+<figure class="asds-fig">
+<svg viewBox="0 0 860 420" role="img" aria-label="3층 구조 다이어그램. 맨 위에 휘발성인 컨텍스트 창(RAM), 가운데에 이번 글의 주인공인 세션 파일(저널), 맨 아래에 증류된 메모리(요약 테이블)가 있고, 컨텍스트 창이 압축으로 내용을 잃어도 세션 파일에는 전체 기록이 남으며, 세션에서 증류한 내용이 메모리로 내려가는 흐름을 보여 준다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--asds-sky)" font-size="16" font-weight="800">에이전트 상태의 3층 구조</text>
+
+  <!-- 층 1: 컨텍스트 창 -->
+  <rect x="60" y="56" width="500" height="86" rx="10" fill="var(--asds-amber)" opacity="0.08" stroke="var(--asds-amber)" stroke-width="2"/>
+  <text x="84" y="90" fill="var(--asds-amber)" font-size="14" font-weight="800">① 컨텍스트 창 — "RAM"</text>
+  <text x="84" y="114" fill="var(--asds-slate)" font-size="12.5">모델이 이번 호출에서 읽는 토큰 · 휘발성 · 꽉 차면 압축(compaction)으로 유실</text>
+  <rect x="590" y="56" width="210" height="86" rx="10" fill="var(--asds-amber)" opacity="0.05" stroke="var(--asds-amber)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="695" y="92" text-anchor="middle" fill="var(--asds-amber)" font-size="12" font-weight="700">압축 후</text>
+  <text x="695" y="114" text-anchor="middle" fill="var(--asds-slate)" font-size="12">요약만 남음 (유실)</text>
+  <line x1="560" y1="99" x2="590" y2="99" stroke="var(--asds-amber)" stroke-width="2"/>
+
+  <!-- 층 2: 세션 -->
+  <rect x="60" y="168" width="740" height="96" rx="10" fill="var(--asds-teal)" opacity="0.10" stroke="var(--asds-teal)" stroke-width="2.5"/>
+  <text x="84" y="202" fill="var(--asds-teal)" font-size="14" font-weight="800">② 세션 파일 — "저널 / WAL"  ★ 이번 글의 주인공</text>
+  <text x="84" y="226" fill="var(--asds-slate)" font-size="12.5">모든 턴·도구 호출·결과를 한 줄씩 추가 기록(append-only JSONL) · 디스크에 영속</text>
+  <text x="84" y="246" fill="var(--asds-slate)" font-size="12.5">압축으로 컨텍스트 창에서 사라진 내용도 여기엔 전부 남아 있음</text>
+
+  <!-- 층 3: 메모리 -->
+  <rect x="60" y="290" width="740" height="86" rx="10" fill="var(--asds-violet)" opacity="0.08" stroke="var(--asds-violet)" stroke-width="2"/>
+  <text x="84" y="324" fill="var(--asds-violet)" font-size="14" font-weight="800">③ 메모리 — "요약 테이블"</text>
+  <text x="84" y="348" fill="var(--asds-slate)" font-size="12.5">세션들에서 증류한 지식 (CLAUDE.md, auto memory) · 다음 세션의 시작 컨텍스트로 주입</text>
+
+  <!-- 화살표 -->
+  <line x1="430" y1="142" x2="430" y2="168" stroke="var(--asds-teal)" stroke-width="2"/>
+  <text x="446" y="160" fill="var(--asds-teal)" font-size="11.5">매 턴 기록</text>
+  <line x1="430" y1="264" x2="430" y2="290" stroke="var(--asds-violet)" stroke-width="2"/>
+  <text x="446" y="283" fill="var(--asds-violet)" font-size="11.5">증류</text>
+
+  <text x="430" y="406" text-anchor="middle" fill="var(--asds-slate)" font-size="12.5" font-weight="700">컨텍스트 창은 잊어도, 세션은 잊지 않는다</text>
+</svg>
+<figcaption>그림 1. 컨텍스트 창(RAM) · 세션 파일(저널) · 메모리(요약 테이블)의 3층 구조. 세션은 모든 층의 원료가 되는 원본 데이터입니다.</figcaption>
+</figure>
+
+<h2 id="sec-3">3. 세션 파일 해부 — 직접 열어 봅시다</h2>
+
+<p>Claude Code 기준으로 보겠습니다. <a href="https://code.claude.com/docs/en/how-claude-code-works" target="_blank" rel="noopener">공식 문서</a>가 밝히고 있듯, 모든 메시지·도구 사용·결과는 <code>~/.claude/projects/</code> 아래의 평문 JSONL 파일에 기록됩니다. 경로 규칙은 이렇습니다.</p>
+
+{{< highlight text >}}
+~/.claude/projects/<프로젝트-경로-슬러그>/<세션-ID>.jsonl
+
+# 예: /home/user/my-app 에서 연 세션이라면
+~/.claude/projects/-home-user-my-app/b7f3022a-....jsonl
+# 디렉터리 이름 = 작업 디렉터리 경로에서 영숫자 외 문자를 하이픈으로 치환한 것
+{{< /highlight >}}
+
+<p>JSONL(JSON Lines)은 한 줄에 JSON 객체 하나를 쓰는 형식입니다. 파일 끝에 한 줄 덧붙이는 것만으로 기록이 끝나니, 추가 전용 이벤트 로그에 잘 맞습니다. 실제 파일을 열어 보면 줄마다 <code>type</code>이 다른 이벤트가 섞여 있습니다. 사용자 턴 한 줄을 단순화하면 이런 모양입니다(필드 구성은 버전에 따라 조금씩 다릅니다).</p>
+
+{{< highlight json >}}
+{
+  "type": "user",
+  "uuid": "a1b2c3d4-...",            // 이 이벤트의 ID
+  "parentUuid": "9f8e7d6c-...",      // 직전 이벤트의 ID ← 핵심!
+  "sessionId": "b7f3022a-...",
+  "timestamp": "2026-11-16T07:30:00.000Z",
+  "cwd": "/home/user/my-app",        // 어느 디렉터리에서
+  "gitBranch": "feature/login",      // 어느 브랜치에서 했는지까지 기록
+  "version": "2.1.x",                // 기록한 CLI 버전
+  "message": { "role": "user", "content": "로그인 버그 고쳐 줘" }
+}
+{{< /highlight >}}
+
+<p>눈여겨볼 부분은 <code>parentUuid</code>입니다. 각 이벤트가 직전 이벤트를 가리키는 연결 리스트 구조라서, 파일에 줄이 어떤 순서로 섞여 있어도 체인을 따라가면 대화를 복원할 수 있습니다. 그리고 한 부모를 <em>여러 자식이</em> 가리킬 수 있으므로, 이 구조는 사실 리스트가 아니라 <strong>트리</strong>입니다. 대화를 중간에서 갈라 다른 방향으로 이어 갈 수 있는 자료 구조가 처음부터 깔려 있는 셈입니다. 이게 다음 절의 fork로 이어집니다.</p>
+
+<p>비교를 위해 OpenAI Codex CLI도 보면, 구조가 놀랍도록 비슷합니다. <a href="https://codex.danielvaughan.com/2026/06/05/codex-cli-session-lifecycle-archive-resume-fork-compact-management/" target="_blank" rel="noopener">세션 수명 주기 분석</a>과 <a href="https://dev.to/bargan/what-codex-cli-writes-to-disk-for-every-session-and-how-to-follow-it-live-1i04" target="_blank" rel="noopener">디스크 기록 분석</a>에 따르면 Codex는 세션을 "rollout"이라고 부르며 날짜별 폴더에 쌓습니다.</p>
+
+<table class="asds-table">
+  <tr><th></th><th>Claude Code</th><th>Codex CLI</th></tr>
+  <tr><td><strong>위치</strong></td><td><code>~/.claude/projects/&lt;cwd 슬러그&gt;/</code></td><td><code>~/.codex/sessions/YYYY/MM/DD/</code></td></tr>
+  <tr><td><strong>파일</strong></td><td><code>&lt;세션ID&gt;.jsonl</code></td><td><code>rollout-&lt;타임스탬프&gt;-&lt;UUID&gt;.jsonl</code></td></tr>
+  <tr><td><strong>형식</strong></td><td>평문 JSONL 이벤트 로그</td><td>평문 JSONL 이벤트 로그</td></tr>
+  <tr><td><strong>내용</strong></td><td>메시지·도구 호출·결과 전체</td><td>메시지·도구 호출·출력·토큰 사용량</td></tr>
+  <tr><td><strong>부가 파일</strong></td><td>파일 스냅숏(체크포인트) 등</td><td><code>session_index.jsonl</code>(이름↔ID 매핑)</td></tr>
+  <tr><td><strong>공개 스키마</strong></td><td>없음 (버전 따라 변동)</td><td>없음 (버전 따라 변동)</td></tr>
+</table>
+
+<p>공통점을 한 줄로 요약하면: <strong>모두가 같은 패턴을 재발명하고 있는데, 아무도 그 형식을 계약(contract)으로 공개하지 않습니다.</strong> 두 도구 모두 "내부 형식이니 방어적으로 읽어라"가 기본 태도입니다. 이 지점이 뒤에서 다룰 생태계 문제의 씨앗입니다.</p>
+
+<h2 id="sec-4">4. resume와 fork — 이벤트 로그 위의 두 연산</h2>
+
+<p>세션 파일이 추가 전용 트리라는 걸 알고 나면, 에이전트 CLI의 세션 명령들이 전부 이 자료 구조 위의 연산이라는 게 보입니다. <a href="https://code.claude.com/docs/en/how-claude-code-works" target="_blank" rel="noopener">공식 문서</a>의 정의는 명확합니다.</p>
+
+<ul>
+  <li><strong>resume</strong> (<code>claude --continue</code>, <code>claude --resume</code>): 같은 세션 ID로 다시 열어 기존 파일 끝에 <strong>이어서 추가</strong>합니다. 같은 저널에 계속 쓰는 겁니다.</li>
+  <li><strong>fork</strong> (<code>--fork-session</code>, <code>/branch</code>): 지금까지의 히스토리를 <strong>새 세션 ID로 복사</strong>하고 원본은 그대로 둡니다. "이 지점에서 두 가지 접근을 다 시험해 보고 싶다"에 대응하는 연산입니다.</li>
+</ul>
+
+<figure class="asds-fig">
+<svg viewBox="0 0 860 400" role="img" aria-label="resume와 fork 다이어그램. 위쪽은 resume로, 기존 이벤트 체인 끝에 새 이벤트가 같은 세션 ID로 이어 붙는 모습. 아래쪽은 fork로, 히스토리가 새 세션 ID로 복사된 뒤 두 갈래가 독립적으로 자라는 모습을 보여 준다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--asds-sky)" font-size="16" font-weight="800">추가 전용 이벤트 로그 위의 두 연산</text>
+
+  <!-- resume -->
+  <text x="60" y="80" fill="var(--asds-teal)" font-size="14" font-weight="800">resume — 같은 세션에 이어 쓰기</text>
+  <g>
+    <circle cx="100" cy="120" r="14" fill="var(--asds-teal)" opacity="0.25" stroke="var(--asds-teal)" stroke-width="2"/>
+    <circle cx="170" cy="120" r="14" fill="var(--asds-teal)" opacity="0.25" stroke="var(--asds-teal)" stroke-width="2"/>
+    <circle cx="240" cy="120" r="14" fill="var(--asds-teal)" opacity="0.25" stroke="var(--asds-teal)" stroke-width="2"/>
+    <line x1="114" y1="120" x2="156" y2="120" stroke="var(--asds-teal)" stroke-width="2"/>
+    <line x1="184" y1="120" x2="226" y2="120" stroke="var(--asds-teal)" stroke-width="2"/>
+    <line x1="254" y1="120" x2="296" y2="120" stroke="var(--asds-teal)" stroke-width="2" stroke-dasharray="4 4"/>
+    <circle cx="310" cy="120" r="14" fill="none" stroke="var(--asds-teal)" stroke-width="2" stroke-dasharray="4 3"/>
+    <circle cx="380" cy="120" r="14" fill="none" stroke="var(--asds-teal)" stroke-width="2" stroke-dasharray="4 3"/>
+    <line x1="324" y1="120" x2="366" y2="120" stroke="var(--asds-teal)" stroke-width="2" stroke-dasharray="4 4"/>
+    <text x="345" y="158" text-anchor="middle" fill="var(--asds-slate)" font-size="12">어제 세션 끝에 오늘 턴을 append</text>
+    <text x="520" y="117" fill="var(--asds-slate)" font-size="12.5">세션 ID 동일 · 파일 1개</text>
+    <text x="520" y="137" fill="var(--asds-slate)" font-size="12.5">parentUuid가 어제 마지막 이벤트를 가리킴</text>
+  </g>
+
+  <!-- fork -->
+  <text x="60" y="230" fill="var(--asds-violet)" font-size="14" font-weight="800">fork — 히스토리를 새 세션으로 복사해 가지치기</text>
+  <g>
+    <circle cx="100" cy="290" r="14" fill="var(--asds-violet)" opacity="0.25" stroke="var(--asds-violet)" stroke-width="2"/>
+    <circle cx="170" cy="290" r="14" fill="var(--asds-violet)" opacity="0.25" stroke="var(--asds-violet)" stroke-width="2"/>
+    <circle cx="240" cy="290" r="14" fill="var(--asds-violet)" opacity="0.25" stroke="var(--asds-violet)" stroke-width="2"/>
+    <line x1="114" y1="290" x2="156" y2="290" stroke="var(--asds-violet)" stroke-width="2"/>
+    <line x1="184" y1="290" x2="226" y2="290" stroke="var(--asds-violet)" stroke-width="2"/>
+    <!-- 원본 가지 -->
+    <line x1="254" y1="284" x2="308" y2="256" stroke="var(--asds-violet)" stroke-width="2"/>
+    <circle cx="322" cy="250" r="14" fill="var(--asds-violet)" opacity="0.25" stroke="var(--asds-violet)" stroke-width="2"/>
+    <circle cx="392" cy="250" r="14" fill="var(--asds-violet)" opacity="0.25" stroke="var(--asds-violet)" stroke-width="2"/>
+    <line x1="336" y1="250" x2="378" y2="250" stroke="var(--asds-violet)" stroke-width="2"/>
+    <text x="470" y="247" fill="var(--asds-slate)" font-size="12">원본 세션: 접근 A 계속</text>
+    <!-- 포크 가지 -->
+    <line x1="254" y1="296" x2="308" y2="324" stroke="var(--asds-rose)" stroke-width="2"/>
+    <circle cx="322" cy="330" r="14" fill="var(--asds-rose)" opacity="0.25" stroke="var(--asds-rose)" stroke-width="2"/>
+    <circle cx="392" cy="330" r="14" fill="var(--asds-rose)" opacity="0.25" stroke="var(--asds-rose)" stroke-width="2"/>
+    <line x1="336" y1="330" x2="378" y2="330" stroke="var(--asds-rose)" stroke-width="2"/>
+    <text x="470" y="327" fill="var(--asds-slate)" font-size="12">새 세션 ID: 접근 B 실험 (원본은 무사)</text>
+  </g>
+  <text x="430" y="384" text-anchor="middle" fill="var(--asds-slate)" font-size="12.5" font-weight="700">git에 비유하면 resume = 같은 브랜치에 commit, fork = branch 따기</text>
+</svg>
+<figcaption>그림 2. resume는 같은 세션 파일에 이어 쓰고, fork는 히스토리를 새 세션 ID로 복사합니다. 세션 파일의 parentUuid 트리가 이 두 연산을 지탱합니다.</figcaption>
+</figure>
+
+<p>git에 비유하면 정확히 맞아떨어집니다. 세션 파일은 커밋 로그, resume는 같은 브랜치에 커밋 추가, fork는 브랜치 따기입니다. 체크포인트(파일 편집 전 스냅숏을 떠 두고 <code>Esc</code> 두 번으로 되감는 기능)까지 포함하면, 에이전트 harness는 사실상 <strong>대화용 버전 관리 시스템</strong>을 하나 품고 있는 셈입니다.</p>
+
+<div class="asds-note">
+<strong>주의할 모서리 하나.</strong> 같은 세션을 두 터미널에서 동시에 resume하면 두 대화가 한 파일에 교차로 기록됩니다. 저널 하나에 두 프로세스가 같이 쓰는 셈이라, 이력이 뒤섞입니다. 병렬로 작업하고 싶다면 fork가 맞는 연산입니다.
+</div>
+
+<h2 id="sec-5">5. 데이터 스토어로 보는 순간 보이는 구멍들</h2>
+
+<p>여기까지는 잘 돌아가는 이야기였습니다. 이제 관점을 바꿔서, 이 파일 무더기를 "우리 팀이 운영하는 데이터 스토어"라고 생각해 봅시다. 데이터베이스라면 당연히 따졌을 질문들을 던지는 순간, 구멍이 줄줄이 보입니다.</p>
+
+<p><strong>① 보존 정책이 사실상 '우연'입니다.</strong> Claude Code는 기본 설정 기준 오래된 세션을 일정 기간(기본 30일, <code>cleanupPeriodDays</code>로 조정) 후에 정리합니다. 중요한 디버깅 기록이 날아가는 쪽이 문제인 사람도 있고, 반대로 "30일이나 평문으로 남는다"가 문제인 조직도 있습니다. 어느 쪽이든, <em>의식적으로 정한 적이 없다면</em> 그건 정책이 아니라 우연입니다. Codex 쪽은 <code>codex archive</code>로 수납하고 <code>codex delete</code>는 영구 삭제인데, 복구 수단이 문서화돼 있지 않습니다.</p>
+
+<p><strong>② 비밀값이 섞여 들어갑니다.</strong> 세션에는 도구 호출의 입출력이 통째로 기록됩니다. 환경 변수를 찍어 본 출력, <code>curl -H "Authorization: ..."</code>을 붙여 넣은 턴, 전부 평문으로 남습니다. Codex rollout 파일에 프롬프트로 전달한 API 키가 남을 수 있다는 경고는 <a href="https://codex.danielvaughan.com/2026/06/02/codex-cli-session-archiving-lifecycle-management-v0136/" target="_blank" rel="noopener">여러 분석 글</a>이 공통으로 짚는 부분입니다. 지난주 dev.to 글이 문제 삼은 지점도 같습니다. Genkit·ADK 같은 프레임워크가 모든 턴과 도구 응답을 쌓는 구조에서는 <strong>"나중에 세척(sanitize)하면 되지"가 성립하지 않는다</strong>는 겁니다. 이미 디스크에 쓰인 뒤니까요. 저장 <em>전에</em> 걸러 주는 건 프레임워크의 일이라는 게 그 글의 결론입니다.</p>
+
+<p><strong>③ 검색이 없습니다.</strong> "지난달에 이 에러 고쳤던 세션이 어디 있더라?"에 답할 수단이 <code>grep</code>뿐입니다. 세션이 수백 개로 불어나면 에이전트 작업 이력은 사실상 쓰기 전용(write-only) 데이터가 됩니다. 분명히 가치 있는 데이터인데 꺼내 쓸 수가 없는 거죠.</p>
+
+<p><strong>④ 스키마가 계약이 아닙니다.</strong> 필드 구성이 CLI 버전에 따라 바뀌고, 도구마다 형식이 다릅니다. 세션을 읽는 외부 도구(뷰어, 분석기, 동기화 도구)는 전부 리버스 엔지니어링에 의존하고, harness가 업데이트되면 깨질 수 있습니다. agent memory에서 봤던 '표준 부재' 문제가 한 층 아래에서 반복되는 겁니다.</p>
+
+<p><strong>⑤ 기기에 갇혀 있습니다.</strong> 회사 데스크톱에서 하던 작업을 집 노트북에서 이어 갈 공식적인 방법이 없습니다. 파일을 손으로 복사하면 되지 않을까 싶지만, 세션 ID 해석 규칙 때문에 어설픈 복사는 resume을 깨뜨리기도 합니다.</p>
+
+<p>정리하면, 세션 파일은 <strong>가치는 원본 데이터급인데 대우는 임시 파일급</strong>인 상태입니다. 이 간극이 보이기 시작했기 때문에, 이번 주의 두 글이 나란히 공감을 얻은 겁니다.</p>
+
+<h2 id="sec-6">6. Atuin Threads — 세션을 1급 데이터로 승격하기</h2>
+
+<p>Atuin은 원래 셸 히스토리를 SQLite에 넣고 기기 간에 종단간 암호화(E2EE)로 동기화해 주는 도구입니다. 20년 치 셸 히스토리를 다뤄 온 팀이 "에이전트 세션도 결국 같은 문제"라는 걸 알아챈 건 자연스러운 수순이었을 겁니다. Atuin 18.24의 <a href="https://docs.atuin.sh/main/ai/threads/" target="_blank" rel="noopener">Threads</a>는 위 다섯 구멍을 거의 일대일로 겨냥합니다.</p>
+
+<p>동작 방식은 이렇습니다. 옵트인으로 켜면(<code>atuin config enable threads</code>) 백그라운드 데몬이 각 harness의 세션 기록을 "thread"라는 공통 표현으로 받아 <strong>암호화된 레코드 스토어</strong>에 쌓고, 셸 히스토리와 같은 방식으로 동기화합니다. 지원 harness는 Claude Code, Codex, Copilot, opencode 등 9종(문서 기준)이고, 기존 세션은 <code>atuin threads import</code>로 들여올 수 있습니다. 그 위에 올라가는 기능 세 가지가 핵심입니다.</p>
+
+{{< highlight bash >}}
+# ① 검색 — 모든 기기의 모든 에이전트 세션을 한 곳에서
+atuin threads search "connection pool 데드락"
+
+# ② 어디서든 이어 가기 — 노트북에서 시작한 세션을 데스크톱에서
+atuin resume            # 최근 세션 목록에서 선택
+
+# ③ cross-harness resume — Claude Code 세션을 Codex로 이어 가기
+atuin resume <thread-id> --in codex
+{{< /highlight >}}
+
+<p>③이 가장 흥미로운 부분입니다. harness마다 제각각인 세션 형식을 공통 표현으로 번역해 뒀기 때문에, <strong>대화 이력을 다른 에이전트에 주입해서 이어 갈 수 있습니다</strong>. 도구 A에 쌓인 작업 맥락이 도구 A에 갇히는 lock-in이 세션 레이어에서 풀리기 시작한 겁니다. 또 MCP 서버(<code>atuin mcp install</code>)를 붙이면 에이전트 스스로 과거 세션을 검색해서 "지난번에 이 문제 어떻게 풀었더라"를 참조할 수도 있습니다. 세션 아카이브가 에이전트의 장기 기억 원천으로 되먹임되는 구조입니다.</p>
+
+<figure class="asds-fig">
+<svg viewBox="0 0 860 440" role="img" aria-label="Atuin Threads 아키텍처 다이어그램. 왼쪽 기기 A에서 Claude Code와 Codex의 세션 파일을 데몬이 수집해 공통 thread 형식으로 암호화 저장하고, 가운데 E2EE 동기화 서버를 거쳐 오른쪽 기기 B로 전달되며, 기기 B에서는 atuin resume --in codex로 다른 harness에서 이어 가거나 MCP 서버로 에이전트가 과거 세션을 검색하는 흐름을 보여 준다">
+  <text x="430" y="28" text-anchor="middle" fill="var(--asds-sky)" font-size="16" font-weight="800">Atuin Threads: 세션을 동기화 가능한 1급 데이터로</text>
+
+  <!-- 기기 A -->
+  <rect x="30" y="60" width="250" height="300" rx="12" fill="var(--asds-slate)" opacity="0.06" stroke="var(--asds-slate)" stroke-width="1.5"/>
+  <text x="155" y="88" text-anchor="middle" fill="var(--asds-slate)" font-size="13.5" font-weight="800">기기 A (노트북)</text>
+  <rect x="50" y="104" width="210" height="44" rx="8" fill="var(--asds-teal)" opacity="0.10" stroke="var(--asds-teal)" stroke-width="1.5"/>
+  <text x="155" y="131" text-anchor="middle" fill="var(--asds-teal)" font-size="12">Claude Code → ~/.claude/…jsonl</text>
+  <rect x="50" y="158" width="210" height="44" rx="8" fill="var(--asds-teal)" opacity="0.10" stroke="var(--asds-teal)" stroke-width="1.5"/>
+  <text x="155" y="185" text-anchor="middle" fill="var(--asds-teal)" font-size="12">Codex → ~/.codex/…jsonl</text>
+  <line x1="155" y1="202" x2="155" y2="232" stroke="var(--asds-violet)" stroke-width="2"/>
+  <rect x="50" y="232" width="210" height="52" rx="8" fill="var(--asds-violet)" opacity="0.10" stroke="var(--asds-violet)" stroke-width="2"/>
+  <text x="155" y="254" text-anchor="middle" fill="var(--asds-violet)" font-size="12.5" font-weight="700">atuin 데몬 (옵트인)</text>
+  <text x="155" y="272" text-anchor="middle" fill="var(--asds-slate)" font-size="11.5">공통 thread 형식으로 정규화</text>
+  <line x1="155" y1="284" x2="155" y2="310" stroke="var(--asds-violet)" stroke-width="2"/>
+  <rect x="50" y="310" width="210" height="38" rx="8" fill="var(--asds-amber)" opacity="0.10" stroke="var(--asds-amber)" stroke-width="1.5"/>
+  <text x="155" y="334" text-anchor="middle" fill="var(--asds-amber)" font-size="12">암호화 레코드 스토어 🔒</text>
+
+  <!-- 동기화 서버 -->
+  <line x1="280" y1="329" x2="360" y2="210" stroke="var(--asds-amber)" stroke-width="2"/>
+  <rect x="360" y="170" width="140" height="80" rx="12" fill="var(--asds-amber)" opacity="0.08" stroke="var(--asds-amber)" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="430" y="202" text-anchor="middle" fill="var(--asds-amber)" font-size="12.5" font-weight="700">동기화 서버</text>
+  <text x="430" y="222" text-anchor="middle" fill="var(--asds-slate)" font-size="11.5">E2EE — 서버는</text>
+  <text x="430" y="238" text-anchor="middle" fill="var(--asds-slate)" font-size="11.5">내용을 못 읽음</text>
+  <line x1="500" y1="210" x2="580" y2="140" stroke="var(--asds-amber)" stroke-width="2"/>
+
+  <!-- 기기 B -->
+  <rect x="580" y="60" width="250" height="300" rx="12" fill="var(--asds-slate)" opacity="0.06" stroke="var(--asds-slate)" stroke-width="1.5"/>
+  <text x="705" y="88" text-anchor="middle" fill="var(--asds-slate)" font-size="13.5" font-weight="800">기기 B (데스크톱)</text>
+  <rect x="600" y="104" width="210" height="52" rx="8" fill="var(--asds-teal)" opacity="0.10" stroke="var(--asds-teal)" stroke-width="2"/>
+  <text x="705" y="126" text-anchor="middle" fill="var(--asds-teal)" font-size="12" font-weight="700">atuin threads search</text>
+  <text x="705" y="144" text-anchor="middle" fill="var(--asds-slate)" font-size="11.5">모든 기기·모든 에이전트 검색</text>
+  <rect x="600" y="168" width="210" height="60" rx="8" fill="var(--asds-rose)" opacity="0.10" stroke="var(--asds-rose)" stroke-width="2"/>
+  <text x="705" y="190" text-anchor="middle" fill="var(--asds-rose)" font-size="12" font-weight="700">atuin resume --in codex</text>
+  <text x="705" y="208" text-anchor="middle" fill="var(--asds-slate)" font-size="11.5">Claude Code 세션을</text>
+  <text x="705" y="222" text-anchor="middle" fill="var(--asds-slate)" font-size="11.5">다른 harness에서 이어 가기</text>
+  <rect x="600" y="240" width="210" height="60" rx="8" fill="var(--asds-sky)" opacity="0.10" stroke="var(--asds-sky)" stroke-width="2"/>
+  <text x="705" y="262" text-anchor="middle" fill="var(--asds-sky)" font-size="12" font-weight="700">MCP 서버</text>
+  <text x="705" y="280" text-anchor="middle" fill="var(--asds-sky)" font-size="11.5">에이전트가 과거 세션을</text>
+  <text x="705" y="294" text-anchor="middle" fill="var(--asds-sky)" font-size="11.5">스스로 검색·참조</text>
+  <text x="705" y="338" text-anchor="middle" fill="var(--asds-slate)" font-size="11.5">세션 아카이브 → 장기 기억 원천</text>
+
+  <text x="430" y="408" text-anchor="middle" fill="var(--asds-slate)" font-size="12.5" font-weight="700">5가지 구멍(보존·비밀·검색·스키마·기기 종속)을 '세션 = 동기화되는 데이터'로 재정의해서 공략</text>
+</svg>
+<figcaption>그림 3. Atuin Threads의 구조. harness별 세션 파일을 데몬이 공통 형식으로 정규화해 E2EE로 동기화하고, 그 위에 검색·cross-harness resume·MCP 접근을 올립니다.</figcaption>
+</figure>
+
+<p>물론 만능은 아닙니다. HN 댓글란의 반론도 유효합니다. 세션은 셸 히스토리보다 훨씬 무겁고 노이즈가 많은데 그걸 전부 동기화할 가치가 있느냐, 비밀값이 섞인 세션을 (암호화돼 있다 해도) 외부 서버에 올리는 게 조직 정책상 괜찮으냐 같은 지적입니다. 캡처가 옵트인이고, 도구 입출력 기록 여부를 <code>capture_tools</code>로 끌 수 있고, 셀프 호스팅 서버를 쓸 수 있다는 게 Atuin의 대답이지만, <strong>"무엇을 기록하고 어디까지 내보낼 것인가"는 결국 사용자가 정해야 할 정책</strong>입니다. 도구는 정책을 대신 정해 주지 않습니다.</p>
+
+<h2 id="sec-7">7. 실전 — 내 세션 데이터를 직접 다뤄 보기</h2>
+
+<p>읽기만 하면 남의 이야기니, 지금 바로 자기 머신에서 해 볼 수 있는 것들을 묶었습니다. 세션 파일은 그냥 JSONL이라 <code>jq</code>만 있으면 됩니다.</p>
+
+<p><strong>1단계: 내 세션 데이터의 규모부터 파악합니다.</strong></p>
+
+{{< highlight bash >}}
+# 프로젝트별 세션 수와 전체 용량
+ls ~/.claude/projects/ | head
+du -sh ~/.claude/projects/
+
+# 가장 큰 세션 5개 — '세션 하나가 이렇게 컸어?'를 보통 여기서 처음 깨닫습니다
+find ~/.claude/projects -name "*.jsonl" -exec du -h {} + | sort -rh | head -5
+{{< /highlight >}}
+
+<p><strong>2단계: 세션 하나를 열어 구조를 눈으로 확인합니다.</strong></p>
+
+{{< highlight bash >}}
+F=$(find ~/.claude/projects -name "*.jsonl" | head -1)
+
+# 이 세션에 어떤 타입의 이벤트가 몇 개씩 있는지
+jq -r '.type' "$F" | sort | uniq -c | sort -rn
+
+# 대화만 추려서 타임라인으로 보기
+jq -r 'select(.type=="user" or .type=="assistant")
+       | "\(.timestamp) [\(.type)] \(.message.content
+       | if type=="array" then .[0].text // "(도구 호출)" else . end)"' "$F" | head -20
+{{< /highlight >}}
+
+<p><strong>3단계: 비밀값 점검 — 오늘 당장 해 볼 가치가 가장 큰 항목입니다.</strong></p>
+
+{{< highlight bash >}}
+# 세션 전체에서 토큰처럼 생긴 문자열 탐색 (패턴은 조직에 맞게 보강)
+grep -rlE "(api[_-]?key|Authorization: Bearer|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{36})" \
+  ~/.claude/projects/ 2>/dev/null
+
+# 뭔가 나왔다면: ① 해당 키 회전(rotation)이 먼저, 파일 삭제는 그다음입니다.
+# 디스크에 남은 기록을 지워도 이미 유출됐을 가능성은 사라지지 않으니까요.
+{{< /highlight >}}
+
+<p><strong>4단계: 보존 정책을 '우연'에서 '결정'으로 바꿉니다.</strong> <code>~/.claude/settings.json</code>에서 <code>cleanupPeriodDays</code>를 팀 정책에 맞게 명시하세요. 오래 남기고 싶다면 늘리고, 규제가 민감한 환경이라면 줄이는 겁니다. 중요한 건 숫자가 아니라 <em>결정했다는 사실</em>입니다.</p>
+
+<p><strong>5단계(선택): Atuin Threads를 옵트인으로 켜 봅니다.</strong></p>
+
+{{< highlight bash >}}
+atuin config enable threads   # 데몬 포함 활성화 (Atuin 18.24+)
+atuin threads import          # 기존 세션 들여오기
+atuin threads search "쿼리"    # 전 기기·전 에이전트 세션 검색
+{{< /highlight >}}
+
+<h2 id="sec-8">8. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>세션 파일을 임시 파일 취급하는 것.</strong> 디버깅 과정, 의사 결정 이유, 시도했다 버린 접근이 전부 들어 있는 원본 기록입니다. 반대로 말하면, 민감한 것도 전부 들어 있습니다. '가치'와 '위험'을 동시에 가진 데이터로 취급하세요.</li>
+  <li><strong>에이전트 대화창에 비밀값을 붙여 넣는 것.</strong> 컨텍스트 창에서는 압축으로 사라져도 세션 파일에는 평문으로 남습니다. 비밀값은 환경 변수나 시크릿 매니저로 간접 참조시키는 게 기본입니다.</li>
+  <li><strong>같은 세션을 두 터미널에서 동시에 resume하는 것.</strong> 한 저널에 두 프로세스가 같이 쓰면서 이력이 교차로 섞입니다. 병렬 실험은 fork(<code>/branch</code>)가 맞는 도구입니다.</li>
+  <li><strong>세션 파일을 손으로 복사해 옮기는 것.</strong> 세션 ID 해석 규칙과 꼬이면 resume이 깨질 수 있습니다. 기기 간 이동이 필요하면 동기화 도구를 쓰거나, 최소한 원본을 남겨 두고 실험하세요.</li>
+  <li><strong>세션 접근 MCP를 생각 없이 붙이는 것.</strong> 과거 세션 검색은 강력하지만, 에이전트가 읽을 수 있는 데이터가 "지금 프로젝트"에서 "내가 했던 모든 작업"으로 넓어진다는 뜻이기도 합니다. 과거 세션 속 내용이 새 세션의 컨텍스트로 흘러드는 경로가 생기는 것이므로, 민감한 프로젝트와 섞이는 환경에서는 신중하게 결정하세요.</li>
+  <li><strong>세션과 메모리를 혼동하는 것.</strong> 세션은 원본 기록이고 메모리는 증류된 지식입니다. "에이전트가 자꾸 까먹는다"의 해법이 세션 보존 기간 연장이 아니라 <code>CLAUDE.md</code> 정리인 경우가 훨씬 많습니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>에이전트 harness는 모든 턴·도구 호출·결과를 로컬 디스크의 <strong>평문 JSONL 추가 전용 로그</strong>로 남깁니다. Claude Code는 <code>~/.claude/projects/</code>, Codex는 <code>~/.codex/sessions/</code> — 구조는 거의 같은데 형식은 제각각이고 공개 스키마가 없습니다.</li>
+  <li>이벤트가 <code>parentUuid</code>로 연결된 <strong>트리</strong>라서 resume(같은 세션에 이어 쓰기)과 fork(히스토리를 새 세션으로 복사)가 자연스럽게 나옵니다. git의 commit/branch에 정확히 대응합니다.</li>
+  <li>데이터 스토어의 눈으로 보면 구멍이 많습니다: 우연에 가까운 보존 정책(기본 30일), 평문으로 남는 비밀값, 검색 부재, 버전 따라 바뀌는 스키마, 기기 종속. <strong>가치는 원본 데이터급, 대우는 임시 파일급</strong>입니다.</li>
+  <li>지난주 HN을 달군 <strong>Atuin Threads</strong>(18.24+)는 세션을 1급 데이터로 승격하는 시도입니다: 옵트인 데몬이 harness별 세션을 공통 형식으로 정규화해 E2EE 동기화하고, 그 위에 검색·<code>atuin resume --in codex</code> 같은 cross-harness resume·MCP 접근을 올렸습니다.</li>
+  <li>같은 주 dev.to의 "A Data Store Nobody Designed"는 반대편 관점을 보탰습니다: 저장 후 세척은 성립하지 않으니, <strong>저장 전에 거르는 것</strong>이 프레임워크의 책임이라는 주장입니다.</li>
+  <li>오늘 할 일 세 가지: ① <code>jq</code>로 내 세션 파일을 한번 열어 보기, ② 비밀값 패턴 grep 점검(발견 시 키 회전 먼저), ③ <code>cleanupPeriodDays</code>를 '우연'에서 '결정'으로 바꾸기.</li>
+</ul>
+
+<h2 id="sec-10">10. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://blog.atuin.sh/threads-agent-sessions/" target="_blank" rel="noopener">Atuin Threads: All your agent sessions on every machine — Atuin Blog (발표 글)</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50453637" target="_blank" rel="noopener">Atuin Threads — Hacker News 토론 (2026-11-12, 234pt)</a></li>
+  <li><a href="https://docs.atuin.sh/main/ai/threads/" target="_blank" rel="noopener">Threads — Atuin 공식 문서 (캡처·동기화·지원 에이전트)</a></li>
+  <li><a href="https://docs.atuin.sh/main/ai/mcp/" target="_blank" rel="noopener">Atuin MCP Server — 공식 문서</a></li>
+  <li><a href="https://github.com/atuinsh/atuin" target="_blank" rel="noopener">atuinsh/atuin — GitHub (32k+ 스타)</a></li>
+  <li><a href="https://dev.to/playfulprogramming/ai-agent-sessions-are-a-data-store-nobody-designed-17be" target="_blank" rel="noopener">AI Agent Sessions Are a Data Store Nobody Designed — dev.to (2026-11-12)</a></li>
+  <li><a href="https://code.claude.com/docs/en/how-claude-code-works" target="_blank" rel="noopener">How Claude Code works — 세션 저장·resume·fork 공식 문서</a></li>
+  <li><a href="https://codex.danielvaughan.com/2026/06/05/codex-cli-session-lifecycle-archive-resume-fork-compact-management/" target="_blank" rel="noopener">Codex CLI Session Lifecycle: Archive, Resume, Fork, and Compact</a></li>
+  <li><a href="https://dev.to/bargan/what-codex-cli-writes-to-disk-for-every-session-and-how-to-follow-it-live-1i04" target="_blank" rel="noopener">What Codex CLI writes to disk for every session — dev.to</a></li>
+  <li><a href="https://perrotta.dev/2026/11/atuin-resume-coding-agent-sessions/" target="_blank" rel="noopener">atuin: resume coding agent sessions — perrotta.dev (사용기)</a></li>
+</ul>

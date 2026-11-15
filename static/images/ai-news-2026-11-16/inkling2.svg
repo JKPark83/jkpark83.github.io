@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="460" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">Inkling 2 Small — 오픈 웨이트 스펙 &amp; 자체 벤치마크</text>
+  <text x="400" y="52" text-anchor="middle" font-size="12" fill="#666">출처: Hugging Face 모델 카드 (thinkingmachines/Inkling-2-Small) · 벤치마크는 벤더 자체 보고값</text>
+
+  <!-- spec card -->
+  <rect x="30" y="72" width="330" height="360" rx="10" fill="#ffffff" stroke="#ccc"/>
+  <text x="50" y="100" font-size="15" font-weight="700" fill="#1c4e85">스펙 카드</text>
+  <line x1="50" y1="112" x2="340" y2="112" stroke="#e0e0e0"/>
+  <text x="50" y="138" font-size="13" fill="#333">총 파라미터</text>
+  <text x="340" y="138" text-anchor="end" font-size="13" font-weight="700" fill="#111">594B (MoE)</text>
+  <text x="50" y="166" font-size="13" fill="#333">토큰당 활성</text>
+  <text x="340" y="166" text-anchor="end" font-size="13" font-weight="700" fill="#111">17B</text>
+  <text x="50" y="194" font-size="13" fill="#333">라우팅</text>
+  <text x="340" y="194" text-anchor="end" font-size="13" font-weight="700" fill="#111">384개 중 8 experts</text>
+  <text x="50" y="222" font-size="13" fill="#333">컨텍스트</text>
+  <text x="340" y="222" text-anchor="end" font-size="13" font-weight="700" fill="#111">최대 1M 토큰</text>
+  <text x="50" y="250" font-size="13" fill="#333">입력</text>
+  <text x="340" y="250" text-anchor="end" font-size="13" font-weight="700" fill="#111">텍스트 + 이미지</text>
+  <text x="50" y="278" font-size="13" fill="#333">라이선스</text>
+  <text x="340" y="278" text-anchor="end" font-size="13" font-weight="700" fill="#1d7a3a">Apache 2.0</text>
+  <text x="50" y="306" font-size="13" fill="#333">체크포인트</text>
+  <text x="340" y="306" text-anchor="end" font-size="13" font-weight="700" fill="#111">NVFP4 / MXFP8</text>
+  <text x="50" y="334" font-size="13" fill="#333">필요 VRAM(합산)</text>
+  <text x="340" y="334" text-anchor="end" font-size="13" font-weight="700" fill="#b3261e">500GB+ / 800GB+</text>
+  <rect x="50" y="356" width="290" height="56" rx="6" fill="#fdf3f2"/>
+  <text x="60" y="378" font-size="12" fill="#8a2520">"Small"이라도 로컬 단일 GPU용이 아니다.</text>
+  <text x="60" y="396" font-size="12" fill="#8a2520">멀티 GPU 노드급 서빙 전제의 오픈 웨이트.</text>
+
+  <!-- benchmark bars (vendor reported) -->
+  <text x="400" y="100" font-size="15" font-weight="700" fill="#5b3a9e">모델 카드 벤치마크 (자체 보고)</text>
+  <g font-size="12.5" fill="#333">
+    <text x="400" y="146">SWE-Bench Pro (Hard)</text>
+    <rect x="400" y="154" width="313" height="16" rx="3" fill="#e8e2f5"/>
+    <rect x="400" y="154" width="270" height="16" rx="3" fill="#7a5bc7"/>
+    <text x="720" y="167" font-size="12" font-weight="700" fill="#111">86.3%</text>
+
+    <text x="400" y="202">BrowseComp</text>
+    <rect x="400" y="210" width="313" height="16" rx="3" fill="#e8e2f5"/>
+    <rect x="400" y="210" width="282" height="16" rx="3" fill="#7a5bc7"/>
+    <text x="720" y="223" font-size="12" font-weight="700" fill="#111">90.2%</text>
+
+    <text x="400" y="258">ARC-AGI-2</text>
+    <rect x="400" y="266" width="313" height="16" rx="3" fill="#e8e2f5"/>
+    <rect x="400" y="266" width="256" height="16" rx="3" fill="#7a5bc7"/>
+    <text x="720" y="279" font-size="12" font-weight="700" fill="#111">81.7%</text>
+
+    <text x="400" y="314">HLE-Diamond</text>
+    <rect x="400" y="322" width="313" height="16" rx="3" fill="#e8e2f5"/>
+    <rect x="400" y="322" width="90" height="16" rx="3" fill="#7a5bc7"/>
+    <text x="720" y="335" font-size="12" font-weight="700" fill="#111">28.7%</text>
+  </g>
+  <rect x="400" y="356" width="370" height="56" rx="6" fill="#f0f4fa"/>
+  <text x="410" y="378" font-size="12" fill="#1c4e85">주의: 전부 Thinking Machines의 자체 측정값이다.</text>
+  <text x="410" y="396" font-size="12" fill="#1c4e85">독립 재현 전까지는 상대 비교용으로만 볼 것.</text>
+</svg>

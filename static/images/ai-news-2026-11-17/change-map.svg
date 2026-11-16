@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 540" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="540" fill="#fafafa"/>
+  <text x="400" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a1a">오늘의 AI 변화 지도 — 2026-11-17</text>
+  <text x="400" y="56" text-anchor="middle" font-size="13" fill="#666">테마: 웹 자동화의 승자는 "웹 에이전트 스캐폴드"가 아니라 코딩 하네스였다</text>
+
+  <!-- quadrant backgrounds -->
+  <rect x="30" y="80" width="360" height="210" rx="10" fill="#eef4fb" stroke="#b9d2ec"/>
+  <rect x="410" y="80" width="360" height="210" rx="10" fill="#f3eefb" stroke="#d2c4ec"/>
+  <rect x="30" y="310" width="360" height="210" rx="10" fill="#eefbf1" stroke="#b9ecc6"/>
+  <rect x="410" y="310" width="360" height="210" rx="10" fill="#fbf6ee" stroke="#ecd9b9"/>
+
+  <!-- 모델 -->
+  <text x="50" y="108" font-size="15" font-weight="700" fill="#1c4e85">🤖 모델 &amp; 릴리즈</text>
+  <text x="50" y="134" font-size="13" font-weight="600" fill="#222">Qwen4-Max GA (11/16, 보도 기준)</text>
+  <text x="50" y="152" font-size="12" fill="#444">2.4T MoE · 1M ctx · $1.50/$4.50 · API 전용</text>
+  <text x="50" y="178" font-size="13" font-weight="600" fill="#222">InternLM Sage-S2.1-Flash (11/15)</text>
+  <text x="50" y="196" font-size="12" fill="#444">321B 과학 멀티모달 에이전트 모델, MIT</text>
+  <text x="50" y="222" font-size="13" font-weight="600" fill="#222">Haru-4B (11/12)</text>
+  <text x="50" y="240" font-size="12" fill="#444">풀듀플렉스 음성 대화, 한국어 지원</text>
+  <text x="50" y="258" font-size="12" fill="#444">Apache 2.0 · ~5B · 133ms 프레임</text>
+
+  <!-- 논문 -->
+  <text x="430" y="108" font-size="15" font-weight="700" fill="#5b3a9e">📚 논문</text>
+  <text x="430" y="134" font-size="13" font-weight="600" fill="#222">WebArena-Pro (2611.17955)</text>
+  <text x="430" y="152" font-size="12" fill="#444">코딩 하네스 62.3% vs 전용 웹 에이전트 30.3%</text>
+  <text x="430" y="170" font-size="12" fill="#444">300 태스크 · 셀프호스팅 앱 20종 · 오디오/비디오</text>
+  <text x="430" y="196" font-size="13" font-weight="600" fill="#222">MixUA (2611.10439)</text>
+  <text x="430" y="214" font-size="12" fill="#444">멀티유저 에이전트 메모리에 스코프(ACL) 부여</text>
+  <text x="430" y="232" font-size="12" fill="#444">pair / user / agent / global 4단계</text>
+  <text x="430" y="250" font-size="12" fill="#444">글로벌 단일 메모리보다 +5%p, 누출 ≤0.02%</text>
+
+  <!-- 오픈소스 -->
+  <text x="50" y="338" font-size="15" font-weight="700" fill="#1e7a3a">🛠 오픈소스</text>
+  <text x="50" y="364" font-size="13" font-weight="600" fill="#222">agent-autoloop (약 5,700★)</text>
+  <text x="50" y="382" font-size="12" fill="#444">CLI 에이전트를 이벤트 구동 상주 루프로</text>
+  <text x="50" y="400" font-size="12" fill="#444">"1라운드 작업 후 종료" + 결정 카드</text>
+  <text x="50" y="426" font-size="13" font-weight="600" fill="#222">agentes-chat (약 1,600★)</text>
+  <text x="50" y="444" font-size="12" fill="#444">에이전트가 정식 멤버인 셀프호스팅 Slack</text>
+  <text x="50" y="462" font-size="12" fill="#444">역할·예산·MCP 스코프·승인 카드 내장</text>
+
+  <!-- 팁 -->
+  <text x="430" y="338" font-size="15" font-weight="700" fill="#8a5a1e">🧑‍💻 도구 팁</text>
+  <text x="430" y="364" font-size="13" font-weight="600" fill="#222">Claude Code: $.agent.call()</text>
+  <text x="430" y="382" font-size="12" fill="#444">플러그인이 서브에이전트 컨텍스트로 툴 실행</text>
+  <text x="430" y="408" font-size="13" font-weight="600" fill="#222">Codex: codex exec --remote</text>
+  <text x="430" y="426" font-size="12" fill="#444">공유 app-server에 비대화형 턴 실행</text>
+  <text x="430" y="452" font-size="13" font-weight="600" fill="#222">공통: 리뷰 에이전트 리스크 티어 파일</text>
+  <text x="430" y="470" font-size="12" fill="#444">디렉터리별 자동승인/에스컬레이션 기준 명문화</text>
+</svg>

@@ -1,0 +1,34 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="화요일 아침 브리핑 표지. 엔비디아 실적 전야에 나스닥이 2.49% 급락해 사흘 연속 하락했습니다. 베센트 재무장관의 엔비디아 압박과 대중국 칩 우회 수출 차단 규정이 반도체를 눌렀습니다. 비트코인은 주간 종가 65,351달러로 8월 이후 처음으로 200주선 아래에서 한 주를 마감했고 코인 공포탐욕지수는 10으로 나흘 연속 극단 공포입니다. 나스닥과 비트코인 모두 관망을 유지합니다">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101723"/>
+      <stop offset="1" stop-color="#14101f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.17 · 나스닥 &amp; 비트코인 5분 요약 · 화요일판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#fca5a5">나스닥 -2.49% 사흘 연속 하락 · BTC 주간 종가 65,351 — 8월 이후 첫 200주선 아래 마감 · 코인 심리 10</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 엔비디아 실적 전야</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#fca5a5">24,510</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">-2.49% · 철회선 24,300 코앞</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">오늘 밤 엔비디아 발표</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 주간 이탈 확정</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#06b6d4" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#22d3ee">65,351 마감</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#a5f3fc">200주선 아래 · 6주 연속 하락</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">비트코인 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">진입 검토 62,000~60,000</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">오늘 밤 엔비디아 실적(KST 수요일 새벽) — 나스닥 증액 재검토의 본 관문 · 본 브리핑은 투자 자문이 아닙니다</text>
+</svg>

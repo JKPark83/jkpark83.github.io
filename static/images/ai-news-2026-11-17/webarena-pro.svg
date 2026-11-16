@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="420" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">WebArena-Pro — 웹 태스크 성공률 (300 태스크)</text>
+  <text x="400" y="52" text-anchor="middle" font-size="12" fill="#666">출처: arXiv 2611.17955 초록 (NeurIPS 2026 D&amp;B) · 코딩 하네스가 전용 웹 에이전트 스캐폴드의 약 2배</text>
+
+  <!-- axis grid -->
+  <line x1="280" y1="80" x2="280" y2="350" stroke="#ddd"/>
+  <line x1="405" y1="80" x2="405" y2="350" stroke="#eee"/>
+  <line x1="530" y1="80" x2="530" y2="350" stroke="#eee"/>
+  <line x1="655" y1="80" x2="655" y2="350" stroke="#eee"/>
+  <text x="280" y="372" text-anchor="middle" font-size="11" fill="#999">0%</text>
+  <text x="405" y="372" text-anchor="middle" font-size="11" fill="#999">25%</text>
+  <text x="530" y="372" text-anchor="middle" font-size="11" fill="#999">50%</text>
+  <text x="655" y="372" text-anchor="middle" font-size="11" fill="#999">75%</text>
+
+  <!-- bars: 1% = 5px, start x=280 -->
+  <!-- Codex + GPT 6.1 Sol: 62.3 -->
+  <text x="270" y="106" text-anchor="end" font-size="13" fill="#333">Codex + GPT 6.1 Sol</text>
+  <rect x="280" y="90" width="311.5" height="26" rx="4" fill="#2f6fb3"/>
+  <text x="598" y="108" font-size="13" font-weight="700" fill="#1c4e85">62.3%</text>
+  <!-- Claude Code + Opus 5.5: 62.3 -->
+  <text x="270" y="152" text-anchor="end" font-size="13" fill="#333">Claude Code + Opus 5.5</text>
+  <rect x="280" y="136" width="311.5" height="26" rx="4" fill="#2f6fb3"/>
+  <text x="598" y="154" font-size="13" font-weight="700" fill="#1c4e85">62.3%</text>
+  <!-- OpenCode + Kimi 3.1 Pro: 60.7 -->
+  <text x="270" y="198" text-anchor="end" font-size="13" fill="#333">OpenCode + Kimi 3.1 Pro</text>
+  <rect x="280" y="182" width="303.5" height="26" rx="4" fill="#2f6fb3"/>
+  <text x="590" y="200" font-size="13" font-weight="700" fill="#1c4e85">60.7%</text>
+  <!-- GenericAgent + Gemini 3.1 Pro omni: 30.3 -->
+  <text x="270" y="244" text-anchor="end" font-size="13" fill="#333">GenericAgent + Gemini 3.1 Pro omni</text>
+  <rect x="280" y="228" width="151.5" height="26" rx="4" fill="#c98a2d"/>
+  <text x="438" y="246" font-size="13" font-weight="700" fill="#8a5a1e">30.3%</text>
+  <!-- GenericAgent + Gemma4 31B: 30.3 -->
+  <text x="270" y="290" text-anchor="end" font-size="13" fill="#333">GenericAgent + Gemma4 31B</text>
+  <rect x="280" y="274" width="151.5" height="26" rx="4" fill="#c98a2d"/>
+  <text x="438" y="292" font-size="13" font-weight="700" fill="#8a5a1e">30.3%</text>
+
+  <!-- legend -->
+  <rect x="280" y="320" width="14" height="14" rx="3" fill="#2f6fb3"/>
+  <text x="300" y="332" font-size="12" fill="#333">코딩 에이전트 하네스 (CLI)</text>
+  <rect x="470" y="320" width="14" height="14" rx="3" fill="#c98a2d"/>
+  <text x="490" y="332" font-size="12" fill="#333">전용 웹 에이전트 스캐폴드</text>
+
+  <text x="400" y="402" text-anchor="middle" font-size="12" fill="#666">논문이 평가한 에이전트 중 상·하위 대표 구성만 표시 · 수치는 초록 기재값</text>
+</svg>

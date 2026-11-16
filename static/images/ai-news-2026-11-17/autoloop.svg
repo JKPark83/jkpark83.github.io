@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <text x="400" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1a1a">agent-autoloop — "1라운드 작업 후 종료" 루프 구조</text>
+  <text x="400" y="52" text-anchor="middle" font-size="12" fill="#666">출처: KKKKhazix/agent-autoloop README · 사람 응답을 기다리는 동안 에이전트 프로세스·토큰 소비 0</text>
+
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#888"/>
+    </marker>
+  </defs>
+
+  <!-- event sources -->
+  <rect x="30" y="90" width="170" height="110" rx="10" fill="#eef4fb" stroke="#b9d2ec"/>
+  <text x="115" y="114" text-anchor="middle" font-size="14" font-weight="700" fill="#1c4e85">이벤트 소스</text>
+  <text x="115" y="138" text-anchor="middle" font-size="12" fill="#444">크론 스케줄</text>
+  <text x="115" y="158" text-anchor="middle" font-size="12" fill="#444">GitHub 이슈</text>
+  <text x="115" y="178" text-anchor="middle" font-size="12" fill="#444">프로덕션 알림</text>
+
+  <!-- kernel -->
+  <rect x="250" y="90" width="180" height="110" rx="10" fill="#f3eefb" stroke="#d2c4ec"/>
+  <text x="340" y="114" text-anchor="middle" font-size="14" font-weight="700" fill="#5b3a9e">커널 (결정적)</text>
+  <text x="340" y="138" text-anchor="middle" font-size="12" fill="#444">rules.json 선언 규칙</text>
+  <text x="340" y="158" text-anchor="middle" font-size="12" fill="#444">의존성 0 · 서버 불필요</text>
+  <text x="340" y="178" text-anchor="middle" font-size="12" fill="#444">병렬 디스패치</text>
+
+  <!-- agent -->
+  <rect x="480" y="90" width="180" height="110" rx="10" fill="#eefbf1" stroke="#b9ecc6"/>
+  <text x="570" y="114" text-anchor="middle" font-size="14" font-weight="700" fill="#1e7a3a">CLI 에이전트</text>
+  <text x="570" y="138" text-anchor="middle" font-size="12" fill="#444">Claude Code / Codex 등</text>
+  <text x="570" y="158" text-anchor="middle" font-size="12" fill="#444">1라운드 작업</text>
+  <text x="570" y="178" text-anchor="middle" font-size="12" font-weight="600" fill="#1e7a3a">작업 후 프로세스 종료</text>
+
+  <!-- decision card -->
+  <rect x="480" y="250" width="180" height="100" rx="10" fill="#fbf6ee" stroke="#ecd9b9"/>
+  <text x="570" y="274" text-anchor="middle" font-size="14" font-weight="700" fill="#8a5a1e">결정 카드</text>
+  <text x="570" y="298" text-anchor="middle" font-size="12" fill="#444">삭제·지출·발송 등</text>
+  <text x="570" y="318" text-anchor="middle" font-size="12" fill="#444">Slack / Discord /</text>
+  <text x="570" y="336" text-anchor="middle" font-size="12" fill="#444">데스크톱 알림으로 질문</text>
+
+  <!-- human -->
+  <rect x="200" y="250" width="180" height="100" rx="10" fill="#ffffff" stroke="#ccc"/>
+  <text x="290" y="274" text-anchor="middle" font-size="14" font-weight="700" fill="#333">사람</text>
+  <text x="290" y="298" text-anchor="middle" font-size="12" fill="#444">알림에서 바로 응답</text>
+  <text x="290" y="318" text-anchor="middle" font-size="12" font-weight="600" fill="#1e7a3a">응답이 원래 대화를</text>
+  <text x="290" y="336" text-anchor="middle" font-size="12" font-weight="600" fill="#1e7a3a">그 지점에서 재개</text>
+
+  <!-- arrows -->
+  <line x1="200" y1="145" x2="245" y2="145" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="430" y1="145" x2="475" y2="145" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="570" y1="200" x2="570" y2="245" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="590" y="228" font-size="11" fill="#777">승인 필요 시</text>
+  <line x1="475" y1="300" x2="385" y2="300" stroke="#888" stroke-width="2" marker-end="url(#arr)"/>
+  <path d="M 290 245 Q 290 145 340 145" fill="none" stroke="#888" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arr)"/>
+  <text x="235" y="222" font-size="11" fill="#777">응답 → 재개</text>
+</svg>

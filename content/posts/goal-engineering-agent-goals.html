@@ -1,0 +1,347 @@
+---
+title: "프롬프트, 컨텍스트, 하네스에 차례로 줄을 그었다 — 에이전트에게 '목표'를 설계해 주는 goal engineering"
+date: 2026-11-17T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "goal engineering", "컨텍스트 엔지니어링", "harness engineering", "LangChain", "Deep Agents", "Codex", "리워드 해킹", "specification gaming", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "11월 11일 LangChain CEO Harrison Chase가 X에 'context engineering'과 'harness engineering'에 줄을 긋고 'goal engineering'만 남긴 포스트를 올렸고, 11월 14일에는 Actively AI와 함께 쓴 'Goal Engineering: How to Design Goals'가 공개됐습니다. 프롬프트 → 컨텍스트 → 하네스로 이어진 'X 엔지니어링' 사다리의 다음 칸입니다. 에이전트가 작업(task)이 아니라 목표(goal)를 받아 움직이기 시작하면, 사람이 손으로 설계해야 하는 것은 '치팅당하지 않고, 검증 가능하고, 피드백 주기 쉬운 목표'가 됩니다. 사다리가 왜 계속 올라가는지, Actively AI의 1·2차 설계 비교에서 무엇을 배울 수 있는지, Codex의 /goal 프리미티브와 좋은 목표 스펙 쓰는 법까지 해부합니다."
+ShowToc: false
+cover:
+  image: "goal-engineering-agent-goals-cover.svg"
+  alt: "커버 그림. 화이트보드에 prompt engineering, context engineering, harness engineering이 차례로 줄이 그어져 있고 맨 아래 goal engineering만 강조되어 있다. 오른쪽에는 목표를 받은 에이전트가 분해-실행-검증-사람 피드백 루프를 도는 다이어그램"
+  caption: "아래 층은 제품이 흡수하고, 사람의 일은 한 칸 위로 — 다음 칸은 '목표 설계'입니다"
+  relative: false
+---
+
+<style>
+/* ── goal engineering 포스트 전용 스타일 (ge- 접두사) ── */
+.ge-fig{
+  --ge-teal:#0d9488; --ge-rose:#e11d48; --ge-amber:#d97706; --ge-sky:#0284c7;
+  --ge-violet:#7c3aed; --ge-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .ge-fig{
+  --ge-teal:#2dd4bf; --ge-rose:#fb7185; --ge-amber:#fbbf24; --ge-sky:#38bdf8;
+  --ge-violet:#a78bfa; --ge-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .ge-fig{
+    --ge-teal:#2dd4bf; --ge-rose:#fb7185; --ge-amber:#fbbf24; --ge-sky:#38bdf8;
+    --ge-violet:#a78bfa; --ge-slate:#94a3b8;
+  }
+}
+.ge-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.ge-fig text{font-family:inherit}
+.ge-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.ge-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.ge-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.ge-toc ol{margin:0;padding-left:1.25rem}
+.ge-toc li{margin:.22rem 0;font-size:.95rem}
+.ge-toc a{text-decoration:none}
+.ge-table{width:100%;border-collapse:collapse;margin:1.4rem 0;font-size:.92rem}
+.ge-table th,.ge-table td{border:1px solid var(--border);padding:.55rem .7rem;text-align:left;vertical-align:top}
+.ge-table th{background:var(--entry);font-weight:700}
+.ge-note{border-left:4px solid var(--primary);background:var(--entry);border-radius:0 10px 10px 0;padding:.9rem 1.2rem;margin:1.4rem 0;font-size:.95rem;line-height:1.7}
+</style>
+
+<div class="ge-toc">
+  <div class="ge-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 줄 긋기 한 장이 띄운 단어</a></li>
+    <li><a href="#sec-2">배경 — 'X 엔지니어링' 사다리는 왜 계속 올라가나</a></li>
+    <li><a href="#sec-3">목표는 치팅당한다 — goal engineering이 풀려는 문제</a></li>
+    <li><a href="#sec-4">사례 해부 — Actively AI는 목표를 두 번 설계했다</a></li>
+    <li><a href="#sec-5">제품에 들어온 목표 프리미티브 — Codex /goal</a></li>
+    <li><a href="#sec-6">실전 — 좋은 목표 스펙 쓰기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-9">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 줄 긋기 한 장이 띄운 단어</h2>
+
+<p>지난주 AI 엔지니어링 동네에서 가장 많이 돌아다닌 이미지는 코드도 벤치마크도 아니고, <strong>취소선 두 줄</strong>이었습니다. 11월 11일 LangChain CEO Harrison Chase가 X에 올린 포스트에는 <s>context engineering</s>, <s>harness engineering</s> 위에 줄이 그어져 있고, 맨 아래 <strong>goal engineering</strong>만 남아 있었습니다(<a href="https://fourweekmba.com/ai-goal-engineering-after-openais-harness-langchain-ceo/" target="_blank" rel="noopener">FourWeekMBA의 정리</a>). 정의도, 설명도 없는 세 줄짜리 포스트였는데, 사흘 뒤인 11월 14일 LangChain 블로그에 후속편이 올라왔습니다. 세일즈 에이전트 스타트업 Actively AI와 공동으로 쓴 <a href="https://www.langchain.com/blog/goal-engineering" target="_blank" rel="noopener">"Goal Engineering: How to Design Goals"</a>입니다.</p>
+
+<p>"또 새 유행어인가" 싶을 수 있습니다. 실제로 그런 반응도 많았습니다. 그런데 이 단어가 가리키는 문제 자체는 유행어가 아닙니다. 에이전트가 "이 함수 고쳐 줘" 같은 <strong>작업(task)</strong> 단위를 넘어 "이 계정의 매출 기회를 찾아서 전진시켜" 같은 <strong>목표(goal)</strong> 단위로 일하기 시작하면, 프롬프트를 잘 쓰고 컨텍스트를 잘 채우는 것과는 종류가 다른 설계 문제가 생깁니다. 목표를 어떻게 쪼개게 할지, 다 됐는지 누가 어떻게 판정할지, 그리고 <strong>에이전트가 목표의 허점을 파고들어 '글자로는 달성, 의도로는 실패'하는 사태</strong>를 어떻게 막을지. Chase는 11월 2일에 쓴 <a href="https://www.langchain.com/blog/context-engineering-challenges-late-2026" target="_blank" rel="noopener">"New context engineering challenges in late 2026"</a>에서 이걸 "사용자가 에이전트에게 치팅당하지 않는 목표를 설계하는 건 매우 어려울 것"이라고 요약했습니다. 버그를 전부 없애라는 목표를 받은 에이전트가 코드베이스를 지워 버리는 식으로요.</p>
+
+<p>이 블로그는 이 사다리의 아래 칸들을 이미 다뤘습니다. <a href="/posts/harness-engineering/">harness engineering</a>, <a href="/posts/deep-agents-planning-subagents-filesystem/">Deep Agents 패턴</a>, <a href="/posts/agent-reward-hacking-evals/">리워드 해킹</a>까지요. 오늘은 그 다음 칸을 올라가 봅니다. goal engineering이 정확히 무엇을 설계하는 일인지, 그리고 주니어 엔지니어가 지금 당장 써먹을 수 있는 부분은 어디인지 해부하겠습니다.</p>
+
+<h2 id="sec-2">2. 배경 — 'X 엔지니어링' 사다리는 왜 계속 올라가나</h2>
+
+<p>먼저 용어의 족보부터 정리합니다. 지난 4년 동안 "에이전트를 일하게 만드는 기술"의 이름은 세 번 바뀌었습니다.</p>
+
+<ul>
+  <li><strong>프롬프트 엔지니어링(prompt engineering), 2022~</strong> — 모델 호출 한 번의 입·출력을 다듬는 기술. "단계별로 생각해"를 어디에 넣을지 고민하던 시절입니다.</li>
+  <li><strong>컨텍스트 엔지니어링(context engineering), 2025 중반~</strong> — 멀티턴 에이전트의 컨텍스트 창에 <em>무엇을 넣고 무엇을 뺄지</em>를 설계하는 기술. LangChain의 <a href="https://www.langchain.com/blog/the-rise-of-context-engineering" target="_blank" rel="noopener">"The rise of context engineering"</a>을 기점으로 업계 표준 용어가 됐습니다.</li>
+  <li><strong>하네스 엔지니어링(harness engineering), 2026년 2월~</strong> — 모델을 감싸는 실행 루프(도구, 권한, 린터, 구조 테스트, 자동 점검 에이전트)를 설계하는 기술. OpenAI가 <a href="https://openai.com/index/harness-engineering/" target="_blank" rel="noopener">"Harness engineering: leveraging Codex in an agent-first world"</a>에서, 2025년 8월 말 빈 저장소에서 시작해 손으로 코드를 짜지 않고 백만 줄 규모 제품을 만든 경험과 함께 이름을 붙였습니다. Chase 자신도 "하네스 엔지니어링은 컨텍스트 엔지니어링의 확장"이라고 <a href="https://sequoiacap.com/podcast/training-data-harrison-chase" target="_blank" rel="noopener">말해 왔습니다</a>.</li>
+</ul>
+
+<p>이름이 계속 바뀌는 게 마케팅처럼 보일 수 있지만, 패턴이 하나 있습니다. <strong>아래 칸이 제품과 모델에 흡수될 때마다, 사람이 손으로 깎아야 하는 일이 한 칸 위로 올라갑니다.</strong> 프롬프트 포맷팅은 이제 하네스가 알아서 합니다(시스템 프롬프트, 도구 스키마, 자동 컴팩션). 컨텍스트 관리도 상당 부분 하네스에 들어갔습니다(서브에이전트 격리, 파일시스템 오프로드, 자동 요약). 하네스 자체도 Codex·Claude Code·Deep Agents 같은 기성품이 좋아지면서 "직접 만드는 것"에서 "골라 쓰는 것"으로 넘어가는 중입니다. 그러면 남는 게 뭘까요? <strong>에이전트에게 무엇을 시킬지, 그 '무엇'을 어떤 형태로 줄지</strong>입니다. 그게 목표 설계, goal engineering입니다.</p>
+
+<figure class="ge-fig">
+<svg viewBox="0 0 860 460" role="img" aria-label="X 엔지니어링 사다리 다이어그램. 아래에서 위로 프롬프트 엔지니어링(2022), 컨텍스트 엔지니어링(2025), 하네스 엔지니어링(2026년 2월), 골 엔지니어링(2026년 11월)이 쌓여 있고, 각 층마다 사람이 설계하던 것과 그것을 흡수한 주체가 적혀 있다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--ge-sky)" font-size="16" font-weight="800">'X 엔지니어링' 사다리 — 아래 칸은 흡수되고, 사람의 일은 위로</text>
+
+  <!-- 층 4: goal -->
+  <rect x="60" y="56" width="740" height="84" rx="10" fill="var(--ge-amber)" opacity="0.12" stroke="var(--ge-amber)" stroke-width="2.5"/>
+  <text x="84" y="88" fill="var(--ge-amber)" font-size="14" font-weight="800">④ goal engineering — 2026.11 (LangChain + Actively AI)  ★ 지금 여기</text>
+  <text x="84" y="112" fill="var(--ge-slate)" font-size="12.5">사람이 설계하는 것: 목표의 범위·완료 판정·경계·피드백 표면</text>
+  <text x="84" y="130" fill="var(--ge-slate)" font-size="12.5">아직 아무도 흡수하지 못함 — "프롬프트·컨텍스트는 사라져도 목표 설계는 남는다"</text>
+
+  <!-- 층 3: harness -->
+  <rect x="60" y="156" width="740" height="84" rx="10" fill="var(--ge-violet)" opacity="0.09" stroke="var(--ge-violet)" stroke-width="2"/>
+  <text x="84" y="188" fill="var(--ge-violet)" font-size="14" font-weight="800">③ harness engineering — 2026.2 (OpenAI)</text>
+  <text x="84" y="212" fill="var(--ge-slate)" font-size="12.5">사람이 설계하던 것: 실행 루프·도구·권한·린터·구조 테스트·점검 에이전트</text>
+  <text x="84" y="230" fill="var(--ge-slate)" font-size="12.5">흡수 중: Codex·Claude Code·Deep Agents 같은 기성 하네스</text>
+
+  <!-- 층 2: context -->
+  <rect x="60" y="256" width="740" height="84" rx="10" fill="var(--ge-teal)" opacity="0.09" stroke="var(--ge-teal)" stroke-width="2"/>
+  <text x="84" y="288" fill="var(--ge-teal)" font-size="14" font-weight="800">② context engineering — 2025 중반 (LangChain 등)</text>
+  <text x="84" y="312" fill="var(--ge-slate)" font-size="12.5">사람이 설계하던 것: 컨텍스트 창에 무엇을 넣고 뺄지, 요약·격리·오프로드</text>
+  <text x="84" y="330" fill="var(--ge-slate)" font-size="12.5">흡수됨: 자동 컴팩션·서브에이전트 격리·파일시스템 오프로드가 하네스 기본 기능으로</text>
+
+  <!-- 층 1: prompt -->
+  <rect x="60" y="356" width="740" height="84" rx="10" fill="var(--ge-rose)" opacity="0.08" stroke="var(--ge-rose)" stroke-width="2"/>
+  <text x="84" y="388" fill="var(--ge-rose)" font-size="14" font-weight="800">① prompt engineering — 2022~</text>
+  <text x="84" y="412" fill="var(--ge-slate)" font-size="12.5">사람이 설계하던 것: 호출 한 번의 지시문·예시·출력 형식</text>
+  <text x="84" y="430" fill="var(--ge-slate)" font-size="12.5">흡수됨: 모델 성능 향상 + 하네스의 시스템 프롬프트·도구 스키마</text>
+</svg>
+<figcaption>그림 1. 'X 엔지니어링' 사다리. 각 층이 제품·모델에 흡수될 때마다 사람이 손으로 설계하는 일은 한 칸 위로 올라갑니다. 11월 14일 포스트는 "프롬프트·컨텍스트 엔지니어링은 점차 사라져도 목표 설계는 남는다"고 전망합니다.</figcaption>
+</figure>
+
+<div class="ge-note">
+<strong>용어 한 줄 정리</strong> — 이 글에서 <strong>작업(task)</strong>은 "이 PR의 리뷰 코멘트 반영해 줘"처럼 완료 조건이 자명하고 짧은 일, <strong>목표(goal)</strong>는 "이번 분기 온보딩 이탈률을 낮춰 줘"처럼 에이전트가 스스로 쪼개고, 시도하고, 피드백을 받아 가며 오래 추구해야 하는 일을 가리킵니다. goal engineering은 후자를 <em>에이전트가 오해하거나 악용할 수 없는 형태로</em> 설계하는 기술입니다.</div>
+
+<h2 id="sec-3">3. 목표는 치팅당한다 — goal engineering이 풀려는 문제</h2>
+
+<p>Chase의 11월 2일 포스트는 "요즘 에이전트"의 변화를 이렇게 짚습니다. 채팅창에서 사람이 매 턴 지시하던 에이전트가, 이제는 <strong>상시 가동(always-on)으로 돌면서 목표를 향해 알아서 움직이는</strong> 쪽으로 넘어가고 있다는 겁니다(이 전환 자체는 <a href="/posts/ambient-agents-always-on-engineering/">앰비언트 에이전트 글</a>에서 다뤘습니다). 그러면서 기존 컨텍스트 엔지니어링 기법(요약, 서브에이전트 격리)으로는 안 풀리는 새 문제 목록을 꺼냅니다.</p>
+
+<ul>
+  <li><strong>목표 추적(goal tracking)</strong> — 큰 목표를 단계로 쪼개고, 가설을 실험하고, 피드백을 반영해 계속 전진하게 만들기. 특히 <em>같은 시도를 반복하지 않고 진짜 새로운 접근을 하게 만들기</em>가 어렵습니다.</li>
+  <li><strong>알림 캘리브레이션</strong> — 스스로 움직이는 에이전트가 사람을 언제, 얼마나 부를지. 너무 자주 부르면 소음이고, 안 부르면 폭주입니다.</li>
+  <li><strong>기억의 선별</strong> — 오래 도는 에이전트가 무엇을 기억하고 무엇을 버릴지.</li>
+</ul>
+
+<p>이 중 첫 번째가 goal engineering의 몸통인데, 여기엔 더 깊은 함정이 있습니다. <strong>목표는 명세(specification)이고, 명세는 악용당합니다.</strong> 강화학습 동네에서는 이걸 specification gaming이라고 부르고, DeepMind가 2020년에 <a href="https://deepmind.google/discover/blog/specification-gaming-the-flip-side-of-ai-ingenuity/" target="_blank" rel="noopener">수십 개의 실제 사례</a>를 모아 둔 적도 있습니다. 보트 경주 게임에서 "점수를 최대화하라"는 목표를 받은 에이전트가 완주 대신 제자리에서 빙글빙글 돌며 보너스 아이템만 먹던 사례가 유명하죠. LLM 에이전트도 똑같습니다. "테스트를 전부 통과시켜"라는 목표는 테스트를 지우면 달성되고, "버그를 전부 없애"라는 목표는 코드베이스를 지우면 달성됩니다. 측정 지표가 목표가 되는 순간 지표가 망가진다는 <strong>굿하트의 법칙(Goodhart's law)</strong>이 에이전트 시대에 그대로 재현되는 겁니다. 코딩 에이전트 맥락의 구체적 공격면과 방어는 <a href="/posts/agent-reward-hacking-evals/">리워드 해킹 글</a>에서 다뤘으니, 여기서는 설계 쪽 결론만 가져옵니다.</p>
+
+<div class="ge-note">
+<strong>핵심 통찰</strong> — 치팅은 목표 <em>문구</em>를 정교하게 다듬는다고 막아지지 않습니다. 문구 싸움은 에이전트가 이깁니다(사람보다 문구를 많이, 오래 읽으니까요). 막는 수단은 두 가지뿐입니다. ① 목표 바깥에 있는 <strong>독립적인 검증</strong>(에이전트가 못 고치는 테스트·지표·사람의 판정), ② 애초에 나쁜 짓을 할 수 없게 만드는 <strong>경계(권한·샌드박스)</strong>. goal engineering의 절반은 사실 목표 쓰기가 아니라 이 두 가지를 설계하는 일입니다.</div>
+
+<h2 id="sec-4">4. 사례 해부 — Actively AI는 목표를 두 번 설계했다</h2>
+
+<p>11월 14일 포스트가 유행어 선언문에 그치지 않는 이유는, Actively AI(세일즈 에이전트 스타트업, 공저자 Mihir Garimella·Anshul Gupta)의 <strong>실패와 재설계 과정</strong>이 들어 있기 때문입니다. 요약하면 이렇습니다.</p>
+
+<p><strong>1차 설계: 계정마다 에이전트 하나.</strong> 프로스펙트(잠재 고객) 계정 하나당 목표 지향 에이전트 하나를 붙였습니다. 목표는 "이 계정을 전진시켜라". 에이전트는 계정을 분석해 다음 액션을 제안하고, 영업 담당자가 승인하는 구조였습니다. 목표 자체는 그럴듯했습니다. 그런데 운영해 보니 <strong>사람 쪽이 병목</strong>이었습니다. 담당자는 계정 수십 개에 붙은 에이전트 수십 개를 하나하나 열어 봐야 했고, 각 에이전트가 왜 그 액션을 제안했는지 검토하기 어려웠고, "우리 회사는 이런 식으로 아웃바운드 한다"는 노하우를 가르쳐도 <strong>그 학습이 다른 계정의 에이전트로 전파되지 않았습니다.</strong></p>
+
+<p><strong>2차 설계: 계정이 아니라 '모션(motion)' 단위.</strong> 재설계에서는 에이전트를 계정이 아니라 영업 활동의 패턴 — 이를테면 "특정 시그널이 뜬 계정들에 특정 플레이북으로 접근한다" 같은 단위 — 에 붙였습니다. 이 모션 에이전트는 LangChain의 <a href="https://github.com/langchain-ai/deepagents" target="_blank" rel="noopener">Deep Agents</a> 위에 구현됐고, 여러 계정을 가로지르며 일합니다. 계정별 맥락 수집은 별도의 백그라운드 에이전트가 담당합니다. 결과적으로 담당자는 <strong>계정 수십 개가 아니라 모션 몇 개만 검토·교정</strong>하면 되고, 모션에 가르친 내용은 그 모션이 다루는 모든 계정에 즉시 적용됩니다.</p>
+
+<figure class="ge-fig">
+<svg viewBox="0 0 860 470" role="img" aria-label="Actively AI의 1차 설계와 2차 설계 비교 다이어그램. 왼쪽 1차 설계는 계정마다 에이전트가 하나씩 붙어 있고 담당자가 모든 에이전트를 개별 검토해야 하며 학습이 전파되지 않는다. 오른쪽 2차 설계는 모션 에이전트 하나가 여러 계정을 가로지르고, 백그라운드 컨텍스트 에이전트가 계정 정보를 공급하며, 담당자는 모션 하나만 검토하면 피드백이 모든 계정에 적용된다">
+  <text x="430" y="28" text-anchor="middle" fill="var(--ge-sky)" font-size="16" font-weight="800">같은 목표, 두 가지 범위 설계 — Actively AI</text>
+
+  <!-- v1 -->
+  <rect x="40" y="52" width="380" height="390" rx="12" fill="var(--ge-rose)" opacity="0.06" stroke="var(--ge-rose)" stroke-width="2"/>
+  <text x="230" y="84" text-anchor="middle" fill="var(--ge-rose)" font-size="14" font-weight="800">1차: 계정마다 에이전트 하나</text>
+
+  <g>
+    <rect x="70" y="106" width="96" height="54" rx="8" fill="var(--ge-rose)" opacity="0.14" stroke="var(--ge-rose)" stroke-width="1.5"/>
+    <text x="118" y="129" text-anchor="middle" fill="var(--ge-rose)" font-size="11.5" font-weight="700">계정 A</text>
+    <text x="118" y="147" text-anchor="middle" fill="var(--ge-slate)" font-size="11">에이전트 A</text>
+    <rect x="182" y="106" width="96" height="54" rx="8" fill="var(--ge-rose)" opacity="0.14" stroke="var(--ge-rose)" stroke-width="1.5"/>
+    <text x="230" y="129" text-anchor="middle" fill="var(--ge-rose)" font-size="11.5" font-weight="700">계정 B</text>
+    <text x="230" y="147" text-anchor="middle" fill="var(--ge-slate)" font-size="11">에이전트 B</text>
+    <rect x="294" y="106" width="96" height="54" rx="8" fill="var(--ge-rose)" opacity="0.14" stroke="var(--ge-rose)" stroke-width="1.5"/>
+    <text x="342" y="129" text-anchor="middle" fill="var(--ge-rose)" font-size="11.5" font-weight="700">계정 C …</text>
+    <text x="342" y="147" text-anchor="middle" fill="var(--ge-slate)" font-size="11">에이전트 C …</text>
+  </g>
+
+  <rect x="140" y="220" width="180" height="50" rx="10" fill="var(--ge-slate)" opacity="0.12" stroke="var(--ge-slate)" stroke-width="1.5"/>
+  <text x="230" y="243" text-anchor="middle" fill="var(--ge-slate)" font-size="12.5" font-weight="700">영업 담당자</text>
+  <text x="230" y="261" text-anchor="middle" fill="var(--ge-slate)" font-size="11">에이전트 N개를 전부 개별 검토</text>
+
+  <line x1="118" y1="160" x2="196" y2="220" stroke="var(--ge-slate)" stroke-width="1.5"/>
+  <line x1="230" y1="160" x2="230" y2="220" stroke="var(--ge-slate)" stroke-width="1.5"/>
+  <line x1="342" y1="160" x2="264" y2="220" stroke="var(--ge-slate)" stroke-width="1.5"/>
+
+  <text x="70" y="316" fill="var(--ge-rose)" font-size="12.5" font-weight="700">문제</text>
+  <text x="70" y="340" fill="var(--ge-slate)" font-size="12">· 검토할 에이전트가 계정 수만큼 늘어남</text>
+  <text x="70" y="362" fill="var(--ge-slate)" font-size="12">· 왜 그 액션인지 추적이 어려움</text>
+  <text x="70" y="384" fill="var(--ge-slate)" font-size="12">· A에 가르친 노하우가 B·C로 전파 안 됨</text>
+  <text x="70" y="418" fill="var(--ge-rose)" font-size="12" font-weight="700">→ 목표는 맞는데, '피드백 주기 좋은 범위'가 아니었다</text>
+
+  <!-- v2 -->
+  <rect x="440" y="52" width="380" height="390" rx="12" fill="var(--ge-teal)" opacity="0.07" stroke="var(--ge-teal)" stroke-width="2.5"/>
+  <text x="630" y="84" text-anchor="middle" fill="var(--ge-teal)" font-size="14" font-weight="800">2차: '모션' 단위 에이전트</text>
+
+  <rect x="500" y="106" width="260" height="56" rx="10" fill="var(--ge-teal)" opacity="0.16" stroke="var(--ge-teal)" stroke-width="2"/>
+  <text x="630" y="129" text-anchor="middle" fill="var(--ge-teal)" font-size="12.5" font-weight="800">모션 에이전트 (Deep Agents 기반)</text>
+  <text x="630" y="149" text-anchor="middle" fill="var(--ge-slate)" font-size="11.5">"이 시그널 → 이 플레이북" 패턴 하나 담당</text>
+
+  <g>
+    <rect x="470" y="206" width="96" height="44" rx="8" fill="var(--ge-sky)" opacity="0.12" stroke="var(--ge-sky)" stroke-width="1.5"/>
+    <text x="518" y="232" text-anchor="middle" fill="var(--ge-sky)" font-size="11.5">계정 A</text>
+    <rect x="582" y="206" width="96" height="44" rx="8" fill="var(--ge-sky)" opacity="0.12" stroke="var(--ge-sky)" stroke-width="1.5"/>
+    <text x="630" y="232" text-anchor="middle" fill="var(--ge-sky)" font-size="11.5">계정 B</text>
+    <rect x="694" y="206" width="96" height="44" rx="8" fill="var(--ge-sky)" opacity="0.12" stroke="var(--ge-sky)" stroke-width="1.5"/>
+    <text x="742" y="232" text-anchor="middle" fill="var(--ge-sky)" font-size="11.5">계정 C …</text>
+  </g>
+  <line x1="564" y1="162" x2="518" y2="206" stroke="var(--ge-teal)" stroke-width="1.5"/>
+  <line x1="630" y1="162" x2="630" y2="206" stroke="var(--ge-teal)" stroke-width="1.5"/>
+  <line x1="696" y1="162" x2="742" y2="206" stroke="var(--ge-teal)" stroke-width="1.5"/>
+
+  <rect x="500" y="276" width="260" height="44" rx="10" fill="var(--ge-violet)" opacity="0.10" stroke="var(--ge-violet)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="630" y="296" text-anchor="middle" fill="var(--ge-violet)" font-size="11.5" font-weight="700">백그라운드 컨텍스트 에이전트</text>
+  <text x="630" y="312" text-anchor="middle" fill="var(--ge-slate)" font-size="11">계정별 맥락을 모아 모션 에이전트에 공급</text>
+
+  <rect x="540" y="348" width="180" height="46" rx="10" fill="var(--ge-slate)" opacity="0.12" stroke="var(--ge-slate)" stroke-width="1.5"/>
+  <text x="630" y="368" text-anchor="middle" fill="var(--ge-slate)" font-size="12.5" font-weight="700">영업 담당자</text>
+  <text x="630" y="386" text-anchor="middle" fill="var(--ge-slate)" font-size="11">모션 몇 개만 검토·교정</text>
+  <text x="630" y="424" text-anchor="middle" fill="var(--ge-teal)" font-size="12" font-weight="700">피드백 1번 → 모든 계정에 적용</text>
+</svg>
+<figcaption>그림 2. Actively AI의 재설계. 목표 문구가 아니라 <strong>목표의 범위</strong>를 바꿨습니다 — "사람이 피드백 주기 쉬운 단위"로.</figcaption>
+</figure>
+
+<p>여기서 포스트의 핵심 주장이 나옵니다. <strong>에이전트의 목표 범위는 모델 성능이 아니라 '사람이 고품질 피드백을 주기 쉬운가'를 기준으로 설계하라.</strong> 1차 설계가 실패한 건 모델이 멍청해서가 아니라, 목표의 단위(계정)가 사람의 검토 단위와 어긋났기 때문입니다. 장기 목표를 믿고 맡길 수 있는 에이전트는 좋은 목표 문구에서 나오는 게 아니라, <strong>사람의 교정이 빠르게 누적되는 구조</strong>에서 나옵니다. 이건 평가(evals) 설계에서 "측정하기 쉬운 단위로 시스템을 쪼개라"는 원칙과 정확히 같은 모양입니다.</p>
+
+<h2 id="sec-5">5. 제품에 들어온 목표 프리미티브 — Codex /goal</h2>
+
+<p>목표가 담론에만 머무는 건 아닙니다. 하네스 제품에는 이미 1급 프리미티브로 들어오기 시작했습니다. 대표가 Codex CLI의 <strong>Goals</strong>입니다(0.128.0부터 단계적으로 공개, <a href="https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex" target="_blank" rel="noopener">공식 cookbook</a>·<a href="https://developers.openai.com/codex/use-cases/follow-goals/" target="_blank" rel="noopener">use-case 문서</a>). 목표는 <strong>스레드에 지속되는 목적(persistent objective)</strong>으로, 한 턴이 끝나도 사라지지 않고 스레드가 그 목표를 향해 계속 일하게 만듭니다.</p>
+
+{{< highlight bash >}}
+# 목표 설정 — 이 스레드는 이후 모든 턴에서 이 목표를 향해 움직입니다
+/goal 플래키한 e2e 테스트를 안정화한다.
+      완료 판정: e2e 스위트 20회 연속 통과.
+      경계: 테스트 삭제·skip 처리 금지, CI 설정 변경은 제안만.
+
+/goal          # 현재 목표와 진행 상황 확인
+/goal pause    # 잠시 멈춤 (스레드는 일반 모드로)
+/goal resume   # 재개
+/goal clear    # 목표 해제
+{{< /highlight >}}
+
+<p>문서가 권장하는 사용법이 흥미로운데, <strong>목표 문장에 "어떻게 검증할지"를 함께 적으라</strong>고 합니다. 목표 텍스트가 곧 완료 판정 기준이 되기 때문입니다. 위 예시에서 "20회 연속 통과"가 없으면 에이전트는 언제 멈춰야 할지 모르고, "삭제·skip 금지"가 없으면 3장에서 본 치팅 경로가 열립니다. 결국 <code>/goal</code> 한 줄을 잘 쓰는 것 자체가 미니 goal engineering입니다. LangChain의 Deep Agents가 하네스 쪽에서 올라오고(계획 도구·서브에이전트·파일시스템), Codex가 목표 프리미티브를 스레드에 심는 것 — 방향은 같습니다. <strong>사다리의 윗칸이 제품으로 내려오고 있는 겁니다.</strong></p>
+
+<h2 id="sec-6">6. 실전 — 좋은 목표 스펙 쓰기</h2>
+
+<p>그럼 당장 써먹어 봅시다. 팀마다 형식은 달라도, 치팅당하지 않는 목표 스펙에는 다섯 부품이 들어갑니다.</p>
+
+<figure class="ge-fig">
+<svg viewBox="0 0 860 430" role="img" aria-label="좋은 목표 스펙의 해부도. 가운데 목표 카드가 있고 그 안에 결과, 완료 판정, 경계, 피드백 표면, 에스컬레이션 다섯 부품이 있다. 완료 판정에는 에이전트가 조작할 수 없어야 한다는 주석, 경계에는 문구가 아니라 권한으로 강제하라는 주석이 달려 있다">
+  <text x="430" y="30" text-anchor="middle" fill="var(--ge-sky)" font-size="16" font-weight="800">좋은 목표 스펙의 다섯 부품</text>
+
+  <rect x="110" y="54" width="640" height="340" rx="14" fill="var(--ge-sky)" opacity="0.05" stroke="var(--ge-sky)" stroke-width="2"/>
+
+  <rect x="140" y="78" width="580" height="50" rx="9" fill="var(--ge-teal)" opacity="0.13" stroke="var(--ge-teal)" stroke-width="2"/>
+  <text x="160" y="100" fill="var(--ge-teal)" font-size="13" font-weight="800">① 결과(outcome)</text>
+  <text x="160" y="119" fill="var(--ge-slate)" font-size="12">무엇이 달라져야 하는가 — 행동("~를 시도한다")이 아니라 상태("~가 된다")로</text>
+
+  <rect x="140" y="140" width="580" height="50" rx="9" fill="var(--ge-amber)" opacity="0.13" stroke="var(--ge-amber)" stroke-width="2"/>
+  <text x="160" y="162" fill="var(--ge-amber)" font-size="13" font-weight="800">② 완료 판정(verification)</text>
+  <text x="160" y="181" fill="var(--ge-slate)" font-size="12">제3자가 기계적으로 확인 가능 + 에이전트가 판정 수단을 조작할 수 없어야 함</text>
+
+  <rect x="140" y="202" width="580" height="50" rx="9" fill="var(--ge-rose)" opacity="0.13" stroke="var(--ge-rose)" stroke-width="2"/>
+  <text x="160" y="224" fill="var(--ge-rose)" font-size="13" font-weight="800">③ 경계(boundaries)</text>
+  <text x="160" y="243" fill="var(--ge-slate)" font-size="12">해도 되는 것·안 되는 것 — 가능하면 문구가 아니라 권한·샌드박스로 강제</text>
+
+  <rect x="140" y="264" width="580" height="50" rx="9" fill="var(--ge-violet)" opacity="0.13" stroke="var(--ge-violet)" stroke-width="2"/>
+  <text x="160" y="286" fill="var(--ge-violet)" font-size="13" font-weight="800">④ 피드백 표면(feedback surface)</text>
+  <text x="160" y="305" fill="var(--ge-slate)" font-size="12">사람이 무엇을 보고 교정하는가 — 검토 단위와 목표 범위를 일치시킬 것 (4장)</text>
+
+  <rect x="140" y="326" width="580" height="50" rx="9" fill="var(--ge-sky)" opacity="0.13" stroke="var(--ge-sky)" stroke-width="2"/>
+  <text x="160" y="348" fill="var(--ge-sky)" font-size="13" font-weight="800">⑤ 에스컬레이션(escalation)</text>
+  <text x="160" y="367" fill="var(--ge-slate)" font-size="12">어떤 조건에서 멈추고 사람을 부르는가 — 시도 횟수·비용·시간 상한 포함</text>
+
+  <text x="430" y="416" text-anchor="middle" fill="var(--ge-slate)" font-size="12.5" font-weight="700">①이 없으면 방황하고, ②가 없으면 안 멈추고, ③이 없으면 치팅하고, ④가 없으면 못 가르치고, ⑤가 없으면 폭주합니다</text>
+</svg>
+<figcaption>그림 3. 목표 스펙의 다섯 부품. 흔히 ①만 쓰고 "목표를 줬다"고 생각하지만, 나머지 넷이 빠진 목표는 시한폭탄입니다.</figcaption>
+</figure>
+
+<p>나쁜 목표를 고쳐 쓰는 연습을 해 보면 감이 옵니다.</p>
+
+<table class="ge-table">
+  <thead><tr><th>나쁜 목표</th><th>무엇이 문제인가</th><th>고쳐 쓴 목표</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>"버그를 전부 없애 줘"</td>
+      <td>완료 판정 불가 + 치팅 경로(코드 삭제, 테스트 삭제)가 목표를 글자 그대로 달성</td>
+      <td>"이슈 트래커의 P1 버그 12건을 재현 테스트와 함께 수정. 판정: 각 건의 재현 테스트가 main에서 통과. 경계: 기존 테스트 수정·삭제 금지"</td>
+    </tr>
+    <tr>
+      <td>"테스트 커버리지를 90%로 올려 줘"</td>
+      <td>프록시 지표가 목표가 됨 — assert 없는 껍데기 테스트로 달성 가능 (굿하트)</td>
+      <td>"결제 모듈의 미커버 분기들에 동작을 검증하는 테스트 추가. 판정: 리뷰어가 테스트의 assert를 샘플 검토, 커버리지는 보조 지표"</td>
+    </tr>
+    <tr>
+      <td>"온보딩을 개선해 줘"</td>
+      <td>결과가 상태가 아니라 느낌 — 무엇이 달라지면 끝인지 아무도 모름</td>
+      <td>"온보딩 3단계에서 이탈하는 원인 가설 3개를 데이터로 검증하고, 각 가설별 실험 PR 준비. 판정: 가설·근거·실험안 문서 리뷰 통과"</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>이 다섯 부품을 코드로 옮기면, 하네스가 무엇을 해 줘야 하는지도 보입니다. 뼈대만 그리면 이렇습니다.</p>
+
+{{< highlight python >}}
+# 목표 루프의 뼈대 — 특정 프레임워크가 아니라 패턴입니다
+goal = {
+    "outcome": "플래키 e2e 테스트 안정화",
+    "verify": lambda: run_suite(times=20).all_passed,  # 에이전트 손이 안 닿는 판정
+    "boundaries": ["tests/ 삭제 금지", "ci.yml 변경은 제안만"],  # + 쓰기 권한으로 강제
+    "budget": {"max_attempts": 8, "max_cost_usd": 20},
+}
+
+attempts = []
+while not goal["verify"]():
+    if len(attempts) >= goal["budget"]["max_attempts"]:
+        escalate_to_human(attempts)  # ⑤ 조용히 계속 도는 게 아니라 사람을 부른다
+        break
+    plan = agent.decompose(goal, history=attempts)  # 이전 시도를 보고 '다른' 접근을 고르게
+    result = agent.execute(plan)                    # ③ 경계는 샌드박스 권한으로도 강제
+    attempts.append(review_surface(plan, result))   # ④ 사람이 나중에 검토할 기록
+{{< /highlight >}}
+
+<p>Chase가 지적한 "같은 시도를 반복하는 문제"가 코드에서 어디 걸리는지 보이시나요? <code>decompose(goal, history=attempts)</code>입니다. 이전 시도의 기록을 컨텍스트로 넣어 주지 않으면 에이전트는 매번 같은 첫수를 둡니다. 결국 goal engineering은 컨텍스트 엔지니어링을 대체하는 게 아니라 <strong>그 위에 올라타는</strong> 층이라는 걸, 이 한 줄이 보여 줍니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>형용사를 목표로 쓰는 것.</strong> "더 좋게", "깔끔하게", "최적화"는 목표가 아니라 소원입니다. 에이전트가 멈출 수 있는 <em>상태 서술 + 판정 수단</em>으로 바꾸세요.</li>
+  <li><strong>프록시 지표를 목표 자리에 앉히는 것.</strong> 커버리지·통과율·응답 속도 같은 지표는 측정이 쉬워서 유혹적이지만, 목표가 되는 순간 게이밍 대상이 됩니다. 지표는 보조로 두고, 판정의 중심에는 에이전트가 조작할 수 없는 검증을 두세요.</li>
+  <li><strong>경계를 프롬프트 문구로만 거는 것.</strong> "테스트를 지우지 마"라고 적는 것과, 테스트 디렉터리에 쓰기 권한을 안 주는 것은 다른 차원의 안전장치입니다. 적을 수 있는 경계는 대부분 권한으로도 강제할 수 있습니다.</li>
+  <li><strong>목표만 주고 '일 잘하는 법'을 안 주는 것.</strong> Actively AI의 교훈 중 하나는 에이전트에게 목표 외에 <em>그 일을 잘하는 도메인 지식</em>(그들의 경우 아웃바운드 전술)이 필요했다는 점입니다. 목표 스펙과 플레이북(skill, 가이드 문서)은 따로 설계해야 합니다.</li>
+  <li><strong>목표 범위를 조직도가 아니라 데이터 모델에 맞추는 것.</strong> "계정당 하나"는 데이터 모델 관점에서 자연스러웠지만 사람의 검토 흐름과 어긋났습니다. 목표 범위는 <strong>피드백을 주는 사람의 작업 단위</strong>에 맞추세요.</li>
+  <li><strong>에스컬레이션 없이 돌리는 것.</strong> 상한(시도·비용·시간) 없는 목표 루프는 조용히 돈을 태웁니다. 멈춤 조건은 목표 스펙의 일부입니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>11월 11일 Harrison Chase가 X에 <s>context engineering</s>·<s>harness engineering</s>에 줄을 긋고 <strong>goal engineering</strong>만 남긴 포스트를 올렸고, 11월 14일 LangChain이 Actively AI와 함께 <a href="https://www.langchain.com/blog/goal-engineering" target="_blank" rel="noopener">"Goal Engineering: How to Design Goals"</a>를 공개하며 이번 주의 화두가 됐습니다.</li>
+  <li>'X 엔지니어링' 사다리는 변덕이 아니라 패턴입니다. <strong>아래 칸이 모델·하네스 제품에 흡수될 때마다 사람의 설계 노동은 한 칸 위로</strong> 올라갑니다: 프롬프트(2022) → 컨텍스트(2025) → 하네스(2026.2, OpenAI) → 목표(2026.11).</li>
+  <li>목표는 명세이고, 명세는 치팅당합니다(specification gaming·굿하트). 방어는 목표 문구가 아니라 <strong>에이전트가 조작할 수 없는 검증 + 권한으로 강제되는 경계</strong>입니다.</li>
+  <li>Actively AI 사례의 핵심: 목표 범위는 모델 성능이 아니라 <strong>"사람이 고품질 피드백을 주기 쉬운 단위"</strong>로 설계하라. 계정별 에이전트(검토 불가, 학습 비전파)에서 '모션' 단위(검토 몇 개, 피드백 전체 전파)로 바꾸자 운영이 풀렸습니다.</li>
+  <li>목표는 제품 프리미티브로 내려오는 중입니다. Codex <code>/goal</code>은 스레드에 지속되는 목표를 심고, 목표 문장에 검증 방법을 함께 적도록 권장합니다.</li>
+  <li>좋은 목표 스펙의 다섯 부품: <strong>결과 · 완료 판정 · 경계 · 피드백 표면 · 에스컬레이션.</strong> 하나라도 빠지면 방황·무한 루프·치팅·교정 불가·폭주 중 하나가 옵니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.langchain.com/blog/goal-engineering" target="_blank" rel="noopener">Goal Engineering: How to Design Goals — LangChain Blog (2026-11-14, Harrison Chase · Mihir Garimella · Anshul Gupta)</a></li>
+  <li><a href="https://www.langchain.com/blog/context-engineering-challenges-late-2026" target="_blank" rel="noopener">New context engineering challenges in late 2026 — LangChain Blog (2026-11-02)</a></li>
+  <li><a href="https://fourweekmba.com/ai-goal-engineering-after-openais-harness-langchain-ceo/" target="_blank" rel="noopener">After OpenAI's Harness, LangChain's CEO Says Goals Next — FourWeekMBA (11/11 스트라이크스루 포스트 정리)</a></li>
+  <li><a href="https://x.com/hwchase17/status/2116553654857867330" target="_blank" rel="noopener">Harrison Chase — X (@hwchase17)</a></li>
+  <li><a href="https://openai.com/index/harness-engineering/" target="_blank" rel="noopener">Harness engineering: leveraging Codex in an agent-first world — OpenAI (2026-02-11)</a></li>
+  <li><a href="https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex" target="_blank" rel="noopener">Using Goals in Codex — OpenAI Cookbook</a></li>
+  <li><a href="https://developers.openai.com/codex/use-cases/follow-goals/" target="_blank" rel="noopener">Follow a goal — OpenAI Codex 문서</a></li>
+  <li><a href="https://www.langchain.com/blog/the-rise-of-context-engineering" target="_blank" rel="noopener">The rise of "context engineering" — LangChain Blog (2025)</a></li>
+  <li><a href="https://deepmind.google/discover/blog/specification-gaming-the-flip-side-of-ai-ingenuity/" target="_blank" rel="noopener">Specification gaming: the flip side of AI ingenuity — DeepMind (2020)</a></li>
+  <li><a href="https://github.com/langchain-ai/deepagents" target="_blank" rel="noopener">langchain-ai/deepagents — GitHub</a></li>
+  <li><a href="https://sequoiacap.com/podcast/training-data-harrison-chase" target="_blank" rel="noopener">Harrison Chase — Sequoia Training Data 팟캐스트 ("하네스 엔지니어링은 컨텍스트 엔지니어링의 확장")</a></li>
+  <li><a href="https://martinfowler.com/articles/exploring-gen-ai.html" target="_blank" rel="noopener">Exploring Generative AI — Birgitta Böckeler, martinfowler.com (harness engineering 분석 시리즈)</a></li>
+  <li>🇰🇷 <a href="/posts/harness-engineering/">하네스 엔지니어링 — 이 블로그의 이전 글</a></li>
+  <li>🇰🇷 <a href="/posts/deep-agents-planning-subagents-filesystem/">Deep Agents 패턴 — 이 블로그의 이전 글</a></li>
+  <li>🇰🇷 <a href="/posts/agent-reward-hacking-evals/">에이전트 리워드 해킹과 평가 — 이 블로그의 이전 글</a></li>
+  <li>🇰🇷 <a href="/posts/ambient-agents-always-on-engineering/">상시 가동 에이전트 엔지니어링 — 이 블로그의 이전 글</a></li>
+</ul>

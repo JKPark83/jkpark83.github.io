@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="커버 그림. 화이트보드에 prompt engineering, context engineering, harness engineering이 차례로 줄이 그어져 있고 맨 아래 goal engineering만 형광펜으로 강조되어 있다. 오른쪽에는 목표를 받아 든 에이전트가 분해, 실행, 검증, 피드백 루프를 도는 모습이 그려져 있다">
+  <defs>
+    <linearGradient id="gebg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#gebg)"/>
+
+  <text x="600" y="78" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="38" font-weight="800">프롬프트, 컨텍스트, 하네스에 차례로 줄을 긋다</text>
+  <text x="600" y="122" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="22">에이전트에게 '목표'를 설계해 주는 일 — goal engineering</text>
+
+  <!-- 왼쪽: 화이트보드 -->
+  <rect x="80" y="170" width="480" height="380" rx="18" fill="#f1f5f9" opacity="0.06" stroke="#64748b" stroke-width="2.5"/>
+  <text x="320" y="214" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="20" font-weight="700">"에이전트를 일하게 만드는 기술"</text>
+
+  <text x="130" y="272" fill="#94a3b8" font-family="sans-serif" font-size="26" font-weight="700" opacity="0.75">prompt engineering</text>
+  <line x1="122" y1="263" x2="400" y2="263" stroke="#fb7185" stroke-width="5" stroke-linecap="round"/>
+  <text x="430" y="272" fill="#64748b" font-family="sans-serif" font-size="16">2022~</text>
+
+  <text x="130" y="332" fill="#94a3b8" font-family="sans-serif" font-size="26" font-weight="700" opacity="0.75">context engineering</text>
+  <line x1="122" y1="323" x2="412" y2="323" stroke="#fb7185" stroke-width="5" stroke-linecap="round"/>
+  <text x="442" y="332" fill="#64748b" font-family="sans-serif" font-size="16">2025~</text>
+
+  <text x="130" y="392" fill="#94a3b8" font-family="sans-serif" font-size="26" font-weight="700" opacity="0.75">harness engineering</text>
+  <line x1="122" y1="383" x2="414" y2="383" stroke="#fb7185" stroke-width="5" stroke-linecap="round"/>
+  <text x="444" y="392" fill="#64748b" font-family="sans-serif" font-size="16">2026.2~</text>
+
+  <rect x="112" y="430" width="340" height="56" rx="10" fill="#fbbf24" opacity="0.2"/>
+  <text x="130" y="468" fill="#fbbf24" font-family="sans-serif" font-size="28" font-weight="800">goal engineering</text>
+  <text x="470" y="468" fill="#fbbf24" font-family="sans-serif" font-size="16" font-weight="700">2026.11</text>
+  <text x="130" y="522" fill="#94a3b8" font-family="sans-serif" font-size="16">아래 층은 제품이 흡수하고, 사람의 일은 한 칸 위로</text>
+
+  <!-- 오른쪽: 목표 루프 -->
+  <rect x="620" y="170" width="500" height="380" rx="18" fill="#0d9488" opacity="0.08" stroke="#2dd4bf" stroke-width="2.5"/>
+  <rect x="680" y="200" width="380" height="58" rx="12" fill="#2dd4bf" opacity="0.16" stroke="#2dd4bf" stroke-width="2"/>
+  <text x="870" y="237" text-anchor="middle" fill="#2dd4bf" font-family="sans-serif" font-size="21" font-weight="800">목표: 검증 가능한 결과 + 경계</text>
+
+  <circle cx="770" cy="340" r="46" fill="#38bdf8" opacity="0.15" stroke="#38bdf8" stroke-width="2"/>
+  <text x="770" y="347" text-anchor="middle" fill="#38bdf8" font-family="sans-serif" font-size="18" font-weight="700">분해</text>
+  <circle cx="970" cy="340" r="46" fill="#a78bfa" opacity="0.15" stroke="#a78bfa" stroke-width="2"/>
+  <text x="970" y="347" text-anchor="middle" fill="#a78bfa" font-family="sans-serif" font-size="18" font-weight="700">실행</text>
+  <circle cx="970" cy="470" r="46" fill="#fbbf24" opacity="0.15" stroke="#fbbf24" stroke-width="2"/>
+  <text x="970" y="477" text-anchor="middle" fill="#fbbf24" font-family="sans-serif" font-size="18" font-weight="700">검증</text>
+  <circle cx="770" cy="470" r="46" fill="#fb7185" opacity="0.15" stroke="#fb7185" stroke-width="2"/>
+  <text x="770" y="464" text-anchor="middle" fill="#fb7185" font-family="sans-serif" font-size="18" font-weight="700">사람</text>
+  <text x="770" y="486" text-anchor="middle" fill="#fb7185" font-family="sans-serif" font-size="15">피드백</text>
+
+  <line x1="816" y1="340" x2="924" y2="340" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#gearr)"/>
+  <line x1="970" y1="386" x2="970" y2="424" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#gearr)"/>
+  <line x1="924" y1="470" x2="816" y2="470" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#gearr)"/>
+  <line x1="770" y1="424" x2="770" y2="386" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#gearr)"/>
+  <defs>
+    <marker id="gearr" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <line x1="870" y1="258" x2="870" y2="292" stroke="#2dd4bf" stroke-width="2.5" stroke-dasharray="6 5"/>
+</svg>

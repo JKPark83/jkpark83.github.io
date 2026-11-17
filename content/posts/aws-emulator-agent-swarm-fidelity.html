@@ -1,0 +1,311 @@
+---
+title: "사람은 코드를 한 줄도 안 읽었다 — 에이전트 스웜이 만든 AWS Emulator, 그리고 '정합성 테스트' 엔지니어링"
+date: 2026-11-18T07:30:00+09:00
+draft: false
+tags: ["AI", "에이전트", "멀티 에이전트", "agent swarm", "AWS Emulator", "fidelity test", "merge gate", "검증", "로컬 테스트", "AI 엔지니어링"]
+categories: ["AI 엔지니어링"]
+summary: "11월 11일 AWS가 로컬 AWS 에뮬레이터 'AWS Emulator'를 공개했습니다. 3주 동안 커밋 29,684개, 서비스 크레이트 437개 — 전부 에이전트가 썼고, 사람은 코드를 한 줄도 리뷰하지 않았습니다. 대신 사람은 스펙(Smithy 모델)과 정합성 테스트(fidelity test), 머지 게이트를 설계했습니다. Werner Vogels 블로그의 Swami Sivasubramanian 기고가 Hacker News를 달군 이유는 에뮬레이터 자체보다 이 역할 분담 때문입니다. 리포지토리를 직접 클론해 세 에이전트 팀의 구조, 마크다운 파일로 굴러가는 이슈 트래킹(미해결 6,019건 / 해결 16,248건), '진짜 AWS에 먼저 검증된 테스트만 정답으로 인정하는' 검증 설계를 해부하고, 내 프로젝트에 같은 패턴을 적용하는 법까지 정리합니다."
+ShowToc: false
+cover:
+  image: "aws-emulator-agent-swarm-fidelity-cover.svg"
+  alt: "커버 그림. 왼쪽에는 에이전트 스웜이 AWS Emulator의 서비스 크레이트들을 블록처럼 쌓아 올리고 있고, 오른쪽에는 사람 엔지니어가 스펙, 정합성 테스트, 머지 게이트라는 세 개의 관문을 설계하고 있다"
+  caption: "코드는 에이전트가 쓴다 — 엔지니어의 일은 '무엇이 정답인지'를 설계하는 쪽으로 옮겨 갑니다"
+  relative: false
+---
+
+<style>
+/* ── AWS Emulator 포스트 전용 스타일 (ae- 접두사) ── */
+.ae-fig{
+  --ae-teal:#0d9488; --ae-rose:#e11d48; --ae-amber:#d97706; --ae-sky:#0284c7;
+  --ae-violet:#7c3aed; --ae-slate:#64748b;
+  margin:2rem 0;
+}
+html[data-theme="dark"] .ae-fig{
+  --ae-teal:#2dd4bf; --ae-rose:#fb7185; --ae-amber:#fbbf24; --ae-sky:#38bdf8;
+  --ae-violet:#a78bfa; --ae-slate:#94a3b8;
+}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme]) .ae-fig{
+    --ae-teal:#2dd4bf; --ae-rose:#fb7185; --ae-amber:#fbbf24; --ae-sky:#38bdf8;
+    --ae-violet:#a78bfa; --ae-slate:#94a3b8;
+  }
+}
+.ae-fig svg{width:100%;height:auto;display:block;margin:0 auto}
+.ae-fig text{font-family:inherit}
+.ae-fig figcaption{text-align:center;font-size:.86rem;opacity:.62;margin-top:.7rem;line-height:1.5}
+.ae-toc{border:1px solid var(--border);border-radius:12px;padding:1rem 1.4rem;margin:1.6rem 0 2.2rem;background:var(--entry)}
+.ae-toc-title{font-weight:700;font-size:.95rem;margin-bottom:.55rem;opacity:.92}
+.ae-toc ol{margin:0;padding-left:1.25rem}
+.ae-toc li{margin:.22rem 0;font-size:.95rem}
+.ae-toc a{text-decoration:none}
+.ae-table{width:100%;border-collapse:collapse;margin:1.4rem 0;font-size:.92rem}
+.ae-table th,.ae-table td{border:1px solid var(--border);padding:.55rem .7rem;text-align:left;vertical-align:top}
+.ae-table th{background:var(--entry);font-weight:700}
+.ae-note{border-left:4px solid var(--primary);background:var(--entry);border-radius:0 10px 10px 0;padding:.9rem 1.2rem;margin:1.4rem 0;font-size:.95rem;line-height:1.7}
+</style>
+
+<div class="ae-toc">
+  <div class="ae-toc-title">목차</div>
+  <ol>
+    <li><a href="#sec-1">도입 — 커밋 29,684개, 사람이 쓴 코드 0줄</a></li>
+    <li><a href="#sec-2">배경 — AWS Emulator는 무엇이고 누구를 위한 물건인가</a></li>
+    <li><a href="#sec-3">"AI는 결과를 검증할 방법이 없었다" — Alf 이야기</a></li>
+    <li><a href="#sec-4">세 에이전트 팀과 정합성 테스트 — 스웜은 이렇게 돌았다</a></li>
+    <li><a href="#sec-5">리포지토리 해부 — 437개 크레이트와 마크다운 이슈 트래커</a></li>
+    <li><a href="#sec-6">실전 — 직접 써 보고, 내 프로젝트에 패턴 옮기기</a></li>
+    <li><a href="#sec-7">흔한 실수 · 팁</a></li>
+    <li><a href="#sec-8">마무리 (TL;DR)</a></li>
+    <li><a href="#sec-9">참고 자료</a></li>
+  </ol>
+</div>
+
+<h2 id="sec-1">1. 도입 — 커밋 29,684개, 사람이 쓴 코드 0줄</h2>
+
+<p>11월 11일, AWS가 <a href="https://github.com/aws/aws-emulator" target="_blank" rel="noopener">AWS Emulator</a>를 공개했습니다. 내 컴퓨터에서 AWS API를 통째로 흉내 내는 로컬 에뮬레이터입니다. 계정도, 요금도 필요 없습니다. 그런데 이번 주 <a href="https://news.ycombinator.com/item?id=50456631" target="_blank" rel="noopener">Hacker News</a>와 실무자 블로그를 달군 건 에뮬레이터 기능이 아니라 <strong>만든 방법</strong>이었습니다. Simon Willison의 <a href="https://simonwillison.net/2026/Nov/11/aws-emulator/" target="_blank" rel="noopener">집계</a>에 따르면 첫 3주 동안 커밋이 29,684개 쌓였는데, 이걸 전부 <strong>자율 에이전트 스웜(agent swarm)</strong>이 썼습니다. AWS의 <a href="https://www.aboutamazon.com/news/aws/how-autonomous-ai-agents-built-aws-emulator" target="_blank" rel="noopener">공식 발표</a> 표현을 빌리면 "100% 자율 AI 에이전트가 만든" 프로젝트이고, 보도에 따르면 사람은 그 코드를 <strong>한 줄도 리뷰하지 않았습니다</strong>.</p>
+
+<p>"에이전트가 코드 다 썼대"는 2026년에 더 이상 뉴스가 아닙니다. 뉴스인 부분은 그 다음 문장입니다. Amazon의 Agentic AI 총괄 Swami Sivasubramanian이 Werner Vogels의 블로그 All Things Distributed에 올린 <a href="https://www.allthingsdistributed.com/2026/11/aws-emulator-and-the-engineers-job-when-agents-write-the-code.html" target="_blank" rel="noopener">기고</a>의 핵심 주장은 이렇습니다. <strong>에이전트가 코드를 쓰는 시대에 엔지니어의 일은 스펙과 테스트와 머지 게이트(merge gate), 즉 "무엇이 정답인지 판정하는 장치"를 설계하는 것이다.</strong> 이 글은 그 주장을 구호가 아니라 구조로 뜯어봅니다. 운 좋게도 AWS Emulator는 리포지토리가 통째로 공개돼 있어서(라이선스가 CC0, 사실상 퍼블릭 도메인입니다), 직접 클론해서 스웜이 일한 흔적을 들여다볼 수 있습니다. 주니어 입장에서 가장 값진 건 "나도 내 프로젝트에서 따라 할 수 있는 패턴"이고, 이 글의 목적지도 거기입니다.</p>
+
+<h2 id="sec-2">2. 배경 — AWS Emulator는 무엇이고 누구를 위한 물건인가</h2>
+
+<p>먼저 물건 자체를 이해하고 갑시다. AWS Emulator는 로컬에서 AWS API 엔드포인트를 서빙하는 Rust 프로그램입니다. 실행하면 <code>127.0.0.1:9297</code>에 HTTPS 엔드포인트가 열리고, AWS CLI나 SDK가 바라보는 엔드포인트를 환경 변수로 여기에 돌려 두면 코드는 평소처럼 돌아갑니다. 요청이 AWS가 아니라 에뮬레이터로 가고, S3 버킷·SQS 큐·DynamoDB 테이블 같은 리소스는 전부 에뮬레이터 안의 인메모리 상태로 만들어집니다. 제가 클론한 시점(11월 18일) 기준 서비스 크레이트가 437개였고, 테스트·CI 용도로만 쓰라고 명시돼 있습니다. 프로덕션이나 보안 검증용이 아닙니다.</p>
+
+<p>이 분야에 물건이 없던 게 아닙니다. <a href="https://www.infoq.com/news/2026/11/aws-emulator-agents/" target="_blank" rel="noopener">InfoQ</a>가 짚었듯 LocalStack과 moto가 오랫동안 이 자리를 지켰습니다. 다만 올해 LocalStack이 무료 버전에 계정 등록을 요구하고 비상업 용도로 제한하면서, AWS가 직접 만든 CC0 에뮬레이터는 타이밍이 절묘했습니다. 그런데 더 중요한 차이는 <strong>타깃 사용자</strong>입니다. Sivasubramanian이 X에 쓴 소개 문장은 "코딩 에이전트에게 테스트할 로컬 AWS 사본을 준다"입니다. 사람 개발자만큼이나 <strong>에이전트를 위한</strong> 물건이라는 뜻입니다. 코딩 에이전트가 클라우드 코드를 만지는 작업에서 가장 아쉬운 게 "고치고 → 돌려 보고 → 결과 보고 다시 고치는" 빠른 피드백 루프인데, 진짜 AWS를 상대로 이 루프를 돌리면 느리고, 비용이 나가고, 실수하면 실제 리소스가 터집니다. 로컬 에뮬레이터는 에이전트에게 안전한 연습장을 줍니다. 요컨대 AWS Emulator는 <strong>에이전트가 만들었고, 에이전트가 쓰라고 만든</strong> 물건입니다. 이 이중 구조가 이번 주 토론의 재료였습니다.</p>
+
+<h2 id="sec-3">3. "AI는 결과를 검증할 방법이 없었다" — Alf 이야기</h2>
+
+<p>기고문의 출발점은 20년 전 이야기입니다. Sivasubramanian은 신입 시절 동료와 함께 Alf라는 초기 분산 락 서비스를 손으로 만들었습니다. 이번에 그 경험을 재연해 보려고 코딩 에이전트 Kiro에게 비슷한 시스템을 시켰더니, 기본적인 SQS 복제품은 15분 만에 나왔습니다. 그런데 Alf의 복제 엔진(replication engine) 재구축은 달랐습니다. <a href="https://www.geekwire.com/2026/aws-gives-developers-a-free-local-stand-in-for-its-cloud-built-from-scratch-by-ai-agents/" target="_blank" rel="noopener">GeekWire</a>와 <a href="https://siliconangle.com/2026/11/11/amazons-open-source-aws-emulator-lets-developers-validate-their-code-locally-without-the-cloud/" target="_blank" rel="noopener">SiliconANGLE</a>이 전한 바로는, 그는 나흘 밤을 에이전트 옆에 붙어 앉아 감독해야 했습니다. 그러다 문제의 본질을 알아차립니다. <strong>"AI는 자기 결과를 검증할 방법이 없었다."</strong> 에이전트가 멍청해서 밤샘이 필요했던 게 아니라, 맞았는지 틀렸는지 판정해 줄 장치가 없어서 사람이 그 판정기 노릇을 하고 있었던 겁니다. 스펙과 테스트 환경을 만들어 쥐여 주자, 같은 재구축이 <strong>약 2시간</strong> 만에 끝났습니다.</p>
+
+<div class="ae-note">
+<strong>이 일화가 왜 중요한가.</strong> "에이전트 생산성"의 병목이 모델 성능이 아니라 <strong>검증 루프</strong>라는 걸 구체적 숫자(나흘 밤 → 2시간)로 보여 주기 때문입니다. 에이전트는 추측-실행-확인 루프를 사람보다 압도적으로 빨리 돌 수 있지만, '확인' 단계를 기계가 못 하면 루프 전체가 사람 속도로 떨어집니다. 이전 글에서 다룬 평가(evals)·검증기 설계와 정확히 같은 결론이, 이번엔 20년 차 분산 시스템 베테랑의 입에서 나온 셈입니다.
+</div>
+
+<p>AWS Emulator는 이 깨달음을 극한까지 밀어붙인 실험입니다. "사람이 판정기를 잘 만들면, 코드 작성은 통째로 에이전트에게 맡겨도 되는가?" 437개 서비스 규모로 해 본 답이 이 리포지토리입니다.</p>
+
+<h2 id="sec-4">4. 세 에이전트 팀과 정합성 테스트 — 스웜은 이렇게 돌았다</h2>
+
+<p>AWS 발표에 따르면 스웜은 역할이 다른 <strong>세 팀</strong>으로 조직됐습니다. 사람 조직의 QA팀·개발팀 구분을 에이전트로 옮긴 모양새입니다.</p>
+
+<figure class="ae-fig">
+<svg viewBox="0 0 880 560" role="img" aria-label="세 에이전트 팀의 루프 다이어그램. 테스트 팀이 시나리오를 작성해 진짜 AWS에 검증하면 정합성 테스트가 되고, 발견 팀이 이 테스트를 에뮬레이터에 재생해 불일치를 이슈로 남기면, 수정 팀이 이슈당 에이전트 하나씩 붙어 고친다. 수정은 머지 게이트를 통과해야 리포지토리에 들어간다">
+  <text x="440" y="34" text-anchor="middle" fill="var(--ae-sky)" font-size="17" font-weight="800">AWS Emulator를 만든 세 에이전트 팀</text>
+
+  <!-- 팀 1: 테스트 -->
+  <rect x="40" y="70" width="800" height="110" rx="12" fill="var(--ae-teal)" opacity="0.07" stroke="var(--ae-teal)" stroke-width="2"/>
+  <text x="64" y="100" fill="var(--ae-teal)" font-size="14" font-weight="800">팀 ① 정합성 테스트 팀</text>
+  <text x="64" y="124" fill="var(--ae-slate)" font-size="12.5">"큐 만들고 → 메시지 보내고 → 큐 지우기" 같은 실사용 시나리오를 테스트로 작성</text>
+  <rect x="560" y="88" width="250" height="70" rx="10" fill="var(--ae-amber)" opacity="0.14" stroke="var(--ae-amber)" stroke-width="2"/>
+  <text x="685" y="114" text-anchor="middle" fill="var(--ae-amber)" font-size="13" font-weight="800">진짜 AWS에 먼저 실행</text>
+  <text x="685" y="138" text-anchor="middle" fill="var(--ae-slate)" font-size="11.5">통과한 테스트만 '정답 기록'으로 인정</text>
+
+  <line x1="440" y1="180" x2="440" y2="218" stroke="var(--ae-slate)" stroke-width="2"/>
+  <polygon points="440,218 433,206 447,206" fill="var(--ae-slate)"/>
+
+  <!-- 팀 2: 발견 -->
+  <rect x="40" y="222" width="800" height="100" rx="12" fill="var(--ae-sky)" opacity="0.07" stroke="var(--ae-sky)" stroke-width="2"/>
+  <text x="64" y="252" fill="var(--ae-sky)" font-size="14" font-weight="800">팀 ② 불일치 발견 팀</text>
+  <text x="64" y="276" fill="var(--ae-slate)" font-size="12.5">같은 테스트를 에뮬레이터에 재생(replay) → 진짜 AWS와 응답이 다르면</text>
+  <text x="64" y="298" fill="var(--ae-slate)" font-size="12.5">issues/ 디렉터리에 마크다운 이슈 파일로 기록 (심각도·증거 포함)</text>
+
+  <line x1="440" y1="322" x2="440" y2="360" stroke="var(--ae-slate)" stroke-width="2"/>
+  <polygon points="440,360 433,348 447,348" fill="var(--ae-slate)"/>
+
+  <!-- 팀 3: 수정 -->
+  <rect x="40" y="364" width="800" height="100" rx="12" fill="var(--ae-violet)" opacity="0.07" stroke="var(--ae-violet)" stroke-width="2"/>
+  <text x="64" y="394" fill="var(--ae-violet)" font-size="14" font-weight="800">팀 ③ 수정 팀</text>
+  <text x="64" y="418" fill="var(--ae-slate)" font-size="12.5">이슈 하나당 에이전트 하나가 붙어 해당 서비스 크레이트를 수정</text>
+  <text x="64" y="440" fill="var(--ae-slate)" font-size="12.5">고쳐진 이슈 파일은 things-that-now-work/ 로 이동</text>
+
+  <!-- 머지 게이트 -->
+  <line x1="440" y1="464" x2="440" y2="492" stroke="var(--ae-rose)" stroke-width="2"/>
+  <polygon points="440,492 433,480 447,480" fill="var(--ae-rose)"/>
+  <rect x="220" y="496" width="440" height="52" rx="10" fill="var(--ae-rose)" opacity="0.12" stroke="var(--ae-rose)" stroke-width="2.5"/>
+  <text x="440" y="518" text-anchor="middle" fill="var(--ae-rose)" font-size="13.5" font-weight="800">머지 게이트 — 다른 에이전트들이 코딩 표준·보안 검사</text>
+  <text x="440" y="538" text-anchor="middle" fill="var(--ae-slate)" font-size="11.5">사람 리뷰 대신, 게이트를 통과한 커밋만 리포지토리에 들어감</text>
+
+  <!-- 순환 화살표 -->
+  <path d="M 846 272 Q 872 272 872 180 Q 872 120 846 120" fill="none" stroke="var(--ae-slate)" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <text x="868" y="205" fill="var(--ae-slate)" font-size="10.5" transform="rotate(90 868 205)">루프 반복</text>
+</svg>
+<figcaption>그림 1. 세 에이전트 팀의 분업. 핵심은 ①의 테스트가 <strong>진짜 AWS에 먼저 검증된 뒤에만</strong> 정답(oracle)으로 인정된다는 점입니다 — 에이전트가 자기 채점표를 스스로 만들지 못하게 하는 장치입니다.</figcaption>
+</figure>
+
+<p>이 구조에서 눈여겨볼 건 두 가지입니다. 첫째, <strong>정합성 테스트(fidelity test)의 지위</strong>입니다. 보통 테스트는 "코드가 의도대로 동작하는가"를 묻지만, 여기서 테스트는 <strong>진짜 AWS가 어떻게 동작하는지를 기록한 문서</strong>입니다. 테스트 팀의 에이전트는 시나리오를 쓰고 진짜 AWS에 대고 실행해서, 통과할 때까지 테스트 쪽을 고칩니다. 그 결과물이 "AWS의 실제 동작 기록"이 되고, 에뮬레이터는 이 기록을 통과할 때까지 만들어집니다. 에이전트가 쓴 코드를 에이전트가 쓴 테스트로 검증하면 순환 논리 아니냐는 의심이 자연스러운데, 순환을 끊는 고리가 바로 "테스트는 먼저 진짜 AWS를 통과해야 한다"는 규칙입니다. 정답의 근거가 모델 바깥의 현실에 있는 겁니다.</p>
+
+<p>둘째, <strong>사람 리뷰를 머지 게이트가 대체</strong>했다는 점입니다. GeekWire에 따르면 모든 변경은 다른 에이전트들이 코딩 표준과 보안을 검사하는 자동 게이트를 통과해야 들어갑니다. 커밋 29,684개를 사람이 리뷰하는 건 애초에 불가능하니, 리뷰라는 행위 자체를 "게이트 설계"라는 설계 노동으로 바꾼 겁니다. Sivasubramanian의 문장이 이 지점을 요약합니다. <strong>"소프트웨어의 품질은 엔지니어가 AI 주변에 설계한 가드레일이 결정한다."</strong></p>
+
+<h2 id="sec-5">5. 리포지토리 해부 — 437개 크레이트와 마크다운 이슈 트래커</h2>
+
+<p>여기서부터는 제가 직접 클론해서 확인한 내용입니다(<code>git clone https://github.com/aws/aws-emulator</code>, 11월 18일 기준). 구조가 교과서처럼 깔끔합니다.</p>
+
+{{< highlight text >}}
+aws-emulator/
+├── Cargo.toml            # 워크스페이스: 서비스당 크레이트 하나 + 코어
+├── AGENTS.md             # 사람·에이전트 공용 작업 가이드
+├── services/
+│   └── service-<name>/   # 서비스 하나 = 크레이트 하나 (437개)
+│       ├── smithy-model/ # <name>.json — 와이어 프로토콜을 결정하는 Smithy 모델
+│       ├── build.rs      # 모델에서 서비스 선언을 코드 생성
+│       ├── src/
+│       │   ├── service.rs  # 요청 라우팅
+│       │   ├── state.rs    # 이 서비스의 인메모리 상태
+│       │   └── ops/        # 오퍼레이션당 파일 하나
+│       └── tests/
+├── core/router/          # 에뮬레이터 바이너리: 모든 서비스를 한 엔드포인트에
+├── vendor/               # 프레임워크 크레이트 — 에이전트 수정 금지
+└── issues/               # 정합성 이슈 트래킹 (마크다운 파일!)
+    ├── things-that-do-not-work/   # 아직 안 되는 것: 6,019건
+    └── things-that-now-work/      # 고쳐진 것: 16,248건
+{{< /highlight >}}
+
+<p>구조 하나하나가 "에이전트가 일하기 좋게" 설계돼 있습니다. 서비스당 크레이트를 쪼갠 건 한 서비스를 고치면 그 크레이트만 재컴파일되게 하려는 겁니다 — 수백 에이전트가 병렬로 일할 때 빌드 충돌과 대기 시간을 줄이는 선택입니다. <code>vendor/</code>의 공용 프레임워크는 에이전트가 수정할 수 없게 못 박아 뒀습니다. 수천 에이전트가 각자 편하자고 공용 코드를 건드리면 지옥이 열리니까요. 그리고 API의 모양은 사람이 쓴 게 아니라 <strong>Smithy 모델</strong>(AWS가 실제 SDK를 생성할 때 쓰는 기계 가독 스펙)이 결정합니다. 요청·응답 타입은 모델에서 코드 생성되고, 에이전트는 비즈니스 로직만 채웁니다. "스펙을 기계가 읽는 형식으로 고정한다"가 말이 아니라 빌드 시스템으로 구현돼 있는 겁니다.</p>
+
+<p>제일 재미있는 건 <code>issues/</code> 디렉터리입니다. 이 프로젝트의 이슈 트래커는 GitHub Issues가 아니라 <strong>리포지토리 안의 마크다운 파일</strong>입니다. 불일치 발견 팀이 이슈를 파일로 커밋하고, 수정 팀이 고치면 파일이 <code>things-that-now-work/</code>로 옮겨집니다. 제 클론 기준 미해결 6,019건, 해결 16,248건 — 즉 지금까지 발견된 불일치의 약 73%가 해소됐고, 전체 작업 로그가 git 히스토리에 그대로 남습니다. 이슈 파일 하나를 열어 보면 형식이 이렇습니다.</p>
+
+{{< highlight markdown >}}
+Issue-Severity: HIGH
+Issue-Gap-Class: wrong
+
+# `@timestampFormat`이 멤버 스키마에서 누락되어 모든 date-time이
+# epoch 초로 렌더링됨
+
+_Filed: 2026-10-21T22:30:00Z_
+
+## Description
+(어떤 동작이 진짜 AWS와 다른지 — 코드 경로까지 특정)
+
+## Evidence
+(grep 결과, 재현 커맨드, 실제 응답 비교 — 증거 없는 주장 금지)
+{{< /highlight >}}
+
+<p>심각도 헤더로 집계해 보면 미해결 이슈는 CRITICAL 130건, HIGH 4,479건, MEDIUM 1,295건, LOW 115건입니다. 파일명에 <code>human-</code> 접두사가 붙은 이슈도 간간이 보이는데, 사람이 발견해 끼어든 건은 따로 표시한다는 뜻입니다. 왜 GitHub Issues를 안 썼을까요? 에이전트 입장에서 이슈가 파일이면 <strong>체크아웃만으로 작업 큐 전체가 컨텍스트에 들어오고</strong>, 이슈 처리가 코드 수정과 같은 커밋·같은 머지 게이트를 타게 됩니다. 이슈 트래커를 API 호출 대상이 아니라 데이터로 만든 것 — 에이전트 친화적 설계의 좋은 예시입니다.</p>
+
+<figure class="ae-fig">
+<svg viewBox="0 0 880 400" role="img" aria-label="이슈 수명주기와 수치. 발견 팀이 이슈 파일을 만들면 things-that-do-not-work 디렉터리에 들어가고, 수정 팀이 고치면 things-that-now-work로 이동한다. 미해결 6,019건의 심각도 분포가 막대로 표시되어 있고, 해결된 이슈는 16,248건이다">
+  <text x="440" y="34" text-anchor="middle" fill="var(--ae-sky)" font-size="17" font-weight="800">마크다운 이슈 트래커의 수명주기 (2026-11-18 클론 기준)</text>
+
+  <rect x="60" y="70" width="330" height="200" rx="12" fill="var(--ae-rose)" opacity="0.06" stroke="var(--ae-rose)" stroke-width="2"/>
+  <text x="225" y="100" text-anchor="middle" fill="var(--ae-rose)" font-size="13.5" font-weight="800">things-that-do-not-work/</text>
+  <text x="225" y="126" text-anchor="middle" fill="var(--ae-rose)" font-size="22" font-weight="800">6,019건 미해결</text>
+
+  <!-- 심각도 막대 -->
+  <g font-size="11.5">
+    <text x="90" y="160" fill="var(--ae-slate)">CRITICAL</text>
+    <rect x="165" y="150" width="9" height="13" fill="var(--ae-rose)"/>
+    <text x="182" y="160" fill="var(--ae-slate)">130</text>
+    <text x="90" y="184" fill="var(--ae-slate)">HIGH</text>
+    <rect x="165" y="174" width="200" height="13" fill="var(--ae-rose)" opacity="0.8"/>
+    <text x="300" y="184" fill="#fff" font-weight="700">4,479</text>
+    <text x="90" y="208" fill="var(--ae-slate)">MEDIUM</text>
+    <rect x="165" y="198" width="58" height="13" fill="var(--ae-rose)" opacity="0.55"/>
+    <text x="231" y="208" fill="var(--ae-slate)">1,295</text>
+    <text x="90" y="232" fill="var(--ae-slate)">LOW</text>
+    <rect x="165" y="222" width="8" height="13" fill="var(--ae-rose)" opacity="0.4"/>
+    <text x="181" y="232" fill="var(--ae-slate)">115</text>
+  </g>
+  <text x="225" y="258" text-anchor="middle" fill="var(--ae-slate)" font-size="11">파일 헤더의 Issue-Severity 집계</text>
+
+  <!-- 화살표 -->
+  <line x1="390" y1="170" x2="488" y2="170" stroke="var(--ae-slate)" stroke-width="2.5"/>
+  <polygon points="488,170 474,162 474,178" fill="var(--ae-slate)"/>
+  <text x="439" y="156" text-anchor="middle" fill="var(--ae-violet)" font-size="11.5" font-weight="700">수정 팀이 고치면</text>
+  <text x="439" y="192" text-anchor="middle" fill="var(--ae-slate)" font-size="11">파일이 디렉터리를 이동</text>
+
+  <rect x="492" y="70" width="330" height="200" rx="12" fill="var(--ae-teal)" opacity="0.06" stroke="var(--ae-teal)" stroke-width="2"/>
+  <text x="657" y="100" text-anchor="middle" fill="var(--ae-teal)" font-size="13.5" font-weight="800">things-that-now-work/</text>
+  <text x="657" y="126" text-anchor="middle" fill="var(--ae-teal)" font-size="22" font-weight="800">16,248건 해결</text>
+  <text x="657" y="166" text-anchor="middle" fill="var(--ae-slate)" font-size="12">발견된 불일치의 약 73%가 해소됨</text>
+  <text x="657" y="192" text-anchor="middle" fill="var(--ae-slate)" font-size="12">모든 이력이 git 히스토리에 남음</text>
+  <text x="657" y="230" text-anchor="middle" fill="var(--ae-slate)" font-size="11.5">릴리스마다 서비스별 fidelity score 공개</text>
+
+  <rect x="60" y="300" width="762" height="66" rx="12" fill="var(--ae-amber)" opacity="0.08" stroke="var(--ae-amber)" stroke-width="2"/>
+  <text x="441" y="328" text-anchor="middle" fill="var(--ae-amber)" font-size="13" font-weight="800">왜 GitHub Issues가 아니라 파일인가?</text>
+  <text x="441" y="352" text-anchor="middle" fill="var(--ae-slate)" font-size="12">체크아웃 한 번으로 작업 큐 전체가 에이전트의 컨텍스트에 — 이슈 처리도 같은 커밋·같은 머지 게이트를 탑니다</text>
+</svg>
+<figcaption>그림 2. 이슈가 파일이면 작업 큐·증거·수정 이력이 전부 한 리포지토리 안에서 버전 관리됩니다. 에이전트 스웜의 작업 큐 설계로 기억해 둘 만한 패턴입니다.</figcaption>
+</figure>
+
+<h2 id="sec-6">6. 실전 — 직접 써 보고, 내 프로젝트에 패턴 옮기기</h2>
+
+<p>먼저 사용자로서 써 봅시다. 기본 흐름은 "에뮬레이터 띄우고 → SDK의 엔드포인트를 돌려 두기"가 전부입니다.</p>
+
+{{< highlight bash >}}
+# 1) 에뮬레이터 실행 (소스 빌드 기준 — 설치 방법은 공식 User Guide 참고)
+cargo run -p aws-emulator-router
+# → https://127.0.0.1:9297 에 AWS API 엔드포인트가 열림 (자가 서명 인증서)
+
+# 2) CLI/SDK를 에뮬레이터로 돌려 두기
+export AWS_ENDPOINT_URL=https://127.0.0.1:9297
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test  # 가짜 자격 증명
+
+# 3) 평소처럼 사용 — 요금 0원, 실제 리소스 0개
+aws sqs create-queue --queue-name my-queue
+aws s3 mb s3://my-test-bucket
+{{< /highlight >}}
+
+<p>테스트 코드에서는 <strong>임베디드 모드</strong>가 더 깔끔합니다. 에뮬레이터를 dev-dependency로 넣고 테스트 하나당 격리된 인스턴스를 프로세스 안에서 띄우는 방식이라, 포트·인증서·환경 변수 설정이 아예 없습니다. 코딩 에이전트와 함께 쓰려면 공식 skill(<code>aws agent-toolkit add-skill --skill-name aws-emulator</code>)을 설치하고 에이전트에게 설정을 맡기면 됩니다. 다만 소스 빌드는 <code>target/</code>에 디스크 100GB를 요구하니(437개 크레이트의 무게입니다), 대부분은 미리 빌드된 패키지나 Docker를 쓰는 게 맞습니다.</p>
+
+<p>이제 이 글의 진짜 목적지입니다. AWS처럼 스웜을 돌릴 일은 없어도, <strong>"에이전트에게 코드를 맡기기 전에 판정기를 먼저 만든다"</strong>는 패턴은 오늘 바로 적용할 수 있습니다. 핵심 재료는 세 개입니다.</p>
+
+{{< highlight python >}}
+# '정합성 테스트 루프'의 뼈대 — 레거시 모듈을 에이전트에게 재작성시키는 상황
+# 패턴의 핵심: 정답 기록(golden)은 에이전트 손이 닿지 않는 곳에서 먼저 만든다
+
+# [사람의 일 ①] 스펙: 입출력의 모양을 기계가 검사할 수 있게 고정
+#   (OpenAPI/JSON Schema/타입 정의 — AWS Emulator의 Smithy 모델에 해당)
+
+# [사람의 일 ②] 정답 기록: '현재 진짜 시스템'의 동작을 캡처
+golden = {}
+for case in scenario_cases:                 # 실사용 시나리오 (happy path + 에러 경로)
+    golden[case.id] = run_against_real(case)  # 기존 시스템에 실제로 실행해 기록
+save_readonly(golden)                       # 에이전트에게는 읽기 권한만 준다
+
+# [에이전트의 일] 기록을 통과할 때까지 새 구현을 수정
+while True:
+    diffs = [c for c in scenario_cases
+             if run_against_new(c) != golden[c.id]]   # 불일치 = 이슈
+    if not diffs:
+        break
+    agent.fix(pick_one(diffs))              # 이슈 하나당 수정 하나 — 작게 쪼갠다
+
+# [사람의 일 ③] 머지 게이트: 통과 기준을 CI로 강제
+#   예: "golden 전체 일치 + lint + 시크릿 스캔을 통과한 커밋만 머지"
+{{< /highlight >}}
+
+<p>사람이 만드는 건 세 가지뿐입니다. 스펙, 정답 기록, 게이트. 코드를 리뷰하는 대신 <strong>정답 기록이 충분히 현실을 덮는지</strong>를 리뷰합니다. AWS Emulator가 증명한 건 이 역할 분담이 437개 서비스 규모에서도 돌아간다는 사실이고, 여러분 프로젝트의 모듈 하나에서는 당연히 더 쉽게 돌아갑니다.</p>
+
+<h2 id="sec-7">7. 흔한 실수 · 팁</h2>
+
+<ul>
+  <li><strong>커밋 수를 품질로 읽는 것.</strong> 29,684커밋은 속도의 증거지 정확성의 증거가 아닙니다. HN 토론에서도 반복된 지적입니다. 이 프로젝트에서 정확성의 증거는 커밋 수가 아니라 릴리스마다 공개되는 서비스별 <strong>fidelity score</strong>와 <code>issues/</code>의 미해결 목록입니다. 에이전트 작업물을 평가할 때는 항상 "산출량 지표"와 "검증 지표"를 구분하세요.</li>
+  <li><strong>"테스트를 통과했다 = AWS와 같다"로 믿는 것.</strong> 에뮬레이터는 <strong>테스트된 시나리오 안에서만</strong> AWS와 일치합니다. 미해결 이슈가 6,019건이고, 구현 안 된 오퍼레이션은 HTTP 501을 돌려줍니다(조용히 성공하는 척하지 않고 시끄럽게 실패하는 건 좋은 설계입니다). 정합성은 컨트롤 플레인 API가 가장 높고, 데이터 플레인과 CloudFormation·Terraform·CDK 지원은 서비스마다 편차가 있다고 공식 문서가 밝힙니다.</li>
+  <li><strong>에뮬레이터로 보안·프로덕션을 검증하는 것.</strong> README가 명시적으로 금지합니다. IAM 정책이 실제로 어떻게 평가되는지 같은 건 반드시 진짜 AWS에서 확인하세요. 배포 전 마지막 검증까지 에뮬레이터로 끝내면 안 됩니다.</li>
+  <li><strong>텔레메트리 기본값을 모르고 쓰는 것.</strong> 사용 데이터 수집이 기본 켜짐입니다. 회사 정책상 문제가 되면 <code>EMULATOR_TELEMETRY=off</code> 또는 <code>--telemetry off</code>로 끄세요. 요청·응답 내용이나 코드는 수집하지 않는다고 문서화돼 있습니다.</li>
+  <li><strong>자기 패턴에 적용할 때 정답 기록을 에이전트에게 맡기는 것.</strong> AWS Emulator 구조의 요체는 테스트가 <strong>먼저 진짜 시스템을 통과해야</strong> 정답으로 인정된다는 규칙입니다. 에이전트가 정답 기록을 수정할 수 있으면 "테스트를 통과하도록 테스트를 고치는" 치팅 경로가 열립니다. 정답 기록은 읽기 전용으로, 갱신은 별도 경로로.</li>
+  <li><strong>기여하려고 PR을 보내는 것.</strong> The New Stack에 따르면 AWS는 이 리포지토리에 외부 pull request를 받지 않습니다. 유지보수도 에이전트 스웜의 몫이기 때문입니다. 버그를 찾았다면 이슈 제보 경로를 쓰고, 코드가 필요하면 CC0이니 그냥 포크하면 됩니다.</li>
+</ul>
+
+<h2 id="sec-8">8. 마무리 (TL;DR)</h2>
+
+<ul>
+  <li>11월 11일 AWS가 로컬 AWS 에뮬레이터 <strong>AWS Emulator</strong>를 공개했습니다. Rust, CC0, 클론 시점 기준 서비스 크레이트 437개 — 그리고 첫 3주 커밋 29,684개를 전부 에이전트 스웜이 썼고, 사람은 코드를 리뷰하지 않았습니다.</li>
+  <li>구조의 핵심은 세 에이전트 팀입니다. <strong>정합성 테스트 작성 → 에뮬레이터에 재생해 불일치 발견 → 이슈당 에이전트 하나가 수정</strong>. 테스트는 진짜 AWS를 먼저 통과해야 정답으로 인정되므로, 검증의 근거가 모델 바깥의 현실에 고정됩니다.</li>
+  <li>사람 리뷰는 <strong>머지 게이트</strong>로 대체됐습니다. Sivasubramanian의 요약: "소프트웨어의 품질은 엔지니어가 AI 주변에 설계한 가드레일이 결정한다." Alf 재구축 일화(검증 장치 없이 나흘 밤 → 스펙·테스트 환경 제공 후 2시간)가 이 주장의 근거입니다.</li>
+  <li>리포지토리 자체가 에이전트 친화 설계의 교재입니다. 서비스당 크레이트(병렬 작업·부분 빌드), 수정 금지 <code>vendor/</code>, Smithy 모델 기반 코드 생성, 그리고 <strong>마크다운 파일 이슈 트래커</strong>(미해결 6,019 / 해결 16,248건, git으로 버전 관리).</li>
+  <li>한계도 명확합니다. 에뮬레이터는 테스트된 시나리오 안에서만 AWS와 일치하고, 미구현 오퍼레이션은 501로 실패하며, 보안·프로덕션 검증엔 쓸 수 없습니다. 커밋 수는 속도의 증거일 뿐, 정확성의 증거는 fidelity score입니다.</li>
+  <li>따라 할 패턴: 에이전트에게 코드를 맡기기 전에 <strong>스펙 → 정답 기록(에이전트 읽기 전용) → 머지 게이트</strong>를 먼저 만드세요. 코드 리뷰 대신 "정답 기록이 현실을 충분히 덮는가"를 리뷰하는 것 — 그게 이번 주 AWS가 보여 준 엔지니어의 새 일입니다.</li>
+</ul>
+
+<h2 id="sec-9">9. 참고 자료</h2>
+
+<ul>
+  <li><a href="https://www.allthingsdistributed.com/2026/11/aws-emulator-and-the-engineers-job-when-agents-write-the-code.html" target="_blank" rel="noopener">Swami Sivasubramanian — "AWS Emulator and the engineer's job when agents write the code" (All Things Distributed, 2026-11-11)</a></li>
+  <li><a href="https://www.aboutamazon.com/news/aws/how-autonomous-ai-agents-built-aws-emulator" target="_blank" rel="noopener">Amazon — "AWS Emulator: a local emulator built 100% by autonomous AI agents"</a></li>
+  <li><a href="https://github.com/aws/aws-emulator" target="_blank" rel="noopener">GitHub — aws/aws-emulator (CC0; README·AGENTS.md·issues/ 디렉터리)</a></li>
+  <li><a href="https://docs.aws.amazon.com/emulator/latest/userguide/what-is-service.html" target="_blank" rel="noopener">AWS Emulator User Guide</a></li>
+  <li><a href="https://news.ycombinator.com/item?id=50456631" target="_blank" rel="noopener">Hacker News 토론 — "AWS emulator"</a></li>
+  <li><a href="https://simonwillison.net/2026/Nov/11/aws-emulator/" target="_blank" rel="noopener">Simon Willison — "aws-emulator" (커밋 집계)</a></li>
+  <li><a href="https://www.infoq.com/news/2026/11/aws-emulator-agents/" target="_blank" rel="noopener">InfoQ — "AWS Open-Sources Emulator for Local Testing of 200+ Services by Coding Agents"</a></li>
+  <li><a href="https://www.geekwire.com/2026/aws-gives-developers-a-free-local-stand-in-for-its-cloud-built-from-scratch-by-ai-agents/" target="_blank" rel="noopener">GeekWire — "AWS gives developers a free local stand-in for its cloud, built from scratch by AI agents"</a></li>
+  <li><a href="https://thenewstack.io/aws-emulator-ai-agents/" target="_blank" rel="noopener">The New Stack — "AWS had its agents build a free and open emulator for AWS. They now maintain it, too."</a></li>
+  <li><a href="https://siliconangle.com/2026/11/11/amazons-open-source-aws-emulator-lets-developers-validate-their-code-locally-without-the-cloud/" target="_blank" rel="noopener">SiliconANGLE — "Amazon's open-source AWS Emulator lets developers validate their code locally, without the cloud"</a></li>
+</ul>

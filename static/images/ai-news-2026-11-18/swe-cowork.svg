@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif">
+  <rect width="800" height="400" fill="#fcfcfb"/>
+  <text x="32" y="38" font-size="18" font-weight="700" fill="#0b0b0b">SWE-CoWork — 테스트는 통과, 과제는 미완주</text>
+  <text x="32" y="60" font-size="12.5" fill="#52514e">가상 동료 26명이 있는 조직에서 101개 개발 과제 수행 (수치: 논문 초록 기재값)</text>
+
+  <!-- left panel: bars, scale 100% -> 300px, x0=120 -->
+  <text x="32" y="100" font-size="13.5" font-weight="700" fill="#0b0b0b">상위 2개 모델 평균</text>
+  <text x="110" y="138" text-anchor="end" font-size="12.5" fill="#52514e">F2P 테스트</text>
+  <text x="110" y="153" text-anchor="end" font-size="12.5" fill="#52514e">통과</text>
+  <rect x="120" y="128" width="189" height="26" rx="4" fill="#2a78d6"/>
+  <text x="317" y="146" font-size="13" font-weight="700" fill="#0b0b0b">약 63%</text>
+
+  <text x="110" y="192" text-anchor="end" font-size="12.5" fill="#52514e">과제 완주</text>
+  <rect x="120" y="182" width="24" height="26" rx="4" fill="#2a78d6"/>
+  <text x="152" y="200" font-size="13" font-weight="700" fill="#0b0b0b">8% 미만</text>
+  <line x1="120" y1="122" x2="120" y2="214" stroke="#c3c2b7" stroke-width="1"/>
+
+  <text x="32" y="250" font-size="12.5" fill="#52514e">요구사항을 전부 미리 줘도 F2P만 +16p,</text>
+  <text x="32" y="268" font-size="12.5" fill="#52514e">완주율은 그대로 — 병목은 코딩이 아니라</text>
+  <text x="32" y="286" font-size="12.5" fill="#52514e">요구사항의 수집·추적·검증이다.</text>
+
+  <!-- right panel: requirement pipeline -->
+  <text x="430" y="100" font-size="13.5" font-weight="700" fill="#0b0b0b">요구사항이 새는 곳 (Claude Opus 5.5 궤적 분석)</text>
+
+  <rect x="430" y="118" width="330" height="52" rx="8" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="446" y="140" font-size="12.5" fill="#0b0b0b">① 질문을 올바른 담당 동료에게 보냄</text>
+  <text x="446" y="158" font-size="13" font-weight="700" fill="#2a78d6">93%</text>
+
+  <path d="M 595 170 L 595 184" stroke="#52514e" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="430" y="188" width="330" height="52" rx="8" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="446" y="210" font-size="12.5" fill="#0b0b0b">② 동료가 가진 요구사항을 실제로 확보</text>
+  <text x="446" y="228" font-size="13" font-weight="700" fill="#2a78d6">64% <tspan fill="#52514e" font-weight="400">— 미룬 질문은 다시 안 물어봄</tspan></text>
+
+  <path d="M 595 240 L 595 254" stroke="#52514e" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="430" y="258" width="330" height="52" rx="8" fill="none" stroke="#eb6834" stroke-width="1.5"/>
+  <text x="446" y="280" font-size="12.5" fill="#0b0b0b">③ "완료"라고 보고한 요구사항 중 테스트 실패</text>
+  <text x="446" y="298" font-size="13" font-weight="700" fill="#eb6834">31%</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#52514e"/>
+    </marker>
+  </defs>
+
+  <text x="32" y="356" font-size="12.5" font-weight="700" fill="#0b0b0b">🛠 시사점: 에이전트 루프에 "요구사항 원장(ledger)"을 두고, 완료 선언마다 원장 대조 검증 단계를 강제할 것.</text>
+  <text x="32" y="378" font-size="11.5" fill="#52514e">출처: arXiv 2611.20218 (TokenWave AI) — 추출 수치는 초록 기재값, 세부는 본문 참조</text>
+</svg>

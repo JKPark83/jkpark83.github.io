@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif">
+  <rect width="800" height="430" fill="#fcfcfb"/>
+  <text x="32" y="38" font-size="18" font-weight="700" fill="#0b0b0b">GPT-6.2 Astra · Sol — API 가격 ($ / 1M 토큰)</text>
+  <text x="32" y="60" font-size="12.5" fill="#52514e">2026-11-17 출시 · 전작 GPT-6 Astra 대비 입력·출력 20% 인하 (보도 종합)</text>
+
+  <!-- legend -->
+  <rect x="560" y="26" width="12" height="12" rx="3" fill="#2a78d6"/>
+  <text x="578" y="37" font-size="12.5" fill="#0b0b0b">GPT-6.2 Astra</text>
+  <rect x="680" y="26" width="12" height="12" rx="3" fill="#eb6834"/>
+  <text x="698" y="37" font-size="12.5" fill="#0b0b0b">GPT-6.2 Sol</text>
+
+  <!-- bars: scale 40 -> 560px, x0=150 -->
+  <!-- Astra input 8 -->
+  <text x="140" y="106" text-anchor="end" font-size="12.5" fill="#52514e">입력</text>
+  <rect x="150" y="90" width="112" height="22" rx="4" fill="#2a78d6"/>
+  <text x="270" y="106" font-size="12.5" font-weight="700" fill="#0b0b0b">$8</text>
+  <!-- Sol input 2 -->
+  <rect x="150" y="116" width="28" height="22" rx="4" fill="#eb6834"/>
+  <text x="186" y="132" font-size="12.5" font-weight="700" fill="#0b0b0b">$2</text>
+
+  <!-- Astra output 40 -->
+  <text x="140" y="186" text-anchor="end" font-size="12.5" fill="#52514e">출력</text>
+  <rect x="150" y="170" width="560" height="22" rx="4" fill="#2a78d6"/>
+  <text x="702" y="186" text-anchor="end" font-size="12.5" font-weight="700" fill="#fcfcfb">$40</text>
+  <!-- Sol output 10 -->
+  <rect x="150" y="196" width="140" height="22" rx="4" fill="#eb6834"/>
+  <text x="298" y="212" font-size="12.5" font-weight="700" fill="#0b0b0b">$10</text>
+
+  <!-- axis baseline -->
+  <line x1="150" y1="88" x2="150" y2="222" stroke="#c3c2b7" stroke-width="1"/>
+
+  <!-- spec row -->
+  <line x1="32" y1="248" x2="768" y2="248" stroke="#c3c2b7" stroke-width="1"/>
+  <text x="32" y="276" font-size="12.5" fill="#0b0b0b">캐시 입력 <tspan font-weight="700">$0.40</tspan> (Astra)</text>
+  <text x="250" y="276" font-size="12.5" fill="#0b0b0b">컨텍스트 <tspan font-weight="700">약 1M</tspan> · 출력 128K (서드파티 리스팅)</text>
+  <text x="590" y="276" font-size="12.5" fill="#0b0b0b">ChatGPT·API 동시 제공</text>
+
+  <!-- claims box -->
+  <rect x="32" y="298" width="736" height="104" rx="10" fill="none" stroke="#c3c2b7" stroke-width="1.2"/>
+  <text x="48" y="324" font-size="13" font-weight="700" fill="#0b0b0b">⚠️ OpenAI 자체 보고 벤치마크 (서드파티 재검증 전)</text>
+  <text x="48" y="348" font-size="12.5" fill="#52514e">· Agents' Last Exam: GPT-6 Astra 대비 +5.2p (비용 1/3 이하), Claude Fable 5.2 대비 +5.5p 주장</text>
+  <text x="48" y="368" font-size="12.5" fill="#52514e">· Terminal-Bench Science: GPT-6 Astra 대비 약 +9p 주장</text>
+  <text x="48" y="388" font-size="12.5" fill="#52514e">· 반면 Artificial Analysis 집계에서는 Fable 5.2에 이어 2위로 리스팅 — 교차 확인 대기</text>
+</svg>

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 570" font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif">
+  <rect width="800" height="570" fill="#fcfcfb"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#0b0b0b">오늘의 AI 변화 지도 — 2026-11-18</text>
+  <text x="400" y="58" text-anchor="middle" font-size="12.5" fill="#52514e">OpenAI 가격 인하 공세 · 벤치마크는 "코딩"과 "회사원 역할"의 격차를 조준</text>
+
+  <!-- center theme -->
+  <rect x="265" y="272" width="270" height="44" rx="22" fill="#0b0b0b"/>
+  <text x="400" y="299" text-anchor="middle" font-size="13.5" font-weight="700" fill="#fcfcfb">더 싸진 프런티어, 아직 먼 '완주'</text>
+
+  <!-- quadrant: 모델 -->
+  <rect x="24" y="80" width="364" height="178" rx="10" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+  <rect x="24" y="80" width="364" height="30" rx="10" fill="#2a78d6"/>
+  <text x="40" y="100" font-size="13.5" font-weight="700" fill="#fcfcfb">🤖 모델 &amp; 릴리즈</text>
+  <text x="40" y="132" font-size="13" font-weight="700" fill="#0b0b0b">GPT-6.2 Astra · Sol (11/17)</text>
+  <text x="40" y="150" font-size="12" fill="#52514e">$8/$40 · $2/$10, 캐시 $0.40 — 전작 대비 20% 인하</text>
+  <text x="40" y="167" font-size="12" fill="#52514e">"Fable 5.2 추월" 클레임은 아직 벤더 보고</text>
+  <text x="40" y="196" font-size="13" font-weight="700" fill="#0b0b0b">K2-Horizon 테크 리포트 (11/16)</text>
+  <text x="40" y="214" font-size="12" fill="#52514e">0.9B–375B-A23B 6종 풀오픈: 데이터 파이프라인·</text>
+  <text x="40" y="231" font-size="12" fill="#52514e">중간 체크포인트·학습 코드까지 전부 공개</text>
+
+  <!-- quadrant: 논문 -->
+  <rect x="412" y="80" width="364" height="178" rx="10" fill="none" stroke="#eb6834" stroke-width="1.5"/>
+  <rect x="412" y="80" width="364" height="30" rx="10" fill="#eb6834"/>
+  <text x="428" y="100" font-size="13.5" font-weight="700" fill="#fcfcfb">📚 논문</text>
+  <text x="428" y="132" font-size="13" font-weight="700" fill="#0b0b0b">SWE-CoWork (TokenWave AI)</text>
+  <text x="428" y="150" font-size="12" fill="#52514e">가상 동료 26명의 조직 속 코딩 에이전트:</text>
+  <text x="428" y="167" font-size="12" fill="#52514e">테스트 63% 통과해도 과제 완주는 8% 미만</text>
+  <text x="428" y="196" font-size="13" font-weight="700" fill="#0b0b0b">Accelerate Bench (Tencent Hy)</text>
+  <text x="428" y="214" font-size="12" fill="#52514e">앱 전체 최적화 32과제 — 같은 코드도 빌드·런타임</text>
+  <text x="428" y="231" font-size="12" fill="#52514e">설정에 따라 0.29x~2.12x</text>
+
+  <!-- quadrant: 오픈소스 -->
+  <rect x="24" y="330" width="364" height="178" rx="10" fill="none" stroke="#1baf7a" stroke-width="1.5"/>
+  <rect x="24" y="330" width="364" height="30" rx="10" fill="#1baf7a"/>
+  <text x="40" y="350" font-size="13.5" font-weight="700" fill="#fcfcfb">🛠 오픈소스</text>
+  <text x="40" y="382" font-size="13" font-weight="700" fill="#0b0b0b">DIYgod/pinky (~2.4k★)</text>
+  <text x="40" y="400" font-size="12" fill="#52514e">진짜 아이폰·안드로이드를 MCP로 조작,</text>
+  <text x="40" y="417" font-size="12" fill="#52514e">결제·발송은 게이트웨이가 사람에게 승인 요청</text>
+  <text x="40" y="446" font-size="13" font-weight="700" fill="#0b0b0b">inference-optimisation-skill (~0.9k★)</text>
+  <text x="40" y="464" font-size="12" fill="#52514e">로컬 LLM 서빙 속도를 힐클라이밍하는 에이전트</text>
+  <text x="40" y="481" font-size="12" fill="#52514e">스킬 — 측정 레시피와 실패 로그까지 동봉</text>
+
+  <!-- quadrant: 도구 팁 -->
+  <rect x="412" y="330" width="364" height="178" rx="10" fill="none" stroke="#6250d6" stroke-width="1.5"/>
+  <rect x="412" y="330" width="364" height="30" rx="10" fill="#6250d6"/>
+  <text x="428" y="350" font-size="13.5" font-weight="700" fill="#fcfcfb">🧑‍💻 도구 팁</text>
+  <text x="428" y="382" font-size="13" font-weight="700" fill="#0b0b0b">Claude Code 2.1.326</text>
+  <text x="428" y="400" font-size="12" fill="#52514e">Code Mode를 agent teams와 같이 켤 수 있게 됨</text>
+  <text x="428" y="429" font-size="13" font-weight="700" fill="#0b0b0b">Codex: 헤드리스 로그인</text>
+  <text x="428" y="447" font-size="12" fill="#52514e">--device-auth가 config server 로그인까지 커버</text>
+  <text x="428" y="476" font-size="13" font-weight="700" fill="#0b0b0b">공통: 요구사항 추적 아티팩트</text>
+  <text x="428" y="494" font-size="12" fill="#52514e">"완료 보고" 31%가 테스트 실패 — 체크리스트로 검증</text>
+
+  <text x="400" y="548" text-anchor="middle" font-size="11" fill="#52514e">수치 출처: 각 1차 소스(변경로그·arXiv·GitHub API) — 본문 링크 참조</text>
+</svg>

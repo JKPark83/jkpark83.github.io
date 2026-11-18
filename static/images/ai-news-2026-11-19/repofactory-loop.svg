@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif">
+  <rect width="800" height="430" fill="#fcfcfb"/>
+  <text x="400" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#0b0b0b">RepoFactory — 환경 진화 루프 (Environment Evolution Loop)</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#52514e">모델 롤아웃 없이, 프록시 신호만으로 "훈련 가치"를 끌어올린다 (arXiv 2611.21152)</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 z" fill="#52514e"/>
+    </marker>
+  </defs>
+
+  <!-- step 1 -->
+  <rect x="30" y="90" width="170" height="64" rx="10" fill="#eef4fc" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="115" y="116" text-anchor="middle" font-size="13" font-weight="700" fill="#0b0b0b">실제 레포지토리</text>
+  <text x="115" y="136" text-anchor="middle" font-size="11.5" fill="#3a3936">17개 소프트웨어 도메인</text>
+
+  <!-- step 2 -->
+  <rect x="250" y="90" width="190" height="64" rx="10" fill="#eef4fc" stroke="#2a78d6" stroke-width="1.5"/>
+  <text x="345" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="#0b0b0b">검증 가능 환경으로 변환</text>
+  <text x="345" y="131" text-anchor="middle" font-size="11.5" fill="#3a3936">언어 스펙 → 프로젝트를</text>
+  <text x="345" y="146" text-anchor="middle" font-size="11.5" fill="#3a3936">밑바닥부터 빌드하는 과제</text>
+
+  <!-- step 3: evolution loop box -->
+  <rect x="490" y="78" width="280" height="118" rx="10" fill="#f0faf5" stroke="#1d9a6c" stroke-width="2"/>
+  <text x="630" y="102" text-anchor="middle" font-size="13.5" font-weight="700" fill="#0b6e46">♻️ 환경 진화 루프</text>
+  <text x="630" y="124" text-anchor="middle" font-size="12" fill="#3a3936">프록시 신호 3종의 곱을 최적화</text>
+  <text x="630" y="144" text-anchor="middle" font-size="12" font-weight="700" fill="#0b0b0b">유효성 × 구조 결합도 × 구현 범위</text>
+  <text x="630" y="166" text-anchor="middle" font-size="11.5" fill="#3a3936">롤아웃·재학습 없이 환경을 고쳐 쓴다</text>
+  <text x="630" y="184" text-anchor="middle" font-size="11.5" fill="#3a3936">→ 10,159개 환경 합성</text>
+
+  <path d="M200 122 L244 122" stroke="#52514e" stroke-width="1.5" marker-end="url(#arr)"/>
+  <path d="M440 122 L484 122" stroke="#52514e" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- down to training -->
+  <path d="M630 196 L630 236" stroke="#52514e" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- training -->
+  <rect x="490" y="242" width="280" height="56" rx="10" fill="#faf3ec" stroke="#d6762a" stroke-width="1.5"/>
+  <text x="630" y="266" text-anchor="middle" font-size="13" font-weight="700" fill="#0b0b0b">Qwen3.5-35B-A3B 훈련</text>
+  <text x="630" y="286" text-anchor="middle" font-size="11.5" fill="#3a3936">→ RepoHorizen-35B-A3B</text>
+
+  <!-- results -->
+  <path d="M490 270 L420 270" stroke="#52514e" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="30" y="226" width="380" height="140" rx="10" fill="none" stroke="#b7b5b0" stroke-width="1.2"/>
+  <text x="50" y="252" font-size="13" font-weight="700" fill="#0b0b0b">결과 (논문 초록 기재값)</text>
+  <!-- bars: NL2Repo -->
+  <text x="50" y="280" font-size="11.5" fill="#3a3936">NL2Repo-Bench, 진화 루프 포함</text>
+  <rect x="50" y="288" width="316" height="14" rx="3" fill="#1d9a6c"/>
+  <text x="374" y="300" font-size="11.5" font-weight="700" fill="#0b0b0b" text-anchor="start">+22.6pp</text>
+  <text x="50" y="322" font-size="11.5" fill="#3a3936">NL2Repo-Bench, 진화 루프 없이</text>
+  <rect x="50" y="330" width="245" height="14" rx="3" fill="#9fcfbd"/>
+  <text x="303" y="342" font-size="11.5" fill="#3a3936" text-anchor="start">+17.5pp</text>
+  <text x="50" y="361" font-size="11" fill="#8a8884">5개 벤치 평균: +8.5pp (진화 없이 +6.4pp) — 막대 길이는 pp 값 비례</text>
+
+  <text x="400" y="408" text-anchor="middle" font-size="11" fill="#8a8884">시사점: 에이전트 훈련의 병목은 모델이 아니라 "환경의 품질"이고, 그것도 루프로 최적화할 수 있다</text>
+</svg>

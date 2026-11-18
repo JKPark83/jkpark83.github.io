@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="커버 그림. 왼쪽에서 webhook과 타이머 이벤트가 인박스 큐 테이블에 쌓이고, 가운데 잠든 에이전트가 이벤트에 깨어나 런을 돈 뒤, 오른쪽 아웃박스로 메시지 하나를 내보내고 다시 잠드는 사이클이 그려져 있다">
+  <defs>
+    <linearGradient id="aobg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#aobg)"/>
+
+  <text x="600" y="76" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="40" font-weight="800">에이전트는 대부분의 시간을 잠들어 있어야 합니다</text>
+  <text x="600" y="120" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="22">Anthropic의 상시 가동 에이전트 설계도 — 인박스 · 타이머 · 메모리 · 권한 · 아웃박스</text>
+
+  <!-- 왼쪽: 이벤트 소스 -->
+  <rect x="60" y="210" width="230" height="52" rx="10" fill="#38bdf8" opacity="0.12" stroke="#38bdf8" stroke-width="2"/>
+  <text x="175" y="242" text-anchor="middle" fill="#38bdf8" font-family="sans-serif" font-size="19" font-weight="700">webhook</text>
+  <rect x="60" y="282" width="230" height="52" rx="10" fill="#a78bfa" opacity="0.12" stroke="#a78bfa" stroke-width="2"/>
+  <text x="175" y="314" text-anchor="middle" fill="#a78bfa" font-family="sans-serif" font-size="19" font-weight="700">타이머 ⏰</text>
+  <rect x="60" y="354" width="230" height="52" rx="10" fill="#38bdf8" opacity="0.12" stroke="#38bdf8" stroke-width="2"/>
+  <text x="175" y="386" text-anchor="middle" fill="#38bdf8" font-family="sans-serif" font-size="19" font-weight="700">백그라운드 작업</text>
+
+  <line x1="290" y1="236" x2="368" y2="292" stroke="#38bdf8" stroke-width="2.5"/>
+  <line x1="290" y1="308" x2="368" y2="308" stroke="#a78bfa" stroke-width="2.5"/>
+  <line x1="290" y1="380" x2="368" y2="324" stroke="#38bdf8" stroke-width="2.5"/>
+
+  <!-- 인박스 큐 -->
+  <rect x="370" y="238" width="190" height="140" rx="12" fill="#fbbf24" opacity="0.1" stroke="#fbbf24" stroke-width="3"/>
+  <text x="465" y="270" text-anchor="middle" fill="#fbbf24" font-family="sans-serif" font-size="21" font-weight="800">이벤트 인박스</text>
+  <rect x="392" y="286" width="146" height="20" rx="5" fill="#fbbf24" opacity="0.35"/>
+  <rect x="392" y="314" width="146" height="20" rx="5" fill="#fbbf24" opacity="0.22"/>
+  <rect x="392" y="342" width="146" height="20" rx="5" fill="#fbbf24" opacity="0.12"/>
+
+  <line x1="560" y1="308" x2="648" y2="308" stroke="#fbbf24" stroke-width="2.5"/>
+  <text x="604" y="296" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="15">깨움</text>
+
+  <!-- 에이전트 사이클 -->
+  <circle cx="750" cy="308" r="98" fill="none" stroke="#2dd4bf" stroke-width="2.5" stroke-dasharray="7 6"/>
+  <text x="750" y="248" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="30">😴</text>
+  <text x="750" y="280" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="15" font-weight="700">잠 — 토큰 0</text>
+  <text x="750" y="330" text-anchor="middle" fill="#2dd4bf" font-family="sans-serif" font-size="22" font-weight="800">런</text>
+  <text x="750" y="356" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="14">세션 · 메모리 · 권한</text>
+  <text x="750" y="382" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="14">일 끝나면 다시 잠</text>
+
+  <line x1="848" y1="308" x2="928" y2="308" stroke="#2dd4bf" stroke-width="2.5"/>
+
+  <!-- 아웃박스 -->
+  <rect x="930" y="252" width="210" height="112" rx="12" fill="#fb7185" opacity="0.1" stroke="#fb7185" stroke-width="3"/>
+  <text x="1035" y="288" text-anchor="middle" fill="#fb7185" font-family="sans-serif" font-size="21" font-weight="800">아웃박스</text>
+  <text x="1035" y="318" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="15">결과만 한 통 📨</text>
+  <text x="1035" y="344" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="15">보낼 게 없으면 침묵</text>
+
+  <text x="600" y="490" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="19">"항상 켜져 있는" 건 모델이 아니라 깨우는 장치 — 작업 큐 · cron · 아웃박스, 전부 아는 패턴입니다</text>
+  <text x="600" y="560" text-anchor="middle" fill="#475569" font-family="sans-serif" font-size="17">Anthropic "Building always-on agents" (2026-11-13) 해부 · jkpark83.github.io</text>
+</svg>

@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="목요일 아침 브리핑 표지. 앤스로픽이 공모가 83달러로 밴드 70에서 78달러를 상회해 확정했고 오늘 밤 나스닥에 상장합니다. 나스닥은 0.42퍼센트 올라 닷새 만에 반등했지만 엔비디아는 2.89퍼센트 하락했습니다. 비트코인은 62,000달러대로 밀렸고 ETF 유출이 하루 만에 재개됐습니다. 주식 공포탐욕지수는 25로 역발상 기준선에 닿았고 코인은 11로 엿새 연속 극단 공포입니다. 나스닥과 비트코인 모두 관망입니다">
+  <defs>
+    <linearGradient id="mbcov-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101723"/>
+      <stop offset="1" stop-color="#14101f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#mbcov-bg)"/>
+  <text x="80" y="120" font-family="sans-serif" font-size="44" font-weight="700" fill="#e2e8f0">마켓 브리핑</text>
+  <text x="80" y="168" font-family="sans-serif" font-size="22" fill="#94a3b8">2026.11.19 · 나스닥 &amp; 비트코인 5분 요약 · 목요일판</text>
+  <text x="80" y="210" font-family="sans-serif" font-size="20" fill="#86efac">앤스로픽 공모가 83달러(밴드 70~78 상회) — 오늘 밤 나스닥 데뷔 · 조달 1,000억달러 육박</text>
+
+  <g transform="translate(90,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">주식 — 지수 반등, 주도주 교대</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#22c55e" opacity="0.14"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#86efac">24,430</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#bbf7d0">+0.4% · NVDA는 -2.9%</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">나스닥 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">심리 25 · 기준선 터치</text>
+  </g>
+
+  <g transform="translate(620,280)">
+    <text x="220" y="0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">코인 — 유출 재개, 한 칸 더 아래로</text>
+    <rect x="30" y="40" width="180" height="150" rx="10" fill="#ef4444" opacity="0.16"/>
+    <text x="120" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#fca5a5">BTC 62,000대</text>
+    <text x="120" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fecaca">ETF -2.4억달러 재개</text>
+    <rect x="240" y="40" width="180" height="150" rx="10" fill="#eab308" opacity="0.18"/>
+    <text x="330" y="100" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#facc15">비트코인 관망</text>
+    <text x="330" y="132" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#fef08a">심리 11 · 엿새째 극단 공포</text>
+  </g>
+
+  <text x="80" y="560" font-family="sans-serif" font-size="18" fill="#64748b">FOMC 의사록 매파(12월 인상 92~96%) · 10년물 5.07% · 오늘 밤 ANT 데뷔 + 월마트 실적</text>
+  <text x="80" y="596" font-family="sans-serif" font-size="16" fill="#475569">본 글은 정보 제공 목적이며 투자 자문이 아닙니다</text>
+</svg>

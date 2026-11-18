@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 570" font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif">
+  <rect width="800" height="570" fill="#fcfcfb"/>
+  <text x="400" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#0b0b0b">오늘의 AI 변화 지도 — 2026-11-19</text>
+  <text x="400" y="58" text-anchor="middle" font-size="12.5" fill="#52514e">훈련 환경도, 자기 개선도, 포팅도 — 오늘의 공통분모는 "검증 가능한 루프"</text>
+
+  <!-- center theme -->
+  <rect x="255" y="272" width="290" height="44" rx="22" fill="#0b0b0b"/>
+  <text x="400" y="299" text-anchor="middle" font-size="13.5" font-weight="700" fill="#fcfcfb">루프를 설계하는 쪽이 이긴다</text>
+
+  <!-- quadrant: 모델 -->
+  <rect x="24" y="80" width="364" height="178" rx="10" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+  <rect x="24" y="80" width="364" height="30" rx="10" fill="#2a78d6"/>
+  <text x="40" y="100" font-size="13.5" font-weight="700" fill="#fcfcfb">🤖 모델 &amp; 릴리즈</text>
+  <text x="40" y="132" font-size="13" font-weight="700" fill="#0b0b0b">Hunyuan Hy4 Flash (11/16)</text>
+  <text x="40" y="150" font-size="12" fill="#3a3936">224B MoE·12B 활성 · 1M 컨텍스트 · 멀티모달</text>
+  <text x="40" y="167" font-size="12" fill="#3a3936">입력 $0.07 / 출력 $0.281 per 1M — 초저가 호스티드</text>
+  <text x="40" y="196" font-size="13" font-weight="700" fill="#0b0b0b">Xing4 테크 리포트 (11/17)</text>
+  <text x="40" y="214" font-size="12" fill="#3a3936">China Telecom — Ascend·MindSpore만으로</text>
+  <text x="40" y="231" font-size="12" fill="#3a3936">에이전틱 모델 풀스택 학습 · HF Daily 1위</text>
+
+  <!-- quadrant: 논문 -->
+  <rect x="412" y="80" width="364" height="178" rx="10" fill="none" stroke="#1d9a6c" stroke-width="1.5"/>
+  <rect x="412" y="80" width="364" height="30" rx="10" fill="#1d9a6c"/>
+  <text x="428" y="100" font-size="13.5" font-weight="700" fill="#fcfcfb">📚 논문</text>
+  <text x="428" y="132" font-size="13" font-weight="700" fill="#0b0b0b">RepoFactory (2611.21152)</text>
+  <text x="428" y="150" font-size="12" fill="#3a3936">실제 레포 → 훈련 환경 10,159개 자동 합성</text>
+  <text x="428" y="167" font-size="12" fill="#3a3936">환경 진화 루프로 NL2Repo +22.6pp</text>
+  <text x="428" y="196" font-size="13" font-weight="700" fill="#0b0b0b">자기 개선, 시켜야 하나? (2611.23219)</text>
+  <text x="428" y="214" font-size="12" fill="#3a3936">MIT — 프런티어 에이전트는 루프를 직접 설계하고</text>
+  <text x="428" y="231" font-size="12" fill="#3a3936">배운 텍스트 아티팩트가 외부 벤치로 전이</text>
+
+  <!-- quadrant: 오픈소스 -->
+  <rect x="24" y="332" width="364" height="178" rx="10" fill="none" stroke="#d6762a" stroke-width="1.5"/>
+  <rect x="24" y="332" width="364" height="30" rx="10" fill="#d6762a"/>
+  <text x="40" y="352" font-size="13.5" font-weight="700" fill="#fcfcfb">🛠 오픈소스</text>
+  <text x="40" y="384" font-size="13" font-weight="700" fill="#0b0b0b">rust-anything · 약 3.2k★ (11/16 생성)</text>
+  <text x="40" y="402" font-size="12" fill="#3a3936">기록-재생 검증으로 앱을 조각조각 Rust 포팅</text>
+  <text x="40" y="419" font-size="12" fill="#3a3936">Claude Code·Codex·Cursor MCP/스킬 내장</text>
+  <text x="40" y="448" font-size="13" font-weight="700" fill="#0b0b0b">huggingface/pybot · 약 0.8k★</text>
+  <text x="40" y="466" font-size="12" fill="#3a3936">에이전트 1,000+ 스웜이 순수 Python 룰 챗봇 작성</text>
+  <text x="40" y="483" font-size="12" fill="#3a3936">5,000개 버전 진화 — 승률 0% → 26%</text>
+
+  <!-- quadrant: 도구 팁 -->
+  <rect x="412" y="332" width="364" height="178" rx="10" fill="none" stroke="#8a4bd6" stroke-width="1.5"/>
+  <rect x="412" y="332" width="364" height="30" rx="10" fill="#8a4bd6"/>
+  <text x="428" y="352" font-size="13.5" font-weight="700" fill="#fcfcfb">🧑‍💻 Codex &amp; Claude Code</text>
+  <text x="428" y="384" font-size="13" font-weight="700" fill="#0b0b0b">🟦 CC 2.1.327 — mcp add-json stdin</text>
+  <text x="428" y="402" font-size="12" fill="#3a3936">토큰을 셸 히스토리에 안 남기고 MCP 등록</text>
+  <text x="428" y="431" font-size="13" font-weight="700" fill="#0b0b0b">🟩 Codex — stdio MCP 지연 기동 기본화</text>
+  <text x="428" y="449" font-size="12" fill="#3a3936">첫 호출 때 서버 기동 → 세션 시작 가벼워짐</text>
+  <text x="428" y="478" font-size="13" font-weight="700" fill="#0b0b0b">🟪 공통 — 자기 개선 루프에 예산·게이트</text>
+  <text x="428" y="496" font-size="12" fill="#3a3936">경험 수집 + 텍스트 아티팩트 + 전이 평가</text>
+
+  <text x="400" y="548" text-anchor="middle" font-size="11" fill="#8a8884">수치 출처: arXiv API · GitHub Search API · 복수 외신 교차 확인 (본문 링크 참조)</text>
+</svg>

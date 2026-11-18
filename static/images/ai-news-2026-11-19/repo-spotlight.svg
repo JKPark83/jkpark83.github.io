@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="'Noto Sans KR','Apple SD Gothic Neo',sans-serif">
+  <rect width="800" height="400" fill="#fcfcfb"/>
+  <text x="400" y="34" text-anchor="middle" font-size="18" font-weight="700" fill="#0b0b0b">오픈소스 스포트라이트 — 두 개의 "검증 루프"</text>
+  <text x="400" y="56" text-anchor="middle" font-size="12" fill="#52514e">스타 수는 GitHub Search API 기준(11/18), 성과 수치는 각 레포 README 자체 보고</text>
+
+  <!-- card 1: rust-anything -->
+  <rect x="24" y="76" width="364" height="276" rx="10" fill="none" stroke="#d6762a" stroke-width="1.5"/>
+  <rect x="24" y="76" width="364" height="34" rx="10" fill="#d6762a"/>
+  <text x="40" y="99" font-size="14" font-weight="700" fill="#fcfcfb">rust-anything</text>
+  <text x="372" y="99" font-size="12" fill="#fcfcfb" text-anchor="end">Rust · MIT · 약 3.2k★</text>
+
+  <text x="40" y="134" font-size="12.5" font-weight="700" fill="#0b0b0b">앱을 조각조각 Rust로 포팅, 매 단계 행동 검증</text>
+  <text x="40" y="158" font-size="12" fill="#3a3936">1. profile — 실제 워크로드로 핫패스 탐지</text>
+  <text x="40" y="178" font-size="12" fill="#3a3936">2. bridge — 바인딩 크레이트 + 포팅 스텁 생성</text>
+  <text x="40" y="198" font-size="12" fill="#3a3936">3. record — 원본 실행을 엣지 케이스로 녹화</text>
+  <text x="40" y="218" font-size="12" fill="#3a3936">4. diff — 녹화 케이스를 Rust에 재생, 불일치 검출</text>
+  <text x="40" y="238" font-size="12" fill="#3a3936">5. shadow — 양쪽 실행, 원본 결과 반환하며 감시</text>
+  <text x="40" y="258" font-size="12" fill="#3a3936">6. gate — clippy·unsafe 감사·에러 경로 검증</text>
+  <text x="40" y="288" font-size="12" font-weight="700" fill="#0b6e46">에이전트 연동: CC·Codex·Cursor·Gemini CLI</text>
+  <text x="40" y="306" font-size="12" fill="#3a3936">setup 한 번에 MCP 서버 + 스킬 등록</text>
+  <text x="40" y="334" font-size="11" fill="#8a8884">README 주장: 최대 20x 가속, 38,251 케이스 재생 0 불일치</text>
+
+  <!-- card 2: pybot -->
+  <rect x="412" y="76" width="364" height="276" rx="10" fill="none" stroke="#8a4bd6" stroke-width="1.5"/>
+  <rect x="412" y="76" width="364" height="34" rx="10" fill="#8a4bd6"/>
+  <text x="428" y="99" font-size="14" font-weight="700" fill="#fcfcfb">huggingface/pybot</text>
+  <text x="760" y="99" font-size="12" fill="#fcfcfb" text-anchor="end">Python · 약 0.8k★</text>
+
+  <text x="428" y="134" font-size="12.5" font-weight="700" fill="#0b0b0b">에이전트 1,000+ 스웜이 작성한 룰 기반 챗봇</text>
+  <text x="428" y="158" font-size="12" fill="#3a3936">가중치·학습 없음 — if-else·정규식·룩업 테이블만</text>
+  <text x="428" y="178" font-size="12" fill="#3a3936">5,000+ 버전을 쓰고 평가하며 진화</text>
+  <text x="428" y="198" font-size="12" fill="#3a3936">코드 64만 줄 + 자체 작성 테스트 55만 줄</text>
+
+  <text x="428" y="230" font-size="12" font-weight="700" fill="#0b0b0b">SmolTalkBench 승률 (LLM 심판)</text>
+  <text x="428" y="252" font-size="11.5" fill="#3a3936">시작</text>
+  <rect x="478" y="242" width="12" height="14" rx="3" fill="#cdb8ec"/>
+  <text x="498" y="253" font-size="11.5" fill="#3a3936">0%</text>
+  <text x="428" y="276" font-size="11.5" fill="#3a3936">최종</text>
+  <rect x="478" y="266" width="234" height="14" rx="3" fill="#8a4bd6"/>
+  <text x="720" y="277" font-size="11.5" font-weight="700" fill="#0b0b0b">26%</text>
+  <text x="428" y="300" font-size="11.5" fill="#3a3936">≈ SmolLM-360M-Instruct 수준 (sub-1B 전 SOTA)</text>
+
+  <text x="428" y="334" font-size="11" fill="#8a8884">스웜 오케스트레이션·자동 평가 루프의 공개 사례 연구</text>
+
+  <text x="400" y="384" text-anchor="middle" font-size="11.5" fill="#52514e">공통점: 사람이 코드를 검수하는 대신, 검증 루프(기록-재생 / LLM 심판 벤치)가 품질을 지킨다</text>
+</svg>
